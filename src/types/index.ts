@@ -6,6 +6,7 @@ export interface Course {
   duration: string;
   image: string;
   category: 'Computer School' | 'Cyber Services' | 'Professional';
+  level?: 'Beginner' | 'Intermediate' | 'Advanced';
 }
 
 export interface Enrollment {
