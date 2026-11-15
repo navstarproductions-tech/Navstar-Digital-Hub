@@ -37,7 +37,7 @@ export function CoursesPage() {
           const liveCourses = result.courses;
           const catalogIds = new Set(INITIAL_COURSES.map((course) => course.id));
           const hasNewCatalog = liveCourses.some((course) => catalogIds.has(course.id));
-          setCourses(hasNewCatalog ? liveCourses.filter((course) => course.status !== 'archived') : INITIAL_COURSES);
+          setCourses(hasNewCatalog ? liveCourses : INITIAL_COURSES);
         }
       })
       .catch(() => undefined);
