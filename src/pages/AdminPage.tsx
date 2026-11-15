@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users } from 'lucide-react';
+import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
 
-type Section = 'overview' | 'courses' | 'services' | 'enrollments' | 'finance' | 'gallery' | 'users' | 'settings';
+type Section = 'overview' | 'courses' | 'services' | 'enrollments' | 'finance' | 'gallery' | 'downloads' | 'users' | 'settings';
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
 type PortalUser = { id: string; name: string; email: string; role: string; status: string };
 
@@ -24,6 +24,7 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   { id: 'enrollments', label: 'Students & admissions', icon: Users },
   { id: 'finance', label: 'Donations & cashout', icon: CircleDollarSign },
   { id: 'gallery', label: 'Gallery & branding', icon: ImagePlus },
+  { id: 'downloads', label: 'Downloads & documents', icon: FileDown },
   { id: 'users', label: 'Portal accounts', icon: Users },
   { id: 'settings', label: 'Notifications & settings', icon: Settings },
 ];
@@ -64,6 +65,10 @@ export function AdminPage() {
   const [applications, setApplications] = useState<Record<string, unknown>[]>([]);
   const [cashoutRequests, setCashoutRequests] = useState<Record<string, unknown>[]>([]);
   const [metrics, setMetrics] = useState<Record<string, unknown>>({});
+  const [documents, setDocuments] = useState<{ id: string; title: string; description: string; originalName: string; sizeBytes: number; url: string }[]>([]);
+  const [documentTitle, setDocumentTitle] = useState('');
+  const [documentDescription, setDocumentDescription] = useState('');
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -129,6 +134,38 @@ export function AdminPage() {
     void loadBackend();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!user || user.role !== 'admin' || !backendReady) return;
+    fetch('/api/admin/downloads').then(async (response) => response.ok ? response.json() as Promise<{ documents?: typeof documents }> : null)
+      .then((result) => { if (result?.documents) setDocuments(result.documents); })
+      .catch(() => undefined);
+  }, [user, backendReady]);
+
+  const uploadDocument = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!documentFile || !backendReady) { setNotice('Choose a file and ensure document storage is connected.'); return; }
+    const form = new FormData();
+    form.set('file', documentFile);
+    form.set('title', documentTitle || documentFile.name);
+    form.set('description', documentDescription);
+    const response = await fetch('/api/admin/downloads', { method: 'POST', body: form });
+    const result = await response.json() as { id?: string; title?: string; description?: string; originalName?: string; sizeBytes?: number; url?: string; error?: string };
+    if (!response.ok || !result.id) { setNotice(result.error ?? 'Document upload failed.'); return; }
+    setDocuments((current) => [{ id: result.id!, title: result.title ?? documentFile.name, description: result.description ?? '', originalName: result.originalName ?? documentFile.name, sizeBytes: result.sizeBytes ?? documentFile.size, url: result.url ?? `/api/downloads/${result.id}` }, ...current]);
+    setDocumentTitle(''); setDocumentDescription(''); setDocumentFile(null);
+    const input = document.getElementById('admin-document-file') as HTMLInputElement | null;
+    if (input) input.value = '';
+    setNotice('Document uploaded and published to public downloads.');
+  };
+
+  const deleteDocument = async (id: string) => {
+    const response = await fetch(`/api/admin/downloads/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) { setNotice(result.error ?? 'Document could not be deleted.'); return; }
+    setDocuments((current) => current.filter((item) => item.id !== id));
+    setNotice('Document removed from public downloads.');
+  };
 
   const addService = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -370,6 +407,23 @@ export function AdminPage() {
           {active === 'users' && <div className="space-y-5"><form onSubmit={createPortalUser} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_180px_auto] xl:items-end"><div className="space-y-2"><Label htmlFor="portal-user-name">Full name</Label><Input id="portal-user-name" value={newUserName} onChange={(event) => setNewUserName(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="portal-user-email">Email</Label><Input id="portal-user-email" type="email" value={newUserEmail} onChange={(event) => setNewUserEmail(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="portal-user-role">Portal role</Label><select id="portal-user-role" value={newUserRole} onChange={(event) => setNewUserRole(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm">{['student', 'tutor', 'admissions', 'principal', 'admin'].map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}</select></div><Button type="submit" disabled={!backendReady || user?.role !== 'admin'} className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Create account</Button></form>{temporaryPassword && <p role="status" className="border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">One-time password (shown once): <code className="select-all font-bold">{temporaryPassword}</code>. Send it to the person through a separate secure channel; they must change it after signing in.</p>}<div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.email} · {portalUser.role}</p></div><span className="border px-2 py-1 text-xs">{portalUser.status}</span></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div></div>}
 
           {active === 'finance' && <div className="grid gap-6 xl:grid-cols-2"><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Verified donations and payments</h3><p className="mt-2 text-sm leading-6 text-slate-600">Only provider callbacks mark donations and tuition as paid. No M-Pesa PIN or payment credentials are shown here.</p><p className="mt-5 border bg-slate-50 p-4 text-sm text-slate-600">Verified donations: KSh {Number(metrics.verifiedDonations ?? 0).toLocaleString()} · Verified payments: KSh {Number(metrics.verifiedPayments ?? 0).toLocaleString()}</p></section><form onSubmit={startCashout} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Request cashout</h3><p className="mt-2 text-sm leading-6 text-slate-600">This creates an approval request only; it does not transfer funds. Never withdraw from the browser.</p></div><div className="space-y-2"><Label htmlFor="cashout-amount">Amount (KSh)</Label><Input id="cashout-amount" type="number" min="1" value={cashoutAmount} onChange={(event) => setCashoutAmount(event.target.value)} required /></div><Button className="bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={!backendReady || !user}><CircleDollarSign className="mr-2 h-4 w-4" />{backendReady ? 'Submit for approval' : 'Backend required'}</Button><div className="divide-y border">{cashoutRequests.map((item) => <div key={String(item.id)} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><span>KSh {Number(item.amount).toLocaleString()} · {String(item.status)}</span>{item.status === 'pending_approval' && user?.role === 'admin' && <span className="flex gap-2"><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'approved')}>Approve</Button><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'rejected')}>Reject</Button></span>}</div>)}{cashoutRequests.length === 0 && <p className="p-3 text-xs text-slate-500">No cashout requests.</p>}</div></form></div>}
+
+          {active === 'downloads' && <div className="space-y-5">
+            <section className="rounded-2xl border bg-white p-5">
+              <h3 className="font-bold text-slate-950">Publish downloadable documents</h3>
+              <p className="mt-1 text-sm text-slate-600">Upload approved forms, academic calendars, answer booklets, course lists, admission documents and other resources. Published files appear in the website footer.</p>
+              <form onSubmit={uploadDocument} className="mt-5 grid gap-3 md:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="document-title">Document title</Label><Input id="document-title" value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} placeholder="e.g. Student Course Enrolment Form (Form 1A)" /></div>
+                <div className="space-y-2"><Label htmlFor="admin-document-file">Choose document</Label><Input id="admin-document-file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,application/pdf" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} required /></div>
+                <div className="space-y-2 md:col-span-2"><Label htmlFor="document-description">Short description</Label><Input id="document-description" value={documentDescription} onChange={(event) => setDocumentDescription(event.target.value)} placeholder="What is this document used for?" /></div>
+                <div className="md:col-span-2"><Button type="submit" disabled={!backendReady || !documentFile} className="bg-blue-800 hover:bg-blue-900"><Plus className="mr-2 h-4 w-4" />Upload and publish</Button></div>
+              </form>
+              {!backendReady && <p className="mt-3 text-xs text-amber-700">Connect the production D1 database and DOCS R2 bucket before uploads can be published.</p>}
+            </section>
+            <section className="overflow-hidden rounded-2xl border bg-white"><div className="border-b p-4"><h3 className="font-bold text-slate-950">Published downloads</h3></div>
+              <div className="divide-y">{documents.map((doc) => <div key={doc.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0"><p className="font-semibold text-slate-900">{doc.title}</p><p className="mt-1 text-xs text-slate-500">{doc.originalName} · {(doc.sizeBytes / 1024).toFixed(0)} KB</p>{doc.description && <p className="mt-1 text-sm text-slate-600">{doc.description}</p>}</div><div className="flex items-center gap-3"><a href={doc.url} target="_blank" rel="noreferrer" className="text-sm font-bold text-blue-700">View file</a><button type="button" onClick={() => void deleteDocument(doc.id)} className="text-sm font-semibold text-rose-700">Remove</button></div></div>)}{documents.length === 0 && <p className="p-5 text-sm text-slate-500">No documents published yet. Upload your forms and calendar here.</p>}</div>
+            </section>
+          </div>}
 
           {active === 'gallery' && <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]"><section className="space-y-4 border bg-white p-5"><h3 className="font-bold text-slate-950">Logo and site identity</h3><p className="text-sm leading-6 text-slate-600">Choose a local logo preview. It will not be published until secure media storage is connected.</p><Label htmlFor="brand-name">Display name</Label><Input id="brand-name" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} /><Label htmlFor="logo-upload">Logo image</Label><Input id="logo-upload" type="file" accept="image/*" onChange={(event) => setImage(event, 'logo')} />{logoPreview && <img src={logoPreview} alt="Selected NAVSTAR logo preview" className="h-24 w-24 border object-contain p-2" />}<p className="text-xs text-slate-500">Recommended: transparent PNG or SVG, square format.</p></section><section className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Gallery</h3><p className="mt-1 text-sm text-slate-600">Preview up to eight images at a time. Storage is not configured.</p></div><Label htmlFor="gallery-upload">Add gallery images</Label><Input id="gallery-upload" type="file" accept="image/*" multiple onChange={(event) => setImage(event, 'gallery')} /><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{galleryPreview.map((url, index) => <img key={url} src={url} alt={`Gallery preview ${index + 1}`} className="aspect-square w-full border object-cover" />)}</div></section></div>}
 
