@@ -48,7 +48,7 @@ export function DonationsPage() {
   const [amount, setAmount] = useState(500);
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);\n  const [receipt, setReceipt] = useState<{ reference: string; code: string; amount: number; phone: string; date?: string } | null>(null);
 
   const startDonation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -93,7 +93,7 @@ export function DonationsPage() {
         );
       }
 
-      // Request the M-Pesa STK Push.
+      setMessage(`Donation registered as ${donation.reference || donation.id}. Preparing your M-Pesa prompt…`);\n\n      // Request the M-Pesa STK Push.
       const response = await fetch('/api/payments/stk-push', {
         method: 'POST',
         headers: {
