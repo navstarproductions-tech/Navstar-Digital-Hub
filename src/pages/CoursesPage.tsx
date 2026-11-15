@@ -1,107 +1,84 @@
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { INITIAL_COURSES } from '@/data/courses';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Clock, GraduationCap, Search, Filter } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { useEffect, useState } from 'react';
+import { ArrowRight, Clock3, GraduationCap, Search, ShieldCheck, CalendarDays, Sparkles } from 'lucide-react';
+import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
+
+const intakeOpens = new Date('2026-12-21T00:00:00+03:00').getTime();
+const intakeCloses = new Date('2027-01-15T23:59:59+03:00').getTime();
+
+function useCountdown(target: number) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const remaining = Math.max(0, target - now);
+  return {
+    days: Math.floor(remaining / 86400000),
+    hours: Math.floor((remaining % 86400000) / 3600000),
+    minutes: Math.floor((remaining % 3600000) / 60000),
+    seconds: Math.floor((remaining % 60000) / 1000),
+    started: now >= intakeOpens && now <= intakeCloses,
+    closed: now > intakeCloses,
+  };
+}
 
 export function CoursesPage() {
   const [search, setSearch] = useState('');
-  const [courses, setCourses] = useState(INITIAL_COURSES);
-
+  const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
+  const countdown = useCountdown(intakeOpens);
   useEffect(() => {
     let active = true;
     fetch('/api/courses')
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return response.json() as Promise<{ courses?: (Course & { status?: string })[] }>;
-      })
+      .then(async (response) => response.ok ? response.json() as Promise<{ courses?: Course[] }> : null)
       .then((result) => {
-        if (active && result?.courses?.length) setCourses(result.courses.filter((course) => course.status !== 'archived'));
+        if (active && result?.courses?.length) {
+          const liveCourses = result.courses;
+          const catalogIds = new Set(INITIAL_COURSES.map((course) => course.id));
+          const hasNewCatalog = liveCourses.some((course) => catalogIds.has(course.id));
+          setCourses(hasNewCatalog ? liveCourses.filter((course) => course.status !== 'archived') : INITIAL_COURSES);
+        }
       })
       .catch(() => undefined);
     return () => { active = false; };
   }, []);
 
-  const filteredCourses = courses.filter(c =>
-    c.title.toLowerCase().includes(search.toLowerCase()) || 
-    c.description.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCourses = useMemo(() => courses.filter((course) =>
+    course.title.toLowerCase().includes(search.toLowerCase()) ||
+    course.description.toLowerCase().includes(search.toLowerCase())
+  ), [courses, search]);
 
   return (
-    <div className="bg-slate-50 min-h-screen py-12">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">Professional Courses</h1>
-          <p className="mt-4 text-lg text-slate-600">
-            Gain the skills you need for the future of work. Enroll today and start learning immediately.
-          </p>
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-4 mb-12">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-            <Input 
-              className="pl-10 h-12 bg-white" 
-              placeholder="Search for a course..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <Button variant="outline" className="h-12 px-6">
-            <Filter className="mr-2 h-4 w-4" /> Filter
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredCourses.map((course) => (
-            <Card key={course.id} className="overflow-hidden flex flex-col h-full border-none shadow-sm hover:shadow-lg transition-all">
-              <div className="relative aspect-video">
-                <img src={course.image} alt={course.title} className="w-full h-full object-cover" />
-                <Badge className="absolute top-4 left-4 bg-primary/90 hover:bg-primary">{course.category}</Badge>
-              </div>
-              <CardHeader className="flex-1">
-                <div className="flex items-center gap-2 text-primary text-xs font-semibold uppercase tracking-wider mb-2">
-                  <GraduationCap className="h-3 w-3" />
-                  <span>Certification Course</span>
-                </div>
-                <CardTitle className="text-2xl">{course.title}</CardTitle>
-                <CardDescription className="text-base mt-2">
-                  {course.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0 pb-6">
-                <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    {course.duration}
-                  </div>
-                  <div className="h-1 w-1 bg-slate-300 rounded-full" />
-                  <div>KSh {course.price.toLocaleString()}</div>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-0 pb-6">
-                <Button asChild className="w-full h-11 text-base">
-                  <Link to={`/enroll/${course.id}`}>Enroll Now</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-
-        {filteredCourses.length === 0 && (
-          <div className="text-center py-24">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
-              <Search className="h-8 w-8 text-slate-300" />
+    <main className="min-h-screen bg-slate-50 pb-16">
+      <section className="relative isolate overflow-hidden bg-[#07172f] text-white">
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_10%_20%,rgba(37,99,235,.5),transparent_42%),radial-gradient(ellipse_at_90%_80%,rgba(6,182,212,.25),transparent_40%)]" />
+        <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+          <p className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[.22em] text-cyan-200"><GraduationCap className="h-4 w-4" /> Learning Portal</p>
+          <div className="mt-5 grid gap-8 lg:grid-cols-[1.2fr_.8fr] lg:items-end">
+            <div><h1 className="text-4xl font-black tracking-tight sm:text-5xl">Our Courses</h1><p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">Professional training programmes to boost your digital skills, build confidence, and prepare you for the digital workplace.</p><div className="mt-6 flex flex-wrap gap-3"><a href="#course-list" className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300">Explore programmes <ArrowRight className="h-4 w-4" /></a><Link to="/portals/student" className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10">Student Gateway</Link></div></div>
+            <div className="rounded-2xl border border-white/15 bg-white/[.07] p-5 backdrop-blur">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.2em] text-amber-300"><CalendarDays className="h-4 w-4" /> Intake calendar</div>
+              <p className="mt-3 text-lg font-extrabold">{countdown.closed ? 'January 2027 Intake Closed' : countdown.started ? 'January 2027 Intake Now Open' : 'September 2026 Intake Closed'}</p>
+              <p className="mt-1 text-sm text-slate-300">Next intake: <strong className="text-white">January 2027</strong> · 21 December 2026 – 15 January 2027</p>
+              {!countdown.started && !countdown.closed && <div className="mt-4 grid grid-cols-4 gap-2">{[['Days', countdown.days], ['Hours', countdown.hours], ['Mins', countdown.minutes], ['Secs', countdown.seconds]].map(([label, value]) => <div key={label} className="rounded-xl bg-black/20 px-2 py-3 text-center"><p className="text-2xl font-black tabular-nums">{String(value).padStart(2, '0')}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p></div>)}</div>}
+              <div className="mt-4 flex items-center gap-2 text-xs text-emerald-200"><ShieldCheck className="h-4 w-4" /> Flexible fee payment options available</div>
             </div>
-            <h3 className="text-xl font-bold">No courses found</h3>
-            <p className="text-slate-500">Try adjusting your search criteria.</p>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      </section>
+
+      <section id="course-list" className="container mx-auto px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-xs font-extrabold uppercase tracking-[.2em] text-blue-700">Professional development</p><h2 className="mt-2 text-2xl font-black text-slate-950">Explore our programmes</h2><p className="mt-1 text-sm text-slate-600">Choose a course and start your application online.</p></div><div className="relative w-full sm:max-w-xs"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search courses..." className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></div></div>
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          {filteredCourses.map((course) => <article key={course.id} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+            <div className="relative h-44 overflow-hidden bg-slate-200"><img src={course.image} alt={course.title} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><span className="absolute left-3 top-3 rounded-full bg-slate-950/80 px-3 py-1 text-[11px] font-bold text-white">{course.level ?? 'Professional'}</span></div>
+            <div className="flex flex-1 flex-col p-5"><div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-blue-700"><span>{course.category}</span><span className="flex items-center gap-1 text-slate-500"><Clock3 className="h-3.5 w-3.5" />{course.duration}</span></div><h3 className="mt-3 text-lg font-extrabold leading-snug text-slate-950">{course.title}</h3><p className="mt-2 flex-1 text-sm leading-6 text-slate-600">{course.description}</p><div className="mt-5 border-t border-slate-100 pt-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Training fee</p><p className="mt-1 text-2xl font-black text-slate-950">KES {Number(course.price).toLocaleString('en-KE')}</p><Link to={`/enroll/${course.id}`} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-800">Enroll Now <ArrowRight className="h-4 w-4" /></Link></div></div>
+          </article>)}
+        </div>
+        {filteredCourses.length === 0 && <p className="py-16 text-center text-slate-500">No courses match your search.</p>}
+        <div className="mt-10 grid gap-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-cyan-50 p-6 sm:grid-cols-[1fr_auto] sm:items-center"><div className="flex items-start gap-3"><span className="rounded-xl bg-white p-3 text-blue-700 shadow-sm"><Sparkles className="h-5 w-5" /></span><div><h3 className="font-extrabold text-slate-950">Get Certified</h3><p className="mt-1 text-sm leading-6 text-slate-600">Earn a Navstar certificate upon successful completion of your programme and assessment.</p></div></div><Link to="/portals/student" className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white">Access Student Gateway <ArrowRight className="h-4 w-4" /></Link></div>
+      </section>
+    </main>
   );
 }
