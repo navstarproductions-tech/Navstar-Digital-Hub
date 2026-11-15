@@ -13,6 +13,7 @@ ALTER TABLE payments ADD COLUMN result_description TEXT;
 ALTER TABLE payments ADD COLUMN transaction_date TEXT;
 ALTER TABLE payments ADD COLUMN callback_phone TEXT;
 ALTER TABLE payments ADD COLUMN callback_amount INTEGER;
+ALTER TABLE services ADD COLUMN price_amount INTEGER;
 
 -- Services are catalogue entries; customer requests and payments are stored separately.
 CREATE TABLE IF NOT EXISTS service_requests (
