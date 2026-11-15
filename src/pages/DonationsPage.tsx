@@ -30,8 +30,8 @@ export function DonationsPage() {
 
   const startDonation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const normalizedPhone = phone.replace(/[\\s-]/g, '');
-    if (!/^(?:\\+?254|0)?[17]\\d{8}$/.test(normalizedPhone)) { setMessage('Enter a valid Kenyan mobile number.'); return; }
+    const normalizedPhone = phone.replace(/[\s-]/g, '');
+    if (!/^(?:\+?254|0)?[17]\d{8}$/.test(normalizedPhone)) { setMessage('Enter a valid Kenyan mobile number.'); return; }
     if (!Number.isInteger(amount) || amount < 1 || amount > 150000) { setMessage('Enter a valid donation amount between KSh 1 and KSh 150,000.'); return; }
 
     setLoading(true);
