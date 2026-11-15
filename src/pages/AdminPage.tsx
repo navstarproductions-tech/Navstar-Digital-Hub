@@ -127,7 +127,8 @@ export function AdminPage() {
   const addService = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!serviceName.trim()) return;
-    const payload = { name: serviceName.trim(), category: serviceCategory, price: servicePrice.trim() || 'Contact us', priceAmount: servicePriceAmount ? Number(servicePriceAmount) : null };\n    if (payload.priceAmount !== null && (!Number.isSafeInteger(payload.priceAmount) || payload.priceAmount < 1 || payload.priceAmount > 150000)) { setNotice('Enter a valid fixed online payment amount.'); return; }
+    const payload = { name: serviceName.trim(), category: serviceCategory, price: servicePrice.trim() || 'Contact us', priceAmount: servicePriceAmount ? Number(servicePriceAmount) : null };
+    if (payload.priceAmount !== null && (!Number.isSafeInteger(payload.priceAmount) || payload.priceAmount < 1 || payload.priceAmount > 150000)) { setNotice('Enter a valid fixed online payment amount.'); return; }
     if (backendReady) {
       const response = await fetch('/api/services', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const result = await response.json() as { id?: string; reference?: string; priceAmount?: number | null; amount?: number; status?: string; error?: string };
