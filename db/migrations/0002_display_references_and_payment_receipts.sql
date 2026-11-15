@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS service_requests (
 );
 
 -- Extend supported incoming payment purposes without losing existing transactions.
+-- Drop the old index first: SQLite keeps its name when the table is renamed.
+DROP INDEX IF EXISTS payments_checkout_idx;
 ALTER TABLE payments RENAME TO payments_legacy;
 CREATE TABLE payments (
   id TEXT PRIMARY KEY,
