@@ -1,3 +1,4 @@
+import { requireRole } from '../_shared/auth.js';
 import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../_shared/http.js';
 import { rateLimited } from '../_shared/rate-limit.js';
 import { nextReference } from '../_shared/references.js';
@@ -23,10 +24,12 @@ export async function onRequestPost({ request, env }) {
 
 export async function onRequestGet({ request, env }) {
   if (!env.DB) return error('Service requests are not configured.', 503);
+  const access = await requireRole(request, env, ['admin', 'principal', 'admissions']);
+  if (access.response) return access.response;
   const url = new URL(request.url);
   const reference = safeString(url.searchParams.get('reference'), 80);
   if (!reference) return error('Service reference is required.');
-  const row = await env.DB.prepare('SELECT id, display_ref AS reference, service_id, customer_name, amount, status, created_at FROM service_requests WHERE id = ? OR display_ref = ?').bind(reference, reference).first();
+  const row = await env.DB.prepare('SELECT id, display_ref AS reference, service_id, customer_name, phone, amount, status, created_at FROM service_requests WHERE id = ? OR display_ref = ?').bind(reference, reference).first();
   if (!row) return error('Service request not found.', 404);
   return json({ request: row });
 }
