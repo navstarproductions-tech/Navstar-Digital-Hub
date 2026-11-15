@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BadgeCheck, BriefcaseBusiness, Cloud, FileText, MonitorCog, Printer, ShieldCheck, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,7 +36,7 @@ export function ServicesPage() {
     return () => { active = false; };
   }, []);
 
-  const payForService = async (event: React.FormEvent<HTMLFormElement>) => {
+  const payForService = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selected?.id) return;
     const normalizedPhone = phone.replace(/[\s-]/g, '');
