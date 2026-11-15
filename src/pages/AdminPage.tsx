@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, ImagePlus, LayoutDashboard, Plus, Save, Settings, ShieldAlert, Trash2, Users } from 'lucide-react';
+import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +38,12 @@ export function AdminPage() {
   const [servicePriceAmount, setServicePriceAmount] = useState('');
   const [courseName, setCourseName] = useState('');
   const [coursePrice, setCoursePrice] = useState('');
+  const [courseDescription, setCourseDescription] = useState('');
+  const [courseDuration, setCourseDuration] = useState('4 Months');
+  const [courseCategory, setCourseCategory] = useState<Course['category']>('Professional');
+  const [courseLevel, setCourseLevel] = useState<Course['level']>('Beginner');
+  const [courseImage, setCourseImage] = useState('');
+  const [editingCourseId, setEditingCourseId] = useState('');
   const [cashoutAmount, setCashoutAmount] = useState('');
   const [notice, setNotice] = useState('');
   const [logoPreview, setLogoPreview] = useState('');
@@ -81,8 +87,8 @@ export function AdminPage() {
         if (!active) return;
         if (overviewResponse.ok) setMetrics(await overviewResponse.json() as Record<string, unknown>);
         if (courseResponse.ok) {
-          const result = await courseResponse.json() as { courses?: { id: string; title: string; price: number }[] };
-          if (result.courses) setCourses(result.courses.map((course) => ({ id: course.id, title: course.title, price: course.price, description: '', duration: 'Set duration', image: '', category: 'Professional' })));
+          const result = await courseResponse.json() as { courses?: Course[] };
+          if (result.courses) setCourses(result.courses);
         }
         if (serviceResponse.ok) {
           const result = await serviceResponse.json() as { services?: { id: string; name: string; category: string; price: string; status: string }[] };
@@ -146,20 +152,54 @@ export function AdminPage() {
   const addCourse = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!courseName.trim() || Number(coursePrice) < 1) return;
-    const payload = { title: courseName.trim(), price: Number(coursePrice) };
+    const payload = { title: courseName.trim(), description: courseDescription.trim(), duration: courseDuration.trim(), image: courseImage.trim(), category: courseCategory, level: courseLevel, price: Number(coursePrice) };
     if (backendReady) {
       const response = await fetch('/api/courses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const result = await response.json() as { id?: string; error?: string };
       if (!response.ok || !result.id) { setNotice(result.error ?? 'Course could not be saved.'); return; }
-      setCourses((current) => [...current, { ...payload, id: result.id!, description: '', duration: 'Set duration', image: '', category: 'Professional' }]);
+      setCourses((current) => [...current, { ...payload, id: result.id! }]);
       setNotice('Course published successfully.');
     } else {
-      setCourses((current) => [...current, { ...payload, id: crypto.randomUUID(), description: 'New course draft for this local preview.', duration: 'Set duration', image: '', category: 'Professional' }]);
+      setCourses((current) => [...current, { ...payload, id: crypto.randomUUID() }]);
       setNotice('Course draft added to this preview only.');
     }
     setCourseName('');
     setCoursePrice('');
+    setCourseDescription('');
+    setCourseDuration('4 Months');
+    setCourseCategory('Professional');
+    setCourseLevel('Beginner');
+    setCourseImage('');
   };
+
+  const editCourse = (course: Course) => {
+    setEditingCourseId(course.id);
+    setCourseName(course.title);
+    setCoursePrice(String(course.price));
+    setCourseDescription(course.description);
+    setCourseDuration(course.duration);
+    setCourseCategory(course.category);
+    setCourseLevel(course.level ?? 'Beginner');
+    setCourseImage(course.image);
+    setActive('courses');
+    setNotice('Editing course. Update the fields above and save your changes.');
+  };
+
+  const saveCourse = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingCourseId || !courseName.trim() || !Number.isSafeInteger(Number(coursePrice)) || Number(coursePrice) < 0) return;
+    const payload = { title: courseName.trim(), description: courseDescription.trim(), duration: courseDuration.trim(), image: courseImage.trim(), category: courseCategory, level: courseLevel, price: Number(coursePrice) };
+    if (backendReady) {
+      const response = await fetch(`/api/courses/${encodeURIComponent(editingCourseId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) { setNotice(result.error ?? 'Course could not be updated.'); return; }
+    }
+    setCourses((current) => current.map((course) => course.id === editingCourseId ? { ...course, ...payload } : course));
+    setNotice(backendReady ? 'Course updated and published.' : 'Course updated in this preview only.');
+    setEditingCourseId(''); setCourseName(''); setCoursePrice(''); setCourseDescription(''); setCourseDuration('4 Months'); setCourseCategory('Professional'); setCourseLevel('Beginner'); setCourseImage('');
+  };
+
+  const cancelCourseEdit = () => { setEditingCourseId(''); setCourseName(''); setCoursePrice(''); setCourseDescription(''); setCourseDuration('4 Months'); setCourseCategory('Professional'); setCourseLevel('Beginner'); setCourseImage(''); };
 
   const removeCourse = async (courseId: string) => {
     if (backendReady) {
@@ -308,7 +348,7 @@ export function AdminPage() {
             ['Students', String(metrics.students ?? '—'), 'Registered student accounts'], ['Applications', String(metrics.applications ?? applications.length), 'Admissions queue'], ['Courses', String(metrics.courses ?? courses.length), 'Active courses'], ['Services', String(metrics.services ?? services.length), 'Active cyber services'],
           ].map(([label, value, caption]) => <div key={label} className="bg-white p-5"><p className="text-sm text-slate-500">{label}</p><p className="mt-3 text-xl font-bold text-slate-950">{value}</p><p className="mt-1 text-xs text-slate-500">{caption}</p></div>)}</div><div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]"><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Workspace summary</h3><p className="mt-2 text-sm leading-6 text-slate-600">Use these sections to draft courses and services, preview gallery images, and configure notification preferences. Changes are local previews until server storage and role-based access are connected.</p><div className="mt-5 grid gap-2 sm:grid-cols-2">{sections.slice(1).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActive(id)} className="flex items-center justify-between border p-3 text-left text-sm font-medium hover:bg-slate-50"><span className="flex items-center gap-2"><Icon className="h-4 w-4 text-emerald-800" />{label}</span><span aria-hidden="true">›</span></button>)}</div></section><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Important setup</h3><ul className="mt-3 space-y-3 text-sm leading-6 text-slate-600"><li className="border-l-2 border-amber-500 pl-3">Rotate the Daraja production credentials shared in chat.</li><li className="border-l-2 border-emerald-700 pl-3">Keep all Daraja secrets in server environment variables only.</li><li className="border-l-2 border-emerald-700 pl-3">Protect admin actions with verified staff roles and audit logs.</li></ul></section></div></div>}
 
-          {active === 'courses' && <div className="space-y-5"><form onSubmit={addCourse} className="grid gap-3 border bg-white p-4 sm:grid-cols-[1fr_160px_auto] sm:items-end"><div className="space-y-2"><Label htmlFor="new-course">New course title</Label><Input id="new-course" value={courseName} onChange={(event) => setCourseName(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="new-course-price">Fee (KSh)</Label><Input id="new-course-price" type="number" min="1" value={coursePrice} onChange={(event) => setCoursePrice(event.target.value)} required /></div><Button type="submit" className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Add course</Button></form><div className="overflow-x-auto border bg-white"><table className="w-full min-w-[640px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Course</th><th className="p-3">Category</th><th className="p-3">Duration</th><th className="p-3">Fee</th><th className="p-3">Action</th></tr></thead><tbody>{courses.map((course) => <tr key={course.id} className="border-b last:border-0"><td className="p-3 font-semibold text-slate-900">{course.title}</td><td className="p-3">{course.category}</td><td className="p-3">{course.duration}</td><td className="p-3">KSh {course.price.toLocaleString()}</td><td className="p-3"><button aria-label={`Archive ${course.title}`} className="text-slate-500 hover:text-red-700" onClick={() => void removeCourse(course.id)}><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table></div></div>}
+          {active === 'courses' && <div className="space-y-5"><form onSubmit={editingCourseId ? saveCourse : addCourse} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-3"><div className="space-y-2 sm:col-span-2 xl:col-span-3"><h3 className="font-bold text-slate-950">{editingCourseId ? 'Edit course details' : 'Add a new course'}</h3><p className="text-xs text-slate-500">All fees are whole Kenyan shillings for M-Pesa payment compatibility.</p></div><div className="space-y-2"><Label htmlFor="new-course">Course title</Label><Input id="new-course" value={courseName} onChange={(event) => setCourseName(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="new-course-price">Fee (KSh)</Label><Input id="new-course-price" type="number" min="0" step="1" value={coursePrice} onChange={(event) => setCoursePrice(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-duration">Duration</Label><Input id="course-duration" value={courseDuration} onChange={(event) => setCourseDuration(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-category">Category</Label><select id="course-category" value={courseCategory} onChange={(event) => setCourseCategory(event.target.value as Course['category'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Professional</option><option>Computer School</option><option>Cyber Services</option></select></div><div className="space-y-2"><Label htmlFor="course-image">Course image URL</Label><Input id="course-image" value={courseImage} onChange={(event) => setCourseImage(event.target.value)} placeholder="https://..." /></div><div className="space-y-2"><Label htmlFor="course-level">Course level</Label><select id="course-level" value={courseLevel} onChange={(event) => setCourseLevel(event.target.value as Course['level'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></div><div className="space-y-2 sm:col-span-2 xl:col-span-3"><Label htmlFor="course-description">Course description</Label><textarea id="course-description" value={courseDescription} onChange={(event) => setCourseDescription(event.target.value)} rows={3} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" /></div><div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><Button type="submit" className="bg-emerald-800 hover:bg-emerald-900">{editingCourseId ? <><Save className="mr-2 h-4 w-4" />Save course</> : <><Plus className="mr-2 h-4 w-4" />Add course</>}</Button>{editingCourseId && <Button type="button" variant="outline" onClick={cancelCourseEdit}>Cancel edit</Button>}</div></form><div className="overflow-x-auto border bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Course</th><th className="p-3">Category</th><th className="p-3">Duration</th><th className="p-3">Fee</th><th className="p-3">Actions</th></tr></thead><tbody>{courses.map((course) => <tr key={course.id} className="border-b last:border-0"><td className="p-3 font-semibold text-slate-900">{course.title}<p className="mt-1 max-w-md text-xs font-normal text-slate-500">{course.description}</p></td><td className="p-3">{course.category}</td><td className="p-3">{course.duration}</td><td className="p-3">KSh {course.price.toLocaleString()}</td><td className="p-3"><div className="flex items-center gap-3"><button aria-label={`Edit ${course.title}`} className="text-blue-700 hover:text-blue-900" onClick={() => editCourse(course)}><Pencil className="h-4 w-4" /></button><button aria-label={`Archive ${course.title}`} className="text-slate-500 hover:text-red-700" onClick={() => void removeCourse(course.id)}><Trash2 className="h-4 w-4" /></button></div></td></tr>)}</tbody></table></div></div>}
 
           {active === 'services' && <div className="space-y-5"><form onSubmit={addService} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-[1fr_180px_180px_auto] xl:items-end"><div className="space-y-2"><Label htmlFor="service-name">Service name</Label><Input id="service-name" value={serviceName} onChange={(event) => setServiceName(event.target.value)} placeholder="e.g. Scanning" required /></div><div className="space-y-2"><Label htmlFor="service-category">Category</Label><select id="service-category" value={serviceCategory} onChange={(event) => setServiceCategory(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Cyber cafe</option><option>Document desk</option><option>Digital support</option><option>Training</option><option>Technical help</option></select></div><div className="space-y-2"><Label htmlFor="service-price">Display price</Label><Input id="service-price" value={servicePrice} onChange={(event) => setServicePrice(event.target.value)} placeholder="From KSh 100" /></div><div className="space-y-2"><Label htmlFor="service-price-amount">Fixed online payment (KSh)</Label><Input id="service-price-amount" type="number" min="1" max="150000" value={servicePriceAmount} onChange={(event) => setServicePriceAmount(event.target.value)} placeholder="Optional — e.g. 500" /></div><Button type="submit" className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Add service</Button></form><div className="divide-y border bg-white">{services.map((service) => <div key={service.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold text-slate-950">{service.name}</p><p className="mt-1 text-xs text-slate-500">{service.category} · {service.price}{service.priceAmount ? ` · Online: KSh ${service.priceAmount.toLocaleString()}` : ''}</p></div><div className="flex items-center gap-4"><span className="text-xs font-semibold text-emerald-800">{service.status}</span><button aria-label={`Pause ${service.name}`} onClick={() => void removeService(service.id)} className="text-slate-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>)}</div></div>}
 

@@ -1,69 +1,58 @@
-import { Monitor, Facebook, Twitter, Instagram, Mail, Phone, MapPin } from 'lucide-react';
+import { Monitor, Facebook, Instagram, Mail, Phone, MapPin, FileText, GraduationCap, BriefcaseBusiness } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
+const downloads = [
+  'STUDENT COURSE ENROLMENT FORM (FORM 1A)',
+  'CONTINUING / REPEAT COURSE ENROLMENT FORM (FORM 2)',
+  'STUDENT COMPLAINT / GRIEVANCE FORM (FORM 4)',
+  'STUDENT FEEDBACK / COURSE EVALUATION FORM (FORM 7)',
+  'ALUMNI / STUDENT FOLLOW-UP FORM (FORM 8)',
+  'ORDER PLACEMENT SHEET',
+  'ANSWER BOOKLET FOR NAVSTAR DIGITAL HUB',
+  'OUR COURSES',
+  '2026 ACADEMIC CALENDAR',
+];
+
+const resourceLinks = [
+  ['CV Builder (Make CV)', ''],
+  ['Admission Letters', ''],
+  ['Scholarship Applications', ''],
+  ['AI Assistant', ''],
+  ['Certificate Reprint Request', ''],
+  ['Verify Certificate', ''],
+  ['Terms & Policies', ''],
+  ['Privacy Policy', ''],
+  ['Refund Policy', ''],
+  ['Events & Tickets', ''],
+];
+
+const portalLinks = [
+  ['Student Gateway', '/portals/student'],
+  ['Admin Portal', '/portals/admin'],
+  ['Tutor Portal', '/portals/tutor'],
+  ['Principal Portal', '/portals/principal'],
+];
 
 export function Footer() {
   return (
-    <footer className="bg-slate-900 text-slate-300">
+    <footer className="bg-[#061127] text-slate-300">
       <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
-          <div className="col-span-1 md:col-span-1">
-            <Link to="/" className="flex items-center gap-2 text-white">
-              <Monitor className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold tracking-tight">NAVSTAR DIGITAL HUB</span>
-            </Link>
-            <p className="mt-4 text-sm leading-6">
-              HOME OF TECHNOCRATS. Practical digital training, dependable cyber services and technology solutions.
-            </p>
-            <div className="mt-6 flex space-x-4">
-              <a href="#" className="hover:text-white transition-colors"><Facebook className="h-5 w-5" /></a>
-              <a href="#" className="hover:text-white transition-colors"><Twitter className="h-5 w-5" /></a>
-              <a href="#" className="hover:text-white transition-colors"><Instagram className="h-5 w-5" /></a>
-            </div>
-          </div>
-
+        <div className="grid gap-10 sm:grid-cols-2 xl:grid-cols-[1.25fr_1fr_1fr_1.25fr]">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-white">Quick Links</h3>
-            <ul className="mt-4 space-y-2">
-              <li><Link to="/" className="text-sm hover:text-white transition-colors">Home</Link></li>
-              <li><Link to="/courses" className="text-sm hover:text-white transition-colors">Browse Courses</Link></li>
-              <li><Link to="/services" className="text-sm hover:text-white transition-colors">Services</Link></li>
-              <li><Link to="/donations" className="text-sm hover:text-white transition-colors">Donations</Link></li>
-              <li><Link to="/portals" className="text-sm hover:text-white transition-colors">Portals</Link></li>
-            </ul>
+            <Link to="/" className="flex items-center gap-3 text-white"><span className="rounded-xl bg-blue-600 p-2"><Monitor className="h-6 w-6" /></span><span><strong className="block text-base tracking-wide">NAVSTAR DIGITAL HUB</strong><small className="text-xs font-semibold text-cyan-300">HOME OF TECHNOCRATS</small></span></Link>
+            <p className="mt-4 max-w-sm text-sm leading-6 text-slate-400">Cyber services, digital education and administrative tools. Empowering Kenya, one skill at a time.</p>
+            <address className="mt-5 space-y-3 not-italic text-sm">
+              <p className="flex items-start gap-3"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" />P.O. BOX 546-50200 Bungoma, Kenya</p>
+              <a className="flex items-center gap-3 hover:text-white" href="tel:+254797688576"><Phone className="h-4 w-4 text-cyan-300" />+254 797 688 576</a>
+              <a className="flex items-center gap-3 hover:text-white" href="mailto:navstardigitalhub@gmail.com"><Mail className="h-4 w-4 text-cyan-300" />navstardigitalhub@gmail.com</a>
+            </address>
+            <div className="mt-5 flex gap-3"><a href="https://www.facebook.com/" target="_blank" rel="noreferrer" aria-label="Facebook" className="rounded-lg border border-white/15 p-2 hover:bg-white/10"><Facebook className="h-4 w-4" /></a><a href="https://www.instagram.com/" target="_blank" rel="noreferrer" aria-label="Instagram" className="rounded-lg border border-white/15 p-2 hover:bg-white/10"><Instagram className="h-4 w-4" /></a></div>
           </div>
-
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-white">Courses</h3>
-            <ul className="mt-4 space-y-2">
-              <li><Link to="/courses" className="text-sm hover:text-white transition-colors">Computer Basics</Link></li>
-              <li><Link to="/courses" className="text-sm hover:text-white transition-colors">Graphics Design</Link></li>
-              <li><Link to="/courses" className="text-sm hover:text-white transition-colors">Web Development</Link></li>
-              <li><Link to="/courses" className="text-sm hover:text-white transition-colors">Cyber Security</Link></li>
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-white">Contact Us</h3>
-            <ul className="mt-4 space-y-4">
-              <li className="flex items-start gap-3">
-                <MapPin className="mt-1 h-5 w-5 flex-shrink-0 text-primary" />
-                <span className="text-sm">Opposite Shaban Medical Clinic, off Agorom–Busia Road, Raphael Estates, Room 3, Nambale, Kenya</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <Phone className="h-5 w-5 flex-shrink-0 text-primary" />
-                <span className="text-sm">0797 688 576 / 0706 637 485</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <Mail className="h-5 w-5 flex-shrink-0 text-primary" />
-                <span className="text-sm">navstardigitalhub@gmail.com</span>
-              </li>
-            </ul>
-          </div>
+          <div><h3 className="text-xs font-extrabold uppercase tracking-[.2em] text-white">Explore</h3><ul className="mt-4 space-y-2.5 text-sm">{[['Home','/'],['Courses','/courses'],['Services','/services'],['Gallery','/gallery'],['Forum','/forum'],['Music','/music'],['About','/about'],['Fee Structures','/fees'],['Portals','/portals']].map(([label,path]) => <li key={label}><Link className="hover:text-cyan-300" to={path}>{label}</Link></li>)}</ul></div>
+          <div><h3 className="text-xs font-extrabold uppercase tracking-[.2em] text-white">Portals</h3><ul className="mt-4 space-y-2.5 text-sm">{portalLinks.map(([label,path]) => <li key={label}><Link className="hover:text-cyan-300" to={path}>{label}</Link></li>)}</ul><h3 className="mt-7 text-xs font-extrabold uppercase tracking-[.2em] text-white">Resources & Legal</h3><ul className="mt-4 space-y-2.5 text-sm">{resourceLinks.map(([label,path]) => <li key={label}><Link className="hover:text-cyan-300" to={path}>{label}</Link></li>)}</ul></div>
+          <div><h3 className="text-xs font-extrabold uppercase tracking-[.2em] text-white">Downloads & Documents</h3><ul className="mt-4 space-y-3 text-sm">{downloads.map((label) => <li key={label} className="flex items-start gap-2 text-slate-400"><FileText className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" /><span>{label}</span></li>)}</ul><div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4"><div className="flex items-center gap-2 text-sm font-bold text-white"><GraduationCap className="h-4 w-4 text-cyan-300" />Student Gateway</div><p className="mt-2 text-xs leading-5 text-slate-400">Access learning information, applications and student updates.</p><Link to="/portals/student" className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-cyan-300 hover:text-white">Open Gateway <BriefcaseBusiness className="h-4 w-4" /></Link></div></div>
         </div>
-        
-        <div className="mt-12 border-t border-slate-800 pt-8 text-center text-sm">
-          <p>&copy; {new Date().getFullYear()} NAVSTAR DIGITAL HUB. All rights reserved.</p>
-        </div>
+        <div className="mt-10 flex flex-col gap-2 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between"><p>© {new Date().getFullYear()} NAVSTAR DIGITAL HUB. All Rights Reserved.</p><p>Designed & Powered by Navstar Systems · HOME OF TECHNOCRATS</p></div>
       </div>
     </footer>
   );
