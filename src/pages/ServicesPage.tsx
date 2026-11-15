@@ -6,6 +6,52 @@ import { Button } from '@/components/ui/button';
 
 type Service = { id?: string; reference?: string; icon: typeof MonitorCog; name: string; detail: string; category: string; priceAmount?: number | null };
 type Receipt = { reference: string; code: string; amount: number; phone: string; date?: string };
+function downloadReceiptPdf(receipt: Receipt) {
+  const safe = (value: string) => value.replace(/[^\\x20-\\x7E]/g, '?').replace(/\\\\/g, '\\\\\\').replace(/\\(/g, '\\(').replace(/\\)/g, '\\)');
+  const lines = [
+    ['NAVSTAR DIGITAL HUB', 18],
+    ['HOME OF TECHNOCRATS', 11],
+    ['M-PESA PAYMENT RECEIPT', 14],
+    [`Reference: ${receipt.reference}`, 11],
+    [`M-Pesa receipt code: ${receipt.code}`, 11],
+    [`Amount paid: KES ${receipt.amount.toLocaleString('en-KE')}`, 11],
+    [`Phone: ${receipt.phone}`, 11],
+    [`Transaction date: ${receipt.date || 'As confirmed by Safaricom'}`, 11],
+    ['Thank you for choosing Navstar Digital Hub.', 11],
+    ['Contact: +254 797 688 576 | navstardigitalhub@gmail.com', 9],
+  ];
+  let commands = '';
+  let y = 780;
+  for (const [line, size] of lines) {
+    commands += `BT /F1 ${size} Tf 50 ${y} Td (${safe(String(line))}) Tj ET\\n`;
+    y -= size === 18 ? 38 : 27;
+  }
+  const stream = commands;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${new TextEncoder().encode(stream).length} >>\\nstream\\n${stream}endstream`,
+  ];
+  let pdf = '%PDF-1.4\\n';
+  const offsets = [0];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(new TextEncoder().encode(pdf).length);
+    pdf += `${index + 1} 0 obj\\n${objects[index]}\\nendobj\\n`;
+  }
+  const xref = new TextEncoder().encode(pdf).length;
+  pdf += `xref\\n0 ${objects.length + 1}\\n0000000000 65535 f \\n`;
+  for (const offset of offsets.slice(1)) pdf += `${String(offset).padStart(10, '0')} 00000 n \\n`;
+  pdf += `trailer\\n<< /Size ${objects.length + 1} /Root 1 0 R >>\\nstartxref\\n${xref}\\n%%EOF`;
+  const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `Navstar-Receipt-${receipt.reference}.pdf`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 
 const defaults: Service[] = [
   { icon: MonitorCog, name: 'Computer access', detail: 'Reliable workstations and internet access for study, work, applications, and everyday digital tasks.', category: 'Cyber cafe' },
@@ -97,7 +143,7 @@ export function ServicesPage() {
           <label className="mt-4 block text-sm font-semibold text-slate-700">M-Pesa phone<input className="mt-1 h-11 w-full rounded-lg border px-3" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="07xx xxx xxx" inputMode="tel" required /></label>
           <Button type="submit" disabled={loading} className="mt-5 w-full bg-blue-800 hover:bg-blue-900">{loading ? 'Processing M-Pesa payment…' : 'Request payment prompt'}</Button>
           {message && <p role="status" aria-live="polite" className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">{message}</p>}
-          {receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">Payment receipt confirmed</p><p className="mt-2">Reference: <strong>{receipt.reference}</strong></p><p>M-Pesa code: <strong>{receipt.code}</strong></p><p>Amount: KSh {receipt.amount.toLocaleString()}</p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}<button type="button" onClick={() => window.print()} className="mt-3 rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold text-emerald-900">Print / Save receipt as PDF</button></div>}
+          {receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">Payment receipt confirmed</p><p className="mt-2">Reference: <strong>{receipt.reference}</strong></p><p>M-Pesa code: <strong>{receipt.code}</strong></p><p>Amount: KSh {receipt.amount.toLocaleString()}</p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}<button type="button" onClick={() => downloadReceiptPdf(receipt)} className="mt-3 rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold text-emerald-900">Download PDF receipt</button></div>}
           <p className="mt-4 text-xs text-slate-500">Enter your PIN only on the official M-Pesa prompt on your phone.</p>
         </form>
       </div>}
