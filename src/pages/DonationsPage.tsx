@@ -1,3 +1,4 @@
+
 import { FormEvent, useState } from 'react';
 import { HeartHandshake, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -5,6 +6,43 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const amounts = [200, 500, 1000, 2500];
+
+type DonationResponse = {
+  id?: string;
+  error?: string;
+};
+
+type PaymentResponse = {
+  message?: string;
+  error?: string;
+};
+
+async function readApiResponse<T>(
+  response: Response,
+  serviceName: string
+): Promise<T> {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (!contentType.toLowerCase().includes('application/json')) {
+    const responseText = await response.text();
+
+    const isHtml =
+      responseText.trimStart().startsWith('<!DOCTYPE') ||
+      responseText.trimStart().startsWith('<html');
+
+    throw new Error(
+      `${serviceName} returned ${isHtml ? 'an HTML page' : 'an unexpected response'} instead of JSON (HTTP ${response.status}). Please contact the website administrator.`
+    );
+  }
+
+  try {
+    return await response.json() as T;
+  } catch {
+    throw new Error(
+      `${serviceName} returned an invalid JSON response (HTTP ${response.status}).`
+    );
+  }
+}
 
 export function DonationsPage() {
   const [amount, setAmount] = useState(500);
@@ -14,31 +52,84 @@ export function DonationsPage() {
 
   const startDonation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     const normalizedPhone = phone.replace(/[\s-]/g, '');
+
     if (!/^(?:\+?254|0)?[17]\d{8}$/.test(normalizedPhone)) {
       setMessage('Enter a valid Kenyan mobile number.');
       return;
     }
+
+    if (!Number.isInteger(amount) || amount < 1 || amount > 150000) {
+      setMessage('Enter a valid donation amount between KSh 1 and KSh 150,000.');
+      return;
+    }
+
     setLoading(true);
     setMessage('');
+
     try {
+      // Register the donation.
       const donationResponse = await fetch('/api/donations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizedPhone, amount }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: normalizedPhone,
+          amount,
+        }),
       });
-      const donation = await donationResponse.json() as { id?: string; error?: string };
-      if (!donationResponse.ok || !donation.id) throw new Error(donation.error ?? 'Donation could not be registered.');
+
+      const donation = await readApiResponse<DonationResponse>(
+        donationResponse,
+        'Donation service'
+      );
+
+      if (!donationResponse.ok || !donation.id) {
+        throw new Error(
+          donation.error || 'Donation could not be registered.'
+        );
+      }
+
+      // Request the M-Pesa STK Push.
       const response = await fetch('/api/payments/stk-push', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizedPhone, amount, purpose: 'donation', reference: donation.id }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: normalizedPhone,
+          amount,
+          purpose: 'donation',
+          reference: donation.id,
+        }),
       });
-      const payment = await response.json() as { message?: string; error?: string };
-      if (!response.ok) throw new Error(payment.error ?? 'Payment prompt could not be started.');
-      setMessage(payment.message ?? 'Prompt requested. Approve it on your phone, then wait for confirmation.');
+
+      const payment = await readApiResponse<PaymentResponse>(
+        response,
+        'M-Pesa payment service'
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          payment.error || 'Payment prompt could not be started.'
+        );
+      }
+
+      setMessage(
+        payment.message ||
+        'Payment prompt requested. Approve it on your phone and wait for confirmation.'
+      );
+
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Payment prompt could not be started.');
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Payment prompt could not be started. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -48,32 +139,125 @@ export function DonationsPage() {
     <main className="min-h-screen bg-slate-50">
       <section className="border-b bg-white">
         <div className="container mx-auto grid gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1fr_390px] md:items-center lg:px-8">
+
           <div>
-            <p className="text-sm font-bold uppercase text-emerald-800">NAVSTAR DIGITAL HUB / COMMUNITY</p>
-            <h1 className="mt-3 max-w-xl text-3xl font-bold text-slate-950 sm:text-4xl">Help more people get connected to digital skills</h1>
-            <p className="mt-4 max-w-xl leading-7 text-slate-600">Your contribution can support learning materials, supervised computer access, and practical technology training.</p>
-            <div className="mt-8 flex items-start gap-3 border-l-2 border-emerald-700 pl-4 text-sm text-slate-600"><HeartHandshake className="mt-0.5 h-5 w-5 shrink-0 text-emerald-800" /><p>Donations are voluntary. A payment must be confirmed by the payment provider before it is recorded as received.</p></div>
+            <p className="text-sm font-bold uppercase text-emerald-800">
+              NAVSTAR DIGITAL HUB / COMMUNITY
+            </p>
+
+            <h1 className="mt-3 max-w-xl text-3xl font-bold text-slate-950 sm:text-4xl">
+              Help more people get connected to digital skills
+            </h1>
+
+            <p className="mt-4 max-w-xl leading-7 text-slate-600">
+              Your contribution can support learning materials,
+              supervised computer access, and practical technology training.
+            </p>
+
+            <div className="mt-8 flex items-start gap-3 border-l-2 border-emerald-700 pl-4 text-sm text-slate-600">
+              <HeartHandshake className="mt-0.5 h-5 w-5 shrink-0 text-emerald-800" />
+              <p>
+                Donations are voluntary. A payment must be confirmed by
+                the payment provider before it is recorded as received.
+              </p>
+            </div>
           </div>
-          <form onSubmit={startDonation} className="border bg-white p-6 shadow-sm sm:p-7">
-            <h2 className="text-lg font-bold text-slate-950">Make a contribution</h2>
-            <p className="mt-1 text-sm text-slate-600">Choose an amount and the phone to receive the prompt.</p>
+
+          <form
+            onSubmit={startDonation}
+            className="border bg-white p-6 shadow-sm sm:p-7"
+          >
+            <h2 className="text-lg font-bold text-slate-950">
+              Make a contribution
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-600">
+              Choose an amount and the phone to receive the prompt.
+            </p>
+
             <fieldset className="mt-6">
-              <legend className="text-sm font-medium text-slate-800">Amount (KSh)</legend>
+              <legend className="text-sm font-medium text-slate-800">
+                Amount (KSh)
+              </legend>
+
               <div className="mt-2 grid grid-cols-2 gap-2">
-                {amounts.map((option) => <button key={option} type="button" onClick={() => setAmount(option)} aria-pressed={amount === option} className={`min-h-11 border px-3 text-sm font-semibold ${amount === option ? 'border-emerald-800 bg-emerald-50 text-emerald-900' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>{option.toLocaleString()}</button>)}
+                {amounts.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setAmount(option)}
+                    aria-pressed={amount === option}
+                    className={`min-h-11 border px-3 text-sm font-semibold ${
+                      amount === option
+                        ? 'border-emerald-800 bg-emerald-50 text-emerald-900'
+                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {option.toLocaleString()}
+                  </button>
+                ))}
               </div>
             </fieldset>
+
             <div className="mt-4 space-y-2">
-              <Label htmlFor="donation-amount">Other amount</Label>
-              <Input id="donation-amount" type="number" min="1" max="150000" value={amount} onChange={(event) => setAmount(Number(event.target.value))} required />
+              <Label htmlFor="donation-amount">
+                Other amount
+              </Label>
+
+              <Input
+                id="donation-amount"
+                type="number"
+                min="1"
+                max="150000"
+                value={amount}
+                onChange={(event) =>
+                  setAmount(Number(event.target.value))
+                }
+                required
+              />
             </div>
+
             <div className="mt-4 space-y-2">
-              <Label htmlFor="donation-phone">M-Pesa phone number</Label>
-              <Input id="donation-phone" autoComplete="tel" inputMode="tel" placeholder="07xx xxx xxx" value={phone} onChange={(event) => setPhone(event.target.value)} required />
+              <Label htmlFor="donation-phone">
+                M-Pesa phone number
+              </Label>
+
+              <Input
+                id="donation-phone"
+                autoComplete="tel"
+                inputMode="tel"
+                placeholder="07xx xxx xxx"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                required
+              />
             </div>
-            <Button className="mt-6 w-full bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={loading || amount < 1}>{loading ? 'Requesting prompt…' : `Request KSh ${amount.toLocaleString()} prompt`}</Button>
-            {message && <p role="status" className="mt-4 text-sm text-slate-700">{message}</p>}
-            <p className="mt-5 flex items-start gap-2 border-t pt-4 text-xs leading-5 text-slate-500"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />Enter your M-Pesa PIN only on the official prompt on your phone. NAVSTAR will never ask for your PIN on this website.</p>
+
+            <Button
+              className="mt-6 w-full bg-emerald-800 hover:bg-emerald-900"
+              type="submit"
+              disabled={loading || amount < 1}
+            >
+              {loading
+                ? 'Requesting prompt…'
+                : `Request KSh ${amount.toLocaleString()} prompt`}
+            </Button>
+
+            {message && (
+              <p
+                role="status"
+                aria-live="polite"
+                className="mt-4 text-sm text-slate-700"
+              >
+                {message}
+              </p>
+            )}
+
+            <p className="mt-5 flex items-start gap-2 border-t pt-4 text-xs leading-5 text-slate-500">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              Enter your M-Pesa PIN only on the official prompt on your
+              phone. NAVSTAR will never ask for your PIN on this website.
+            </p>
           </form>
         </div>
       </section>
