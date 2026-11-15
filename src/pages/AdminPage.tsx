@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
 
-type Section = 'overview' | 'courses' | 'services' | 'enrollments' | 'finance' | 'gallery' | 'downloads' | 'users' | 'settings';
+type Section = 'overview' | 'courses' | 'services' | 'enrollments' | 'finance' | 'gallery' | 'downloads' | 'orders' | 'users' | 'settings';
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
 type PortalUser = { id: string; name: string; email: string; role: string; status: string };
 
@@ -25,6 +25,7 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   { id: 'finance', label: 'Donations & cashout', icon: CircleDollarSign },
   { id: 'gallery', label: 'Gallery & branding', icon: ImagePlus },
   { id: 'downloads', label: 'Downloads & documents', icon: FileDown },
+  { id: 'orders', label: 'Customer orders', icon: BriefcaseBusiness },
   { id: 'users', label: 'Portal accounts', icon: Users },
   { id: 'settings', label: 'Notifications & settings', icon: Settings },
 ];
@@ -69,6 +70,7 @@ export function AdminPage() {
   const [documentTitle, setDocumentTitle] = useState('');
   const [documentDescription, setDocumentDescription] = useState('');
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [customerOrders, setCustomerOrders] = useState<{ id: string; reference: string; customerName: string; email: string; phone: string; amount: number; notes: string; status: string; createdAt: string; serviceName: string }[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -140,6 +142,9 @@ export function AdminPage() {
     fetch('/api/admin/downloads').then(async (response) => response.ok ? response.json() as Promise<{ documents?: typeof documents }> : null)
       .then((result) => { if (result?.documents) setDocuments(result.documents); })
       .catch(() => undefined);
+    fetch('/api/admin/service-requests').then(async (response) => response.ok ? response.json() as Promise<{ orders?: typeof customerOrders }> : null)
+      .then((result) => { if (result?.orders) setCustomerOrders(result.orders); })
+      .catch(() => undefined);
   }, [user, backendReady]);
 
   const uploadDocument = async (event: FormEvent<HTMLFormElement>) => {
@@ -157,6 +162,14 @@ export function AdminPage() {
     const input = document.getElementById('admin-document-file') as HTMLInputElement | null;
     if (input) input.value = '';
     setNotice('Document uploaded and published to public downloads.');
+  };
+
+  const updateOrderStatus = async (id: string, status: string) => {
+    const response = await fetch(`/api/admin/service-requests/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) { setNotice(result.error ?? 'Order status could not be updated.'); return; }
+    setCustomerOrders((current) => current.map((order) => order.id === id ? { ...order, status } : order));
+    setNotice('Customer order updated.');
   };
 
   const deleteDocument = async (id: string) => {
@@ -407,6 +420,11 @@ export function AdminPage() {
           {active === 'users' && <div className="space-y-5"><form onSubmit={createPortalUser} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_180px_auto] xl:items-end"><div className="space-y-2"><Label htmlFor="portal-user-name">Full name</Label><Input id="portal-user-name" value={newUserName} onChange={(event) => setNewUserName(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="portal-user-email">Email</Label><Input id="portal-user-email" type="email" value={newUserEmail} onChange={(event) => setNewUserEmail(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="portal-user-role">Portal role</Label><select id="portal-user-role" value={newUserRole} onChange={(event) => setNewUserRole(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm">{['student', 'tutor', 'admissions', 'principal', 'admin'].map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}</select></div><Button type="submit" disabled={!backendReady || user?.role !== 'admin'} className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Create account</Button></form>{temporaryPassword && <p role="status" className="border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">One-time password (shown once): <code className="select-all font-bold">{temporaryPassword}</code>. Send it to the person through a separate secure channel; they must change it after signing in.</p>}<div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.email} · {portalUser.role}</p></div><span className="border px-2 py-1 text-xs">{portalUser.status}</span></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div></div>}
 
           {active === 'finance' && <div className="grid gap-6 xl:grid-cols-2"><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Verified donations and payments</h3><p className="mt-2 text-sm leading-6 text-slate-600">Only provider callbacks mark donations and tuition as paid. No M-Pesa PIN or payment credentials are shown here.</p><p className="mt-5 border bg-slate-50 p-4 text-sm text-slate-600">Verified donations: KSh {Number(metrics.verifiedDonations ?? 0).toLocaleString()} · Verified payments: KSh {Number(metrics.verifiedPayments ?? 0).toLocaleString()}</p></section><form onSubmit={startCashout} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Request cashout</h3><p className="mt-2 text-sm leading-6 text-slate-600">This creates an approval request only; it does not transfer funds. Never withdraw from the browser.</p></div><div className="space-y-2"><Label htmlFor="cashout-amount">Amount (KSh)</Label><Input id="cashout-amount" type="number" min="1" value={cashoutAmount} onChange={(event) => setCashoutAmount(event.target.value)} required /></div><Button className="bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={!backendReady || !user}><CircleDollarSign className="mr-2 h-4 w-4" />{backendReady ? 'Submit for approval' : 'Backend required'}</Button><div className="divide-y border">{cashoutRequests.map((item) => <div key={String(item.id)} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><span>KSh {Number(item.amount).toLocaleString()} · {String(item.status)}</span>{item.status === 'pending_approval' && user?.role === 'admin' && <span className="flex gap-2"><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'approved')}>Approve</Button><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'rejected')}>Reject</Button></span>}</div>)}{cashoutRequests.length === 0 && <p className="p-3 text-xs text-slate-500">No cashout requests.</p>}</div></form></div>}
+
+          {active === 'orders' && <section className="overflow-hidden rounded-2xl border bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><div><h3 className="font-bold text-slate-950">Customer service orders</h3><p className="mt-1 text-sm text-slate-600">Requests submitted from the public Customer Service Desk.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">{customerOrders.length} orders</span></div>
+            <div className="divide-y">{customerOrders.map((order) => <article key={order.id} className="grid gap-3 p-4 lg:grid-cols-[1fr_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-950">{order.serviceName}</p><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-600">{order.status}</span></div><p className="mt-1 text-sm text-slate-600">{order.customerName} · {order.phone}{order.email ? ' · ' + order.email : ''}</p><p className="mt-1 text-xs text-slate-500">Reference: {order.reference} · KSh {Number(order.amount).toLocaleString()} · {new Date(order.createdAt).toLocaleString()}</p>{order.notes && <p className="mt-2 text-sm text-slate-600">{order.notes}</p>}</div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void updateOrderStatus(order.id, 'completed')} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800">Mark completed</button><button type="button" onClick={() => void updateOrderStatus(order.id, 'cancelled')} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700">Cancel</button></div></article>)}{customerOrders.length === 0 && <p className="p-6 text-sm text-slate-500">No customer orders have been submitted yet.</p>}</div>
+          </section>}
 
           {active === 'downloads' && <div className="space-y-5">
             <section className="rounded-2xl border bg-white p-5">
