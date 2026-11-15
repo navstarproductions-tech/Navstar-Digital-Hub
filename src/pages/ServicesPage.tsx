@@ -7,51 +7,49 @@ import { Button } from '@/components/ui/button';
 type Service = { id?: string; reference?: string; icon: typeof MonitorCog; name: string; detail: string; category: string; priceAmount?: number | null };
 type Receipt = { reference: string; code: string; amount: number; phone: string; date?: string };
 function downloadReceiptPdf(receipt: Receipt) {
-  const safe = (value: string) => value.replace(/[^\\x20-\\x7E]/g, '?').replace(/\\\\/g, '\\\\\\').replace(/\\(/g, '\\(').replace(/\\)/g, '\\)');
-  const lines = [
+  const safe = (value: string) => value.replace(/[\x00-\x1F\x7F-\uFFFF]/g, '?').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const lines: [string, number][] = [
     ['NAVSTAR DIGITAL HUB', 18],
     ['HOME OF TECHNOCRATS', 11],
     ['M-PESA PAYMENT RECEIPT', 14],
-    [`Reference: ${receipt.reference}`, 11],
-    [`M-Pesa receipt code: ${receipt.code}`, 11],
-    [`Amount paid: KES ${receipt.amount.toLocaleString('en-KE')}`, 11],
-    [`Phone: ${receipt.phone}`, 11],
-    [`Transaction date: ${receipt.date || 'As confirmed by Safaricom'}`, 11],
+    [\`Reference: \${receipt.reference}\`, 11],
+    [\`M-Pesa receipt code: \${receipt.code}\`, 11],
+    [\`Amount paid: KES \${receipt.amount.toLocaleString('en-KE')}\`, 11],
+    [\`Phone: \${receipt.phone}\`, 11],
+    [\`Transaction date: \${receipt.date || 'As confirmed by Safaricom'}\`, 11],
     ['Thank you for choosing Navstar Digital Hub.', 11],
     ['Contact: +254 797 688 576 | navstardigitalhub@gmail.com', 9],
   ];
   let commands = '';
   let y = 780;
   for (const [line, size] of lines) {
-    commands += `BT /F1 ${size} Tf 50 ${y} Td (${safe(String(line))}) Tj ET\\n`;
+    commands += \`BT /F1 \${size} Tf 50 \${y} Td (\${safe(line)}) Tj ET\n\`;
     y -= size === 18 ? 38 : 27;
   }
-  const stream = commands;
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Length ${new TextEncoder().encode(stream).length} >>\\nstream\\n${stream}endstream`,
+    \`<< /Length \${new TextEncoder().encode(commands).length} >>\nstream\n\${commands}endstream\`,
   ];
-  let pdf = '%PDF-1.4\\n';
+  let pdf = '%PDF-1.4\n';
   const offsets = [0];
   for (let index = 0; index < objects.length; index += 1) {
     offsets.push(new TextEncoder().encode(pdf).length);
-    pdf += `${index + 1} 0 obj\\n${objects[index]}\\nendobj\\n`;
+    pdf += \`\${index + 1} 0 obj\n\${objects[index]}\nendobj\n\`;
   }
   const xref = new TextEncoder().encode(pdf).length;
-  pdf += `xref\\n0 ${objects.length + 1}\\n0000000000 65535 f \\n`;
-  for (const offset of offsets.slice(1)) pdf += `${String(offset).padStart(10, '0')} 00000 n \\n`;
-  pdf += `trailer\\n<< /Size ${objects.length + 1} /Root 1 0 R >>\\nstartxref\\n${xref}\\n%%EOF`;
+  pdf += \`xref\n0 \${objects.length + 1}\n0000000000 65535 f \n\`;
+  for (const offset of offsets.slice(1)) pdf += \`\${String(offset).padStart(10, '0')} 00000 n \n\`;
+  pdf += \`trailer\n<< /Size \${objects.length + 1} /Root 1 0 R >>\nstartxref\n\${xref}\n%%EOF\`;
   const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }));
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `Navstar-Receipt-${receipt.reference}.pdf`;
+  anchor.download = \`Navstar-Receipt-\${receipt.reference}.pdf\`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
-
 
 const defaults: Service[] = [
   { icon: MonitorCog, name: 'Computer access', detail: 'Reliable workstations and internet access for study, work, applications, and everyday digital tasks.', category: 'Cyber cafe' },
