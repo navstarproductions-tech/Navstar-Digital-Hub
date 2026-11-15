@@ -21,6 +21,7 @@ export function ServicesPage() {
   const [selected, setSelected] = useState<Service | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -43,7 +44,7 @@ export function ServicesPage() {
     if (!/^(?:\+?254|0)?[17]\d{8}$/.test(normalizedPhone)) { setMessage('Enter a valid Kenyan M-Pesa number.'); return; }
     setLoading(true); setMessage('Registering your service request…'); setReceipt(null);
     try {
-      const orderResponse = await fetch('/api/service-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serviceId: selected.id, customerName, phone: normalizedPhone }) });
+      const orderResponse = await fetch('/api/service-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serviceId: selected.id, customerName, phone: normalizedPhone, email: customerEmail }) });
       const order = await orderResponse.json() as { id?: string; reference?: string; amount?: number; error?: string };
       if (!orderResponse.ok || !order.id) throw new Error(order.error || 'Could not register this service request.');
       setMessage(`Request ${order.reference} registered. Sending M-Pesa prompt…`);
@@ -92,10 +93,11 @@ export function ServicesPage() {
         <form onSubmit={payForService} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
           <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-700">Secure M-Pesa checkout</p><h2 id="service-payment-title" className="mt-2 text-xl font-black text-slate-950">{selected.name}</h2><p className="mt-1 text-sm text-slate-600">Amount: KSh {Number(selected.priceAmount).toLocaleString()}</p></div><button type="button" onClick={() => setSelected(null)} className="rounded-lg px-3 py-1 text-slate-500 hover:bg-slate-100" aria-label="Close">✕</button></div>
           <label className="mt-5 block text-sm font-semibold text-slate-700">Your name<input className="mt-1 h-11 w-full rounded-lg border px-3" value={customerName} onChange={(event) => setCustomerName(event.target.value)} required /></label>
+          <label className="mt-4 block text-sm font-semibold text-slate-700">Email address (for updates)<input className="mt-1 h-11 w-full rounded-lg border px-3" type="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="you@example.com" /></label>
           <label className="mt-4 block text-sm font-semibold text-slate-700">M-Pesa phone<input className="mt-1 h-11 w-full rounded-lg border px-3" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="07xx xxx xxx" inputMode="tel" required /></label>
           <Button type="submit" disabled={loading} className="mt-5 w-full bg-blue-800 hover:bg-blue-900">{loading ? 'Processing M-Pesa payment…' : 'Request payment prompt'}</Button>
           {message && <p role="status" aria-live="polite" className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">{message}</p>}
-          {receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">Payment receipt confirmed</p><p className="mt-2">Reference: <strong>{receipt.reference}</strong></p><p>M-Pesa code: <strong>{receipt.code}</strong></p><p>Amount: KSh {receipt.amount.toLocaleString()}</p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}</div>}
+          {receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">Payment receipt confirmed</p><p className="mt-2">Reference: <strong>{receipt.reference}</strong></p><p>M-Pesa code: <strong>{receipt.code}</strong></p><p>Amount: KSh {receipt.amount.toLocaleString()}</p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}<button type="button" onClick={() => window.print()} className="mt-3 rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold text-emerald-900">Print / Save receipt as PDF</button></div>}
           <p className="mt-4 text-xs text-slate-500">Enter your PIN only on the official M-Pesa prompt on your phone.</p>
         </form>
       </div>}
