@@ -93,7 +93,23 @@ export function EnrollmentPage() {
       });
       const result = await response.json() as { id?: string; reference?: string; message?: string; error?: string };
       if (!response.ok) throw new Error(result.error ?? 'The payment prompt could not be requested. Please contact the school.');
-      setStatus(`Processing M-Pesa payment for ${result.reference || registrationReference}. ${result.message || 'Check your phone for the official prompt.'}`);\n      if (result.id) {\n        for (let attempt = 0; attempt < 24; attempt += 1) {\n          await new Promise((resolve) => window.setTimeout(resolve, 5000));\n          const check = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(result.id)}`, { headers: { Accept: 'application/json' } });\n          if (!check.ok) continue;\n          const data = await check.json() as { payment?: { status?: string; receipt_number?: string; result_description?: string; amount?: number; callback_phone?: string; transaction_date?: string } };\n          const payment = data.payment;\n          if (payment?.status === 'paid' && payment.receipt_number) {\n            setReceipt({ code: payment.receipt_number, amount: payment.amount || course.price, phone: payment.callback_phone || phone, date: payment.transaction_date });\n            setStatus('Payment confirmed successfully by M-Pesa. Your receipt is below.');\n            break;\n          }\n          if (payment?.status === 'failed') { setStatus(`Payment not completed: ${payment.result_description || 'M-Pesa did not confirm this payment.'}`); break; }\n          if (attempt === 23) setStatus(`Payment is still awaiting confirmation. Keep your reference ${registrationReference} and check again shortly.`);\n        }\n      }
+      setStatus(`Processing M-Pesa payment for ${result.reference || registrationReference}. ${result.message || 'Check your phone for the official prompt.'}`);
+      if (result.id) {
+        for (let attempt = 0; attempt < 24; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 5000));
+          const check = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(result.id)}`, { headers: { Accept: 'application/json' } });
+          if (!check.ok) continue;
+          const data = await check.json() as { payment?: { status?: string; receipt_number?: string; result_description?: string; amount?: number; callback_phone?: string; transaction_date?: string } };
+          const payment = data.payment;
+          if (payment?.status === 'paid' && payment.receipt_number) {
+            setReceipt({ code: payment.receipt_number, amount: payment.amount || course.price, phone: payment.callback_phone || phone, date: payment.transaction_date });
+            setStatus('Payment confirmed successfully by M-Pesa. Your receipt is below.');
+            break;
+          }
+          if (payment?.status === 'failed') { setStatus(`Payment not completed: ${payment.result_description || 'M-Pesa did not confirm this payment.'}`); break; }
+          if (attempt === 23) setStatus(`Payment is still awaiting confirmation. Keep your reference ${registrationReference} and check again shortly.`);
+        }
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'The payment prompt could not be requested.');
     } finally {
