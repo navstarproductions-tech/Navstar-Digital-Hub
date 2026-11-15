@@ -2,6 +2,7 @@ import { requireRole } from '../_shared/auth.js';
 import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../_shared/http.js';
 import { rateLimited } from '../_shared/rate-limit.js';
 import { nextReference } from '../_shared/references.js';
+import { sendCustomerNotice } from '../_shared/notifications.js';
 
 export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
@@ -12,13 +13,16 @@ export async function onRequestPost({ request, env }) {
   const serviceId = safeString(body.serviceId, 80);
   const customerName = safeString(body.customerName, 120);
   const phone = normalizePhone(body.phone);
+  const email = safeString(body.email, 254).toLowerCase();
+  if (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return error('Enter a valid email address.');
   const service = await env.DB.prepare("SELECT id, name, price_amount FROM services WHERE id = ? AND status = 'active'").bind(serviceId).first();
   if (!service || !Number.isSafeInteger(service.price_amount) || service.price_amount < 1) return error('This service is not configured for online payment. Please contact Navstar for a quotation.', 400);
   if (customerName.length < 2 || !phone) return error('Enter your name and a valid M-Pesa phone number.');
   const id = uuid();
   const reference = await nextReference(env.DB, 'SRV');
-  await env.DB.prepare('INSERT INTO service_requests (id, display_ref, service_id, customer_name, phone, amount, notes) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, reference, service.id, customerName, phone, service.price_amount, safeString(body.notes, 1000) || null).run();
+  await env.DB.prepare('INSERT INTO service_requests (id, display_ref, service_id, customer_name, phone, amount, notes, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, reference, service.id, customerName, phone, service.price_amount, safeString(body.notes, 1000) || null, email || null).run();
+  await sendCustomerNotice(env, { email, phone, subject: 'Navstar service request received', message: `Hello ${customerName}, your request for ${service.name} has been registered. Reference: ${reference}. Amount: KSh ${service.price_amount}. We will update you on its progress. Navstar Digital Hub — HOME OF TECHNOCRATS.` });
   return json({ id, reference, amount: service.price_amount, service: service.name, status: 'pending' }, 201);
 }
 
