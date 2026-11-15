@@ -1,4 +1,4 @@
-import { Monitor, Facebook, Instagram, Mail, Phone, MapPin, FileText, ShieldCheck, Music2, GraduationCap, BriefcaseBusiness } from 'lucide-react';
+import { Monitor, Facebook, Instagram, Mail, Phone, MapPin, FileText, GraduationCap, BriefcaseBusiness } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const downloads = [
@@ -14,27 +14,23 @@ const downloads = [
 ];
 
 const resourceLinks = [
-  ['CV Builder', '/cv-builder'],
-  ['Admission Letters', '/admission-letters'],
-  ['Scholarship Applications', '/scholarship'],
-  ['AI Assistant', '/assistant'],
-  ['Certificate Reprint Request', '/certificate-reprint'],
-  ['Verify Certificate', '/verify-certificate'],
-  ['Terms & Policies', '/terms'],
-  ['Privacy Policy', '/privacy'],
-  ['Refund Policy', '/refund-policy'],
-  ['Events & Tickets', '/events'],
+  ['CV Builder (Make CV)', ''],
+  ['Admission Letters', ''],
+  ['Scholarship Applications', ''],
+  ['AI Assistant', ''],
+  ['Certificate Reprint Request', ''],
+  ['Verify Certificate', ''],
+  ['Terms & Policies', ''],
+  ['Privacy Policy', ''],
+  ['Refund Policy', ''],
+  ['Events & Tickets', ''],
 ];
 
 const portalLinks = [
   ['Student Gateway', '/portals/student'],
   ['Admin Portal', '/portals/admin'],
   ['Tutor Portal', '/portals/tutor'],
-  ['Finance Portal', '/portals/finance'],
-  ['ICT Portal', '/portals/ict'],
   ['Principal Portal', '/portals/principal'],
-  ['Deputy Principal', '/portals/deputy-principal'],
-  ['Dean of Studies', '/portals/dean-of-studies'],
 ];
 
 export function Footer() {
