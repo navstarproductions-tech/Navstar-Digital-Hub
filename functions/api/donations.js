@@ -1,5 +1,6 @@
 import { error, isSameOrigin, json, normalizePhone, readJson, uuid } from '../_shared/http.js';
 import { rateLimited } from '../_shared/rate-limit.js';
+import { nextReference } from '../_shared/references.js';
 
 export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
@@ -13,6 +14,7 @@ export async function onRequestPost({ request, env }) {
   if (!phone || !Number.isInteger(amount) || amount < 1 || amount > 150000) return error('Enter a valid phone number and amount.');
 
   const id = uuid();
-  await env.DB.prepare('INSERT INTO donations (id, phone, amount) VALUES (?, ?, ?)').bind(id, phone, amount).run();
-  return json({ id, status: 'pending', amount }, 201);
+  const reference = await nextReference(env.DB, 'DON');
+  await env.DB.prepare('INSERT INTO donations (id, display_ref, phone, amount) VALUES (?, ?, ?, ?)').bind(id, reference, phone, amount).run();
+  return json({ id, reference, status: 'pending', amount }, 201);
 }
