@@ -16,7 +16,6 @@ export async function onRequestPut({ request, env, params }) {
   const category = safeString(body.category, 60) || 'Professional';
   const level = safeString(body.level, 24) || 'Beginner';
   const price = Number(body.price);
-  const level = safeString(body.level, 24);
   if (title.length < 2 || !Number.isSafeInteger(price) || price < 0 || price > 1000000) return error('Valid course title and whole-KSh fee are required.');
   const existing = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(id).first();
   if (!existing) return error('Active course not found.', 404);
