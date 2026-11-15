@@ -325,6 +325,19 @@ export function AdminPage() {
 
   const title = sections.find((section) => section.id === active)?.label ?? 'Overview';
 
+  if (!user || user.role !== 'admin') {
+    return (
+      <main className="flex min-h-[70vh] items-center justify-center bg-slate-950 px-4 py-12">
+        <section className="w-full max-w-lg rounded-2xl border border-white/10 bg-white p-8 shadow-2xl">
+          <p className="text-xs font-extrabold uppercase tracking-[.2em] text-blue-700">NAVSTAR DIGITAL HUB</p>
+          <h1 className="mt-3 text-2xl font-black text-slate-950">Administrator sign-in required</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">This workspace is restricted to authorised administrators. Sign in directly to the Admin Portal to continue.</p>
+          <a href="/login?role=admin" className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white hover:bg-blue-800">Continue to Admin Login</a>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-[1600px] md:grid-cols-[240px_minmax(0,1fr)]">
