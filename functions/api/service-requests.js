@@ -14,7 +14,7 @@ export async function onRequestPost({ request, env }) {
   const customerName = safeString(body.customerName, 120);
   const phone = normalizePhone(body.phone);
   const email = safeString(body.email, 254).toLowerCase();
-  if (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return error('Enter a valid email address.');
+  if (email && (!email.includes('@') || email.startsWith('@') || email.endsWith('@'))) return error('Enter a valid email address.');
   const service = await env.DB.prepare("SELECT id, name, price_amount FROM services WHERE id = ? AND status = 'active'").bind(serviceId).first();
   if (!service || !Number.isSafeInteger(service.price_amount) || service.price_amount < 1) return error('This service is not configured for online payment. Please contact Navstar for a quotation.', 400);
   if (customerName.length < 2 || !phone) return error('Enter your name and a valid M-Pesa phone number.');
