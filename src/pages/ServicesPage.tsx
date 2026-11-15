@@ -5,7 +5,7 @@ import { ArrowRight, BadgeCheck, BriefcaseBusiness, Cloud, FileText, MonitorCog,
 import { Button } from '@/components/ui/button';
 
 type Service = { id?: string; reference?: string; icon: typeof MonitorCog; name: string; detail: string; category: string; priceAmount?: number | null };
-type Receipt = { reference: string; code: string; amount: number; phone: string };
+type Receipt = { reference: string; code: string; amount: number; phone: string; date?: string };
 
 const defaults: Service[] = [
   { icon: MonitorCog, name: 'Computer access', detail: 'Reliable workstations and internet access for study, work, applications, and everyday digital tasks.', category: 'Cyber cafe' },
@@ -55,9 +55,9 @@ export function ServicesPage() {
         await new Promise((resolve) => window.setTimeout(resolve, 5000));
         const check = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(payment.id)}`);
         if (!check.ok) continue;
-        const data = await check.json() as { payment?: { status?: string; receipt_number?: string; result_description?: string; amount?: number; callback_phone?: string; display_reference?: string } };
+        const data = await check.json() as { payment?: { status?: string; receipt_number?: string; result_description?: string; amount?: number; callback_phone?: string; transaction_date?: string; reference?: string; display_reference?: string } };
         if (data.payment?.status === 'paid' && data.payment.receipt_number) {
-          setReceipt({ reference: data.payment.display_reference || order.reference || '', code: data.payment.receipt_number, amount: data.payment.amount || order.amount || 0, phone: data.payment.callback_phone || normalizedPhone });
+          setReceipt({ reference: data.payment.display_reference || order.reference || '', code: data.payment.receipt_number, amount: data.payment.amount || order.amount || 0, phone: data.payment.callback_phone || normalizedPhone, date: data.payment.transaction_date });
           setMessage('Payment confirmed by M-Pesa. Your receipt is ready below.'); break;
         }
         if (data.payment?.status === 'failed') { setMessage(`Payment not completed: ${data.payment.result_description || 'Safaricom did not confirm this payment.'}`); break; }
@@ -95,7 +95,7 @@ export function ServicesPage() {
           <label className="mt-4 block text-sm font-semibold text-slate-700">M-Pesa phone<input className="mt-1 h-11 w-full rounded-lg border px-3" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="07xx xxx xxx" inputMode="tel" required /></label>
           <Button type="submit" disabled={loading} className="mt-5 w-full bg-blue-800 hover:bg-blue-900">{loading ? 'Processing M-Pesa payment…' : 'Request payment prompt'}</Button>
           {message && <p role="status" aria-live="polite" className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">{message}</p>}
-          {receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">Payment receipt confirmed</p><p className="mt-2">Reference: <strong>{receipt.reference}</strong></p><p>M-Pesa code: <strong>{receipt.code}</strong></p><p>Amount: KSh {receipt.amount.toLocaleString()}</p><p>Phone: {receipt.phone}</p></div>}
+          {receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">Payment receipt confirmed</p><p className="mt-2">Reference: <strong>{receipt.reference}</strong></p><p>M-Pesa code: <strong>{receipt.code}</strong></p><p>Amount: KSh {receipt.amount.toLocaleString()}</p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}</div>}
           <p className="mt-4 text-xs text-slate-500">Enter your PIN only on the official M-Pesa prompt on your phone.</p>
         </form>
       </div>}
