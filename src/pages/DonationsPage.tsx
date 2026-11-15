@@ -1,4 +1,3 @@
-
 import { FormEvent, useState } from 'react';
 import { HeartHandshake, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,41 +6,19 @@ import { Label } from '@/components/ui/label';
 
 const amounts = [200, 500, 1000, 2500];
 
-type DonationResponse = {
-  id?: string;
-  error?: string;
-};
+type DonationResponse = { id?: string; reference?: string; error?: string };
+type PaymentResponse = { id?: string; reference?: string; message?: string; error?: string };
+type Receipt = { reference: string; code: string; amount: number; phone: string; date?: string };
 
-type PaymentResponse = {
-  message?: string;
-  error?: string;
-};
-
-async function readApiResponse<T>(
-  response: Response,
-  serviceName: string
-): Promise<T> {
+async function readApiResponse<T>(response: Response, serviceName: string): Promise<T> {
   const contentType = response.headers.get('content-type') || '';
-
   if (!contentType.toLowerCase().includes('application/json')) {
     const responseText = await response.text();
-
-    const isHtml =
-      responseText.trimStart().startsWith('<!DOCTYPE') ||
-      responseText.trimStart().startsWith('<html');
-
-    throw new Error(
-      `${serviceName} returned ${isHtml ? 'an HTML page' : 'an unexpected response'} instead of JSON (HTTP ${response.status}). Please contact the website administrator.`
-    );
+    const isHtml = responseText.trimStart().startsWith('<!DOCTYPE') || responseText.trimStart().startsWith('<html');
+    throw new Error(`${serviceName} returned ${isHtml ? 'an HTML page' : 'an unexpected response'} instead of JSON (HTTP ${response.status}). Please contact the website administrator.`);
   }
-
-  try {
-    return await response.json() as T;
-  } catch {
-    throw new Error(
-      `${serviceName} returned an invalid JSON response (HTTP ${response.status}).`
-    );
-  }
+  try { return await response.json() as T; }
+  catch { throw new Error(`${serviceName} returned an invalid JSON response (HTTP ${response.status}).`); }
 }
 
 export function DonationsPage() {
@@ -49,215 +26,78 @@ export function DonationsPage() {
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   const startDonation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
     const normalizedPhone = phone.replace(/[\s-]/g, '');
-
-    if (!/^(?:\+?254|0)?[17]\d{8}$/.test(normalizedPhone)) {
-      setMessage('Enter a valid Kenyan mobile number.');
-      return;
-    }
-
-    if (!Number.isInteger(amount) || amount < 1 || amount > 150000) {
-      setMessage('Enter a valid donation amount between KSh 1 and KSh 150,000.');
-      return;
-    }
+    if (!/^(?:\+?254|0)?[17]\d{8}$/.test(normalizedPhone)) { setMessage('Enter a valid Kenyan mobile number.'); return; }
+    if (!Number.isInteger(amount) || amount < 1 || amount > 150000) { setMessage('Enter a valid donation amount between KSh 1 and KSh 150,000.'); return; }
 
     setLoading(true);
-    setMessage('');
-
+    setMessage('Registering donation…');
+    setReceipt(null);
     try {
-      // Register the donation.
       const donationResponse = await fetch('/api/donations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: normalizedPhone,
-          amount,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ phone: normalizedPhone, amount }),
       });
+      const donation = await readApiResponse<DonationResponse>(donationResponse, 'Donation service');
+      if (!donationResponse.ok || !donation.id) throw new Error(donation.error || 'Donation could not be registered.');
 
-      const donation = await readApiResponse<DonationResponse>(
-        donationResponse,
-        'Donation service'
-      );
-
-      if (!donationResponse.ok || !donation.id) {
-        throw new Error(
-          donation.error || 'Donation could not be registered.'
-        );
-      }
-
-      // Request the M-Pesa STK Push.
+      setMessage(`Donation registered as ${donation.reference || donation.id}. Preparing your M-Pesa prompt…`);
       const response = await fetch('/api/payments/stk-push', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: normalizedPhone,
-          amount,
-          purpose: 'donation',
-          reference: donation.id,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ phone: normalizedPhone, amount, purpose: 'donation', reference: donation.id }),
       });
+      const payment = await readApiResponse<PaymentResponse>(response, 'M-Pesa payment service');
+      if (!response.ok || !payment.id) throw new Error(payment.error || 'Payment prompt could not be started.');
 
-      const payment = await readApiResponse<PaymentResponse>(
-        response,
-        'M-Pesa payment service'
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          payment.error || 'Payment prompt could not be started.'
-        );
+      setMessage(`Processing M-Pesa payment for ${payment.reference || donation.reference || donation.id}. ${payment.message || 'Check your phone for the official M-Pesa prompt.'}`);
+      for (let attempt = 0; attempt < 24; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 5000));
+        const statusResponse = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(payment.id)}`, { headers: { Accept: 'application/json' } });
+        if (!statusResponse.ok) continue;
+        const data = await statusResponse.json() as { payment?: { status?: string; receipt_number?: string; result_description?: string; amount?: number; callback_phone?: string; transaction_date?: string; display_reference?: string } };
+        const current = data.payment;
+        if (current?.status === 'paid' && current.receipt_number) {
+          setReceipt({ reference: current.display_reference || payment.reference || donation.reference || donation.id, code: current.receipt_number, amount: current.amount || amount, phone: current.callback_phone || normalizedPhone, date: current.transaction_date });
+          setMessage('Payment confirmed successfully by M-Pesa. Your receipt is shown below.');
+          break;
+        }
+        if (current?.status === 'failed') { setMessage(`Payment not completed: ${current.result_description || 'M-Pesa did not confirm this payment.'} You may try again when ready.`); break; }
+        if (attempt === 23) setMessage(`Payment is still awaiting Safaricom confirmation. Keep reference ${payment.reference || donation.reference} and check again shortly.`);
       }
-
-      setMessage(
-        payment.message ||
-        'Payment prompt requested. Approve it on your phone and wait for confirmation.'
-      );
-
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'Payment prompt could not be started. Please try again.'
-      );
-    } finally {
-      setLoading(false);
-    }
+      setMessage(error instanceof Error ? error.message : 'Payment prompt could not be started. Please try again.');
+    } finally { setLoading(false); }
   };
 
   return (
     <main className="min-h-screen bg-slate-50">
       <section className="border-b bg-white">
         <div className="container mx-auto grid gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1fr_390px] md:items-center lg:px-8">
-
           <div>
-            <p className="text-sm font-bold uppercase text-emerald-800">
-              NAVSTAR DIGITAL HUB / COMMUNITY
-            </p>
-
-            <h1 className="mt-3 max-w-xl text-3xl font-bold text-slate-950 sm:text-4xl">
-              Help more people get connected to digital skills
-            </h1>
-
-            <p className="mt-4 max-w-xl leading-7 text-slate-600">
-              Your contribution can support learning materials,
-              supervised computer access, and practical technology training.
-            </p>
-
-            <div className="mt-8 flex items-start gap-3 border-l-2 border-emerald-700 pl-4 text-sm text-slate-600">
-              <HeartHandshake className="mt-0.5 h-5 w-5 shrink-0 text-emerald-800" />
-              <p>
-                Donations are voluntary. A payment must be confirmed by
-                the payment provider before it is recorded as received.
-              </p>
-            </div>
+            <p className="text-sm font-bold uppercase text-blue-800">NAVSTAR DIGITAL HUB / COMMUNITY</p>
+            <h1 className="mt-3 max-w-xl text-3xl font-black text-slate-950 sm:text-4xl">Help more people get connected to digital skills</h1>
+            <p className="mt-4 max-w-xl leading-7 text-slate-600">Your contribution can support learning materials, supervised computer access, and practical technology training.</p>
+            <div className="mt-8 flex items-start gap-3 border-l-2 border-blue-700 pl-4 text-sm text-slate-600"><HeartHandshake className="mt-0.5 h-5 w-5 shrink-0 text-blue-800" /><p>Donations are voluntary. A payment is recorded as received only after Safaricom confirms it.</p></div>
           </div>
-
-          <form
-            onSubmit={startDonation}
-            className="border bg-white p-6 shadow-sm sm:p-7"
-          >
-            <h2 className="text-lg font-bold text-slate-950">
-              Make a contribution
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-600">
-              Choose an amount and the phone to receive the prompt.
-            </p>
-
+          <form onSubmit={startDonation} className="rounded-2xl border bg-white p-6 shadow-xl shadow-slate-200/70 sm:p-7">
+            <h2 className="text-lg font-bold text-slate-950">Make a contribution</h2>
+            <p className="mt-1 text-sm text-slate-600">Choose an amount and the phone to receive the prompt.</p>
             <fieldset className="mt-6">
-              <legend className="text-sm font-medium text-slate-800">
-                Amount (KSh)
-              </legend>
-
+              <legend className="text-sm font-medium text-slate-800">Amount (KSh)</legend>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                {amounts.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setAmount(option)}
-                    aria-pressed={amount === option}
-                    className={`min-h-11 border px-3 text-sm font-semibold ${
-                      amount === option
-                        ? 'border-emerald-800 bg-emerald-50 text-emerald-900'
-                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    {option.toLocaleString()}
-                  </button>
-                ))}
+                {amounts.map((option) => <button key={option} type="button" onClick={() => setAmount(option)} aria-pressed={amount === option} className={`min-h-11 rounded-lg border px-3 text-sm font-semibold transition ${amount === option ? 'border-blue-800 bg-blue-50 text-blue-900 ring-1 ring-blue-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>{option.toLocaleString()}</button>)}
               </div>
             </fieldset>
-
-            <div className="mt-4 space-y-2">
-              <Label htmlFor="donation-amount">
-                Other amount
-              </Label>
-
-              <Input
-                id="donation-amount"
-                type="number"
-                min="1"
-                max="150000"
-                value={amount}
-                onChange={(event) =>
-                  setAmount(Number(event.target.value))
-                }
-                required
-              />
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <Label htmlFor="donation-phone">
-                M-Pesa phone number
-              </Label>
-
-              <Input
-                id="donation-phone"
-                autoComplete="tel"
-                inputMode="tel"
-                placeholder="07xx xxx xxx"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                required
-              />
-            </div>
-
-            <Button
-              className="mt-6 w-full bg-emerald-800 hover:bg-emerald-900"
-              type="submit"
-              disabled={loading || amount < 1}
-            >
-              {loading
-                ? 'Requesting prompt…'
-                : `Request KSh ${amount.toLocaleString()} prompt`}
-            </Button>
-
-            {message && (
-              <p
-                role="status"
-                aria-live="polite"
-                className="mt-4 text-sm text-slate-700"
-              >
-                {message}
-              </p>
-            )}
-
-            <p className="mt-5 flex items-start gap-2 border-t pt-4 text-xs leading-5 text-slate-500">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-              Enter your M-Pesa PIN only on the official prompt on your
-              phone. NAVSTAR will never ask for your PIN on this website.
-            </p>
+            <div className="mt-4 space-y-2"><Label htmlFor="donation-amount">Other amount</Label><Input id="donation-amount" type="number" min="1" max="150000" value={amount} onChange={(event) => setAmount(Number(event.target.value))} required /></div>
+            <div className="mt-4 space-y-2"><Label htmlFor="donation-phone">M-Pesa phone number</Label><Input id="donation-phone" autoComplete="tel" inputMode="tel" placeholder="07xx xxx xxx" value={phone} onChange={(event) => setPhone(event.target.value)} required /></div>
+            <Button className="mt-6 w-full bg-blue-800 hover:bg-blue-900" type="submit" disabled={loading || amount < 1}>{loading ? 'Processing M-Pesa payment…' : `Continue with KSh ${amount.toLocaleString()}`}</Button>
+            {message && <p role="status" aria-live="polite" className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">{message}</p>}
+            {receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><div className="flex items-center gap-2 font-bold"><ShieldCheck className="h-4 w-4" />M-Pesa payment receipt</div><dl className="mt-3 grid grid-cols-2 gap-2"><dt>Account reference</dt><dd className="text-right font-bold">{receipt.reference}</dd><dt>M-Pesa code</dt><dd className="text-right font-bold tracking-wide">{receipt.code}</dd><dt>Amount</dt><dd className="text-right font-semibold">KSh {receipt.amount.toLocaleString()}</dd><dt>Phone</dt><dd className="text-right">{receipt.phone}</dd>{receipt.date && <><dt>Transaction date</dt><dd className="text-right">{receipt.date}</dd></>}</dl></div>}
+            <p className="mt-5 flex items-start gap-2 border-t pt-4 text-xs leading-5 text-slate-500"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />Enter your M-Pesa PIN only on the official prompt on your phone. NAVSTAR will never ask for your PIN on this website.</p>
           </form>
         </div>
       </section>

@@ -23,7 +23,7 @@ export async function onRequestPost({ request, env }) {
   const callback = body?.Body?.stkCallback;
   const checkoutId = safeString(callback?.CheckoutRequestID, 120);
   if (!checkoutId) return error('Invalid payment callback.');
-  const payment = await env.DB.prepare('SELECT id, purpose, reference_id, phone, amount, status FROM payments WHERE checkout_request_id = ?').bind(checkoutId).first();
+  const payment = await env.DB.prepare('SELECT id, purpose, reference_id, display_reference, phone, amount, status FROM payments WHERE checkout_request_id = ?').bind(checkoutId).first();
   if (!payment) return error('Payment request not found.', 404);
   if (payment.status === 'paid' || payment.status === 'failed') return json({ ResultCode: 0, ResultDesc: 'Callback already processed.' });
 
@@ -38,21 +38,26 @@ export async function onRequestPost({ request, env }) {
 
   const paid = resultCode === 0;
   const receipt = paid ? safeString(items.MpesaReceiptNumber, 32) : null;
+  const resultDescription = safeString(callback.ResultDesc, 500) || (paid ? 'Payment confirmed by M-Pesa.' : 'Payment was not completed.');
+  const transactionDate = items.TransactionDate ? String(items.TransactionDate) : null;
   await env.DB.prepare(`
-    UPDATE payments SET status = ?, result_code = ?, receipt_number = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-  `).bind(paid ? 'paid' : 'failed', Number.isFinite(resultCode) ? resultCode : -1, receipt, payment.id).run();
+    UPDATE payments SET status = ?, result_code = ?, receipt_number = ?, result_description = ?, transaction_date = ?, callback_phone = ?, callback_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `).bind(paid ? 'paid' : 'failed', Number.isFinite(resultCode) ? resultCode : -1, receipt, resultDescription, transactionDate, callbackPhone || null, Number.isFinite(callbackAmount) ? callbackAmount : null, payment.id).run();
 
   if (payment.purpose === 'enrollment') {
     await env.DB.prepare('UPDATE enrollments SET payment_status = ? WHERE id = ?')
       .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
-  } else {
+  } else if (payment.purpose === 'donation') {
     await env.DB.prepare('UPDATE donations SET status = ? WHERE id = ?')
+      .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
+  } else if (payment.purpose === 'service') {
+    await env.DB.prepare('UPDATE service_requests SET status = ? WHERE id = ?')
       .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
   }
 
   const staff = await env.DB.prepare("SELECT id FROM users WHERE role IN ('admin', 'admissions', 'principal') AND status = 'active'").all();
   if (staff.results?.length) {
-    const message = paid ? `${payment.purpose} payment of KSh ${payment.amount} was confirmed.` : `${payment.purpose} payment could not be completed.`;
+    const message = paid ? `${payment.purpose} payment ${payment.display_reference || ''} of KSh ${payment.amount} was confirmed. M-Pesa receipt: ${receipt}.` : `${payment.purpose} payment ${payment.display_reference || ''} could not be completed: ${resultDescription}`;
     await env.DB.batch(staff.results.map((user) => env.DB.prepare('INSERT INTO notifications (id, user_id, title, message) VALUES (?, ?, ?, ?)')
       .bind(uuid(), user.id, paid ? 'Payment confirmed' : 'Payment failed', message)));
   }

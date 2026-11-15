@@ -12,7 +12,7 @@ export function Footer() {
               <span className="text-xl font-bold tracking-tight">NAVSTAR DIGITAL HUB</span>
             </Link>
             <p className="mt-4 text-sm leading-6">
-              Empowering the next generation of digital professionals through quality education and accessible technology services.
+              HOME OF TECHNOCRATS. Practical digital training, dependable cyber services and technology solutions.
             </p>
             <div className="mt-6 flex space-x-4">
               <a href="#" className="hover:text-white transition-colors"><Facebook className="h-5 w-5" /></a>
@@ -47,15 +47,15 @@ export function Footer() {
             <ul className="mt-4 space-y-4">
               <li className="flex items-start gap-3">
                 <MapPin className="mt-1 h-5 w-5 flex-shrink-0 text-primary" />
-                <span className="text-sm">Main Street, Tech Plaza, 2nd Floor, Nairobi, Kenya</span>
+                <span className="text-sm">Opposite Shaban Medical Clinic, off Agorom–Busia Road, Raphael Estates, Room 3, Nambale, Kenya</span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="h-5 w-5 flex-shrink-0 text-primary" />
-                <span className="text-sm">+254 700 000 000</span>
+                <span className="text-sm">0797 688 576 / 0706 637 485</span>
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="h-5 w-5 flex-shrink-0 text-primary" />
-                <span className="text-sm">info@navstar.hub</span>
+                <span className="text-sm">navstardigitalhub@gmail.com</span>
               </li>
             </ul>
           </div>
