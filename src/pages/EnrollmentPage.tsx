@@ -14,6 +14,8 @@ export function EnrollmentPage() {
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
   const [registrationId, setRegistrationId] = useState('');
+  const [registrationReference, setRegistrationReference] = useState('');
+  const [receipt, setReceipt] = useState<{ code: string; amount: number; phone: string; date?: string } | null>(null);
   const [phone, setPhone] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
@@ -66,10 +68,11 @@ export function EnrollmentPage() {
           courseTitle: course.title,
         }),
       });
-      const result = await response.json() as { id?: string; error?: string };
+      const result = await response.json() as { id?: string; reference?: string; error?: string };
       if (!response.ok || !result.id) throw new Error(result.error ?? 'The application could not be submitted. Please contact admissions.');
-      setRegistrationId(result.id ?? 'Submitted');
-      setStatus('Application submitted securely. You can now request an M-Pesa payment prompt.');
+      setRegistrationId(result.id);
+      setRegistrationReference(result.reference ?? result.id);
+      setStatus(`Application submitted securely as ${result.reference ?? result.id}. You can now request an M-Pesa payment prompt.`);
       form.reset();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'The application could not be submitted.');
@@ -88,9 +91,9 @@ export function EnrollmentPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, amount: course.price, purpose: 'enrollment', reference: registrationId }),
       });
-      const result = await response.json() as { message?: string; error?: string };
+      const result = await response.json() as { id?: string; reference?: string; message?: string; error?: string };
       if (!response.ok) throw new Error(result.error ?? 'The payment prompt could not be requested. Please contact the school.');
-      setStatus(result.message ?? 'Payment prompt sent. Approve it on your phone. Payment status will update after provider confirmation.');
+      setStatus(`Processing M-Pesa payment for ${result.reference || registrationReference}. ${result.message || 'Check your phone for the official prompt.'}`);\n      if (result.id) {\n        for (let attempt = 0; attempt < 24; attempt += 1) {\n          await new Promise((resolve) => window.setTimeout(resolve, 5000));\n          const check = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(result.id)}`, { headers: { Accept: 'application/json' } });\n          if (!check.ok) continue;\n          const data = await check.json() as { payment?: { status?: string; receipt_number?: string; result_description?: string; amount?: number; callback_phone?: string; transaction_date?: string } };\n          const payment = data.payment;\n          if (payment?.status === 'paid' && payment.receipt_number) {\n            setReceipt({ code: payment.receipt_number, amount: payment.amount || course.price, phone: payment.callback_phone || phone, date: payment.transaction_date });\n            setStatus('Payment confirmed successfully by M-Pesa. Your receipt is below.');\n            break;\n          }\n          if (payment?.status === 'failed') { setStatus(`Payment not completed: ${payment.result_description || 'M-Pesa did not confirm this payment.'}`); break; }\n          if (attempt === 23) setStatus(`Payment is still awaiting confirmation. Keep your reference ${registrationReference} and check again shortly.`);\n        }\n      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'The payment prompt could not be requested.');
     } finally {
@@ -155,7 +158,7 @@ export function EnrollmentPage() {
             <label className="flex items-start gap-3 border bg-white p-4 text-sm leading-6 text-slate-700"><input type="checkbox" name="consent" required className="mt-1 accent-emerald-800" /><span>I agree that admissions may contact me about this application and confirm that the information provided is accurate.</span></label>
             <Button className="w-full bg-emerald-800 hover:bg-emerald-900 sm:w-auto" type="submit" disabled={loading}>{loading ? 'Submitting…' : 'Submit application'}</Button>
             {status && <p role="status" className="border bg-white p-4 text-sm text-slate-700">{status}</p>}
-            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />Application received</CardTitle><CardDescription>Reference: {registrationId}</CardDescription></CardHeader><CardContent><Button type="button" className="bg-emerald-800 hover:bg-emerald-900" onClick={requestPayment} disabled={loading}>Request M-Pesa prompt</Button></CardContent></Card>}
+            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />Application received</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent><Button type="button" className="bg-emerald-800 hover:bg-emerald-900" onClick={requestPayment} disabled={loading}>{loading ? 'Processing…' : 'Request M-Pesa prompt'}</Button>{receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa receipt confirmed</p><p className="mt-2">Account: <strong>{registrationReference}</strong></p><p>M-Pesa code: <strong className="tracking-wide">{receipt.code}</strong></p><p>Amount: <strong>KSh {receipt.amount.toLocaleString()}</strong></p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}</div>}</CardContent></Card>}
           </form>
 
           <aside className="space-y-4 lg:sticky lg:top-24">
