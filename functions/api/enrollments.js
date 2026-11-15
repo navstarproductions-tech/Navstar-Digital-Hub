@@ -1,6 +1,7 @@
 import { getSession } from '../_shared/auth.js';
 import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../_shared/http.js';
 import { rateLimited } from '../_shared/rate-limit.js';
+import { nextReference } from '../_shared/references.js';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -32,14 +33,15 @@ export async function onRequestPost({ request, env }) {
   }
 
   const id = uuid();
+  const displayRef = await nextReference(env.DB, 'ENR');
   await env.DB.prepare(`
     INSERT INTO enrollments (
-      id, course_id, full_name, email, phone, date_of_birth, identity_number, gender, nationality,
+      id, display_ref, course_id, full_name, email, phone, date_of_birth, identity_number, gender, nationality,
       study_mode, education_level, preferred_intake, experience, county, town, address,
       emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, support_needs, consent
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).bind(
-    id, course.id, fullName, email, phone, dateOfBirth, safeString(body.identityNumber, 80) || null,
+    id, displayRef, course.id, fullName, email, phone, dateOfBirth, safeString(body.identityNumber, 80) || null,
     safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null, studyMode, educationLevel,
     safeString(body.preferredIntake, 20) || null, safeString(body.experience, 2000) || null, county, town,
     safeString(body.address, 250) || null, emergencyContactName, emergencyContactPhone,
@@ -51,7 +53,7 @@ export async function onRequestPost({ request, env }) {
     await env.DB.batch(staff.results.map((user) => env.DB.prepare('INSERT INTO notifications (id, user_id, title, message) VALUES (?, ?, ?, ?)')
       .bind(uuid(), user.id, 'New application', `An application was received for ${course.title}.`)));
   }
-  return json({ id, status: 'submitted', course: { id: course.id, title: course.title, amount: course.price } }, 201);
+  return json({ id, reference: displayRef, status: 'submitted', course: { id: course.id, title: course.title, amount: course.price } }, 201);
 }
 
 export async function onRequestGet({ request, env }) {
@@ -60,7 +62,7 @@ export async function onRequestGet({ request, env }) {
   if (!user) return error('Sign in required.', 401);
   let query;
   if (['admin', 'admissions', 'principal'].includes(user.role)) {
-    query = env.DB.prepare(`SELECT id, course_id, full_name, email, phone, status, payment_status, created_at FROM enrollments ORDER BY created_at DESC LIMIT 200`);
+    query = env.DB.prepare(`SELECT id, display_ref AS reference, course_id, full_name, email, phone, status, payment_status, created_at FROM enrollments ORDER BY created_at DESC LIMIT 200`);
   } else if (user.role === 'student') {
     query = env.DB.prepare(`SELECT id, course_id, full_name, email, phone, status, payment_status, created_at FROM enrollments WHERE email = ? ORDER BY created_at DESC`).bind(user.email);
   } else {
