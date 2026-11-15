@@ -1,5 +1,5 @@
 import { requireRole } from '../../_shared/auth.js';
-import { error, isSameOrigin, json, safeString, uuid } from '../../_shared/http.js';
+import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 
 export async function onRequestPut({ request, env, params }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
@@ -7,10 +7,7 @@ export async function onRequestPut({ request, env, params }) {
   const access = await requireRole(request, env, ['admin']);
   if (access.response) return access.response;
   let body;
-  try {
-    const { readJson } = await import('../../_shared/http.js');
-    body = await readJson(request, 4096);
-  } catch { return error('Invalid request body.'); }
+  try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
   const id = safeString(params.id, 80);
   const title = safeString(body.title, 120);
   const description = safeString(body.description, 1000);
