@@ -4,6 +4,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { HomePage } from '@/pages/HomePage';
 import { CoursesPage } from '@/pages/CoursesPage';
+import { LearningPage } from '@/pages/LearningPage';
 import { EnrollmentPage } from '@/pages/EnrollmentPage';
 import { AdminPage } from '@/pages/AdminPage';
 import { ServicesPage } from '@/pages/ServicesPage';
@@ -42,6 +43,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/courses" element={<CoursesPage />} />
+            <Route path="/learning" element={<LearningPage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/donations" element={<DonationsPage />} />
             <Route path="/portals" element={<PortalsPage />} />
