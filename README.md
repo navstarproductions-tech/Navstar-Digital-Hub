@@ -5,11 +5,10 @@ Vite/React public site with same-repository Cloudflare Pages Functions. The prod
 ## Deploy free hosting from Git
 
 1. Sign in to Cloudflare and open **Workers & Pages → Create application → Pages → Connect to Git**.
-2. Connect GitHub and select `navstarproductions-tech/Navstar-Digital-Hub-Site`, production branch `main`.
-3. Use the Vite preset, build command `npm ci && npm run build:pages && npm run check:functions`, and output directory `dist`. Do not choose Direct Upload; the root `functions/` directory must deploy with Git integration.
-4. Create a D1 database named `navstar-digital-hub`. In the Pages project, add a D1 binding named `DB` under **Settings → Bindings**.
-5. Apply `db/migrations/0001_initial.sql`. With Wrangler installed and authenticated, run `npx wrangler d1 migrations apply navstar-digital-hub --remote --directory db/migrations` from the repository root.
-6. To enable admin logo/gallery uploads, create an R2 bucket and bind it as `MEDIA` under **Settings → Bindings**.
+2. Connect GitHub and select `navstarproductions-tech/Navstar-Digital-Hub`, production branch `main`.
+3. Use the Vite preset, build command `npm ci && npm run build:pages && npm run check:functions`, and output directory `dist`. Do not choose Direct Upload; the root `functions/` directory must deploy with Git integration. The root `wrangler.toml` declares the production D1 binding (`DB`) and two R2 bindings (`DOCS` and `MEDIA`).
+4. The production D1 database `navstar-digital-hub` is already provisioned and migrations `0001` through `0005` have been applied. The root `wrangler.toml` maps it to `DB`.
+5. Create two R2 buckets with these exact names: `navstar-digital-hub-docs` and `navstar-digital-hub-media`. The root `wrangler.toml` maps them to `DOCS` and `MEDIA`, respectively. These buckets store admin-uploaded downloadable documents and gallery/logo images.
 7. Wait for the first successful deployment. Its address will be `https://<your-project-name>.pages.dev`.
 
 Cloudflare currently offers free Workers/D1 usage within documented limits; check current pricing and usage before launch. A custom domain is purchased separately. Add it under **Custom domains**, follow Cloudflare's DNS instructions, then update `APP_ORIGIN` to the new HTTPS origin and redeploy.
@@ -57,4 +56,4 @@ npm run dev
 
 For a Cloudflare-compatible local preview, run `npm run build:pages` then `npm run pages:dev`. The optional D1 and R2 bindings must be supplied/configured before testing authenticated and media operations.
 
-The original `let-help-you-dashboard` Pages URL returns 404 because the GitHub repository was renamed. The current GitHub Pages fallback is `https://navstarproductions-tech.github.io/Navstar-Digital-Hub-Site/`. Cloudflare Pages builds use the root path automatically, so its `pages.dev` and custom-domain URLs do not inherit the GitHub project subpath.
+Cloudflare Pages is the production hosting target. Keep the Pages project connected to this repository's `main` branch and use the root `wrangler.toml` as the source of runtime bindings.
