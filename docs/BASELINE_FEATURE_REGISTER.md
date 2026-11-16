@@ -1,12 +1,12 @@
 # Navstar Digital Hub — Baseline Feature Register
 
-Baseline inspected from `main` commit `565c1df736aaf308d8a3a0c21a87db29deada6dc`. This is a repository inventory, not proof that every endpoint is currently deployed or operational.
+Baseline inspected from `main` commit `565c1df736aaf308d8a3a0c21a87db29deada6dc`, with the development additions on `navstar-ecosystem-phase-1` recorded below. This is a repository inventory, not proof that every endpoint is currently deployed or operational.
 
 ## Frontend route inventory
 
 Routes registered in `src/App.tsx`:
 - `/` Home
-- `/courses`, `/services`, `/donations`
+- `/courses`, `/learning`, `/services`, `/donations`
 - `/portals`, `/portals/:role`, `/portals/notifications`
 - `/login`, `/account`
 - `/campus-life`, `/admissions-letters`, `/analytics`
@@ -24,7 +24,8 @@ Existing portals shown in the portal UI: student, tutor, admissions, principal, 
 - `GET /api/assistant`, `POST /api/assistant`
 - `GET /api/courses`, `/api/courses/:id`
 - `GET /api/services`, `/api/services/:id`
-- `/api/enrollments`
+- `/api/enrollments`, `PATCH /api/enrollments/:id` (admissions status review on feature branch)
+- `GET /api/learning`, `POST /api/learning` (feature branch: LMS content, progress, submissions, tutor assignment and grading)
 - `/api/donations`
 - `/api/service-requests`
 - `GET /api/downloads`, `/api/downloads/:id`
@@ -85,13 +86,20 @@ Migrations present in `db/migrations`:
 | Downloads/gallery | Download and media endpoints, R2 bindings | Existing foundation; verify access policies |
 | AI assistant | Widget and Pages Function | Known production POST HTTP 502; unresolved |
 | Physical/digital product store | No verified complete product catalogue/order/inventory domain | Planned / audit required |
-| Full LMS | No verified complete module/lesson/assignment/exam domain | Planned / audit required |
+| LMS first slice | Feature branch adds modules, lessons, learner progress, assignments, submissions, grading and tutor assignment; student access is gated by accepted enrolment | In progress; not deployed; exams, CATs, cohorts, private uploads and completion/certificates remain outstanding |
 | Digital library | No verified library domain | Planned |
 | Online examination centre | No verified examination domain | Planned |
 | Jobs and scholarships | No verified listings/application domain | Planned |
 | Appointment booking | Service request foundation exists; no verified scheduling workflow | Planned / audit required |
 | Certificate verification | No verified certificate award/verification workflow | Planned |
 | PWA/mobile app | No verified PWA/Android deliverable in this audit | Planned |
+
+## LMS development snapshot on `navstar-ecosystem-phase-1`
+- New route: `/learning`; linked from student, tutor and administrator portal cards.
+- `GET /api/learning` returns only accepted-enrolment courses to students, explicitly assigned courses to tutors, and active courses to administrators/principals.
+- `POST /api/learning` supports administrator module/lesson/assignment creation, tutor assignment, learner lesson progress, learner assignment submission and administrator grading.
+- `PATCH /api/enrollments/:id` lets authorized admissions/admin staff change an application to submitted, under review, accepted or rejected. Acceptance enables the matching learner account to see the course in the LMS.
+- A local SQLite execution check passed for the additive LMS migration and representative rows. Full repository build, TypeScript and Pages Functions checks have not been run; production D1 migration history is unverified. No production deployment or merge has occurred.
 
 ## Next audit checks
 - Read every migration 0001–0009 and inspect the D1 migration history before designing schema changes.
