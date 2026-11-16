@@ -1,6 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Monitor, Menu, X, ShoppingCart, UserRound, LogOut } from 'lucide-react';
+import { Menu, X, ShoppingCart, UserRound, LogOut } from 'lucide-react';
 import { DonationPopup } from '@/components/DonationPopup';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -80,7 +80,7 @@ export function Navbar() {
       <div className="w-full px-2 sm:px-3 lg:px-4 2xl:px-6">
         <div className="flex min-h-16 w-full items-center justify-between gap-2 xl:gap-3">
           <Link to="/" className="flex min-w-0 shrink items-center gap-2 xl:gap-2.5" aria-label="NAVSTAR DIGITAL HUB home">
-            {logoUrl ? <img src={logoUrl} alt="" className="h-9 w-9 object-contain" /> : <div className="rounded-lg bg-white/10 p-2 text-white"><Monitor className="h-5 w-5" /></div>}
+            <img src={logoUrl || '/navstar-logo.webp'} alt="Navstar Digital Hub logo" className="h-10 w-[4.5rem] shrink-0 rounded-md object-contain" />
             <span className="max-w-[112px] truncate text-[11px] font-black tracking-tight text-white sm:max-w-[170px] sm:text-xs 2xl:max-w-none 2xl:text-sm">{brandName}</span>
           </Link>
 
