@@ -8,7 +8,7 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
   if (!env.DB) return error('Service requests are not configured.', 503);
-  if (await rateLimited(env.DB, request, 'service-request', { maximum: 5, minutes: 15 })) return error('Too many service requests. Try again later.', 429);
+  if (await rateLimited(env.DB, request, 'service-request', { maximum: 40, minutes: 10 })) return error('You have submitted many orders in a short time. Please wait a few minutes or contact Navstar for assistance.', 429);
   let body;
   try { body = await readJson(request, 16000); } catch { return error('Invalid request body.'); }
   const customerName = safeString(body.customerName, 120);
