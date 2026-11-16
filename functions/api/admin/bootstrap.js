@@ -24,6 +24,8 @@ export async function onRequestPost({ request, env }) {
   const confirmPassword = String(body.confirmPassword ?? '');
   if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error('Enter your full name and a valid email address.');
   if (password.length < 6 || password.length > 200) return error('Password must contain at least 6 characters.');
+  const passwordTypes = [/[A-Z]/.test(password), /[a-z]/.test(password), /[0-9]/.test(password), /[^A-Za-z0-9]/.test(password)].filter(Boolean).length;
+  if (passwordTypes < 3) return error('Password must include at least 3 of these 4 types: uppercase letters, lowercase letters, numbers and special characters.');
   if (password !== confirmPassword) return error('The passwords do not match.');
 
   const collision = await env.DB.prepare("SELECT id, role FROM users WHERE email = ? COLLATE NOCASE").bind(email).first();
