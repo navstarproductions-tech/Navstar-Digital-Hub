@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, LockKeyhole, ShieldCheck, Sparkles, Eye, EyeOff, GraduationCap, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,17 @@ export function LoginPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [adminSetupAvailable, setAdminSetupAvailable] = useState(false);
+
+  useEffect(() => {
+    if (role !== 'admin') return;
+    let active = true;
+    fetch('/api/admin/bootstrap')
+      .then(async (response) => response.ok ? response.json() as Promise<{ setupAvailable?: boolean }> : null)
+      .then((result) => { if (active) setAdminSetupAvailable(Boolean(result?.setupAvailable)); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [role]);
 
   const signIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -73,6 +84,7 @@ export function LoginPage() {
           </form>
           <div className="mt-6 rounded-xl border border-slate-200 p-4"><p className="text-sm font-semibold text-slate-900">Looking to order goods or request a service?</p><p className="mt-1 text-xs leading-5 text-slate-500">Customers do not need a student or staff portal account to make a public service request.</p><Link to="/services" className="mt-2 inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-900">Continue to Customer Services <ArrowLeft className="h-4 w-4 rotate-180" /></Link></div>
           {role === 'admin' && <Link to="/admin-reset" className="mt-4 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-900">Forgot Admin password? Reset it securely</Link>}
+          {role === 'admin' && adminSetupAvailable && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-sm font-semibold text-emerald-950">First time setting up Navstar?</p><p className="mt-1 text-xs leading-5 text-emerald-800">Create the first administrator account once, then use its email and password here for future sign-ins.</p><Link to="/setup" className="mt-2 inline-flex text-sm font-bold text-emerald-800 hover:text-emerald-950">Create first Admin account</Link></div>}
           <p className="mt-7 text-center text-xs text-slate-400">© Navstar Digital Hub · HOME OF TECHNOCRATS</p>
         </section>
       </div>
