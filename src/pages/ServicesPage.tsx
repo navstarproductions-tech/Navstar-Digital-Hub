@@ -32,6 +32,7 @@ export function ServicesPage() {
   const [query,setQuery]=useState('');
   const [category,setCategory]=useState(()=>searchParams.get('category')||'All Services');
   const [cart,setCart]=useState<CartLine[]>(()=>{try{return JSON.parse(localStorage.getItem('navstar-service-cart')||'[]') as CartLine[];}catch{return [];}});
+  const [customerAccountId,setCustomerAccountId]=useState('');
   const [name,setName]=useState('');
   const [email,setEmail]=useState('');
   const [phone,setPhone]=useState('');
@@ -42,6 +43,8 @@ export function ServicesPage() {
   const [orderRef,setOrderRef]=useState('');
 
   useEffect(()=>{let active=true;fetch('/api/services').then(async r=>r.ok?r.json() as Promise<{services?:Service[]}>:null).then(data=>{if(active)setServices(data?.services||[]);}).catch(()=>{if(active)setMessage('Service catalogue could not be loaded. Please refresh or contact Navstar.');}).finally(()=>{if(active)setLoadingServices(false);});return()=>{active=false;};},[]);
+  useEffect(()=>{let active=true;if(loadingServices)return;const restore=async()=>{try{const session=await fetch('/api/customer/me');if(!session.ok)return;const account=await session.json() as {customer?:{id:string}};if(!account.customer)return;const saved=await fetch('/api/customer/cart');if(!saved.ok)return;const data=await saved.json() as {items?:{itemType:string;itemId:string;quantity:number;instructions?:string}[]};if(!active)return;setCustomerAccountId(account.customer.id);const restored=(data.items||[]).filter(item=>item.itemType==='service').flatMap(item=>{const service=services.find(entry=>entry.id===item.itemId);return service?[{service,quantity:item.quantity,instructions:item.instructions||''}]:[];});if(restored.length)setCart(restored);}catch{/* Keep the local basket available if account sync is offline. */}};void restore();return()=>{active=false};},[loadingServices,services]);
+  useEffect(()=>{if(!customerAccountId)return;const sync=async()=>{try{await fetch('/api/customer/cart',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'clear'})});for(const line of cart){await fetch('/api/customer/cart',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'update',itemType:'service',itemId:line.service.id,quantity:line.quantity,instructions:line.instructions})});}}catch{/* Local cart remains available during network interruptions. */}};void sync();},[cart,customerAccountId]);
   const categories=useMemo(()=>['All Services',...Array.from(new Set(services.map(s=>s.category))).sort()], [services]);
   const visible=useMemo(()=>services.filter(s=>(category==='All Services'||s.category===category)&&[s.name,s.category,s.reference].some(v=>(v||'').toLowerCase().includes(query.toLowerCase()))),[services,category,query]);
   const total=cart.reduce((sum,line)=>sum+(Number(line.service.priceAmount)||0)*line.quantity,0);
