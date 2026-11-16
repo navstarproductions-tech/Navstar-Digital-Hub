@@ -1,21 +1,20 @@
 import { hashPassword } from '../../_shared/auth.js';
-import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
+import { constantTimeEqual, error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 import { rateLimited } from '../../_shared/rate-limit.js';
 
 export async function onRequestGet({ env }) {
   if (!env.DB) return error('Admin setup is not configured.', 503);
-  const admin = await env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin'").first();
-  const used = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-bootstrap-used'").first();
-  return json({
-    adminExists: Number(admin?.count ?? 0) > 0,
-    setupAvailable: Number(admin?.count ?? 0) === 0 && !used,
-  });
+  const admin = await env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND status = 'active'").first();
+  return json({ adminExists: Number(admin?.count ?? 0) > 0, setupAvailable: true, setupRequiresPrivateKey: true });
 }
 
 export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
-  if (!env.DB) return error('Admin setup is not configured.', 503);
-  if (await rateLimited(env.DB, request, 'admin-bootstrap', { maximum: 3, minutes: 60 })) return error('Setup limit reached. Try again later.', 429);
+  if (!env.DB || !env.ADMIN_RESET_TOKEN) return error('Admin setup is not configured. Add the ADMIN_RESET_TOKEN secret to the Production environment.', 503);
+  if (await rateLimited(env.DB, request, 'admin-fresh-setup', { maximum: 3, minutes: 60 })) return error('Setup limit reached. Try again later.', 429);
+
+  const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+  if (token.length < 32 || !constantTimeEqual(token, env.ADMIN_RESET_TOKEN)) return error('Invalid Admin setup key.', 403);
 
   let body;
   try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
@@ -23,21 +22,36 @@ export async function onRequestPost({ request, env }) {
   const email = safeString(body.email, 254).toLowerCase();
   const password = String(body.password ?? '');
   const confirmPassword = String(body.confirmPassword ?? '');
-  if (name.length < 2 || !email.includes('@')) return error('Please enter your full name and a valid email address.');
-  if (password.length < 6 || password.length > 200) return error('Your password must contain at least 6 characters.');
+  if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error('Enter your full name and a valid email address.');
+  if (password.length < 6 || password.length > 200) return error('Password must contain at least 6 characters.');
   if (password !== confirmPassword) return error('The passwords do not match.');
 
-  const existing = await env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin'").first();
-  if (Number(existing?.count ?? 0) > 0) return error('An administrator already exists. Please sign in.', 409);
-  const lock = await env.DB.prepare("INSERT INTO system_state (key, value) VALUES ('admin-bootstrap-used', '1') ON CONFLICT(key) DO NOTHING").run();
-  if (!lock.meta?.changes) return error('First Admin setup has already been used. Please sign in.', 409);
+  const collision = await env.DB.prepare("SELECT id FROM users WHERE email = ? AND role != 'admin'").bind(email).first();
+  if (collision) return error('That email already belongs to another portal account. Please use a different email.', 409);
+
+  const existing = await env.DB.prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, created_at ASC LIMIT 1").first();
   const passwordRecord = await hashPassword(password);
-  const id = uuid();
-  await env.DB.prepare(`
-    INSERT INTO users (id, name, email, role, password_hash, password_salt)
-    VALUES (?, ?, ?, 'admin', ?, ?)
-  `).bind(id, name, email, passwordRecord.hash, passwordRecord.salt).run();
-  await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
-    .bind(uuid(), id, 'bootstrap_admin_created', 'user', id).run();
-  return json({ created: true, userId: id }, 201);
+  const adminId = existing?.id || uuid();
+
+  try {
+    if (existing) {
+      await env.DB.prepare("UPDATE users SET name = ?, email = ?, password_hash = ?, password_salt = ?, status = 'active', must_change_password = 0 WHERE id = ?")
+        .bind(name, email, passwordRecord.hash, passwordRecord.salt, adminId).run();
+      await env.DB.prepare("UPDATE users SET status = 'disabled' WHERE role = 'admin' AND id != ? AND status = 'active'")
+        .bind(adminId).run();
+      await env.DB.prepare("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE role = 'admin')").run();
+      await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
+        .bind(uuid(), adminId, 'admin_fresh_setup', 'user', adminId).run();
+    } else {
+      await env.DB.prepare("INSERT INTO users (id, name, email, role, password_hash, password_salt, must_change_password, status) VALUES (?, ?, 'admin', ?, ?, 0, 'active')")
+        .bind(adminId, name, email, passwordRecord.hash, passwordRecord.salt).run();
+      await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
+        .bind(uuid(), adminId, 'admin_first_setup', 'user', adminId).run();
+    }
+  } catch (cause) {
+    if (String(cause?.message || '').toLowerCase().includes('unique')) return error('That email is already registered. Please use another email.', 409);
+    console.error('Admin fresh setup failed:', String(cause));
+    return error('Admin setup could not be completed. Existing records have been retained.', 500);
+  }
+  return json({ created: true, message: 'Your new Admin login is ready. You can now sign in.' }, 201);
 }
