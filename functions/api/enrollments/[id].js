@@ -1,5 +1,5 @@
 import { requireRole } from '../../_shared/auth.js';
-import { error, isSameOrigin, json, safeString, uuid } from '../../_shared/http.js';
+import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 
 const allowedStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 
@@ -10,7 +10,7 @@ export async function onRequestPatch({ request, env, params }) {
   if (access.response) return access.response;
 
   let body;
-  try { body = await request.json(); } catch { return error('Invalid request body.'); }
+  try { body = await readJson(request, 2048); } catch { return error('Invalid request body.'); }
   const id = safeString(params.id, 80);
   const status = safeString(body.status, 24);
   if (!id || !allowedStatuses.includes(status)) return error('Choose a valid application status.');
