@@ -1,5 +1,11 @@
 import { normalizePhone } from './http.js';
 
+// Reuse the Safaricom OAuth token within a warm Cloudflare Worker isolate.
+// This avoids an extra OAuth network request for every M-Pesa prompt.
+let cachedAccessToken = '';
+let cachedAccessTokenExpiresAt = 0;
+let accessTokenRequest = null;
+
 export function darajaReady(env) {
   return Boolean(env.DARAJA_CONSUMER_KEY && env.DARAJA_CONSUMER_SECRET && env.DARAJA_PASSKEY && env.DARAJA_SHORTCODE && env.DARAJA_CALLBACK_TOKEN && env.APP_ORIGIN);
 }
@@ -14,14 +20,29 @@ function formatTimestamp(date = new Date(Date.now() + 3 * 60 * 60 * 1000)) {
 }
 
 async function getAccessToken(env) {
-  const authorization = btoa(`${env.DARAJA_CONSUMER_KEY}:${env.DARAJA_CONSUMER_SECRET}`);
-  const response = await fetch(`https://${darajaHost(env)}/oauth/v1/generate?grant_type=client_credentials`, {
-    headers: { Authorization: `Basic ${authorization}` },
-    signal: AbortSignal.timeout(10000),
-  });
-  const body = await response.json();
-  if (!response.ok || !body.access_token) throw new Error('Payment provider authentication failed.');
-  return body.access_token;
+  const now = Date.now();
+  if (cachedAccessToken && now < cachedAccessTokenExpiresAt - 60000) return cachedAccessToken;
+  if (accessTokenRequest) return accessTokenRequest;
+
+  accessTokenRequest = (async () => {
+    const authorization = btoa(`${env.DARAJA_CONSUMER_KEY}:${env.DARAJA_CONSUMER_SECRET}`);
+    const response = await fetch(`https://${darajaHost(env)}/oauth/v1/generate?grant_type=client_credentials`, {
+      headers: { Authorization: `Basic ${authorization}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    const body = await response.json();
+    if (!response.ok || !body.access_token) throw new Error('Payment provider authentication failed.');
+    cachedAccessToken = body.access_token;
+    const lifetimeSeconds = Math.max(120, Number(body.expires_in) || 3600);
+    cachedAccessTokenExpiresAt = Date.now() + lifetimeSeconds * 1000;
+    return cachedAccessToken;
+  })();
+
+  try {
+    return await accessTokenRequest;
+  } finally {
+    accessTokenRequest = null;
+  }
 }
 
 export async function startStkPush(env, { phone, amount, accountReference, description }) {
