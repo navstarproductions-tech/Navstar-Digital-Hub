@@ -20,7 +20,7 @@ export function parseNavstarDate(value: DateInput): Date | null {
   if (!input) return null;
 
   // Safaricom Daraja TransactionDate: YYYYMMDDHHmmss, expressed in EAT.
-  if (/^\\d{14}$/.test(input)) {
+  if (/^\d{14}$/.test(input)) {
     const year = Number(input.slice(0, 4));
     const month = Number(input.slice(4, 6));
     const day = Number(input.slice(6, 8));
@@ -35,19 +35,19 @@ export function parseNavstarDate(value: DateInput): Date | null {
   }
 
   // Date-only values remain the same calendar day in Nairobi.
-  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(input)) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
     const date = new Date(input + 'T00:00:00+03:00');
     return Number.isNaN(date.getTime()) ? null : date;
   }
 
   // SQLite CURRENT_TIMESTAMP is UTC but has no explicit "Z".
-  if (/^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?$/.test(input)) {
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(input)) {
     const date = new Date(input.replace(' ', 'T') + 'Z');
     return Number.isNaN(date.getTime()) ? null : date;
   }
 
   // Treat timezone-less ISO datetimes as UTC for consistent server storage.
-  const normalized = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?$/.test(input) ? input + 'Z' : input;
+  const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(input) ? input + 'Z' : input;
   const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? null : date;
 }
