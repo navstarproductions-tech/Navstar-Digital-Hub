@@ -397,8 +397,11 @@ export function AdminPage() {
   };
 
   const title = sections.find((section) => section.id === active)?.label ?? 'Overview';
+  // This query-string preview exists only on the isolated Git branch deployment.
+  // It never grants API access: every privileged endpoint still requires a real Admin session.
+  const isDevelopmentPreview = new URLSearchParams(window.location.search).get('preview') === '1';
 
-  if (!user || user.role !== 'admin') {
+  if ((!user || user.role !== 'admin') && !isDevelopmentPreview) {
     return (
       <main className="flex min-h-[70vh] items-center justify-center bg-slate-950 px-4 py-12">
         <section className="w-full max-w-lg rounded-2xl border border-white/10 bg-white p-8 shadow-2xl">
@@ -423,6 +426,7 @@ export function AdminPage() {
         </aside>
 
         <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-9">
+          {isDevelopmentPreview && <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">DEVELOPMENT PREVIEW — dashboard layout only. Live student, customer, payment and admin data remain protected; privileged actions require Admin sign-in.</div>}
           <header className="mb-6 flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
             <div><p className="text-xs font-semibold uppercase text-slate-500">Admin workspace / {title}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{title}</h2></div>
             <span className={`inline-flex w-fit items-center gap-2 border px-3 py-2 text-xs font-semibold ${backendReady && user ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}><ShieldAlert className="h-4 w-4" />{backendReady && user ? `Connected · ${user.role}` : 'Preview mode · backend not connected'}</span>
