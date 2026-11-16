@@ -71,16 +71,29 @@ export function ServicesPage() {
       const pay=await fetch('/api/payments/stk-push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({purpose:'service',reference:order.id,phone:normalized})});
       const payment=await pay.json() as {id?:string;reference?:string;message?:string;error?:string};
       if(!pay.ok||!payment.id)throw new Error(payment.error||'Order registered, but the payment prompt could not start. Keep your order reference and contact us.');
-      setMessage('Processing payment for '+(payment.reference||order.reference)+'. '+(payment.message||'Check your phone for the official M-Pesa prompt.'));
-      for(let attempt=0;attempt<24;attempt++){
-        await new Promise(resolve=>window.setTimeout(resolve,5000));
-        const check=await fetch('/api/payments/stk-push?reference='+encodeURIComponent(payment.id));
-        if(!check.ok)continue;
-        const data=await check.json() as {payment?:{status?:string;receipt_number?:string;result_description?:string;amount?:number;callback_phone?:string;transaction_date?:string;display_reference?:string;reference?:string}};
-        if(data.payment?.status==='paid'&&data.payment.receipt_number){setReceipt({reference:data.payment.display_reference||data.payment.reference||order.reference||'',code:data.payment.receipt_number,amount:data.payment.amount||order.amount||0,phone:data.payment.callback_phone||normalized,date:data.payment.transaction_date});setMessage('Payment confirmed by M-Pesa. Your order is now recorded and your receipt is ready.');setCart([]);break;}
-        if(data.payment?.status==='failed'){setMessage('Payment not completed: '+(data.payment.result_description||'Safaricom did not confirm this payment.'));break;}
-        if(attempt===23)setMessage('Payment is awaiting confirmation. Keep order reference '+order.reference+' and check again shortly.');
-      }
+      setMessage('M-Pesa prompt sent to '+normalized+'. '+(payment.message||'Check your phone and enter your PIN on the official Safaricom prompt. Your order reference is '+order.reference+'.'));
+      setCart([]);
+      setBusy(false);
+      void (async()=>{
+        for(let attempt=0;attempt<24;attempt++){
+          await new Promise(resolve=>window.setTimeout(resolve,5000));
+          try{
+            const check=await fetch('/api/payments/stk-push?reference='+encodeURIComponent(payment.id));
+            if(!check.ok)continue;
+            const data=await check.json() as {payment?:{status?:string;receipt_number?:string;result_description?:string;amount?:number;callback_phone?:string;transaction_date?:string;display_reference?:string;reference?:string}};
+            if(data.payment?.status==='paid'&&data.payment.receipt_number){
+              setReceipt({reference:data.payment.display_reference||data.payment.reference||order.reference||'',code:data.payment.receipt_number,amount:data.payment.amount||order.amount||0,phone:data.payment.callback_phone||normalized,date:data.payment.transaction_date});
+              setMessage('Payment confirmed by M-Pesa. Your order is recorded and your receipt is ready.');
+              return;
+            }
+            if(data.payment?.status==='failed'){
+              setMessage('Payment not completed: '+(data.payment.result_description||'Safaricom did not confirm this payment.')+' Your order reference is '+order.reference+'.');
+              return;
+            }
+          }catch{/* Continue checking while the network is temporarily unavailable. */}
+        }
+        setMessage('Your M-Pesa payment is still awaiting confirmation. Keep order reference '+order.reference+'. You can submit another order meanwhile.');
+      })();
     }catch(error){setMessage(error instanceof Error?error.message:'Checkout could not be completed.');}
     finally{setBusy(false);}
   };
