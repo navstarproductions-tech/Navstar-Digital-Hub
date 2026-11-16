@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, LockKeyhole, ShieldCheck, Sparkles, Eye, EyeOff, GraduationCap, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,17 +16,6 @@ export function LoginPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [adminSetupAvailable, setAdminSetupAvailable] = useState(false);
-
-  useEffect(() => {
-    if (role !== 'admin') return;
-    let active = true;
-    fetch('/api/admin/bootstrap')
-      .then(async (response) => response.ok ? readApiResponse<{ setupAvailable?: boolean }>(response) : null)
-      .then((result) => { if (active) setAdminSetupAvailable(Boolean(result?.setupAvailable)); })
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, [role]);
 
   const signIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -53,7 +42,9 @@ export function LoginPage() {
     <main className="relative isolate flex min-h-[82vh] items-center justify-center overflow-hidden bg-[#061127] px-4 py-12 sm:py-16">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_10%_15%,rgba(37,99,235,.4),transparent_38%),radial-gradient(ellipse_at_90%_85%,rgba(6,182,212,.22),transparent_38%)]" />
       <div className="absolute inset-0 -z-10 opacity-[.08] [background-image:linear-gradient(rgba(255,255,255,.4)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.4)_1px,transparent_1px)] [background-size:38px_38px]" />
-      <div className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/15 bg-white shadow-2xl shadow-black/30 lg:grid-cols-[.9fr_1.1fr]">
+      <style>{`@keyframes navstarGateSpin { to { transform: rotate(360deg); } } .navstar-gate-frame { position:relative; isolation:isolate; border-radius:2rem; padding:2px; background:conic-gradient(from 0deg,#2563eb,#22d3ee,#d4a72c,#16a34a,#2563eb); box-shadow:0 0 24px rgba(34,211,238,.22),0 0 48px rgba(37,99,235,.16); } .navstar-gate-frame::before { content:""; position:absolute; inset:-2px; border-radius:inherit; background:inherit; filter:blur(12px); opacity:.55; z-index:-1; animation:navstarGateSpin 9s linear infinite; } .navstar-gate-inner { overflow:hidden; border-radius:calc(2rem - 2px); background:white; } @media (prefers-reduced-motion:reduce) { .navstar-gate-frame::before { animation:none; } }`}</style>
+      <div className="navstar-gate-frame mx-auto w-full max-w-5xl">
+      <div className="navstar-gate-inner grid lg:grid-cols-[.9fr_1.1fr]">
         <aside className="relative hidden min-h-[610px] flex-col justify-between overflow-hidden bg-[#071a38] p-9 text-white lg:flex">
           <div className="absolute inset-0 opacity-35"><img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=85" alt="" className="h-full w-full object-cover" /></div>
           <div className="absolute inset-0 bg-gradient-to-br from-[#061127]/95 via-[#0a2a55]/80 to-[#061127]/95" />
@@ -85,9 +76,10 @@ export function LoginPage() {
           </form>
           <div className="mt-6 rounded-xl border border-slate-200 p-4"><p className="text-sm font-semibold text-slate-900">Looking to order goods or request a service?</p><p className="mt-1 text-xs leading-5 text-slate-500">Customers do not need a student or staff portal account to make a public service request.</p><Link to="/services" className="mt-2 inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-900">Continue to Customer Services <ArrowLeft className="h-4 w-4 rotate-180" /></Link></div>
           {role === 'admin' && <Link to="/admin-reset" className="mt-4 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-900">Forgot Admin password? Reset it securely</Link>}
-          {role === 'admin' && adminSetupAvailable && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-sm font-semibold text-emerald-950">First time setting up Navstar?</p><p className="mt-1 text-xs leading-5 text-emerald-800">Create the first administrator account once, then use its email and password here for future sign-ins.</p><Link to="/setup" className="mt-2 inline-flex text-sm font-bold text-emerald-800 hover:text-emerald-950">Create first Admin account</Link></div>}
+          {role === 'admin' && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-sm font-semibold text-emerald-950">New Admin account or account recovery?</p><p className="mt-1 text-xs leading-5 text-emerald-800">An authorised administrator can create or replace the Admin login using the private setup key. This page does not allow public or unrestricted administrator registration.</p><Link to="/setup" className="mt-2 inline-flex text-sm font-bold text-emerald-800 hover:text-emerald-950">Create / reset Admin account</Link></div>}
           <p className="mt-7 text-center text-xs text-slate-400">© Navstar Digital Hub · HOME OF TECHNOCRATS</p>
         </section>
+      </div>
       </div>
     </main>
   );
