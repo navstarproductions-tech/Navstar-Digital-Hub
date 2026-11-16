@@ -1,6 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Monitor, Menu, X, ShoppingCart, UserRound, LogOut, HeartHandshake } from 'lucide-react';
+import { Monitor, Menu, X, ShoppingCart, UserRound, LogOut } from 'lucide-react';
 import { DonationPopup } from '@/components/DonationPopup';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +13,7 @@ const navigation = [
   { label: 'Forum', to: '/forum' },
   { label: 'Admission Letters', to: '/admissions-letters' },
   { label: 'Analytics', to: '/analytics' },
+  { label: 'Donate', to: '#donate' },
   { label: 'Portals', to: '/portals' },
 ];
 
@@ -85,14 +86,13 @@ export function Navbar() {
 
           <div className="hidden xl:flex min-w-0 flex-1 items-center justify-center gap-0.5">
             {navigation.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-bold transition-colors 2xl:px-2.5 ${isActive ? 'bg-amber-300 text-blue-950 shadow-md shadow-amber-400/20' : 'text-blue-100 hover:bg-white/10 hover:text-white'}`}>
+              {item.to === '#donate' ? <button key={item.to} type="button" onClick={() => setDonationOpen(true)} className="whitespace-nowrap rounded-lg bg-amber-300 px-2 py-2 text-[13px] font-extrabold text-blue-950 shadow-md shadow-amber-400/20 transition-colors hover:bg-amber-200 2xl:px-2.5" aria-haspopup="dialog">{item.label}</button> : <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-bold transition-colors 2xl:px-2.5 ${isActive ? 'bg-amber-300 text-blue-950 shadow-md shadow-amber-400/20' : 'text-blue-100 hover:bg-white/10 hover:text-white'}`}>
                 {item.label}
-              </NavLink>
+              </NavLink>}
             ))}
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            <Button type="button" size="sm" onClick={() => setDonationOpen(true)} className="hidden sm:inline-flex rounded-xl border border-amber-300 bg-amber-300 px-3 font-extrabold text-blue-950 shadow-md shadow-amber-400/20 hover:bg-amber-200"><HeartHandshake className="mr-1.5 h-4 w-4"/>Donate</Button>
             {signedInUser ? <div className="hidden md:flex max-w-[190px] items-center gap-2 rounded-xl border border-amber-300/70 bg-white/10 px-3 py-2 text-xs font-bold text-white" title={signedInUser.name}><UserRound className="h-4 w-4 shrink-0 text-amber-300"/><span className="truncate">Hi, {signedInUser.name}</span></div> : <Button asChild size="sm" className="hidden sm:inline-flex rounded-xl border border-amber-300 bg-amber-300 px-3 font-extrabold text-blue-950 shadow-md shadow-amber-400/20 hover:bg-amber-200"><Link to="/account"><UserRound className="mr-1.5 h-4 w-4"/>Log in / Sign up</Link></Button>}
             <Link to="/services#service-cart" aria-label="Your orders and cart" title="Your orders and cart" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-green-400/70 bg-green-500/15 text-white shadow-sm transition hover:border-amber-300 hover:bg-amber-300 hover:text-blue-950">
               <ShoppingCart className="h-5 w-5" />
@@ -123,11 +123,8 @@ export function Navbar() {
         {isOpen && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="xl:hidden border-b-2 border-green-500 bg-blue-950 shadow-lg">
             <div className="grid grid-cols-2 gap-1 px-3 pb-4 pt-3 sm:grid-cols-3 sm:px-5">
-              {navigation.map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `rounded-lg px-3 py-3 text-sm font-bold ${isActive ? 'bg-amber-300 text-blue-950 shadow-md' : 'text-blue-100 hover:bg-white/10'}`} onClick={closeMenu}>{item.label}</NavLink>
-              ))}
+              {navigation.map((item) => item.to === '#donate' ? <button key={item.to} type="button" onClick={() => { closeMenu(); setDonationOpen(true); }} className="rounded-lg bg-amber-300 px-3 py-3 text-left text-sm font-extrabold text-blue-950">Donate</button> : <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `rounded-lg px-3 py-3 text-sm font-bold ${isActive ? 'bg-amber-300 text-blue-950 shadow-md' : 'text-blue-100 hover:bg-white/10'}`} onClick={closeMenu}>{item.label}</NavLink>)}
               {signedInUser ? <div className="col-span-2 rounded-lg border border-amber-300/50 bg-white/10 px-3 py-3 text-sm font-bold text-white">Hi, {signedInUser.name}</div> : <Link to="/account" className="rounded-lg bg-amber-300 px-3 py-3 text-sm font-extrabold text-blue-950" onClick={closeMenu}>Log in / Sign up</Link>}
-              <button type="button" onClick={() => { closeMenu(); setDonationOpen(true); }} className="rounded-lg bg-amber-300 px-3 py-3 text-left text-sm font-extrabold text-blue-950">♥ Donate</button>
               <Link to="/services#service-cart" className="rounded-lg px-3 py-3 text-sm font-bold text-blue-100 hover:bg-white/10" onClick={closeMenu}>Your orders / Cart</Link>
               {signedInUser && <button onClick={() => { closeMenu(); void signOut(); }} className="rounded-lg px-3 py-3 text-left text-sm font-bold text-amber-200 hover:bg-white/10">Log out</button>}
             </div>
