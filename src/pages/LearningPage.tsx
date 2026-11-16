@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, BookOpen, CheckCircle2, Clock3, FileText, GraduationCap, PlusCircle, Send, ShieldCheck } from 'lucide-react';
 
@@ -87,7 +88,7 @@ export function LearningPage() {
     }
   };
 
-  const createModule = async (event: React.FormEvent<HTMLFormElement>) => {
+  const createModule = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedCourse) return;
     if (await sendAction({ action: 'create_module', courseId: selectedCourse.id, title: moduleTitle, description: moduleDescription, status: moduleStatus })) {
