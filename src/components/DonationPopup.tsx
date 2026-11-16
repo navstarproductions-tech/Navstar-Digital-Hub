@@ -17,7 +17,7 @@ async function apiJson<T>(response: Response, label: string): Promise<T> {
 }
 
 function pdfEscape(value: string): string {
-  return value.normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^\\x20-\\x7E]/g, ' ').replace(/\\\\/g, '\\\\\\\\').replace(/\\(/g, '\\\\(').replace(/\\)/g, '\\\\)');
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7E]/g, ' ').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 }
 function createDonationPdf(receipt: DonationReceipt, money: (value: number) => string): Blob {
   const date = new Date(receipt.date).toLocaleString('en-KE');
@@ -66,21 +66,21 @@ function createDonationPdf(receipt: DonationReceipt, money: (value: number) => s
   ];
   const enc = new TextEncoder();
   const streams = pages.map((lines, pageIndex) => {
-    let s = '0.035 0.16 0.34 rg 0 760 595 82 re f\\n';
-    s += '1 1 1 rg BT /F2 19 Tf 48 808 Td (' + pdfEscape(lines[0]) + ') Tj ET\\n';
-    s += '0.98 0.76 0.24 rg BT /F2 9 Tf 48 790 Td (' + pdfEscape(lines[1]) + ') Tj ET\\n';
-    s += '0.08 0.22 0.42 rg BT /F2 17 Tf 48 720 Td (' + pdfEscape(lines[2]) + ') Tj ET\\n';
+    let s = '0.035 0.16 0.34 rg 0 760 595 82 re f\n';
+    s += '1 1 1 rg BT /F2 19 Tf 48 808 Td (' + pdfEscape(lines[0]) + ') Tj ET\n';
+    s += '0.98 0.76 0.24 rg BT /F2 9 Tf 48 790 Td (' + pdfEscape(lines[1]) + ') Tj ET\n';
+    s += '0.08 0.22 0.42 rg BT /F2 17 Tf 48 720 Td (' + pdfEscape(lines[2]) + ') Tj ET\n';
     let y = 687;
     for (const line of lines.slice(3)) {
       if (!line) { y -= 10; continue; }
       const heading = ['PAYMENT STATUS: RECEIVED - SAFARICOM CONFIRMED','DONOR / CONTRIBUTOR','DONATION INFORMATION','AMOUNT RECEIVED'].includes(line);
-      if (heading) s += '0.02 0.43 0.34 rg BT /F2 10 Tf 48 ' + y + ' Td (' + pdfEscape(line) + ') Tj ET\\n';
-      else if (pageIndex === 0 && line === money(receipt.amount)) s += '0.02 0.43 0.34 rg BT /F2 22 Tf 48 ' + y + ' Td (' + pdfEscape(line) + ') Tj ET\\n';
-      else s += '0.12 0.16 0.22 rg BT /F1 10 Tf 48 ' + y + ' Td (' + pdfEscape(line) + ') Tj ET\\n';
+      if (heading) s += '0.02 0.43 0.34 rg BT /F2 10 Tf 48 ' + y + ' Td (' + pdfEscape(line) + ') Tj ET\n';
+      else if (pageIndex === 0 && line === money(receipt.amount)) s += '0.02 0.43 0.34 rg BT /F2 22 Tf 48 ' + y + ' Td (' + pdfEscape(line) + ') Tj ET\n';
+      else s += '0.12 0.16 0.22 rg BT /F1 10 Tf 48 ' + y + ' Td (' + pdfEscape(line) + ') Tj ET\n';
       y -= 18;
     }
-    s += '0.08 0.22 0.42 RG 1.2 w 48 42 m 547 42 l S\\n';
-    s += '0.35 0.39 0.44 rg BT /F1 8 Tf 48 27 Td (Navstar Digital Hub | Official donor document | Page ' + (pageIndex + 1) + ' of 2) Tj ET\\n';
+    s += '0.08 0.22 0.42 RG 1.2 w 48 42 m 547 42 l S\n';
+    s += '0.35 0.39 0.44 rg BT /F1 8 Tf 48 27 Td (Navstar Digital Hub | Official donor document | Page ' + (pageIndex + 1) + ' of 2) Tj ET\n';
     return s;
   });
   const objects: string[] = [];
@@ -91,18 +91,18 @@ function createDonationPdf(receipt: DonationReceipt, money: (value: number) => s
   for (let i = 0; i < 2; i++) {
     const pageObj = 5 + i * 2, contentObj = pageObj + 1, stream = streams[i];
     objects[pageObj] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ' + contentObj + ' 0 R >>';
-    objects[contentObj] = '<< /Length ' + enc.encode(stream).length + ' >>\\nstream\\n' + stream + 'endstream';
+    objects[contentObj] = '<< /Length ' + enc.encode(stream).length + ' >>\nstream\n' + stream + 'endstream';
   }
-  let pdf = '%PDF-1.4\\n';
+  let pdf = '%PDF-1.4\n';
   const offsets = [0];
   for (let i = 1; i < objects.length; i++) {
     offsets[i] = enc.encode(pdf).length;
-    pdf += i + ' 0 obj\\n' + objects[i] + '\\nendobj\\n';
+    pdf += i + ' 0 obj\n' + objects[i] + '\nendobj\n';
   }
   const xref = enc.encode(pdf).length;
-  pdf += 'xref\\n0 ' + objects.length + '\\n0000000000 65535 f \\n';
-  for (let i = 1; i < objects.length; i++) pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \\n';
-  pdf += 'trailer\\n<< /Size ' + objects.length + ' /Root 1 0 R >>\\nstartxref\\n' + xref + '\\n%%EOF';
+  pdf += 'xref\n0 ' + objects.length + '\n0000000000 65535 f \n';
+  for (let i = 1; i < objects.length; i++) pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+  pdf += 'trailer\n<< /Size ' + objects.length + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF';
   return new Blob([enc.encode(pdf)], { type: 'application/pdf' });
 }
 
