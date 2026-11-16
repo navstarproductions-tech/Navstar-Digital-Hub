@@ -1,6 +1,7 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Monitor, Menu, X, ShoppingCart, UserRound, LogOut } from 'lucide-react';
+import { Monitor, Menu, X, ShoppingCart, UserRound, LogOut, HeartHandshake } from 'lucide-react';
+import { DonationPopup } from '@/components/DonationPopup';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -28,6 +29,7 @@ const contactTicker = [
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [donationOpen, setDonationOpen] = useState(false);
   const [brandName, setBrandName] = useState('NAVSTAR DIGITAL HUB');
   const [logoUrl, setLogoUrl] = useState('');
   const [signedInUser, setSignedInUser] = useState<{ name: string; role?: string } | null>(null);
@@ -90,6 +92,7 @@ export function Navbar() {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
+            <Button type="button" size="sm" onClick={() => setDonationOpen(true)} className="hidden sm:inline-flex rounded-xl border border-amber-300 bg-amber-300 px-3 font-extrabold text-blue-950 shadow-md shadow-amber-400/20 hover:bg-amber-200"><HeartHandshake className="mr-1.5 h-4 w-4"/>Donate</Button>
             {signedInUser ? <div className="hidden md:flex max-w-[190px] items-center gap-2 rounded-xl border border-amber-300/70 bg-white/10 px-3 py-2 text-xs font-bold text-white" title={signedInUser.name}><UserRound className="h-4 w-4 shrink-0 text-amber-300"/><span className="truncate">Hi, {signedInUser.name}</span></div> : <Button asChild size="sm" className="hidden sm:inline-flex rounded-xl border border-amber-300 bg-amber-300 px-3 font-extrabold text-blue-950 shadow-md shadow-amber-400/20 hover:bg-amber-200"><Link to="/account"><UserRound className="mr-1.5 h-4 w-4"/>Log in / Sign up</Link></Button>}
             <Link to="/services#service-cart" aria-label="Your orders and cart" title="Your orders and cart" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-green-400/70 bg-green-500/15 text-white shadow-sm transition hover:border-amber-300 hover:bg-amber-300 hover:text-blue-950">
               <ShoppingCart className="h-5 w-5" />
@@ -124,12 +127,14 @@ export function Navbar() {
                 <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `rounded-lg px-3 py-3 text-sm font-bold ${isActive ? 'bg-amber-300 text-blue-950 shadow-md' : 'text-blue-100 hover:bg-white/10'}`} onClick={closeMenu}>{item.label}</NavLink>
               ))}
               {signedInUser ? <div className="col-span-2 rounded-lg border border-amber-300/50 bg-white/10 px-3 py-3 text-sm font-bold text-white">Hi, {signedInUser.name}</div> : <Link to="/account" className="rounded-lg bg-amber-300 px-3 py-3 text-sm font-extrabold text-blue-950" onClick={closeMenu}>Log in / Sign up</Link>}
+              <button type="button" onClick={() => { closeMenu(); setDonationOpen(true); }} className="rounded-lg bg-amber-300 px-3 py-3 text-left text-sm font-extrabold text-blue-950">♥ Donate</button>
               <Link to="/services#service-cart" className="rounded-lg px-3 py-3 text-sm font-bold text-blue-100 hover:bg-white/10" onClick={closeMenu}>Your orders / Cart</Link>
               {signedInUser && <button onClick={() => { closeMenu(); void signOut(); }} className="rounded-lg px-3 py-3 text-left text-sm font-bold text-amber-200 hover:bg-white/10">Log out</button>}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+      <DonationPopup open={donationOpen} onClose={() => setDonationOpen(false)} />
     </nav>
   );
 }
