@@ -26,10 +26,12 @@ export async function onRequestPost({ request, env }) {
   if (password.length < 6 || password.length > 200) return error('Password must contain at least 6 characters.');
   if (password !== confirmPassword) return error('The passwords do not match.');
 
-  const collision = await env.DB.prepare("SELECT id FROM users WHERE email = ? AND role != 'admin'").bind(email).first();
-  if (collision) return error('That email already belongs to another portal account. Please use a different email.', 409);
+  const collision = await env.DB.prepare("SELECT id, role FROM users WHERE email = ? COLLATE NOCASE").bind(email).first();
+  if (collision && collision.role !== 'admin') return error('This email is already used by a ' + collision.role + ' account. Keep that account and use a different email for Admin.', 409);
 
-  const existing = await env.DB.prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, created_at ASC LIMIT 1").first();
+  // If this email belongs to an existing (even disabled) Admin, reuse that exact row
+  // to avoid unique-email conflicts and preserve its linked records.
+  const existing = collision || await env.DB.prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, created_at ASC LIMIT 1").first();
   const passwordRecord = await hashPassword(password);
   const adminId = existing?.id || uuid();
 
