@@ -115,7 +115,6 @@ export function DonationPopup({ open, onClose }: { open: boolean; onClose: () =>
   const [fading, setFading] = useState(false);
   const [pendingPayment, setPendingPayment] = useState(false);
   const [processingStage, setProcessingStage] = useState('');
-  const [donationReference, setDonationReference] = useState('');
   const paymentCheckId = useRef(0);
 
   useEffect(() => {
@@ -142,7 +141,6 @@ export function DonationPopup({ open, onClose }: { open: boolean; onClose: () =>
       const donationResponse = await fetch('/api/donations', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ phone: normalizedPhone, amount }) });
       const donation = await apiJson<ApiResult>(donationResponse, 'Donation service');
       if (!donationResponse.ok || !donation.id) throw new Error(donation.error || 'Your donation could not be registered.');
-      setDonationReference(donation.reference || donation.id);
       setProcessingStage('Sending M-Pesa prompt…');
       setMessage('Donation reference ' + (donation.reference || donation.id) + ' created. Preparing your M-Pesa prompt…');
       const pushResponse = await fetch('/api/payments/stk-push', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ phone: normalizedPhone, amount, purpose: 'donation', reference: donation.id }) });
