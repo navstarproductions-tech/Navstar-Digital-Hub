@@ -2,9 +2,10 @@ import { requireRole } from '../_shared/auth.js';
 import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../_shared/http.js';
 import { rateLimited } from '../_shared/rate-limit.js';
 import { nextReference } from '../_shared/references.js';
-import { sendCustomerNotice } from '../_shared/notifications.js';
+import { queueCustomerNotice } from '../_shared/notifications.js';
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost(context) {
+  const { request, env } = context;
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
   if (!env.DB) return error('Service requests are not configured.', 503);
   if (await rateLimited(env.DB, request, 'service-request', { maximum: 5, minutes: 15 })) return error('Too many service requests. Try again later.', 429);
@@ -38,7 +39,7 @@ export async function onRequestPost({ request, env }) {
   const summary = JSON.stringify({ items: orderItems, customerInstructions: safeString(body.notes, 2000) });
   await env.DB.prepare('INSERT INTO service_requests (id, display_ref, service_id, customer_name, phone, amount, notes, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     .bind(id, reference, orderItems[0].serviceId, customerName, phone, total, summary, email || null).run();
-  await sendCustomerNotice(env, { email, phone, subject: 'Navstar service order received', message: `Hello ${customerName}, your Navstar order ${reference} has been registered with ${orderItems.length} service item(s). Total: KSh ${total.toLocaleString('en-KE')}. We will update you on its progress. HOME OF TECHNOCRATS.` });
+  queueCustomerNotice(context, env, { email, phone, subject: 'Navstar service order received', message: `Hello ${customerName}, your Navstar order ${reference} has been registered with ${orderItems.length} service item(s). Total: KSh ${total.toLocaleString('en-KE')}. We will update you on its progress. HOME OF TECHNOCRATS.` });
   return json({ id, reference, amount: total, items: orderItems, status: 'pending' }, 201);
 }
 
