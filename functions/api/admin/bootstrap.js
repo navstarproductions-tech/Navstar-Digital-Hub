@@ -2,6 +2,16 @@ import { hashPassword } from '../../_shared/auth.js';
 import { constantTimeEqual, error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 import { rateLimited } from '../../_shared/rate-limit.js';
 
+export async function onRequestGet({ env }) {
+  if (!env.DB) return error('Admin setup is not configured.', 503);
+  const admin = await env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin'").first();
+  const used = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-bootstrap-used'").first();
+  return json({
+    adminExists: Number(admin?.count ?? 0) > 0,
+    setupAvailable: Boolean(env.BOOTSTRAP_TOKEN) && Number(admin?.count ?? 0) === 0 && !used,
+  });
+}
+
 export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
   if (!env.DB || !env.BOOTSTRAP_TOKEN) return error('Admin bootstrap is not configured.', 503);
