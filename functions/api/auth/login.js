@@ -1,7 +1,7 @@
 import { createSession, hashPassword, sha256, verifyPassword } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 
-const roles = ['student', 'tutor', 'admissions', 'principal', 'admin'];
+const roles = ['student', 'tutor', 'admissions', 'principal', 'admin', 'finance'];
 
 export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
@@ -25,7 +25,7 @@ export async function onRequestPost({ request, env }) {
   `).bind(emailHash, ipHash).first();
   if (Number(attempt?.count ?? 0) >= 8) return error('Too many sign-in attempts. Try again later.', 429);
 
-  const user = await env.DB.prepare('SELECT id, name, email, role, password_hash, password_salt, must_change_password FROM users WHERE email = ? AND status = ?')
+  const user = await env.DB.prepare('SELECT users.id, users.name, users.email, COALESCE(user_profiles.portal_role, users.role) AS role, users.password_hash, users.password_salt, users.must_change_password FROM users LEFT JOIN user_profiles ON user_profiles.user_id = users.id WHERE users.email = ? AND users.status = ?')
     .bind(email, 'active').first();
   const valid = user && user.role === requestedRole && await verifyPassword(password, user.password_salt, user.password_hash);
   if (!valid) {
