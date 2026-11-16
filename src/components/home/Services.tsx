@@ -21,12 +21,12 @@ export function Services() {
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">Explore Navstar’s main service areas below. Open the complete catalogue to search individual services, view their listed prices and place an order.</p>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {serviceAreas.map(({ title, description, icon: Icon }) => (
+          {serviceAreas.map(({ title, description, to, icon: Icon }) => (
             <article key={title} className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 transition group-hover:bg-blue-700 group-hover:text-white"><Icon className="h-6 w-6" /></span>
               <h3 className="mt-5 text-lg font-black text-slate-950">{title}</h3>
               <p className="mt-2 min-h-[72px] text-sm leading-6 text-slate-600">{description}</p>
-              <Link to="/services" className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700 transition group-hover:gap-3 group-hover:text-cyan-700">Browse this service area <ArrowUpRight className="h-4 w-4" /></Link>
+              <Link to={to} className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700 transition group-hover:gap-3 group-hover:text-cyan-700">Browse this service area <ArrowUpRight className="h-4 w-4" /></Link>
             </article>
           ))}
         </div>
