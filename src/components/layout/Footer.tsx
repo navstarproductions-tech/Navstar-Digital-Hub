@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Monitor, Mail, Phone, MapPin, FileText } from 'lucide-react';
+import { Mail, Phone, MapPin, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 type DownloadDocument = {
