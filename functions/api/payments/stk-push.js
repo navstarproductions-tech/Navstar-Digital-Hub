@@ -59,7 +59,7 @@ export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const reference = safeString(url.searchParams.get('reference'), 80);
   if (!reference) return error('Payment reference is required.');
-  const payment = await env.DB.prepare('SELECT id, purpose, reference_id, display_reference AS reference, phone, amount, status, receipt_number, result_code, result_description, transaction_date, callback_phone, callback_amount, created_at, updated_at FROM payments WHERE id = ?').bind(reference).first();
+  const payment = await env.DB.prepare('SELECT id, purpose, reference_id, display_reference AS reference, phone, amount, status, receipt_number, internal_receipt_number, result_code, result_description, transaction_date, callback_phone, callback_amount, created_at, updated_at FROM payments WHERE id = ?').bind(reference).first();
   if (!payment) return error('Payment not found.', 404);
   return json({ payment });
 }
