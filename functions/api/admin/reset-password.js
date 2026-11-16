@@ -12,7 +12,7 @@ export async function onRequestPost({ request, env }) {
 
   let body;
   try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
-  const name = safeString(body.name, 120) || safeString(email.split('@')[0], 120) || 'Navstar Administrator';
+  const requestedName = safeString(body.name, 120);
   const email = safeString(body.email, 254).toLowerCase();
   const password = String(body.password ?? '');
   const confirmPassword = String(body.confirmPassword ?? password);
@@ -24,7 +24,8 @@ export async function onRequestPost({ request, env }) {
   const collision = await env.DB.prepare("SELECT id FROM users WHERE email = ? AND role != 'admin'").bind(email).first();
   if (collision) return error('That email already belongs to another portal account. Use a different email.', 409);
 
-  const admins = await env.DB.prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, created_at ASC LIMIT 1").first();
+  const admins = await env.DB.prepare("SELECT id, name FROM users WHERE role = 'admin' ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, created_at ASC LIMIT 1").first();
+  const name = requestedName || admins?.name || 'Navstar Administrator';
   const record = await hashPassword(password);
   let adminId = admins?.id;
 
