@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { ArrowRight, BookOpen, CalendarDays, ChartNoAxesCombined, MessageCircle, ShieldCheck, GraduationCap, Wallet, Users, ClipboardList, Library, Bus, FileText, School, Settings, Bell, ReceiptText, Layers3 } from 'lucide-react';
 
 const generalSections:Record<string,{title:string;eyebrow:string;description:string;icon:typeof BookOpen;items:string[]}> = {
@@ -8,28 +8,11 @@ const generalSections:Record<string,{title:string;eyebrow:string;description:str
   '/forum':{title:'Navstar Community Forum',eyebrow:'COMMUNITY • IDEAS • DISCUSSION',description:'A community space for learners, alumni, customers and technology enthusiasts to exchange ideas respectfully.',icon:MessageCircle,items:['Community posts and discussions','Comments and helpful reactions','Member profiles and account access','Community guidelines and moderation']}
 };
 
-const erpModules = [
-  {icon:School,title:'Multi-school management',description:'Separate workspaces for each registered school, with school profile, branding, contacts and secure staff membership.'},
-  {icon:GraduationCap,title:'Learners & admissions',description:'Applications, admission numbers, learner profiles, guardians, transfers, progression and enrolment records.'},
-  {icon:Layers3,title:'Classes, grades & streams',description:'Primary, Junior Secondary, Senior Secondary and college structures, academic years, terms, streams and class lists.'},
-  {icon:BookOpen,title:'LMS & curriculum',description:'Subjects, teacher allocation, learning materials, assignments, assessments, marks, report cards and learner progress.'},
-  {icon:Wallet,title:'Fee structures & billing',description:'Build fee structures by school, grade, class, term, course or programme; add itemised charges, discounts and due dates.'},
-  {icon:ReceiptText,title:'Payments & PDF receipts',description:'Record M-Pesa, bank, cash and other payments; allocate part-payments to invoices, track balances and issue printable PDF receipts.'},
-  {icon:Users,title:'Staff & HR',description:'Staff profiles, roles, departments, teaching assignments, attendance, leave and accountability.'},
-  {icon:ClipboardList,title:'Exams & report cards',description:'Assessment schedules, marks entry, grading rules, report cards, transcripts and performance analysis.'},
-  {icon:Library,title:'Library & resources',description:'Books, issue and return records, digital learning resources and inventory tracking.'},
-  {icon:Bus,title:'Operations & transport',description:'School assets, stores, transport routes, maintenance, procurement and operational records.'},
-  {icon:ChartNoAxesCombined,title:'Finance & analytics',description:'Income, outstanding balances, collections by class or term, expenditure, cash summaries and management reports.'},
-  {icon:Bell,title:'Communication & notices',description:'Parent notices, SMS and email announcements, reminders, alerts and downloadable documents.'}
-];
-
 function AnalyticsPage(){
  const [schoolUsername,setSchoolUsername]=useState('');
  const [notice,setNotice]=useState('');
- const [attempted,setAttempted]=useState(false);
- const validate= (event:React.FormEvent<HTMLFormElement>) => {
+ const validate= (event:FormEvent<HTMLFormElement>) => {
   event.preventDefault();
-  setAttempted(true);
   setNotice('School account validation is not yet enabled. The multi-school login and verification service will be configured during the next setup phase. No account has been authenticated.');
  };
  return <main className="min-h-[70vh] bg-slate-50 px-4 py-10 sm:py-14">
