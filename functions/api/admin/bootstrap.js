@@ -33,25 +33,27 @@ export async function onRequestPost({ request, env }) {
   const passwordRecord = await hashPassword(password);
   const adminId = existing?.id || uuid();
 
+  let accountSaved = false;
   try {
     if (existing) {
       await env.DB.prepare("UPDATE users SET name = ?, email = ?, password_hash = ?, password_salt = ?, status = 'active', must_change_password = 0 WHERE id = ?")
         .bind(name, email, passwordRecord.hash, passwordRecord.salt, adminId).run();
-      await env.DB.prepare("UPDATE users SET status = 'disabled' WHERE role = 'admin' AND id != ? AND status = 'active'")
-        .bind(adminId).run();
-      await env.DB.prepare("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE role = 'admin')").run();
-      await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
-        .bind(uuid(), adminId, 'admin_fresh_setup', 'user', adminId).run();
+      accountSaved = true;
+      // Secondary cleanup must never turn a successful credential update into a false failure.
+      try { await env.DB.prepare("UPDATE users SET status = 'disabled' WHERE role = 'admin' AND id != ? AND status = 'active'").bind(adminId).run(); } catch (cause) { console.error('Admin secondary-account cleanup failed:', String(cause)); }
+      try { await env.DB.prepare("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE role = 'admin')").run(); } catch (cause) { console.error('Admin session cleanup failed:', String(cause)); }
+      try { await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), adminId, 'admin_fresh_setup', 'user', adminId).run(); } catch (cause) { console.error('Admin audit write failed:', String(cause)); }
     } else {
       await env.DB.prepare("INSERT INTO users (id, name, email, role, password_hash, password_salt, must_change_password, status) VALUES (?, ?, ?, 'admin', ?, ?, 0, 'active')")
         .bind(adminId, name, email, passwordRecord.hash, passwordRecord.salt).run();
-      await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
-        .bind(uuid(), adminId, 'admin_first_setup', 'user', adminId).run();
+      accountSaved = true;
+      try { await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), adminId, 'admin_first_setup', 'user', adminId).run(); } catch (cause) { console.error('Admin audit write failed:', String(cause)); }
     }
   } catch (cause) {
     if (String(cause?.message || '').toLowerCase().includes('unique')) return error('That email is already registered. Please use another email.', 409);
     console.error('Admin fresh setup failed:', String(cause));
-    return error('Admin setup could not be completed. Existing records have been retained.', 500);
+    if (accountSaved) return json({ created: true, message: 'Your Admin credentials were saved. You can now sign in.' }, 201);
+    return error('Admin account could not be saved. Please check the setup key and try again. Existing records have been retained.', 500);
   }
   return json({ created: true, message: 'Your new Admin login is ready. You can now sign in.' }, 201);
 }
