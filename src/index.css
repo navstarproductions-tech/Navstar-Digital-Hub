@@ -189,3 +189,20 @@
     letter-spacing: var(--tracking-normal);
   }
 }
+
+
+/* Keep page and panel scrolling enabled while hiding visible scrollbars. */
+html,
+body,
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
