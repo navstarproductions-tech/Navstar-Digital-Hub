@@ -42,8 +42,12 @@ export function Hero() {
 
       <div className="container mx-auto grid min-h-[690px] items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[1.08fr_.92fr] lg:px-8 lg:py-24">
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65 }}>
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/25 bg-blue-400/10 px-4 py-2 text-xs font-bold uppercase tracking-[.22em] text-blue-100 backdrop-blur-md">
-            <Sparkles className="h-4 w-4 text-amber-300" /> Welcome to Navstar Digital Hub
+          <div className="mb-6 flex items-center gap-4 rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur-md sm:p-4">
+            <img src="/navstar-logo.webp" alt="Official Navstar Digital Hub logo" className="h-16 w-24 shrink-0 object-contain sm:h-20 sm:w-32" fetchPriority="high" />
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[.18em] text-white sm:text-sm">Welcome to Navstar Digital Hub</p>
+              <p className="mt-1 text-[10px] font-bold tracking-[.16em] text-amber-300 sm:text-xs">HOME OF TECHNOCRATS</p>
+            </div>
           </div>
           <p className="mt-7 text-sm font-extrabold uppercase tracking-[.35em] text-amber-300">HOME OF TECHNOCRATS</p>
           <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">

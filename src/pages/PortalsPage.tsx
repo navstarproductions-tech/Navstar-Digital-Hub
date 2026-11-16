@@ -71,8 +71,9 @@ export function PortalsPage() {
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_20%,rgba(37,99,235,.45),transparent_40%),radial-gradient(ellipse_at_90%_80%,rgba(6,182,212,.25),transparent_38%)]" />
           <div className="container mx-auto px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
             <div className="max-w-3xl">
+              <img src="/navstar-logo.webp" alt="Official Navstar Digital Hub logo" className="mb-7 h-24 w-48 object-contain object-left sm:h-28 sm:w-56" />
               <p className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-xs font-bold uppercase tracking-[.25em] text-cyan-200"><LockKeyhole className="h-4 w-4" /> Secure access gateway</p>
-              <p className="mt-6 text-xs font-extrabold uppercase tracking-[.3em] text-amber-300">NAVSTAR DIGITAL HUB · HOME OF TECHNOCRATS</p>
+              <p className="mt-6 text-xs font-extrabold uppercase tracking-[.3em] text-amber-300">HOME OF TECHNOCRATS</p>
               <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">Welcome to your <span className="bg-gradient-to-r from-sky-300 to-amber-300 bg-clip-text text-transparent">digital workspace.</span></h1>
               <p className="mt-5 max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">Choose the secure portal assigned to your role. Each gateway opens the tools and information relevant to your work or learning.</p>
               <div className="mt-8 flex flex-wrap gap-3">
