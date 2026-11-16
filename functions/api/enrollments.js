@@ -2,12 +2,13 @@ import { getSession } from '../_shared/auth.js';
 import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../_shared/http.js';
 import { rateLimited } from '../_shared/rate-limit.js';
 import { nextReference } from '../_shared/references.js';
-import { sendCustomerNotice } from '../_shared/notifications.js';
+import { queueCustomerNotice } from '../_shared/notifications.js';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost(context) {
+  const { request, env } = context;
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
   if (!env.DB) return error('Admissions service is not configured.', 503);
   if (await rateLimited(env.DB, request, 'enrollment', { maximum: 5, minutes: 30 })) return error('Too many applications from this connection. Try again later.', 429);
@@ -54,7 +55,7 @@ export async function onRequestPost({ request, env }) {
     await env.DB.batch(staff.results.map((user) => env.DB.prepare('INSERT INTO notifications (id, user_id, title, message) VALUES (?, ?, ?, ?)')
       .bind(uuid(), user.id, 'New application', `An application was received for ${course.title}.`)));
   }
-  await sendCustomerNotice(env, { email, phone, subject: 'Navstar application received', message: `Hello ${fullName}, your application for ${course.title} has been received. Reference: ${displayRef}. Navstar Digital Hub — HOME OF TECHNOCRATS.` });
+  queueCustomerNotice(context, env, { email, phone, subject: 'Navstar application received', message: `Hello ${fullName}, your application for ${course.title} has been received. Reference: ${displayRef}. Navstar Digital Hub — HOME OF TECHNOCRATS.` });
   return json({ id, reference: displayRef, status: 'submitted', course: { id: course.id, title: course.title, amount: course.price } }, 201);
 }
 
