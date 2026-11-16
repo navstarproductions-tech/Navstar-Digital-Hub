@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/build-pages.mjs",
     "build:pages": "node scripts/build-pages.mjs",
     "check:functions": "node scripts/check-functions.mjs",
     "typecheck": "tsc --noEmit",
