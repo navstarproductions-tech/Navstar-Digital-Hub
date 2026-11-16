@@ -1,5 +1,5 @@
 export async function nextReference(db, prefix) {
-  const allowed = new Set(['DON', 'ENR', 'SRV', 'COT']);
+  const allowed = new Set(['DON', 'ENR', 'SRV', 'COT', 'PAY']);
   if (!allowed.has(prefix)) throw new Error('Unsupported reference type.');
   const row = await db.prepare(`
     INSERT INTO reference_sequences (prefix, next_value)
