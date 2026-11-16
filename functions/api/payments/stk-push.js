@@ -7,7 +7,7 @@ export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
   if (!env.DB) return error('Payments service is not configured.', 503);
   if (!darajaReady(env)) return error('Payment provider is not configured on the backend.', 503);
-  if (await rateLimited(env.DB, request, 'stk-push', { maximum: 4, minutes: 10 })) return error('Too many payment prompts. Wait before trying again.', 429);
+  if (await rateLimited(env.DB, request, 'stk-push', { maximum: 15, minutes: 10 })) return error('Several M-Pesa prompts have been sent recently. Please wait briefly before requesting another.', 429);
 
   let body;
   try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
