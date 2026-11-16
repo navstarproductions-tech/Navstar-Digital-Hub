@@ -80,7 +80,7 @@ export function Navbar() {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            <span className="hidden 2xl:inline text-xs font-bold text-blue-950">Hi, NAVSTAR</span>
+            <span className="hidden xl:inline text-xs font-bold text-blue-950">Hi, NAVSTAR</span>
             <Button asChild size="sm" variant="outline" className="hidden sm:inline-flex border-blue-200 text-blue-900">
               <Link to="/portals"><GraduationCap className="mr-1.5 h-4 w-4" />Student Gateway</Link>
             </Button>
