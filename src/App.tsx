@@ -12,6 +12,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { ChangePasswordPage } from '@/pages/ChangePasswordPage';
 import { BootstrapPage } from '@/pages/BootstrapPage';
 import { AdminResetPage } from '@/pages/AdminResetPage';
+import { CustomerAccountPage } from '@/pages/CustomerAccountPage';
 import { Toaster } from '@/components/ui/sonner';
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
             <Route path="/portals" element={<PortalsPage />} />
             <Route path="/portals/:role" element={<PortalsPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/account" element={<CustomerAccountPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
             <Route path="/setup" element={<BootstrapPage />} />
             <Route path="/admin-reset" element={<AdminResetPage />} />
