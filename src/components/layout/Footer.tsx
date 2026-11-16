@@ -49,9 +49,7 @@ export function Footer() {
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_0.8fr_0.9fr_1fr] lg:gap-10">
           <div>
             <Link to="/" className="inline-flex items-center gap-3 text-white">
-              <span className="rounded-xl bg-gradient-to-br from-green-600 to-blue-700 p-2.5">
-                <Monitor className="h-6 w-6" />
-              </span>
+              <img src="/navstar-logo.webp" alt="Navstar Digital Hub logo" className="h-16 w-24 rounded-lg object-contain" />
               <span>
                 <strong className="block text-base tracking-wide">NAVSTAR DIGITAL HUB</strong>
                 <small className="text-xs font-semibold tracking-wider text-amber-300">HOME OF TECHNOCRATS</small>
