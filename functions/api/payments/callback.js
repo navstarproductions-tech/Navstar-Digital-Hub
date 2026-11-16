@@ -1,5 +1,6 @@
 import { error, json, normalizePhone, readJson, safeString, uuid } from '../../_shared/http.js';
 import { sendCustomerNotice } from '../../_shared/notifications.js';
+import { nextReference } from '../../_shared/references.js';
 
 function safeEqual(left, right) {
   if (left.length !== right.length) return false;
@@ -39,11 +40,12 @@ export async function onRequestPost({ request, env }) {
 
   const paid = resultCode === 0;
   const receipt = paid ? safeString(items.MpesaReceiptNumber, 32) : null;
+  const internalReceipt = paid ? await nextReference(env.DB, 'PAY') : null;
   const resultDescription = safeString(callback.ResultDesc, 500) || (paid ? 'Payment confirmed by M-Pesa.' : 'Payment was not completed.');
   const transactionDate = items.TransactionDate ? String(items.TransactionDate) : null;
   await env.DB.prepare(`
-    UPDATE payments SET status = ?, result_code = ?, receipt_number = ?, result_description = ?, transaction_date = ?, callback_phone = ?, callback_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-  `).bind(paid ? 'paid' : 'failed', Number.isFinite(resultCode) ? resultCode : -1, receipt, resultDescription, transactionDate, callbackPhone || null, Number.isFinite(callbackAmount) ? callbackAmount : null, payment.id).run();
+    UPDATE payments SET status = ?, result_code = ?, receipt_number = ?, internal_receipt_number = ?, result_description = ?, transaction_date = ?, callback_phone = ?, callback_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `).bind(paid ? 'paid' : 'failed', Number.isFinite(resultCode) ? resultCode : -1, receipt, internalReceipt, resultDescription, transactionDate, callbackPhone || null, Number.isFinite(callbackAmount) ? callbackAmount : null, payment.id).run();
 
   if (payment.purpose === 'enrollment') {
     await env.DB.prepare('UPDATE enrollments SET payment_status = ? WHERE id = ?')
@@ -68,13 +70,13 @@ export async function onRequestPost({ request, env }) {
     if (row) customer = { ...customer, phone: row.phone };
   }
   const customerMessage = paid
-    ? `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment of KSh ${payment.amount} is confirmed. M-Pesa receipt: ${receipt}. Reference: ${payment.display_reference || payment.reference_id}. Thank you.`
+    ? `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment of KSh ${payment.amount} is confirmed. Navstar receipt: ${internalReceipt}. M-Pesa receipt: ${receipt}. Reference: ${payment.display_reference || payment.reference_id}. Thank you.`
     : `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment was not completed. Reason: ${resultDescription}. Reference: ${payment.display_reference || payment.reference_id}. Please try again or contact Navstar support.`;
   await sendCustomerNotice(env, { email: customer.email, phone: customer.phone, subject: paid ? 'Navstar payment confirmed' : 'Navstar payment not completed', message: customerMessage });
 
   const staff = await env.DB.prepare("SELECT id FROM users WHERE role IN ('admin', 'admissions', 'principal') AND status = 'active'").all();
   if (staff.results?.length) {
-    const message = paid ? `${payment.purpose} payment ${payment.display_reference || ''} of KSh ${payment.amount} was confirmed. M-Pesa receipt: ${receipt}.` : `${payment.purpose} payment ${payment.display_reference || ''} could not be completed: ${resultDescription}`;
+    const message = paid ? `${payment.purpose} payment ${payment.display_reference || ''} of KSh ${payment.amount} was confirmed. Navstar receipt: ${internalReceipt}. M-Pesa receipt: ${receipt}.` : `${payment.purpose} payment ${payment.display_reference || ''} could not be completed: ${resultDescription}`;
     await env.DB.batch(staff.results.map((user) => env.DB.prepare('INSERT INTO notifications (id, user_id, title, message) VALUES (?, ?, ?, ?)')
       .bind(uuid(), user.id, paid ? 'Payment confirmed' : 'Payment failed', message)));
   }
