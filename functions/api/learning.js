@@ -80,7 +80,9 @@ export async function onRequestGet({ request, env }) {
   `;
   const submissionResult = user.role === 'student'
     ? await env.DB.prepare(submissionSql).bind(user.id, ...courseIds).all()
-    : await env.DB.prepare(submissionSql).bind(...courseIds).all();
+    : user.role === 'admin'
+      ? await env.DB.prepare(submissionSql).bind(...courseIds).all()
+      : { results: [] };
 
   const progressByLesson = new Map((progressResult.results ?? []).map((item) => [item.lesson_id, item]));
   const submissionsByAssignment = new Map();
