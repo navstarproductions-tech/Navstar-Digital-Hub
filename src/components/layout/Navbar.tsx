@@ -81,7 +81,7 @@ export function Navbar() {
 
           <div className="hidden xl:flex min-w-0 flex-1 items-center justify-center gap-0.5">
             {navigation.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-bold transition-colors 2xl:px-2.5 ${isActive ? 'bg-white/15 text-white' : 'text-blue-100 hover:bg-white/10 hover:text-white'}`}>
+              <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-bold transition-colors 2xl:px-2.5 ${isActive ? 'bg-amber-300 text-blue-950 shadow-md shadow-amber-400/20' : 'text-blue-100 hover:bg-white/10 hover:text-white'}`}>
                 {item.label}
               </NavLink>
             ))}
@@ -92,7 +92,7 @@ export function Navbar() {
             <Button asChild size="sm" variant="outline" className="hidden lg:inline-flex rounded-xl border border-green-400/70 bg-green-500/15 text-white hover:bg-green-500/25 hover:text-white">
               <Link to="/portals"><GraduationCap className="mr-1.5 h-4 w-4 text-amber-300" />Portals</Link>
             </Button>
-            <Link to="/services#service-cart" aria-label="Your orders and cart" title="Your orders" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white hover:bg-white/10">
+            <Link to="/services#service-cart" aria-label="Your orders and cart" title="Your orders and cart" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-green-400/70 bg-green-500/15 text-white shadow-sm transition hover:border-amber-300 hover:bg-amber-300 hover:text-blue-950">
               <ShoppingCart className="h-5 w-5" />
             </Link>
             {signedInUser && <Button size="sm" variant="ghost" className="hidden xl:inline-flex rounded-xl text-white hover:bg-white/10 hover:text-amber-300" onClick={signOut}><LogOut className="mr-1.5 h-4 w-4"/>Log out</Button>}
@@ -124,7 +124,7 @@ export function Navbar() {
               {navigation.map((item) => (
                 <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `rounded-lg px-3 py-3 text-sm font-bold ${isActive ? 'bg-amber-300 text-blue-950 shadow-md' : 'text-blue-100 hover:bg-white/10'}`} onClick={closeMenu}>{item.label}</NavLink>
               ))}
-              {signedInUser ? <div className="col-span-2 rounded-lg border border-amber-300/50 bg-white/10 px-3 py-3 text-sm font-bold text-white">Hi, {signedInUser.name}</div> : <Link to="/account" className="rounded-lg bg-amber-300 px-3 py-3 text-sm font-extrabold text-blue-950" onClick={closeMenu}>Log in / Sign up</Link>}\n              <Link to="/portals" className="rounded-lg border border-green-400/60 bg-green-500/15 px-3 py-3 text-sm font-bold text-white" onClick={closeMenu}>Portals</Link>
+              {signedInUser ? <div className="col-span-2 rounded-lg border border-amber-300/50 bg-white/10 px-3 py-3 text-sm font-bold text-white">Hi, {signedInUser.name}</div> : <Link to="/account" className="rounded-lg bg-amber-300 px-3 py-3 text-sm font-extrabold text-blue-950" onClick={closeMenu}>Log in / Sign up</Link>}
               <Link to="/services#service-cart" className="rounded-lg px-3 py-3 text-sm font-bold text-blue-100 hover:bg-white/10" onClick={closeMenu}>Your orders / Cart</Link>
               {signedInUser && <button onClick={() => { closeMenu(); void signOut(); }} className="rounded-lg px-3 py-3 text-left text-sm font-bold text-amber-200 hover:bg-white/10">Log out</button>}
             </div>
