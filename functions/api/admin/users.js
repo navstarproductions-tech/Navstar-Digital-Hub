@@ -81,7 +81,7 @@ export async function onRequestPost({ request, env }) {
     console.error('Account creation failed:', String(cause));
     return error('The account could not be created. Please check the profile details and try again.', 500);
   }
-  await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
-    .bind(uuid(), access.user.id, 'user_created', 'user', id).run();
+  try { await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), access.user.id, 'user_created', 'user', id).run(); }
+  catch (cause) { console.error('Account audit write failed:', String(cause)); }
   return json({ user: { id, name, email, role, status: 'active', staffId }, staffId }, 201);
 }
