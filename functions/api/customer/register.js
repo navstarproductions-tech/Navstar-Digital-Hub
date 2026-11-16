@@ -1,4 +1,4 @@
-import { registerCustomer,setCustomerSession } from '../../_shared/customer-auth.js';
+import { registerCustomer,loginCustomer,setCustomerSession } from '../../_shared/customer-auth.js';
 import { error,isSameOrigin,json,readJson,safeString,normalizePhone } from '../../_shared/http.js';
 import { rateLimited } from '../../_shared/rate-limit.js';
 
@@ -21,7 +21,7 @@ export async function onRequestPost({request,env}) {
       const detail = String(insertError?.message || insertError || '');
       if (!/UNIQUE|unique constraint/i.test(detail)) throw insertError;
       // A previous attempt may have saved the account but failed before creating its session.
-      customer = await (await import('../../_shared/customer-auth.js')).loginCustomer(env,email,password);
+      customer = await loginCustomer(env,email,password);
       if (!customer) return error('An account with this email already exists. Please sign in or use the password reset option.',409);
       created = false;
     }
