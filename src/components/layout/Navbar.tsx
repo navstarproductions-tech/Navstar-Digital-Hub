@@ -143,7 +143,7 @@ export function Navbar() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-b bg-white"
+            className="2xl:hidden border-b bg-white"
           >
             <div className="space-y-1 px-4 pb-3 pt-2 sm:px-6">
               {navigation.map((item) => (
