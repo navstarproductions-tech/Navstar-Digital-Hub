@@ -49,7 +49,7 @@ export function Footer() {
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_0.8fr_0.9fr_1fr] lg:gap-10">
           <div>
             <Link to="/" className="inline-flex items-center gap-3 text-white">
-              <img src="/navstar-logo.webp" alt="Navstar Digital Hub logo" className="h-16 w-24 rounded-lg object-contain" />
+              <img src="/navstar-logo.webp" alt="Navstar Digital Hub logo" className="h-20 w-36 object-contain" />
               <span>
                 <strong className="block text-base tracking-wide">NAVSTAR DIGITAL HUB</strong>
                 <small className="text-xs font-semibold tracking-wider text-amber-300">HOME OF TECHNOCRATS</small>
@@ -61,7 +61,7 @@ export function Footer() {
             <address className="mt-5 space-y-3 text-sm not-italic text-slate-300">
               <p className="flex items-start gap-3">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-green-400" />
-                P.O. Box 546-50200, Bungoma, Kenya
+                Raphael Estates, Room 3 (green-painted room), off Agorom–Busia Road, opposite Shaban Medical Clinic, after ABC Medical Clinic, about 200 m from ACK Nambale Hostels, Nambale, Kenya
               </p>
               <a className="flex items-center gap-3 transition hover:text-white" href="tel:+254797688576">
                 <Phone className="h-4 w-4 shrink-0 text-green-400" />
