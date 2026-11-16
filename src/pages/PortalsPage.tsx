@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, BookOpen, BriefcaseBusiness, GraduationCap, ShieldCheck, UserRound, UsersRound, Sparkles, LockKeyhole, ChevronRight, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatEATDate } from '@/lib/datetime';
 
 const portals = [
   { id: 'student', title: 'Student portal', icon: GraduationCap, summary: 'Access learning information, applications, payment receipts and student updates.', accent: 'from-blue-600 to-cyan-500', tint: 'bg-blue-500/10 text-blue-700' },
@@ -124,11 +125,11 @@ export function PortalsPage() {
       <section className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         {user && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {(user.role === 'student' ? [
-            ['My learning', 'Browse current programmes, check course information and continue your learning journey.', '/courses', 'Browse courses'],
+            ['My learning', 'Open your enrolled programmes, complete lessons, track progress and submit assignments.', '/learning', 'Open learning workspace'],
             ['My applications', 'Track submitted applications and enrolment progress.', '/portals/student', 'View applications'],
             ['Student support', 'Contact Navstar for help with enrolment, learning and payments.', '/services', 'Get support'],
           ] : user.role === 'tutor' ? [
-            ['Teaching workspace', 'Your assigned classes, learner lists and teaching resources will appear here.', '/courses', 'Course catalogue'],
+            ['Teaching workspace', 'Open course content, review learning materials and follow learner submissions as teaching access is enabled.', '/learning', 'Open learning workspace'],
             ['Learning resources', 'Review available course programmes and learning pathways.', '/courses', 'View programmes'],
             ['Tutor support', 'Get assistance with your account and teaching tools.', '/services', 'Contact support'],
           ] : user.role === 'admissions' ? [
@@ -141,13 +142,14 @@ export function PortalsPage() {
             ['Reports and records', 'Access institutional information and review progress.', '/courses', 'Academic programmes'],
           ] : [
             ['Website management', 'Manage courses, services, users, settings and public website content.', '/admin', 'Open admin workspace'],
+            ['Learning management', 'Create course modules and lessons, publish assignments and review learner submissions.', '/learning', 'Manage learning content'],
             ['Orders and service desk', 'Review customer requests and coordinate service fulfilment.', '/services', 'View public services'],
             ['Documents and downloads', 'Manage the documents published for customers and learners.', '/admin', 'Manage documents'],
           ]).map(([title, detail, href, action]) => <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-blue-700">{selectedPortal.title}</p><h2 className="mt-2 text-lg font-extrabold text-slate-950">{title}</h2><p className="mt-2 min-h-12 text-sm leading-6 text-slate-600">{detail}</p><Link to={href} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-900">{action} <ArrowRight className="h-4 w-4" /></Link></article>)}
         </section>}
         {user && overview && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[['Students', overview.students], ['Applications', overview.applications], ['Verified payments', `KSh ${overview.verifiedPayments.toLocaleString()}`], ['Active courses', overview.courses]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-black text-slate-950">{value}</p></div>)}</div>}
         {user && <section className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-bold text-slate-950">{user.role === 'student' ? 'My applications' : user.role === 'tutor' ? 'My classes' : 'Admissions queue'}</h2><p className="mt-1 text-sm text-slate-600">{user.role === 'tutor' ? 'Class rosters are shown once a principal assigns classes to your account.' : 'Live records from the NAVSTAR admissions database.'}</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase text-blue-700">{user.role}</span></div>
-          {user.role === 'tutor' ? <p className="mt-5 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">No classes are assigned to this tutor account yet.</p> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course ID</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Date</th></tr></thead><tbody>{enrollments.map((item) => <tr key={item.id} className="border-b last:border-0"><td className="p-3 font-medium">{item.full_name}</td><td className="p-3">{item.course_id}</td><td className="p-3">{item.status}</td><td className="p-3">{item.payment_status}</td><td className="p-3">{new Date(item.created_at).toLocaleDateString()}</td></tr>)}{enrollments.length === 0 && <tr><td className="p-5 text-center text-slate-500" colSpan={5}>No applications to show.</td></tr>}</tbody></table></div>}
+          {user.role === 'tutor' ? <p className="mt-5 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">No classes are assigned to this tutor account yet.</p> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course ID</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Date</th></tr></thead><tbody>{enrollments.map((item) => <tr key={item.id} className="border-b last:border-0"><td className="p-3 font-medium">{item.full_name}</td><td className="p-3">{item.course_id}</td><td className="p-3">{item.status}</td><td className="p-3">{item.payment_status}</td><td className="p-3">{formatEATDate(item.created_at)}</td></tr>)}{enrollments.length === 0 && <tr><td className="p-5 text-center text-slate-500" colSpan={5}>No applications to show.</td></tr>}</tbody></table></div>}
         </section>}
         {!user && <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">{status || 'Sign in is required to view private portal records.'} <Link to={`/login?role=${selectedPortal.id}`} className="ml-2 font-bold underline">Go to sign in</Link></div>}
       </section>

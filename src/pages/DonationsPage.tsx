@@ -1,10 +1,11 @@
 import { FormEvent, useState } from 'react';
-import { HeartHandshake, ShieldCheck } from 'lucide-react';
+import { Check, HeartHandshake, ShieldCheck, Sparkles, X, XCircle, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatEATDateTime } from '@/lib/datetime';
 
-const amounts = [200, 500, 1000, 2500];
+const amounts = [1, 10, 20, 30, 40, 50, 100, 200, 500, 1000];
 
 type DonationResponse = { id?: string; reference?: string; error?: string };
 type PaymentResponse = { id?: string; reference?: string; message?: string; error?: string };
@@ -27,6 +28,7 @@ export function DonationsPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [paymentStage, setPaymentStage] = useState<'idle' | 'processing' | 'success' | 'error' | 'pending'>('idle');
 
   const startDonation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -35,6 +37,7 @@ export function DonationsPage() {
     if (!Number.isInteger(amount) || amount < 1 || amount > 150000) { setMessage('Enter a valid donation amount between KSh 1 and KSh 150,000.'); return; }
 
     setLoading(true);
+    setPaymentStage('processing');
     setMessage('Registering donation…');
     setReceipt(null);
     try {
@@ -63,44 +66,86 @@ export function DonationsPage() {
         if (current?.status === 'paid' && current.receipt_number) {
           setReceipt({ reference: current.display_reference || payment.reference || donation.reference || donation.id, code: current.receipt_number, amount: current.amount || amount, phone: current.callback_phone || normalizedPhone, date: current.transaction_date });
           setMessage('Payment confirmed successfully by M-Pesa. Your receipt is shown below.');
+          setPaymentStage('success');
           break;
         }
-        if (current?.status === 'failed') { setMessage(`Payment not completed: ${current.result_description || 'M-Pesa did not confirm this payment.'} You may try again when ready.`); break; }
-        if (attempt === 23) setMessage(`Payment is still awaiting Safaricom confirmation. Keep reference ${payment.reference || donation.reference} and check again shortly.`);
+        if (current?.status === 'failed') { setMessage(`Payment not completed: ${current.result_description || 'M-Pesa did not confirm this payment.'} You may try again when ready.`); setPaymentStage('error'); break; }
+        if (attempt === 23) { setMessage(`Payment is still awaiting Safaricom confirmation. Keep reference ${payment.reference || donation.reference} and check again shortly.`); setPaymentStage('pending'); }
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Payment prompt could not be started. Please try again.');
+      setPaymentStage('error');
     } finally { setLoading(false); }
   };
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <section className="border-b bg-white">
-        <div className="container mx-auto grid gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1fr_390px] md:items-center lg:px-8">
-          <div>
-            <p className="text-sm font-bold uppercase text-blue-800">NAVSTAR DIGITAL HUB / COMMUNITY</p>
-            <h1 className="mt-3 max-w-xl text-3xl font-black text-slate-950 sm:text-4xl">Help more people get connected to digital skills</h1>
-            <p className="mt-4 max-w-xl leading-7 text-slate-600">Your contribution can support learning materials, supervised computer access, and practical technology training.</p>
-            <div className="mt-8 flex items-start gap-3 border-l-2 border-blue-700 pl-4 text-sm text-slate-600"><HeartHandshake className="mt-0.5 h-5 w-5 shrink-0 text-blue-800" /><p>Donations are voluntary. A payment is recorded as received only after Safaricom confirms it.</p></div>
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <section className="relative isolate overflow-hidden bg-gradient-to-br from-blue-950 via-blue-900 to-emerald-900 text-white">
+        <div className="absolute -right-24 -top-24 -z-10 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
+        <div className="absolute -bottom-32 -left-20 -z-10 h-96 w-96 rounded-full bg-blue-400/20 blur-3xl" />
+        <div className="container mx-auto grid gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1fr_410px] md:items-center md:py-20 lg:px-8">
+          <div className="max-w-2xl">
+            <p className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[.2em] text-amber-200"><Sparkles className="h-4 w-4" /> Welcome to Navstar Digital Hub</p>
+            <h1 className="mt-6 text-4xl font-black leading-tight tracking-tight sm:text-5xl">Together, we can make digital opportunity reachable.</h1>
+            <p className="mt-5 max-w-xl text-base leading-8 text-blue-100 sm:text-lg">Your kindness helps learners access digital skills, practical computer training and the tools they need to build a brighter future.</p>
+            <div className="mt-8 flex items-start gap-3 rounded-2xl border border-white/15 bg-white/10 p-4 text-sm leading-6 text-blue-50 backdrop-blur-sm"><HeartHandshake className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" /><p>Every contribution matters. Thank you for standing with our learning and technology community. <span className="font-bold text-white">HOME OF TECHNOCRATS.</span></p></div>
+            <p className="mt-6 text-xs font-semibold uppercase tracking-[.22em] text-emerald-200">Learn • Create • Innovate • Empower</p>
           </div>
-          <form onSubmit={startDonation} className="rounded-2xl border bg-white p-6 shadow-xl shadow-slate-200/70 sm:p-7">
-            <h2 className="text-lg font-bold text-slate-950">Make a contribution</h2>
-            <p className="mt-1 text-sm text-slate-600">Choose an amount and the phone to receive the prompt.</p>
-            <fieldset className="mt-6">
-              <legend className="text-sm font-medium text-slate-800">Amount (KSh)</legend>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {amounts.map((option) => <button key={option} type="button" onClick={() => setAmount(option)} aria-pressed={amount === option} className={`min-h-11 rounded-lg border px-3 text-sm font-semibold transition ${amount === option ? 'border-blue-800 bg-blue-50 text-blue-900 ring-1 ring-blue-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>{option.toLocaleString()}</button>)}
+          <form onSubmit={startDonation} className="overflow-hidden rounded-3xl border border-white/30 bg-white p-0 text-slate-900 shadow-2xl shadow-black/25">
+            <div className="bg-gradient-to-r from-blue-950 via-blue-800 to-emerald-800 px-6 py-5 text-white sm:px-7">
+              <div className="flex items-center gap-3"><span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10"><HeartHandshake className="h-6 w-6 text-amber-300" /></span><div><p className="text-[11px] font-bold uppercase tracking-[.2em] text-emerald-200">Navstar community</p><h2 className="mt-0.5 text-xl font-extrabold">Make a contribution</h2></div></div>
+              <p className="mt-3 text-sm leading-6 text-blue-100">Choose a quick amount or enter the amount you wish to give.</p>
+            </div>
+            <div className="space-y-5 px-6 py-6 sm:px-7 sm:py-7">
+              <fieldset>
+                <legend className="text-sm font-bold text-slate-800">Choose amount (KSh)</legend>
+                <div className="mt-3 grid grid-cols-5 gap-2">
+                  {amounts.map((option) => <button key={option} type="button" onClick={() => setAmount(option)} aria-pressed={amount === option} className={(amount === option ? 'border-blue-800 bg-blue-800 text-white shadow-md shadow-blue-900/20' : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-emerald-600 hover:bg-emerald-50') + ' min-h-11 rounded-xl border-2 px-2 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2'}>{option.toLocaleString()}</button>)}
+                </div>
+              </fieldset>
+              <div className="space-y-2">
+                <Label htmlFor="donation-amount" className="font-bold text-slate-800">Or enter your own amount (KSh)</Label>
+                <Input id="donation-amount" className="!h-13 !border-2 !border-slate-400 !bg-white !px-4 !text-lg !font-bold !text-slate-950 placeholder:!text-slate-500 shadow-sm focus-visible:!border-blue-700 focus-visible:!bg-white focus-visible:!ring-2 focus-visible:!ring-blue-200" type="number" min="1" max="150000" value={amount} onChange={(event) => setAmount(event.target.value === '' ? 0 : Number(event.target.value))} required />
+                <p className="text-xs text-slate-500">Minimum KSh 1 • Maximum KSh 150,000</p>
               </div>
-            </fieldset>
-            <div className="mt-4 space-y-2"><Label htmlFor="donation-amount">Other amount</Label><Input id="donation-amount" type="number" min="1" max="150000" value={amount} onChange={(event) => setAmount(Number(event.target.value))} required /></div>
-            <div className="mt-4 space-y-2"><Label htmlFor="donation-phone">M-Pesa phone number</Label><Input id="donation-phone" autoComplete="tel" inputMode="tel" placeholder="07xx xxx xxx" value={phone} onChange={(event) => setPhone(event.target.value)} required /></div>
-            <Button className="mt-6 w-full bg-blue-800 hover:bg-blue-900" type="submit" disabled={loading || amount < 1}>{loading ? 'Processing M-Pesa payment…' : `Continue with KSh ${amount.toLocaleString()}`}</Button>
-            {message && <p role="status" aria-live="polite" className="mt-4 rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">{message}</p>}
-            {receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><div className="flex items-center gap-2 font-bold"><ShieldCheck className="h-4 w-4" />M-Pesa payment receipt</div><dl className="mt-3 grid grid-cols-2 gap-2"><dt>Account reference</dt><dd className="text-right font-bold">{receipt.reference}</dd><dt>M-Pesa code</dt><dd className="text-right font-bold tracking-wide">{receipt.code}</dd><dt>Amount</dt><dd className="text-right font-semibold">KSh {receipt.amount.toLocaleString()}</dd><dt>Phone</dt><dd className="text-right">{receipt.phone}</dd>{receipt.date && <><dt>Transaction date</dt><dd className="text-right">{receipt.date}</dd></>}</dl></div>}
-            <p className="mt-5 flex items-start gap-2 border-t pt-4 text-xs leading-5 text-slate-500"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />Enter your M-Pesa PIN only on the official prompt on your phone. NAVSTAR will never ask for your PIN on this website.</p>
+              <div className="space-y-2">
+                <Label htmlFor="donation-phone" className="font-bold text-slate-800">M-Pesa phone number</Label>
+                <Input id="donation-phone" className="!h-13 !border-2 !border-slate-400 !bg-white !px-4 !text-lg !font-bold !text-slate-950 placeholder:!font-normal placeholder:!text-slate-500 shadow-sm focus-visible:!border-blue-700 focus-visible:!bg-white focus-visible:!ring-2 focus-visible:!ring-blue-200" autoComplete="tel" inputMode="tel" placeholder="07xx xxx xxx" value={phone} onChange={(event) => setPhone(event.target.value)} required />
+              </div>
+              <Button className="h-13 w-full rounded-xl bg-gradient-to-r from-blue-800 to-emerald-700 text-base font-extrabold text-white shadow-lg shadow-blue-900/20 transition hover:from-blue-900 hover:to-emerald-800" type="submit" disabled={loading || amount < 1 || amount > 150000}>{loading ? 'Processing M-Pesa payment…' : 'Continue with KSh ' + amount.toLocaleString()}</Button>
+              <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><p>Your payment is recorded as received only after Safaricom confirms it. Enter your PIN only on the official M-Pesa prompt. Navstar will never ask for your PIN.</p></div>
+            </div>
           </form>
         </div>
       </section>
+      <section className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl rounded-3xl border border-blue-100 bg-white p-6 text-center shadow-sm sm:p-9">
+          <p className="text-xs font-extrabold uppercase tracking-[.24em] text-blue-800">Thank you for being part of the journey</p>
+          <h2 className="mt-3 text-2xl font-black text-slate-950">Small acts of support can create lasting impact.</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-600">Navstar Digital Hub appreciates every supporter, learner, parent and partner helping us grow access to useful digital knowledge and opportunity.</p>
+          <p className="mt-5 text-sm font-extrabold text-emerald-800">NAVSTAR DIGITAL HUB — HOME OF TECHNOCRATS</p>
+        </div>
+      </section>
+      {paymentStage !== 'idle' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <section role="dialog" aria-modal="true" aria-labelledby="donation-status-title" className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/30 bg-white text-center shadow-2xl">
+            <div className={'px-6 pb-7 pt-8 text-white ' + (paymentStage === 'success' ? 'bg-gradient-to-br from-emerald-700 to-emerald-500' : paymentStage === 'error' ? 'bg-gradient-to-br from-rose-800 to-rose-600' : 'bg-gradient-to-br from-blue-950 via-blue-800 to-emerald-800')}>
+              {paymentStage === 'success' ? <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-white text-emerald-600 shadow-xl"><Check className="h-14 w-14" strokeWidth={3.5} /></div> : paymentStage === 'error' ? <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border-2 border-white/70 bg-white/10"><XCircle className="h-12 w-12" /></div> : <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border-2 border-white/40 bg-white/10"><LoaderCircle className="h-12 w-12 animate-spin text-amber-300" /></div>}
+              <h2 id="donation-status-title" className="mt-5 text-2xl font-black">{paymentStage === 'success' ? 'Donation successful!' : paymentStage === 'error' ? 'Payment not completed' : paymentStage === 'pending' ? 'Confirmation pending' : 'Processing your donation'}</h2>
+              <p className="mt-2 text-sm leading-6 text-white/90">{paymentStage === 'success' ? 'Thank you for making a difference. Safaricom has confirmed your M-Pesa payment.' : paymentStage === 'error' ? 'We could not confirm this payment. Please review the message below.' : paymentStage === 'pending' ? 'Your request is still awaiting Safaricom confirmation. Please do not pay again until you check the status.' : 'Please check your phone and enter your PIN only on the official M-Pesa prompt.'}</p>
+            </div>
+            <div className="space-y-4 p-6">
+              {paymentStage === 'success' && receipt ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left text-sm text-emerald-950"><div className="mb-3 flex items-center gap-2 font-extrabold"><ShieldCheck className="h-5 w-5 text-emerald-700" />Payment confirmed and recorded</div><dl className="grid grid-cols-2 gap-2"><dt>Reference</dt><dd className="break-all text-right font-bold">{receipt.reference}</dd><dt>M-Pesa receipt</dt><dd className="text-right font-extrabold tracking-wide">{receipt.code}</dd><dt>Amount</dt><dd className="text-right font-bold">KSh {receipt.amount.toLocaleString()}</dd><dt>Phone</dt><dd className="text-right font-semibold">{receipt.phone}</dd>{receipt.date && <><dt>Date</dt><dd className="text-right">{formatEATDateTime(receipt.date)}</dd></>}</dl></div> : <p className="rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">{message}</p>}
+              {paymentStage === 'success' ? <p className="text-sm leading-6 text-slate-600">Thank you for supporting learners and digital access through <strong>Navstar Digital Hub</strong>. We are glad to have you with us.</p> : null}
+              <div className="flex flex-col gap-2">
+                {paymentStage === 'success' ? <Button type="button" onClick={() => { setPaymentStage('idle'); setMessage(''); setPhone(''); }} className="h-12 w-full rounded-xl bg-emerald-700 font-bold text-white hover:bg-emerald-800">Done</Button> : <Button type="button" onClick={() => setPaymentStage('idle')} variant="outline" className="h-11 w-full rounded-xl border-slate-300 font-semibold text-slate-800">{paymentStage === 'processing' ? 'Continue in background' : 'Close'}</Button>}
+                {paymentStage === 'success' && <p className="text-[11px] font-bold uppercase tracking-[.18em] text-emerald-800">Navstar Digital Hub • Home of Technocrats</p>}
+              </div>
+            </div>
+            {paymentStage !== 'processing' && <button type="button" aria-label="Close donation status" onClick={() => setPaymentStage('idle')} className="absolute right-3 top-3 rounded-full bg-white/15 p-2 text-white transition hover:bg-white/25"><X className="h-4 w-4" /></button>}
+          </section>
+        </div>
+      )}
     </main>
   );
 }
