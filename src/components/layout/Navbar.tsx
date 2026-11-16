@@ -34,7 +34,7 @@ export function Navbar() {
   const navigate = useNavigate();
 
   const signOut = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+    await fetch('/api/customer/logout', { method: 'POST' }).catch(() => undefined);
     setSignedInUser(null);
     navigate('/');
   };
@@ -56,9 +56,9 @@ export function Navbar() {
           if (active) setSignedInUser(null);
           return;
         }
-        const session = await sessionResponse.json() as { user?: { name?: string; role?: string } };
-        if (active && session.user?.name) {
-          setSignedInUser({ name: session.user.name, role: session.user.role });
+        const session = await sessionResponse.json() as { customer?: { fullName?: string } };
+        if (active && session.customer?.fullName) {
+          setSignedInUser({ name: session.customer.fullName });
         }
       } catch {
         // Public navigation remains available when the account service is offline.
@@ -88,9 +88,9 @@ export function Navbar() {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            {signedInUser && <span className="hidden xl:inline max-w-[170px] truncate text-xs font-bold text-white" title={signedInUser.name}>Hi, {signedInUser.name}</span>}
-            <Button asChild size="sm" variant="outline" className="hidden sm:inline-flex border-white/40 bg-white/5 text-white hover:bg-white/15 hover:text-white">
-              <Link to="/portals"><GraduationCap className="mr-1.5 h-4 w-4" />Student Gateway</Link>
+            {signedInUser ? <div className="hidden md:flex max-w-[190px] items-center gap-2 rounded-xl border border-amber-300/70 bg-white/10 px-3 py-2 text-xs font-bold text-white" title={signedInUser.name}><UserRound className="h-4 w-4 shrink-0 text-amber-300"/><span className="truncate">Hi, {signedInUser.name}</span></div> : <Button asChild size="sm" className="hidden sm:inline-flex rounded-xl border border-amber-300 bg-amber-300 px-3 font-extrabold text-blue-950 shadow-md shadow-amber-400/20 hover:bg-amber-200"><Link to="/account"><UserRound className="mr-1.5 h-4 w-4"/>Log in / Sign up</Link></Button>}
+            <Button asChild size="sm" variant="outline" className="hidden lg:inline-flex rounded-xl border border-green-400/70 bg-green-500/15 text-white hover:bg-green-500/25 hover:text-white">
+              <Link to="/portals"><GraduationCap className="mr-1.5 h-4 w-4 text-amber-300" />Portals</Link>
             </Button>
             <Link to="/services#service-cart" aria-label="Your orders and cart" title="Your orders" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white hover:bg-white/10">
               <ShoppingCart className="h-5 w-5" />
