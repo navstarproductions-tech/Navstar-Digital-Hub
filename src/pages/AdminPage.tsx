@@ -5,12 +5,13 @@ import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlu
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { readApiResponse } from '@/lib/api';
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
 
 type Section = 'overview' | 'courses' | 'services' | 'enrollments' | 'finance' | 'receipts' | 'gallery' | 'downloads' | 'orders' | 'users' | 'settings';
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
-type PortalUser = { id: string; name: string; email: string; role: string; status: string };
+type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string };
 
 const initialServices: ServiceItem[] = [
   { id: 's1', name: 'Computer access', category: 'Cyber cafe', price: 'KSh 50 / hour', status: 'Active' },
@@ -63,7 +64,15 @@ export function AdminPage() {
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState('student');
+  const [newUserRole, setNewUserRole] = useState('tutor');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserConfirmPassword, setNewUserConfirmPassword] = useState('');
+  const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserCitizenship, setNewUserCitizenship] = useState('Kenyan');
+  const [newUserCounty, setNewUserCounty] = useState('');
+  const [newUserSubCounty, setNewUserSubCounty] = useState('');
+  const [newUserDepartment, setNewUserDepartment] = useState('');
+  const [newUserJobTitle, setNewUserJobTitle] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
   const [applications, setApplications] = useState<Record<string, unknown>[]>([]);
   const [cashoutRequests, setCashoutRequests] = useState<Record<string, unknown>[]>([]);
@@ -294,19 +303,31 @@ export function AdminPage() {
   const createPortalUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setTemporaryPassword('');
+    if (newUserPassword.length < 6 || !/[a-z]/.test(newUserPassword) || !/[A-Z]/.test(newUserPassword) || !/[0-9]/.test(newUserPassword)) {
+      setNotice('Password must be at least 6 characters and include uppercase, lowercase and a number.');
+      return;
+    }
+    if (newUserPassword !== newUserConfirmPassword) {
+      setNotice('The passwords do not match.');
+      return;
+    }
     try {
       const response = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newUserName, email: newUserEmail, role: newUserRole }),
+        body: JSON.stringify({
+          name: newUserName, email: newUserEmail, role: newUserRole, password: newUserPassword,
+          confirmPassword: newUserConfirmPassword, phone: newUserPhone, citizenship: newUserCitizenship,
+          country: 'Kenya', county: newUserCounty, subCounty: newUserSubCounty,
+          department: newUserDepartment, jobTitle: newUserJobTitle
+        }),
       });
-      const result = await response.json() as { user?: PortalUser; temporaryPassword?: string; error?: string };
-      if (!response.ok || !result.user || !result.temporaryPassword) throw new Error(result.error ?? 'Account could not be created.');
+      const result = await readApiResponse<{ user?: PortalUser; error?: string }>(response);
+      if (!response.ok || !result.user) throw new Error(result.error ?? 'Account could not be created.');
       setPortalUsers((current) => [result.user!, ...current]);
-      setTemporaryPassword(result.temporaryPassword);
-      setNewUserName('');
-      setNewUserEmail('');
-      setNotice('Account created. Share the temporary password with that person using a separate secure channel.');
+      setNewUserName(''); setNewUserEmail(''); setNewUserPassword(''); setNewUserConfirmPassword('');
+      setNewUserPhone(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserDepartment(''); setNewUserJobTitle('');
+      setNotice(`Account created successfully. Staff ID: ${result.user.staffId || 'assigned'}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Account could not be created.');
     }
@@ -419,7 +440,24 @@ export function AdminPage() {
 
           {active === 'enrollments' && <div className="overflow-x-auto border bg-white"><table className="w-full min-w-[680px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Received</th></tr></thead><tbody>{applications.map((application) => <tr key={String(application.id)} className="border-b last:border-0"><td className="p-3"><p className="font-semibold">{String(application.full_name ?? '')}</p><p className="text-xs text-slate-500">{String(application.email ?? '')}</p></td><td className="p-3">{courses.find((item) => item.id === application.course_id)?.title ?? String(application.course_id ?? '')}</td><td className="p-3">{String(application.status ?? '')}</td><td className="p-3">{String(application.payment_status ?? '')}</td><td className="p-3">{String(application.created_at ?? '')}</td></tr>)}{applications.length === 0 && <tr><td className="p-6 text-center text-slate-500" colSpan={5}>{backendReady ? 'No applications received yet.' : 'Connect the backend and sign in to view applications.'}</td></tr>}</tbody></table></div>}
 
-          {active === 'users' && <div className="space-y-5"><form onSubmit={createPortalUser} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_180px_auto] xl:items-end"><div className="space-y-2"><Label htmlFor="portal-user-name">Full name</Label><Input id="portal-user-name" value={newUserName} onChange={(event) => setNewUserName(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="portal-user-email">Email</Label><Input id="portal-user-email" type="email" value={newUserEmail} onChange={(event) => setNewUserEmail(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="portal-user-role">Portal role</Label><select id="portal-user-role" value={newUserRole} onChange={(event) => setNewUserRole(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm">{['student', 'tutor', 'admissions', 'principal', 'admin'].map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}</select></div><Button type="submit" disabled={!backendReady || user?.role !== 'admin'} className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Create account</Button></form>{temporaryPassword && <p role="status" className="border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">One-time password (shown once): <code className="select-all font-bold">{temporaryPassword}</code>. Send it to the person through a separate secure channel; they must change it after signing in.</p>}<div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.email} · {portalUser.role}</p></div><span className="border px-2 py-1 text-xs">{portalUser.status}</span></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div></div>}
+          {active === 'users' && <div className="space-y-5"><form onSubmit={createPortalUser} className="space-y-5 border bg-white p-4 sm:p-6">
+            <div><h3 className="font-bold text-slate-900">Create staff or student account</h3><p className="mt-1 text-sm text-slate-600">A unique Navstar ID is generated automatically. Passwords require at least 6 characters, uppercase, lowercase and a number.</p></div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-2"><Label htmlFor="portal-user-name">Full legal name *</Label><Input id="portal-user-name" value={newUserName} onChange={(event) => setNewUserName(event.target.value)} required /></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-email">Email address *</Label><Input id="portal-user-email" type="email" value={newUserEmail} onChange={(event) => setNewUserEmail(event.target.value)} required /></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-role">Portal role *</Label><select id="portal-user-role" value={newUserRole} onChange={(event) => setNewUserRole(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm">{['admin','principal','finance','admissions','tutor','student'].map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}</select></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-phone">Phone number</Label><Input id="portal-user-phone" value={newUserPhone} onChange={(event) => setNewUserPhone(event.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-citizenship">Citizenship</Label><select id="portal-user-citizenship" value={newUserCitizenship} onChange={(event) => setNewUserCitizenship(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Kenyan</option><option>Ugandan</option><option>Tanzanian</option><option>Other</option></select></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-county">County</Label><select id="portal-user-county" value={newUserCounty} onChange={(event) => setNewUserCounty(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option value="">Select county</option">{['Baringo','Bomet','Bungoma','Busia','Elgeyo-Marakwet','Embu','Garissa','Homa Bay','Isiolo','Kajiado','Kakamega','Kericho','Kiambu','Kilifi','Kirinyaga','Kisii','Kisumu','Kitui','Kwale','Laikipia','Lamu','Machakos','Makueni','Mandera','Marsabit','Meru','Migori','Mombasa','Murang’a','Nairobi','Nakuru','Nandi','Narok','Nyamira','Nyandarua','Nyeri','Samburu','Siaya','Taita-Taveta','Tana River','Tharaka-Nithi','Trans Nzoia','Turkana','Uasin Gishu','Vihiga','Wajir','West Pokot'].map((county) => <option key={county}>{county}</option>)}</select></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-subcounty">Sub-county</Label><Input id="portal-user-subcounty" value={newUserSubCounty} onChange={(event) => setNewUserSubCounty(event.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-department">Department</Label><Input id="portal-user-department" value={newUserDepartment} onChange={(event) => setNewUserDepartment(event.target.value)} placeholder="e.g. Finance, ICT, Academics" /></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-title">Job title</Label><Input id="portal-user-title" value={newUserJobTitle} onChange={(event) => setNewUserJobTitle(event.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-password">Password *</Label><Input id="portal-user-password" type="password" minLength={6} value={newUserPassword} onChange={(event) => setNewUserPassword(event.target.value)} required /></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-confirm">Confirm password *</Label><Input id="portal-user-confirm" type="password" minLength={6} value={newUserConfirmPassword} onChange={(event) => setNewUserConfirmPassword(event.target.value)} required /></div>
+            </div>
+            <Button type="submit" disabled={!backendReady || user?.role !== 'admin'} className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Create account and generate ID</Button>
+          </form>
+          <div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.staffId || 'ID pending'} · {portalUser.email} · {portalUser.role}</p></div><span className="border px-2 py-1 text-xs">{portalUser.status}</span></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div></div>}
 
           {active === 'receipts' && <section className="rounded-2xl border bg-white p-6"><div className="flex items-center gap-3"><ReceiptText className="h-6 w-6 text-blue-800"/><div><h3 className="font-bold text-slate-950">Confirmed payment receipts</h3><p className="mt-1 text-sm text-slate-600">View confirmed payments and print or save official Navstar receipts as PDF.</p></div></div><Link to="/admin/receipts" className="mt-5 inline-flex items-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900">Open payment receipt register</Link></section>}
 
