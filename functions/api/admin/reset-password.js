@@ -12,10 +12,10 @@ export async function onRequestPost({ request, env }) {
 
   let body;
   try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
-  const name = safeString(body.name, 120);
+  const name = safeString(body.name, 120) || safeString(email.split('@')[0], 120) || 'Navstar Administrator';
   const email = safeString(body.email, 254).toLowerCase();
   const password = String(body.password ?? '');
-  const confirmPassword = String(body.confirmPassword ?? '');
+  const confirmPassword = String(body.confirmPassword ?? password);
 
   if (name.length < 2 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return error('Enter your full name and a valid new email address.');
   if (password.length < 14 || password.length > 200) return error('Choose a password of at least 14 characters.');
