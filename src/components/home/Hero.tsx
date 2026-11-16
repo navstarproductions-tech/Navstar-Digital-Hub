@@ -9,25 +9,15 @@ const highlights = [
   { icon: Code2, label: 'Technology solutions', detail: 'Create, automate, innovate' },
 ];
 
-const heroPhotos = [
-  'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=2000&q=85',
-  'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=2000&q=85',
-  'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=2000&q=85',
-];
+const heroVideo = 'https://videos.pexels.com/video-files/3129977/3129977-hd_1920_1080_25fps.mp4';
+const heroPoster = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=2000&q=85';
 
 export function Hero() {
   return (
     <section className="relative isolate overflow-hidden bg-[#050b1b] text-white">
       <style>{`
-        @keyframes navstarHeroFade {
-          0%, 28% { opacity: 1; transform: scale(1.02); }
-          34%, 94% { opacity: 0; transform: scale(1.09); }
-          100% { opacity: 1; transform: scale(1.02); }
-        }
-        .navstar-hero-photo { animation: navstarHeroFade 24s ease-in-out infinite; }
-        .navstar-hero-photo:nth-child(2) { animation-delay: 8s; }
-        .navstar-hero-photo:nth-child(3) { animation-delay: 16s; }
-        @media (prefers-reduced-motion: reduce) { .navstar-hero-photo { animation: none; opacity: 0; } .navstar-hero-photo:first-child { opacity: 1; } }
+        .navstar-hero-video { filter: saturate(1.12) contrast(1.08); }
+        @media (prefers-reduced-motion: reduce) { .navstar-hero-video { display:none; } }
       `}</style>
       <div className="absolute inset-0 -z-10" aria-hidden="true">
         {heroPhotos.map((photo, index) => (
