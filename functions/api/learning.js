@@ -3,9 +3,14 @@ import { error, isSameOrigin, json, readJson, safeString, uuid } from '../_share
 
 const learnerRoles = ['student'];
 const staffRoles = ['admin', 'tutor', 'principal'];
+const fullCourseRoles = ['admin', 'principal'];
 
 async function hasCourseAccess(db, user, courseId) {
-  if (staffRoles.includes(user.role)) return true;
+  if (fullCourseRoles.includes(user.role)) return true;
+  if (user.role === 'tutor') {
+    const assigned = await db.prepare('SELECT id FROM course_tutor_assignments WHERE course_id = ? AND tutor_user_id = ?').bind(courseId, user.id).first();
+    return Boolean(assigned);
+  }
   if (!learnerRoles.includes(user.role)) return false;
   const enrollment = await db.prepare(
     "SELECT id FROM enrollments WHERE course_id = ? AND email = ? COLLATE NOCASE AND status = 'accepted' LIMIT 1"
@@ -33,6 +38,8 @@ export async function onRequestGet({ request, env }) {
       WHERE c.status = 'active' AND e.email = ? COLLATE NOCASE AND e.status = 'accepted'
       ORDER BY c.title
     `).bind(user.email).all();
+  } else if (user.role === 'tutor') {
+    courses = await env.DB.prepare("SELECT c.id, c.title, c.description, c.duration, c.image_url AS image, c.category, c.level FROM courses c JOIN course_tutor_assignments a ON a.course_id = c.id WHERE c.status = 'active' AND a.tutor_user_id = ? ORDER BY c.title").bind(user.id).all();
   } else {
     courses = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, level FROM courses WHERE status = 'active' ORDER BY title").all();
   }
@@ -43,7 +50,7 @@ export async function onRequestGet({ request, env }) {
   const moduleRows = await env.DB.prepare(`
     SELECT m.id, m.course_id, m.title, m.description, m.sort_order, m.status
     FROM course_modules m
-    WHERE m.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND m.status = 'published'" : "AND m.status != 'archived'"}
+    WHERE m.course_id IN (${courseIds.map(() => '?').join(',')}) ${['student', 'tutor'].includes(user.role) ? "AND m.status = 'published'" : "AND m.status != 'archived'"}
     ORDER BY m.course_id, m.sort_order, m.created_at
   `).bind(...courseIds).all();
   const modules = moduleRows.results ?? [];
@@ -53,7 +60,7 @@ export async function onRequestGet({ request, env }) {
     const result = await env.DB.prepare(`
       SELECT l.id, l.module_id, l.title, l.content, l.video_url, l.resource_url, l.sort_order, l.estimated_minutes, l.status
       FROM course_lessons l
-      WHERE l.module_id IN (${moduleIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND l.status = 'published'" : "AND l.status != 'archived'"}
+      WHERE l.module_id IN (${moduleIds.map(() => '?').join(',')}) ${['student', 'tutor'].includes(user.role) ? "AND l.status = 'published'" : "AND l.status != 'archived'"}
       ORDER BY l.module_id, l.sort_order, l.created_at
     `).bind(...moduleIds).all();
     lessons = result.results ?? [];
@@ -61,7 +68,7 @@ export async function onRequestGet({ request, env }) {
   const assignmentsResult = await env.DB.prepare(`
     SELECT a.id, a.course_id, a.module_id, a.title, a.instructions, a.due_at, a.max_points, a.status
     FROM course_assignments a
-    WHERE a.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND a.status = 'published'" : "AND a.status != 'archived'"}
+    WHERE a.course_id IN (${courseIds.map(() => '?').join(',')}) ${['student', 'tutor'].includes(user.role) ? "AND a.status = 'published'" : "AND a.status != 'archived'"}
     ORDER BY a.due_at IS NULL, a.due_at, a.created_at DESC
   `).bind(...courseIds).all();
   const assignments = assignmentsResult.results ?? [];
@@ -108,7 +115,10 @@ export async function onRequestGet({ request, env }) {
         : { submissions: submissionsByAssignment.get(assignment.id) ?? [] }),
     })),
   }));
-  return json({ courses: resultCourses, role: user.role });
+  const tutors = user.role === 'admin'
+    ? ((await env.DB.prepare("SELECT u.id, u.name, u.email FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE COALESCE(p.portal_role, u.role) = 'tutor' AND u.status = 'active' ORDER BY u.name").all()).results ?? [])
+    : [];
+  return json({ courses: resultCourses, role: user.role, tutors });
 }
 
 export async function onRequestPost({ request, env }) {
@@ -121,9 +131,25 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 16384); } catch { return error('Invalid request body.'); }
   const action = safeString(body.action, 40);
 
-  if (['create_module', 'create_lesson', 'create_assignment', 'grade_submission'].includes(action)) {
+  if (['create_module', 'create_lesson', 'create_assignment', 'grade_submission', 'assign_tutor', 'remove_tutor'].includes(action)) {
     const access = await requireRole(request, env, ['admin']);
     if (access.response) return access.response;
+  }
+
+  if (action === 'assign_tutor' || action === 'remove_tutor') {
+    const courseId = safeString(body.courseId, 80);
+    const tutorUserId = safeString(body.tutorUserId, 80);
+    const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
+    const tutor = await env.DB.prepare("SELECT u.id FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE u.id = ? AND u.status = 'active' AND COALESCE(p.portal_role, u.role) = 'tutor'").bind(tutorUserId).first();
+    if (!course || !tutor) return error('Choose an active course and a valid tutor account.');
+    if (action === 'assign_tutor') {
+      await env.DB.prepare('INSERT OR IGNORE INTO course_tutor_assignments (id, course_id, tutor_user_id, assigned_by) VALUES (?, ?, ?, ?)').bind(uuid(), courseId, tutorUserId, user.id).run();
+      await writeAudit(env.DB, user.id, 'lms_tutor_assigned', 'course', courseId);
+      return json({ courseId, tutorUserId, assigned: true }, 201);
+    }
+    await env.DB.prepare('DELETE FROM course_tutor_assignments WHERE course_id = ? AND tutor_user_id = ?').bind(courseId, tutorUserId).run();
+    await writeAudit(env.DB, user.id, 'lms_tutor_unassigned', 'course', courseId);
+    return json({ courseId, tutorUserId, assigned: false });
   }
 
   if (action === 'create_module') {
