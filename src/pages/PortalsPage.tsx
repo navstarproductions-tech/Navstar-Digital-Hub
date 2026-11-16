@@ -8,7 +8,8 @@ const portals = [
   { id: 'tutor', title: 'Tutor portal', icon: BookOpen, summary: 'Manage class lists, learning resources, attendance and student progress.', accent: 'from-violet-600 to-indigo-500', tint: 'bg-violet-500/10 text-violet-700' },
   { id: 'admissions', title: 'Admissions portal', icon: UserRound, summary: 'Review applications, applicant documents, enquiries and admission follow-up.', accent: 'from-cyan-600 to-blue-500', tint: 'bg-cyan-500/10 text-cyan-700' },
   { id: 'principal', title: 'Principal portal', icon: BriefcaseBusiness, summary: 'View academic activity, approvals, staff operations and institutional reports.', accent: 'from-amber-500 to-orange-500', tint: 'bg-amber-500/10 text-amber-700' },
-  { id: 'admin', title: 'Administrator portal', icon: ShieldCheck, summary: 'Manage courses, services, users, payments, notifications and website settings.', accent: 'from-slate-800 to-blue-700', tint: 'bg-slate-800/10 text-slate-800' },
+  { id: 'admin', title: 'Administrator portal', icon: ShieldCheck, summary: 'Manage courses, services, users, payments, notifications, downloadable documents and website settings.', accent: 'from-slate-800 to-blue-700', tint: 'bg-slate-800/10 text-slate-800' },
+  { id: 'customer', title: 'Customer service desk', icon: BriefcaseBusiness, summary: 'Browse Navstar services, request assistance, place service orders and pay securely. No student or staff account is required.', accent: 'from-emerald-600 to-teal-500', tint: 'bg-emerald-500/10 text-emerald-700' },
 ];
 
 type SessionUser = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
@@ -94,8 +95,8 @@ export function PortalsPage() {
                   <h3 className="mt-6 text-xl font-black text-slate-950">{title}</h3>
                   <p className="mt-2 flex-1 text-sm leading-7 text-slate-600">{summary}</p>
                   <div className="mt-6 flex items-center gap-3">
-                    <Button asChild className={`flex-1 rounded-xl bg-gradient-to-r ${accent} text-white shadow-sm hover:opacity-90`}><Link to={`/login?role=${id}`}>Enter portal <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
-                    <Link to={`/portals/${id}`} aria-label={`View ${title}`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-blue-300 hover:text-blue-700"><ChevronRight className="h-5 w-5" /></Link>
+                    <Button asChild className={`flex-1 rounded-xl bg-gradient-to-r ${accent} text-white shadow-sm hover:opacity-90`}><Link to={id === 'customer' ? '/services' : `/login?role=${id}`}>{id === 'customer' ? 'Browse & order' : 'Enter portal'} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                    <Link to={id === 'customer' ? '/services' : `/portals/${id}`} aria-label={id === 'customer' ? 'Browse customer services' : `View ${title}`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-blue-300 hover:text-blue-700"><ChevronRight className="h-5 w-5" /></Link>
                   </div>
                 </div>
               </article>
@@ -121,6 +122,29 @@ export function PortalsPage() {
         </div>
       </section>
       <section className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+        {user && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {(user.role === 'student' ? [
+            ['My learning', 'Browse current programmes, check course information and continue your learning journey.', '/courses', 'Browse courses'],
+            ['My applications', 'Track submitted applications and enrolment progress.', '/portals/student', 'View applications'],
+            ['Student support', 'Contact Navstar for help with enrolment, learning and payments.', '/services', 'Get support'],
+          ] : user.role === 'tutor' ? [
+            ['Teaching workspace', 'Your assigned classes, learner lists and teaching resources will appear here.', '/courses', 'Course catalogue'],
+            ['Learning resources', 'Review available course programmes and learning pathways.', '/courses', 'View programmes'],
+            ['Tutor support', 'Get assistance with your account and teaching tools.', '/services', 'Contact support'],
+          ] : user.role === 'admissions' ? [
+            ['Admissions queue', 'Review incoming applications and follow up with applicants.', '/portals/admissions', 'Open applications'],
+            ['Course catalogue', 'Check programme details, current fees and intake information.', '/courses', 'View courses'],
+            ['Applicant support', 'Respond to enquiries and direct applicants to the right services.', '/services', 'Service desk'],
+          ] : user.role === 'principal' ? [
+            ['Institution overview', 'Monitor academic activity, applications and operational performance.', '/portals/principal', 'View overview'],
+            ['Staff coordination', 'Review role assignments and coordinate operational follow-up.', '/portals', 'Portal directory'],
+            ['Reports and records', 'Access institutional information and review progress.', '/courses', 'Academic programmes'],
+          ] : [
+            ['Website management', 'Manage courses, services, users, settings and public website content.', '/admin', 'Open admin workspace'],
+            ['Orders and service desk', 'Review customer requests and coordinate service fulfilment.', '/services', 'View public services'],
+            ['Documents and downloads', 'Manage the documents published for customers and learners.', '/admin', 'Manage documents'],
+          ]).map(([title, detail, href, action]) => <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-blue-700">{selectedPortal.title}</p><h2 className="mt-2 text-lg font-extrabold text-slate-950">{title}</h2><p className="mt-2 min-h-12 text-sm leading-6 text-slate-600">{detail}</p><Link to={href} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-900">{action} <ArrowRight className="h-4 w-4" /></Link></article>)}
+        </section>}
         {user && overview && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[['Students', overview.students], ['Applications', overview.applications], ['Verified payments', `KSh ${overview.verifiedPayments.toLocaleString()}`], ['Active courses', overview.courses]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-black text-slate-950">{value}</p></div>)}</div>}
         {user && <section className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-bold text-slate-950">{user.role === 'student' ? 'My applications' : user.role === 'tutor' ? 'My classes' : 'Admissions queue'}</h2><p className="mt-1 text-sm text-slate-600">{user.role === 'tutor' ? 'Class rosters are shown once a principal assigns classes to your account.' : 'Live records from the NAVSTAR admissions database.'}</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase text-blue-700">{user.role}</span></div>
           {user.role === 'tutor' ? <p className="mt-5 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">No classes are assigned to this tutor account yet.</p> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course ID</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Date</th></tr></thead><tbody>{enrollments.map((item) => <tr key={item.id} className="border-b last:border-0"><td className="p-3 font-medium">{item.full_name}</td><td className="p-3">{item.course_id}</td><td className="p-3">{item.status}</td><td className="p-3">{item.payment_status}</td><td className="p-3">{new Date(item.created_at).toLocaleDateString()}</td></tr>)}{enrollments.length === 0 && <tr><td className="p-5 text-center text-slate-500" colSpan={5}>No applications to show.</td></tr>}</tbody></table></div>}

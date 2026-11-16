@@ -1,4 +1,5 @@
 import { error, json, normalizePhone, readJson, safeString, uuid } from '../../_shared/http.js';
+import { sendCustomerNotice } from '../../_shared/notifications.js';
 
 function safeEqual(left, right) {
   if (left.length !== right.length) return false;
@@ -54,6 +55,22 @@ export async function onRequestPost({ request, env }) {
     await env.DB.prepare('UPDATE service_requests SET status = ? WHERE id = ?')
       .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
   }
+
+  let customer = { email: '', phone: payment.phone, name: 'Customer' };
+  if (payment.purpose === 'enrollment') {
+    const row = await env.DB.prepare('SELECT full_name AS name, email, phone FROM enrollments WHERE id = ?').bind(payment.reference_id).first();
+    if (row) customer = row;
+  } else if (payment.purpose === 'service') {
+    const row = await env.DB.prepare('SELECT customer_name AS name, email, phone FROM service_requests WHERE id = ?').bind(payment.reference_id).first();
+    if (row) customer = row;
+  } else if (payment.purpose === 'donation') {
+    const row = await env.DB.prepare('SELECT phone FROM donations WHERE id = ?').bind(payment.reference_id).first();
+    if (row) customer = { ...customer, phone: row.phone };
+  }
+  const customerMessage = paid
+    ? `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment of KSh ${payment.amount} is confirmed. M-Pesa receipt: ${receipt}. Reference: ${payment.display_reference || payment.reference_id}. Thank you.`
+    : `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment was not completed. Reason: ${resultDescription}. Reference: ${payment.display_reference || payment.reference_id}. Please try again or contact Navstar support.`;
+  await sendCustomerNotice(env, { email: customer.email, phone: customer.phone, subject: paid ? 'Navstar payment confirmed' : 'Navstar payment not completed', message: customerMessage });
 
   const staff = await env.DB.prepare("SELECT id FROM users WHERE role IN ('admin', 'admissions', 'principal') AND status = 'active'").all();
   if (staff.results?.length) {

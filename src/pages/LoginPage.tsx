@@ -5,14 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const roles = [
-  ['student', 'Student'], ['tutor', 'Tutor'], ['admissions', 'Admissions'], ['principal', 'Principal'], ['admin', 'Administrator'],
-];
+const allowedRoles = ['student', 'tutor', 'admissions', 'principal', 'admin'];
 export function LoginPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const initialRole = roles.some(([value]) => value === searchParams.get('role')) ? searchParams.get('role')! : 'student';
-  const [role, setRole] = useState(initialRole);
+  const requestedRole = searchParams.get('role') ?? 'student';
+  const role = allowedRoles.includes(requestedRole) ? requestedRole : 'student';
+  const roleLabel = role === 'admin' ? 'Administrator' : role.charAt(0).toUpperCase() + role.slice(1);
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -59,19 +58,21 @@ export function LoginPage() {
           </div>
         </aside>
         <section className="p-6 sm:p-9 lg:p-11">
-          <Link to="/portals" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-blue-700"><ArrowLeft className="h-4 w-4" /> All portals</Link>
+          <Link to={role === 'admin' ? '/portals/admin' : '/portals'} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-blue-700"><ArrowLeft className="h-4 w-4" /> {role === 'admin' ? 'Admin Portal' : 'All portals'}</Link>
           <div className="mt-8 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700"><LockKeyhole className="h-6 w-6" /></div>
           <p className="mt-6 text-xs font-extrabold uppercase tracking-[.25em] text-blue-700">NAVSTAR DIGITAL HUB</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Welcome back.</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Sign in with the account details provided by Navstar.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Sign in to the <strong>{roleLabel} Portal</strong> with the account details provided by Navstar.</p>
           <form onSubmit={signIn} className="mt-7 space-y-5">
-            <div className="space-y-2"><Label htmlFor="role" className="font-bold text-slate-700">Choose your access portal</Label><select id="role" value={role} onChange={(event) => setRole(event.target.value)} className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100">{roles.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3"><p className="text-xs font-bold uppercase tracking-wider text-blue-700">Selected secure portal</p><p className="mt-1 font-bold text-slate-900">{roleLabel} Portal</p></div>
             <div className="space-y-2"><Label htmlFor="email" className="font-bold text-slate-700">Email address</Label><Input id="email" name="email" type="email" autoComplete="username" placeholder="you@example.com" required className="h-12 rounded-xl" /></div>
             <div className="space-y-2"><Label htmlFor="password" className="font-bold text-slate-700">Password</Label><div className="relative"><Input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Enter your password" required className="h-12 rounded-xl pr-12" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-blue-700" aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
             <Button type="submit" disabled={loading} className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 text-sm font-bold shadow-md shadow-blue-900/15 hover:from-blue-600 hover:to-cyan-500">{loading ? 'Verifying your account…' : 'Sign in securely'}</Button>
             {status && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm leading-6 text-rose-800">{status}</p>}
             <p className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />Your account is protected by role-based access. Never share your password or M-Pesa PIN with anyone.</p>
           </form>
+          <div className="mt-6 rounded-xl border border-slate-200 p-4"><p className="text-sm font-semibold text-slate-900">Looking to order goods or request a service?</p><p className="mt-1 text-xs leading-5 text-slate-500">Customers do not need a student or staff portal account to make a public service request.</p><Link to="/services" className="mt-2 inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-900">Continue to Customer Services <ArrowLeft className="h-4 w-4 rotate-180" /></Link></div>
+          {role === 'admin' && <Link to="/admin-reset" className="mt-4 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-900">Forgot Admin password? Reset it securely</Link>}
           <p className="mt-7 text-center text-xs text-slate-400">© Navstar Digital Hub · HOME OF TECHNOCRATS</p>
         </section>
       </div>
