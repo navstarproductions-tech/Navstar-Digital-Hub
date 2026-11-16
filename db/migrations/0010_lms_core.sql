@@ -72,3 +72,14 @@ CREATE TABLE IF NOT EXISTS course_assignment_submissions (
 );
 CREATE INDEX IF NOT EXISTS idx_course_submissions_user ON course_assignment_submissions(user_id,submitted_at);
 CREATE INDEX IF NOT EXISTS idx_course_submissions_assignment ON course_assignment_submissions(assignment_id,status);
+
+-- Tutor access is explicitly assigned per course; tutors do not inherit access to every programme.
+CREATE TABLE IF NOT EXISTS course_tutor_assignments (
+  id TEXT PRIMARY KEY,
+  course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  tutor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_by TEXT REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(course_id,tutor_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_course_tutor_user ON course_tutor_assignments(tutor_user_id,course_id);
