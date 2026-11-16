@@ -1,0 +1,17 @@
+name = "navstar-digital-hub"
+compatibility_date = "2026-11-16"
+pages_build_output_dir = "./dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "navstar-digital-hub"
+database_id = "b342deb8-fd01-4b6f-9d69-e6f5579e7986"
+migrations_dir = "db/migrations"
+
+[[r2_buckets]]
+binding = "DOCS"
+bucket_name = "navstar-digital-hub-docs"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "navstar-digital-hub-media"
