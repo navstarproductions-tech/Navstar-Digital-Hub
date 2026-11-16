@@ -43,7 +43,7 @@ export async function onRequestPost({ request, env }) {
       await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
         .bind(uuid(), adminId, 'admin_fresh_setup', 'user', adminId).run();
     } else {
-      await env.DB.prepare("INSERT INTO users (id, name, email, role, password_hash, password_salt, must_change_password, status) VALUES (?, ?, 'admin', ?, ?, 0, 'active')")
+      await env.DB.prepare("INSERT INTO users (id, name, email, role, password_hash, password_salt, must_change_password, status) VALUES (?, ?, ?, 'admin', ?, ?, 0, 'active')")
         .bind(adminId, name, email, passwordRecord.hash, passwordRecord.salt).run();
       await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
         .bind(uuid(), adminId, 'admin_first_setup', 'user', adminId).run();
