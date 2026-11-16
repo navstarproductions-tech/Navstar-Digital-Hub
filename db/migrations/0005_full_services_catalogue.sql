@@ -320,7 +320,7 @@ VALUES
 ('SPECIAL-DATA-RECOVERY', 'SPECIAL-DATA-RECOVERY', 'Data Recovery', 'SPECIALIZED SERVICES', 'Request a quotation', NULL, 'active'),
 ('SPECIAL-NETWORK-SETUP', 'SPECIAL-NETWORK-SETUP', 'Network Setup', 'SPECIALIZED SERVICES', 'Request a quotation', NULL, 'active'),
 ('SPECIAL-MARKETING', 'SPECIAL-MARKETING', 'Marketing', 'SPECIALIZED SERVICES', 'Request a quotation', NULL, 'active'),
-('SPECIAL-PHOTOGRAPHY', 'SPECIAL-PHOTOGRAPHY', 'Photography', 'MEDIA & CREATIVE', 'Request a quotation', NULL, 'active')
+('SPECIAL-PHOTOGRAPHY', 'SPECIAL-PHOTOGRAPHY', 'Photography', 'SPECIALIZED SERVICES', 'Request a quotation', NULL, 'active')
 ON CONFLICT(id) DO UPDATE SET
   display_ref = excluded.display_ref,
   name = excluded.name,
