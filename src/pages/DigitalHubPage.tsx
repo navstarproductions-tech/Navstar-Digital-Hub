@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, BookOpen, CalendarDays, ChartNoAxesCombined, MessageCircle, ShieldCheck, GraduationCap, Wallet, Users, ClipboardList, Library, Bus, FileText, School, Settings, Bell, ReceiptText, Layers3 } from 'lucide-react';
+import { ArrowRight, BookOpen, CalendarDays, MessageCircle, ShieldCheck } from 'lucide-react';
 
 const generalSections:Record<string,{title:string;eyebrow:string;description:string;icon:typeof BookOpen;items:string[]}> = {
   '/campus-life':{title:'Campus Life',eyebrow:'LEARN • CONNECT • GROW',description:'A digital home for Navstar learners, alumni and the wider technology community.',icon:CalendarDays,items:['Learner announcements and updates','Campus events and activities','Student support and useful resources','Clubs, projects and technology showcases']},
