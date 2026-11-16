@@ -49,8 +49,9 @@ export async function getSession(request, env) {
   if (!token || !env.DB) return null;
   const tokenHash = await sha256(token);
   return env.DB.prepare(`
-    SELECT users.id, users.name, users.email, users.role, users.must_change_password AS mustChangePassword
+    SELECT users.id, users.name, users.email, COALESCE(user_profiles.portal_role, users.role) AS role, users.must_change_password AS mustChangePassword
     FROM sessions JOIN users ON users.id = sessions.user_id
+    LEFT JOIN user_profiles ON user_profiles.user_id = users.id
     WHERE sessions.token_hash = ? AND sessions.expires_at > ? AND users.status = 'active'
   `).bind(tokenHash, new Date().toISOString()).first();
 }
