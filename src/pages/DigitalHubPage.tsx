@@ -28,7 +28,7 @@ function AnalyticsPage(){
      <p className="mt-4 text-sm leading-6 text-slate-600">Enter the username assigned to your institution. Username validation and account activation will be connected later, before the school dashboards are opened.</p>
      <form onSubmit={validate} className="mt-6 space-y-3">
       <label htmlFor="school-username" className="block text-sm font-semibold text-slate-800">School username</label>
-      <input id="school-username" value={schoolUsername} onChange={event=>{setSchoolUsername(event.target.value);setNotice('');setAttempted(false)}} placeholder="Enter your school username" autoComplete="username" required minLength={3} maxLength={80} className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"/>
+      <input id="school-username" value={schoolUsername} onChange={event=>{setSchoolUsername(event.target.value);setNotice('')}} placeholder="Enter your school username" autoComplete="username" required minLength={3} maxLength={80} className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"/>
       <button type="submit" disabled={!schoolUsername.trim()} className="w-full rounded-xl bg-blue-900 px-5 py-3 font-bold text-white hover:bg-blue-950 disabled:cursor-not-allowed disabled:opacity-50">Validate school account</button>
      </form>
      {notice&&<p role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">{notice}</p>}
