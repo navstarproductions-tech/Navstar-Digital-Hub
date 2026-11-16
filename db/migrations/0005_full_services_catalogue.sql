@@ -1,6 +1,8 @@
 -- Navstar Digital Hub approved public services catalogue.
 -- Safe to apply after migrations 0001-0004. Stable service IDs are the approved service codes.
 -- Existing customer orders keep their service IDs; starter entries are retained for history.
+-- Hide generic starter entries from the public catalogue while preserving old order references.
+UPDATE services SET status = 'paused' WHERE id IN ('cyber-computer-access', 'cyber-print-scan', 'cyber-online-help');
 INSERT INTO services (id, display_ref, name, category, price_label, price_amount, status)
 VALUES
 ('ANDH-314A', 'ANDH-314A', 'Web Development', 'DESIGN', 'KES 9,900', 9900, 'active'),
