@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Download, HeartHandshake, LoaderCircle, ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -113,6 +113,10 @@ export function DonationPopup({ open, onClose }: { open: boolean; onClose: () =>
   const [loading, setLoading] = useState(false);
   const [receipt, setReceipt] = useState<DonationReceipt | null>(null);
   const [fading, setFading] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState(false);
+  const [processingStage, setProcessingStage] = useState('');
+  const [donationReference, setDonationReference] = useState('');
+  const paymentCheckId = useRef(0);
 
   useEffect(() => {
     if (!receipt) return;
@@ -123,7 +127,7 @@ export function DonationPopup({ open, onClose }: { open: boolean; onClose: () =>
   }, [receipt, onClose]);
 
   useEffect(() => {
-    if (!open) { setReceipt(null); setMessage(''); setFading(false); }
+    if (!open) { paymentCheckId.current++; setReceipt(null); setMessage(''); setFading(false); setPendingPayment(false); setProcessingStage(''); }
   }, [open]);
 
   const donate = async (event: FormEvent<HTMLFormElement>) => {
@@ -131,38 +135,46 @@ export function DonationPopup({ open, onClose }: { open: boolean; onClose: () =>
     const normalizedPhone = phone.replace(/[\s-]/g, '');
     if (!/^(?:\+?254|0)?[17]\d{8}$/.test(normalizedPhone)) { setMessage('Please enter a valid Kenyan M-Pesa number.'); return; }
     if (!Number.isInteger(amount) || amount < 1 || amount > 150000) { setMessage('Enter an amount between KSh 1 and KSh 150,000.'); return; }
+    const checkId = ++paymentCheckId.current;
+    setPendingPayment(false); setProcessingStage('Registering donation…');
     setLoading(true); setMessage('Registering your donation securely…'); setReceipt(null);
     try {
       const donationResponse = await fetch('/api/donations', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ phone: normalizedPhone, amount }) });
       const donation = await apiJson<ApiResult>(donationResponse, 'Donation service');
       if (!donationResponse.ok || !donation.id) throw new Error(donation.error || 'Your donation could not be registered.');
+      setDonationReference(donation.reference || donation.id);
+      setProcessingStage('Sending M-Pesa prompt…');
       setMessage('Donation reference ' + (donation.reference || donation.id) + ' created. Preparing your M-Pesa prompt…');
       const pushResponse = await fetch('/api/payments/stk-push', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ phone: normalizedPhone, amount, purpose: 'donation', reference: donation.id }) });
       const payment = await apiJson<ApiResult>(pushResponse, 'M-Pesa service');
       if (!pushResponse.ok || !payment.id) throw new Error(payment.error || 'The M-Pesa prompt could not be started.');
-      setMessage('Processing… Please check your phone and enter your M-Pesa PIN on the official Safaricom prompt.');
+      setPendingPayment(true); setProcessingStage('Waiting for M-Pesa confirmation…');
+      setMessage('M-Pesa prompt sent. Check your phone and enter your PIN only on the official Safaricom prompt. Donation reference: ' + (donation.reference || donation.id) + '.');
+      setLoading(false);
+      void (async () => {
       for (let attempt = 0; attempt < 36; attempt += 1) {
         await new Promise(resolve => window.setTimeout(resolve, 5000));
-        const statusResponse = await fetch('/api/payments/stk-push?reference=' + encodeURIComponent(payment.id), { headers: { Accept: 'application/json' } });
+        if (paymentCheckId.current !== checkId) return;
+        try {
+        const statusResponse = await fetch('/api/payments/stk-push?reference=' + encodeURIComponent(payment.id!), { headers: { Accept: 'application/json' } });
         if (!statusResponse.ok) continue;
+        if (paymentCheckId.current !== checkId) return;
         const statusData = await apiJson<PaymentStatus>(statusResponse, 'Payment status');
         const current = statusData.payment;
         if (current?.status === 'paid' && current.receipt_number) {
-          setReceipt({
-            reference: current.reference || payment.reference || donation.reference || donation.id,
-            navstarReceipt: current.internal_receipt_number || current.reference || payment.reference || donation.reference || donation.id,
-            mpesaCode: current.receipt_number,
-            amount: Number(current.amount || amount),
-            phone: current.callback_phone || normalizedPhone,
-            date: current.transaction_date || new Date().toISOString(),
-          });
+          if (paymentCheckId.current !== checkId) return;
+          setPendingPayment(false); setProcessingStage('');
+          setReceipt({ reference: current.reference || payment.reference || donation.reference || donation.id, navstarReceipt: current.internal_receipt_number || current.reference || payment.reference || donation.reference || donation.id, mpesaCode: current.receipt_number, amount: Number(current.amount || amount), phone: current.callback_phone || normalizedPhone, date: current.transaction_date || new Date().toISOString() });
           setMessage('Received. Your donation has been confirmed by Safaricom.');
           return;
         }
-        if (current?.status === 'failed') throw new Error(current.result_description || 'M-Pesa did not complete this payment. You may try again.');
+        if (current?.status === 'failed') { if (paymentCheckId.current !== checkId) return; setPendingPayment(false); setProcessingStage(''); setMessage(current.result_description || 'M-Pesa did not complete this payment. You may try again.'); return; }
+        } catch { /* Retry while the payment service is temporarily unavailable. */ }
       }
-      setMessage('Your payment is still awaiting Safaricom confirmation. Please keep reference ' + (payment.reference || donation.reference || donation.id) + ' and check again shortly.');
+      if (paymentCheckId.current === checkId) setMessage('Your payment is still awaiting Safaricom confirmation. Please keep reference ' + (payment.reference || donation.reference || donation.id) + ' and check again shortly.');
+      })();
     } catch (error) {
+      setPendingPayment(false); setProcessingStage('');
       setMessage(error instanceof Error ? error.message : 'We could not complete the donation. Please try again.');
     } finally { setLoading(false); }
   };
@@ -194,7 +206,9 @@ export function DonationPopup({ open, onClose }: { open: boolean; onClose: () =>
           <div><p className="text-sm font-bold text-slate-900">Choose your contribution</p><div className="mt-3 grid grid-cols-4 gap-2">{amounts.map(value => <button key={value} type="button" onClick={() => setAmount(value)} aria-pressed={amount === value} className={'rounded-xl border px-2 py-3 text-sm font-extrabold transition '+(amount === value ? 'border-amber-400 bg-amber-50 text-blue-950 ring-2 ring-amber-300' : 'border-slate-200 text-slate-700 hover:border-green-400')}>{value.toLocaleString()}</button>)}</div></div>
           <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="donation-popup-amount">Amount (KSh)</Label><Input id="donation-popup-amount" type="number" min="1" max="150000" value={amount} onChange={event => setAmount(Number(event.target.value))} required/></div><div className="space-y-2"><Label htmlFor="donation-popup-phone">M-Pesa phone number</Label><Input id="donation-popup-phone" autoComplete="tel" inputMode="tel" placeholder="07xx xxx xxx" value={phone} onChange={event => setPhone(event.target.value)} required/></div></div>
           <Button type="submit" disabled={loading || amount < 1} className="h-12 w-full rounded-xl bg-blue-800 text-base font-extrabold text-white hover:bg-blue-950">{loading ? <><LoaderCircle className="mr-2 h-5 w-5 animate-spin"/>Processing donation…</> : 'Donate KSh '+amount.toLocaleString()+' with M-Pesa'}</Button>
-          {message && <div role="status" aria-live="polite" className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-blue-950">{loading && <LoaderCircle className="mt-1 h-4 w-4 shrink-0 animate-spin"/>}<span>{message}</span></div>}
+          {(loading || pendingPayment) && <div role="status" aria-live="polite" className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4"><LoaderCircle className="h-7 w-7 shrink-0 animate-spin text-blue-700"/><div><p className="text-xs font-extrabold text-blue-900">{loading ? 'PLEASE WAIT' : 'DONATION PAYMENT PROCESSING'}</p><p className="text-xs text-blue-800">{processingStage || 'Waiting for Safaricom confirmation…'}</p></div></div>}
+          {message && <div role="status" aria-live="polite" className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-blue-950">{message}</div>}
+          {pendingPayment && <button type="button" onClick={() => { paymentCheckId.current++; setPendingPayment(false); setProcessingStage(''); setMessage('Pending donation status cleared from this screen. Any M-Pesa prompt already sent may still arrive or complete. You can make another donation.'); }} className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900 hover:bg-amber-100">Clear pending status &amp; make another donation</button>}
           <p className="flex items-start gap-2 text-xs leading-5 text-slate-500"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-green-700"/>Your donation is marked received only after Safaricom confirms it. Enter your PIN only on the official M-Pesa prompt on your phone.</p>
         </form> : <div className="p-6 sm:p-8">
           <div className="text-center"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-700"><CheckCircle2 className="h-9 w-9"/></span><p className="mt-4 text-xs font-black tracking-[.2em] text-green-700">PAYMENT CONFIRMED</p><h3 className="mt-2 text-2xl font-black text-blue-950">Donation received. Thank you!</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-600">Safaricom has confirmed your contribution. Your generosity helps make digital opportunity more accessible.</p></div>
