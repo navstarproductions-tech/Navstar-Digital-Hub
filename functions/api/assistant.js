@@ -18,3 +18,12 @@ export async function onRequestPost({request,env}){
   return json({answer});
  }catch{return error('The AI service is temporarily unavailable. Please try again.',502);}
 }
+// Safe deployment check: confirms that the Pages Function is deployed and
+// that the production secret is available without exposing its value.
+export async function onRequestGet({ env }) {
+ return json({
+  ok: true,
+  service: 'navstar-ai-assistant',
+  configured: Boolean(env.OPENAI_API_KEY),
+ });
+}
