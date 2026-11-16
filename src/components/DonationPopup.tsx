@@ -38,8 +38,8 @@ export function DonationPopup({ open, onClose }: { open: boolean; onClose: () =>
 
   const donate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const normalizedPhone = phone.replace(/[\\s-]/g, '');
-    if (!/^(?:\\+?254|0)?[17]\\d{8}$/.test(normalizedPhone)) { setMessage('Please enter a valid Kenyan M-Pesa number.'); return; }
+    const normalizedPhone = phone.replace(/[\s-]/g, '');
+    if (!/^(?:\+?254|0)?[17]\d{8}$/.test(normalizedPhone)) { setMessage('Please enter a valid Kenyan M-Pesa number.'); return; }
     if (!Number.isInteger(amount) || amount < 1 || amount > 150000) { setMessage('Enter an amount between KSh 1 and KSh 150,000.'); return; }
     setLoading(true); setMessage('Registering your donation securely…'); setReceipt(null);
     try {
