@@ -47,6 +47,10 @@ export async function onRequestPost({ request, env }) {
     return error('Password must be at least 6 characters and include uppercase, lowercase and a number.');
   }
   if (password !== confirmPassword) return error('The passwords do not match.');
+  if (role === 'admin') {
+    const activeAdmin = await env.DB.prepare("SELECT id FROM users WHERE role = 'admin' AND status = 'active' LIMIT 1").first();
+    if (activeAdmin) return error('Navstar allows only one active Admin account. Use the secure Admin recovery page to replace its login details.', 409);
+  }
 
   const id = uuid();
   const staffId = await createStaffId(env.DB, role);
