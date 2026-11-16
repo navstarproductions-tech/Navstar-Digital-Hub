@@ -141,6 +141,7 @@ export function PortalsPage() {
             ['Reports and records', 'Access institutional information and review progress.', '/courses', 'Academic programmes'],
           ] : [
             ['Website management', 'Manage courses, services, users, settings and public website content.', '/admin', 'Open admin workspace'],
+            ['Learning management', 'Create course modules and lessons, publish assignments and review learner submissions.', '/learning', 'Manage learning content'],
             ['Orders and service desk', 'Review customer requests and coordinate service fulfilment.', '/services', 'View public services'],
             ['Documents and downloads', 'Manage the documents published for customers and learners.', '/admin', 'Manage documents'],
           ]).map(([title, detail, href, action]) => <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-blue-700">{selectedPortal.title}</p><h2 className="mt-2 text-lg font-extrabold text-slate-950">{title}</h2><p className="mt-2 min-h-12 text-sm leading-6 text-slate-600">{detail}</p><Link to={href} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-900">{action} <ArrowRight className="h-4 w-4" /></Link></article>)}
