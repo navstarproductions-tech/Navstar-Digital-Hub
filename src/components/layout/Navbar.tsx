@@ -1,6 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Monitor, Menu, X, GraduationCap, ShoppingCart, UserRound, LogOut } from 'lucide-react';
+import { Monitor, Menu, X, ShoppingCart, UserRound, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -91,9 +91,6 @@ export function Navbar() {
 
           <div className="flex shrink-0 items-center gap-1.5">
             {signedInUser ? <div className="hidden md:flex max-w-[190px] items-center gap-2 rounded-xl border border-amber-300/70 bg-white/10 px-3 py-2 text-xs font-bold text-white" title={signedInUser.name}><UserRound className="h-4 w-4 shrink-0 text-amber-300"/><span className="truncate">Hi, {signedInUser.name}</span></div> : <Button asChild size="sm" className="hidden sm:inline-flex rounded-xl border border-amber-300 bg-amber-300 px-3 font-extrabold text-blue-950 shadow-md shadow-amber-400/20 hover:bg-amber-200"><Link to="/account"><UserRound className="mr-1.5 h-4 w-4"/>Log in / Sign up</Link></Button>}
-            <Button asChild size="sm" variant="outline" className="hidden lg:inline-flex rounded-xl border border-green-400/70 bg-green-500/15 text-white hover:bg-green-500/25 hover:text-white">
-              <Link to="/portals"><GraduationCap className="mr-1.5 h-4 w-4 text-amber-300" />Portals</Link>
-            </Button>
             <Link to="/services#service-cart" aria-label="Your orders and cart" title="Your orders and cart" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-green-400/70 bg-green-500/15 text-white shadow-sm transition hover:border-amber-300 hover:bg-amber-300 hover:text-blue-950">
               <ShoppingCart className="h-5 w-5" />
             </Link>
