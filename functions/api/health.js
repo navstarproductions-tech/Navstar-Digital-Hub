@@ -1,10 +1,12 @@
 import { json } from '../_shared/http.js';
+import { darajaReady } from '../_shared/daraja.js';
 
 export function onRequestGet({ env }) {
   return json({
     status: 'ok',
     databaseConfigured: Boolean(env.DB),
-    darajaConfigured: Boolean(env.DARAJA_CONSUMER_KEY && env.DARAJA_CONSUMER_SECRET && env.DARAJA_PASSKEY && env.DARAJA_SHORTCODE && env.DARAJA_CALLBACK_TOKEN),
+    darajaConfigured: darajaReady(env),
+    appOriginConfigured: Boolean(env.APP_ORIGIN),
     environment: env.DARAJA_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
   });
 }
