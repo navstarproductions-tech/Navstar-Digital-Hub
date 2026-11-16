@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, CheckCircle2, ShieldCheck, Smartphone } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, ShieldCheck, Smartphone, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,8 @@ export function EnrollmentPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(false);
+  const [paymentStage, setPaymentStage] = useState('');
+  const paymentCheckId = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -84,7 +86,9 @@ export function EnrollmentPage() {
 
   const requestPayment = async () => {
     if (!registrationId || !course) return;
+    const checkId = ++paymentCheckId.current;
     setLoading(true);
+    setPaymentStage('Sending M-Pesa prompt…');
     setStatus('Connecting securely to M-Pesa…');
     setReceipt(null);
     try {
@@ -95,30 +99,39 @@ export function EnrollmentPage() {
       });
       const result = await response.json() as { id?: string; reference?: string; message?: string; error?: string };
       if (!response.ok) throw new Error(result.error ?? 'The payment prompt could not be requested. Please contact the school.');
-      setStatus(`M-Pesa has accepted the prompt request for ${result.reference || registrationReference}. Check your phone and enter your PIN only on the official Safaricom prompt. We are now waiting for confirmation.`);
+      setStatus(`M-Pesa prompt sent to ${phone}. Check your phone and enter your PIN only on the official Safaricom prompt. Reference: ${result.reference || registrationReference}.`);
       setLoading(false);
       if (result.id) {
         setCheckingPayment(true);
+        setPaymentStage('Waiting for M-Pesa confirmation…');
+        void (async () => {
         for (let attempt = 0; attempt < 24; attempt += 1) {
           await new Promise((resolve) => window.setTimeout(resolve, attempt < 4 ? 3000 : 5000));
-          const check = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(result.id)}`, { headers: { Accept: 'application/json' } });
+          if (paymentCheckId.current !== checkId) return;
+          try {
+          const check = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(result.id!)}`, { headers: { Accept: 'application/json' } });
           if (!check.ok) continue;
+          if (paymentCheckId.current !== checkId) return;
           const data = await check.json() as { payment?: { status?: string; receipt_number?: string; result_description?: string; amount?: number; callback_phone?: string; transaction_date?: string } };
           const payment = data.payment;
           if (payment?.status === 'paid' && payment.receipt_number) {
+            if (paymentCheckId.current !== checkId) return;
+            setCheckingPayment(false); setPaymentStage('');
             setReceipt({ code: payment.receipt_number, amount: payment.amount || course.price, phone: payment.callback_phone || phone, date: payment.transaction_date });
             setStatus('Payment confirmed successfully by M-Pesa. Your receipt is below.');
-            break;
+            return;
           }
-          if (payment?.status === 'failed') { setStatus(`Payment not completed: ${payment.result_description || 'M-Pesa did not confirm this payment.'}`); break; }
-          if (attempt === 23) setStatus(`Payment is still awaiting confirmation. Keep your reference ${registrationReference} and check again shortly.`);
+          if (payment?.status === 'failed') { if (paymentCheckId.current !== checkId) return; setCheckingPayment(false); setPaymentStage(''); setStatus(`Payment not completed: ${payment.result_description || 'M-Pesa did not confirm this payment.'}`); return; }
+          } catch { /* Retry while the network is unavailable. */ }
         }
+        if (paymentCheckId.current === checkId) setStatus(`Payment is still awaiting confirmation. Keep your reference ${registrationReference} and check again shortly.`);
+        })();
       }
     } catch (error) {
+      setCheckingPayment(false); setPaymentStage('');
       setStatus(error instanceof Error ? error.message : 'The payment prompt could not be requested.');
     } finally {
       setLoading(false);
-      setCheckingPayment(false);
     }
   };
 
@@ -179,7 +192,7 @@ export function EnrollmentPage() {
             <label className="flex items-start gap-3 border bg-white p-4 text-sm leading-6 text-slate-700"><input type="checkbox" name="consent" required className="mt-1 accent-emerald-800" /><span>I agree that admissions may contact me about this application and confirm that the information provided is accurate.</span></label>
             <Button className="w-full bg-emerald-800 hover:bg-emerald-900 sm:w-auto" type="submit" disabled={loading}>{loading ? 'Submitting…' : 'Submit application'}</Button>
             {status && <p role="status" className="border bg-white p-4 text-sm text-slate-700">{status}</p>}
-            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />Application received</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent><Button type="button" className="bg-emerald-800 hover:bg-emerald-900" onClick={requestPayment} disabled={loading || checkingPayment}>{loading ? 'Sending M-Pesa prompt…' : checkingPayment ? 'Waiting for M-Pesa confirmation…' : 'Request M-Pesa prompt'}</Button>{receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa receipt confirmed</p><p className="mt-2">Account: <strong>{registrationReference}</strong></p><p>M-Pesa code: <strong className="tracking-wide">{receipt.code}</strong></p><p>Amount: <strong>KSh {receipt.amount.toLocaleString()}</strong></p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}</div>}</CardContent></Card>}
+            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />Application received</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent><Button type="button" className="bg-emerald-800 hover:bg-emerald-900" onClick={requestPayment} disabled={loading}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Sending M-Pesa prompt…</> : 'Request M-Pesa prompt'}</Button>{(loading || checkingPayment) && <div role="status" aria-live="polite" className="mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3"><LoaderCircle className="h-7 w-7 shrink-0 animate-spin text-blue-700"/><div><p className="text-xs font-extrabold text-blue-900">{loading ? 'PLEASE WAIT' : 'PAYMENT PROCESSING'}</p><p className="text-xs text-blue-800">{paymentStage || 'Waiting for Safaricom confirmation…'}</p></div></div>}{checkingPayment && <Button type="button" variant="outline" className="mt-2 w-full border-amber-300 text-amber-900" onClick={() => { paymentCheckId.current++; setCheckingPayment(false); setPaymentStage(''); setStatus('Pending payment status cleared from this screen. Any M-Pesa prompt already sent may still arrive or complete. You can request another prompt.'); }}>Clear pending status &amp; request another prompt</Button>}{receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa receipt confirmed</p><p className="mt-2">Account: <strong>{registrationReference}</strong></p><p>M-Pesa code: <strong className="tracking-wide">{receipt.code}</strong></p><p>Amount: <strong>KSh {receipt.amount.toLocaleString()}</strong></p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}</div>}</CardContent></Card>}
           </form>
 
           <aside className="order-first min-w-0 w-full space-y-4 lg:order-last lg:sticky lg:top-24">
