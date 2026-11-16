@@ -16,6 +16,8 @@ import { CustomerAccountPage } from '@/pages/CustomerAccountPage';
 import { DigitalHubPage } from '@/pages/DigitalHubPage';
 import { ForumPage } from '@/pages/ForumPage';
 import { PaymentReceiptsPage } from '@/pages/PaymentReceiptsPage';
+import { MusicPage } from '@/pages/MusicPage';
+import { AIChatWidget } from '@/components/AIChatWidget';
 import { Toaster } from '@/components/ui/sonner';
 
 function App() {
@@ -37,6 +39,7 @@ function App() {
             <Route path="/admissions-letters" element={<DigitalHubPage />} />
             <Route path="/analytics" element={<DigitalHubPage />} />
             <Route path="/forum" element={<ForumPage />} />
+            <Route path="/music" element={<MusicPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
             <Route path="/setup" element={<BootstrapPage />} />
             <Route path="/admin-reset" element={<AdminResetPage />} />
@@ -49,6 +52,7 @@ function App() {
         </div>
         <Footer />
       </div>
+      <AIChatWidget />
       <Toaster position="top-center" />
     </Router>
   );
