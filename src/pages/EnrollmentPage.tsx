@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
+import { formatEATDateTime } from '@/lib/datetime';
 
 export function EnrollmentPage() {
   const { id } = useParams();
@@ -179,7 +180,7 @@ export function EnrollmentPage() {
             <label className="flex items-start gap-3 border bg-white p-4 text-sm leading-6 text-slate-700"><input type="checkbox" name="consent" required className="mt-1 accent-emerald-800" /><span>I agree that admissions may contact me about this application and confirm that the information provided is accurate.</span></label>
             <Button className="w-full bg-emerald-800 hover:bg-emerald-900 sm:w-auto" type="submit" disabled={loading}>{loading ? 'Submitting…' : 'Submit application'}</Button>
             {status && <p role="status" className="border bg-white p-4 text-sm text-slate-700">{status}</p>}
-            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />Application received</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent><Button type="button" className="bg-emerald-800 hover:bg-emerald-900" onClick={requestPayment} disabled={loading || checkingPayment}>{loading ? 'Sending M-Pesa prompt…' : checkingPayment ? 'Waiting for M-Pesa confirmation…' : 'Request M-Pesa prompt'}</Button>{receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa receipt confirmed</p><p className="mt-2">Account: <strong>{registrationReference}</strong></p><p>M-Pesa code: <strong className="tracking-wide">{receipt.code}</strong></p><p>Amount: <strong>KSh {receipt.amount.toLocaleString()}</strong></p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}</div>}</CardContent></Card>}
+            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />Application received</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent><Button type="button" className="bg-emerald-800 hover:bg-emerald-900" onClick={requestPayment} disabled={loading || checkingPayment}>{loading ? 'Sending M-Pesa prompt…' : checkingPayment ? 'Waiting for M-Pesa confirmation…' : 'Request M-Pesa prompt'}</Button>{receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa receipt confirmed</p><p className="mt-2">Account: <strong>{registrationReference}</strong></p><p>M-Pesa code: <strong className="tracking-wide">{receipt.code}</strong></p><p>Amount: <strong>KSh {receipt.amount.toLocaleString()}</strong></p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {formatEATDateTime(receipt.date)}</p>}</div>}</CardContent></Card>}
           </form>
 
           <aside className="order-first min-w-0 w-full space-y-4 lg:order-last lg:sticky lg:top-24">
