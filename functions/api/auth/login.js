@@ -12,7 +12,7 @@ export async function onRequestPost({ request, env }) {
   const email = safeString(body.email, 254).toLowerCase();
   const password = String(body.password ?? '');
   const requestedRole = safeString(body.role, 24);
-  if (!email.includes('@') || password.length < 10 || password.length > 200 || !roles.includes(requestedRole)) {
+  if (!email.includes('@') || password.length < 6 || password.length > 200 || !roles.includes(requestedRole)) {
     return error('Invalid email, password, or portal.', 400);
   }
 
