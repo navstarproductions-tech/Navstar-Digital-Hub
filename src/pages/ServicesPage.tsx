@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Search, ShoppingBag, ShoppingCart, Trash2, Plus, Minus, Sparkles, Camera, Printer, FileText, MonitorCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatEATDateTime } from '@/lib/datetime';
 
 type Service = { id: string; reference?: string; name: string; category: string; price: string; priceAmount?: number | null };
 type CartLine = { service: Service; quantity: number; instructions: string };
@@ -10,7 +11,7 @@ type Receipt = { reference: string; code: string; amount: number; phone: string;
 
 function downloadReceiptPdf(receipt: Receipt) {
   const safe = (value: string) => value.replace(/[\x00-\x1F\x7F-\uFFFF]/g, '?').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-  const lines: [string, number][] = [['NAVSTAR DIGITAL HUB',18],['HOME OF TECHNOCRATS',11],['M-PESA PAYMENT RECEIPT',14],['Order: '+receipt.reference,11],['M-Pesa code: '+receipt.code,11],['Amount paid: KES '+receipt.amount.toLocaleString('en-KE'),11],['Phone: '+receipt.phone,11],['Date: '+(receipt.date || 'As confirmed by Safaricom'),11],['Thank you for choosing Navstar Digital Hub.',11],['+254 797 688 576 | navstardigitalhub@gmail.com',9]];
+  const lines: [string, number][] = [['NAVSTAR DIGITAL HUB',18],['HOME OF TECHNOCRATS',11],['M-PESA PAYMENT RECEIPT',14],['Order: '+receipt.reference,11],['M-Pesa code: '+receipt.code,11],['Amount paid: KES '+receipt.amount.toLocaleString('en-KE'),11],['Phone: '+receipt.phone,11],['Date received: '+(receipt.date ? formatEATDateTime(receipt.date) : 'As confirmed by Safaricom'),11],['Thank you for choosing Navstar Digital Hub.',11],['+254 797 688 576 | navstardigitalhub@gmail.com',9]];
   let commands=''; let y=780;
   for (const [line,size] of lines) { commands += 'BT /F1 '+size+' Tf 50 '+y+' Td ('+safe(line)+') Tj ET\n'; y -= size===18?38:27; }
   const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>','<< /Length '+new TextEncoder().encode(commands).length+' >>\nstream\n'+commands+'endstream'];
@@ -115,7 +116,7 @@ export function ServicesPage() {
           <Button type="submit" disabled={busy||!cart.length} className="mt-5 h-12 w-full bg-emerald-600 font-bold hover:bg-emerald-700">{busy?'Processing your order…':'Continue to M-Pesa checkout'}</Button>
           {message&&<p role="status" aria-live="polite" className="mt-3 rounded-lg border bg-slate-50 p-3 text-xs leading-5 text-slate-700">{message}</p>}
           {orderRef&&!receipt&&<p className="mt-2 text-xs font-bold text-blue-800">Keep your order reference: {orderRef}</p>}
-          {receipt&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa payment confirmed</p><p className="mt-2">Order: <strong>{receipt.reference}</strong></p><p>M-Pesa code: <strong>{receipt.code}</strong></p><p>Amount: KSh {receipt.amount.toLocaleString('en-KE')}</p><p>Phone: {receipt.phone}</p>{receipt.date&&<p>{receipt.date}</p>}<button type="button" onClick={()=>downloadReceiptPdf(receipt)} className="mt-3 rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold">Download PDF receipt</button></div>}
+          {receipt&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa payment confirmed</p><p className="mt-2">Order: <strong>{receipt.reference}</strong></p><p>M-Pesa code: <strong>{receipt.code}</strong></p><p>Amount: KSh {receipt.amount.toLocaleString('en-KE')}</p><p>Phone: {receipt.phone}</p>{receipt.date&&<p>Date received: {formatEATDateTime(receipt.date)}</p>}<button type="button" onClick={()=>downloadReceiptPdf(receipt)} className="mt-3 rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold">Download PDF receipt</button></div>}
           <p className="mt-3 text-[11px] leading-5 text-slate-500">Your M-Pesa PIN is entered only on the official Safaricom prompt. Service prices exclude any third-party government fees unless stated otherwise.</p>
         </form>
         <div className="mt-4 rounded-xl bg-[#071a38] p-4 text-white"><p className="text-sm font-bold">Need help before ordering?</p><p className="mt-1 text-xs text-blue-100">Call or WhatsApp +254 797 688 576.</p><p className="mt-2 text-xs text-blue-100">P.O. BOX 546-50200 Bungoma, Kenya</p></div>
