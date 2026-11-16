@@ -116,7 +116,7 @@ export function Navbar() {
                 </NavLink>
               ))}
               <div className="relative ml-2">{notificationButton}</div>
-              {signedIn ? <><Button asChild size="sm" variant="outline"><Link to="/portals">Portal</Link></Button><Button size="sm" className="ml-1 bg-emerald-800 hover:bg-emerald-900" onClick={signOut}>Sign out</Button></> : <Button asChild size="sm" className="ml-1 bg-emerald-800 hover:bg-emerald-900"><Link to="/login">Log in</Link></Button>}
+              {signedIn ? <><Button asChild size="sm" variant="outline"><Link to="/portals">Portal</Link></Button><Button size="sm" className="ml-1 bg-emerald-800 hover:bg-emerald-900" onClick={signOut}>Sign out</Button></> : <Button asChild size="sm" className="ml-1 bg-emerald-800 hover:bg-emerald-900"><Link to="/services">Login / Continue</Link></Button>}
             </div>
           </div>
 
@@ -148,7 +148,7 @@ export function Navbar() {
                 </NavLink>
               ))}
               <Link to="/portals/admissions" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Admissions</Link>
-              {signedIn ? <><Link to="/portals" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Portal</Link><button onClick={() => { setIsOpen(false); void signOut(); }} className="block w-full rounded-md px-3 py-2 text-left text-base font-medium text-slate-700 hover:bg-slate-100">Sign out</button></> : <Link to="/login" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Log in</Link>}
+              {signedIn ? <><Link to="/portals" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Portal</Link><button onClick={() => { setIsOpen(false); void signOut(); }} className="block w-full rounded-md px-3 py-2 text-left text-base font-medium text-slate-700 hover:bg-slate-100">Sign out</button></> : <Link to="/services" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Login / Continue</Link>}
               <div className="mt-4">
                 <Button asChild className="w-full bg-emerald-800 hover:bg-emerald-900">
                   <Link to="/courses" onClick={() => setIsOpen(false)}>Enroll Now</Link>
