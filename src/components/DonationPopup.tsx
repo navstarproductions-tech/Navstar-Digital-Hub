@@ -16,6 +16,96 @@ async function apiJson<T>(response: Response, label: string): Promise<T> {
   return await response.json() as T;
 }
 
+function pdfEscape(value: string): string {
+  return value.normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^\\x20-\\x7E]/g, ' ').replace(/\\\\/g, '\\\\\\\\').replace(/\\(/g, '\\\\(').replace(/\\)/g, '\\\\)');
+}
+function createDonationPdf(receipt: DonationReceipt, money: (value: number) => string): Blob {
+  const date = new Date(receipt.date).toLocaleString('en-KE');
+  const dateOnly = new Date(receipt.date).toLocaleDateString('en-KE');
+  const pages = [
+    [
+      'NAVSTAR DIGITAL HUB', 'HOME OF TECHNOCRATS', 'OFFICIAL DONATION RECEIPT', '',
+      'PAYMENT STATUS: RECEIVED - SAFARICOM CONFIRMED', '',
+      'DONOR / CONTRIBUTOR', 'Valued Supporter', 'M-Pesa phone: ' + receipt.phone, '',
+      'DONATION INFORMATION', 'Donation reference: ' + receipt.reference,
+      'Navstar receipt number: ' + receipt.navstarReceipt,
+      'M-Pesa transaction code: ' + receipt.mpesaCode,
+      'Payment method: Safaricom M-Pesa', 'Date and time received: ' + date, '',
+      'AMOUNT RECEIVED', money(receipt.amount), '',
+      'This document confirms that the contribution above was received',
+      'after payment confirmation from Safaricom M-Pesa.', '',
+      'Thank you for supporting digital learning and community access.',
+      'NAVSTAR DIGITAL HUB | HOME OF TECHNOCRATS',
+      'navstardigitalhub@gmail.com', '+254 797 688 576  |  +254 706 637 485'
+    ],
+    [
+      'NAVSTAR DIGITAL HUB', 'HOME OF TECHNOCRATS', 'LETTER OF APPRECIATION', '',
+      'Date: ' + dateOnly, '', 'Dear Valued Supporter,', '',
+      'On behalf of Navstar Digital Hub, we sincerely thank you for your',
+      'generous contribution of ' + money(receipt.amount) + ', received on ' + dateOnly + '.',
+      'Your donation reference is ' + receipt.reference + '.', '',
+      'Your support strengthens our mission to widen access to digital',
+      'knowledge and practical technology. Contributions help us work',
+      'towards learning resources, supervised computer access, skills',
+      'development, innovation activities and digital assistance for',
+      'people who need an opportunity to learn, create and participate',
+      'in the digital world.', '',
+      'We value every contribution, regardless of its size. Your kindness',
+      'encourages us to keep building a community where technology is a',
+      'tool for opportunity, creativity and positive change. We undertake',
+      'to handle support responsibly and direct it towards the stated',
+      'community and learning objectives of Navstar Digital Hub.', '',
+      'Please keep this letter and the attached receipt as your record of',
+      'appreciation and payment confirmation. We are grateful that you',
+      'chose to be part of this journey.', '', 'With sincere gratitude,',
+      '', 'MANAGEMENT', 'NAVSTAR DIGITAL HUB', 'HOME OF TECHNOCRATS', '',
+      'Email: navstardigitalhub@gmail.com',
+      'Tel: +254 797 688 576 / +254 706 637 485', '',
+      '"No act of kindness, no matter how small, is ever wasted."'
+    ]
+  ];
+  const enc = new TextEncoder();
+  const streams = pages.map((lines, pageIndex) => {
+    let s = '0.035 0.16 0.34 rg 0 760 595 82 re f\\n';
+    s += '1 1 1 rg BT /F2 19 Tf 48 808 Td (' + pdfEscape(lines[0]) + ') Tj ET\\n';
+    s += '0.98 0.76 0.24 rg BT /F2 9 Tf 48 790 Td (' + pdfEscape(lines[1]) + ') Tj ET\\n';
+    s += '0.08 0.22 0.42 rg BT /F2 17 Tf 48 720 Td (' + pdfEscape(lines[2]) + ') Tj ET\\n';
+    let y = 687;
+    for (const line of lines.slice(3)) {
+      if (!line) { y -= 10; continue; }
+      const heading = ['PAYMENT STATUS: RECEIVED - SAFARICOM CONFIRMED','DONOR / CONTRIBUTOR','DONATION INFORMATION','AMOUNT RECEIVED'].includes(line);
+      if (heading) s += '0.02 0.43 0.34 rg BT /F2 10 Tf 48 ' + y + ' Td (' + pdfEscape(line) + ') Tj ET\\n';
+      else if (pageIndex === 0 && line === money(receipt.amount)) s += '0.02 0.43 0.34 rg BT /F2 22 Tf 48 ' + y + ' Td (' + pdfEscape(line) + ') Tj ET\\n';
+      else s += '0.12 0.16 0.22 rg BT /F1 10 Tf 48 ' + y + ' Td (' + pdfEscape(line) + ') Tj ET\\n';
+      y -= 18;
+    }
+    s += '0.08 0.22 0.42 RG 1.2 w 48 42 m 547 42 l S\\n';
+    s += '0.35 0.39 0.44 rg BT /F1 8 Tf 48 27 Td (Navstar Digital Hub | Official donor document | Page ' + (pageIndex + 1) + ' of 2) Tj ET\\n';
+    return s;
+  });
+  const objects: string[] = [];
+  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objects[2] = '<< /Type /Pages /Kids [5 0 R 7 0 R] /Count 2 >>';
+  objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+  objects[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
+  for (let i = 0; i < 2; i++) {
+    const pageObj = 5 + i * 2, contentObj = pageObj + 1, stream = streams[i];
+    objects[pageObj] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ' + contentObj + ' 0 R >>';
+    objects[contentObj] = '<< /Length ' + enc.encode(stream).length + ' >>\\nstream\\n' + stream + 'endstream';
+  }
+  let pdf = '%PDF-1.4\\n';
+  const offsets = [0];
+  for (let i = 1; i < objects.length; i++) {
+    offsets[i] = enc.encode(pdf).length;
+    pdf += i + ' 0 obj\\n' + objects[i] + '\\nendobj\\n';
+  }
+  const xref = enc.encode(pdf).length;
+  pdf += 'xref\\n0 ' + objects.length + '\\n0000000000 65535 f \\n';
+  for (let i = 1; i < objects.length; i++) pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \\n';
+  pdf += 'trailer\\n<< /Size ' + objects.length + ' /Root 1 0 R >>\\nstartxref\\n' + xref + '\\n%%EOF';
+  return new Blob([enc.encode(pdf)], { type: 'application/pdf' });
+}
+
 export function DonationPopup({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [amount, setAmount] = useState(500);
   const [phone, setPhone] = useState('');
@@ -77,7 +167,18 @@ export function DonationPopup({ open, onClose }: { open: boolean; onClose: () =>
     } finally { setLoading(false); }
   };
 
-  const downloadDocuments = () => window.print();
+  const downloadDocuments = () => {
+    if (!receipt) return;
+    const file = createDonationPdf(receipt, money);
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Navstar-Donation-Receipt-' + receipt.navstarReceipt.replace(/[^a-zA-Z0-9-]/g, '-') + '.pdf';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+  };
   const money = (value: number) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(value);
 
   return <AnimatePresence>
@@ -99,20 +200,11 @@ export function DonationPopup({ open, onClose }: { open: boolean; onClose: () =>
           <div className="text-center"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-700"><CheckCircle2 className="h-9 w-9"/></span><p className="mt-4 text-xs font-black tracking-[.2em] text-green-700">PAYMENT CONFIRMED</p><h3 className="mt-2 text-2xl font-black text-blue-950">Donation received. Thank you!</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-600">Safaricom has confirmed your contribution. Your generosity helps make digital opportunity more accessible.</p></div>
           <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-4"><div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-green-900">Amount received</span><strong className="text-xl font-black text-green-900">{money(receipt.amount)}</strong></div><dl className="mt-3 grid grid-cols-2 gap-2 border-t border-green-200 pt-3 text-xs"><dt className="text-slate-600">Donation reference</dt><dd className="text-right font-bold text-slate-900">{receipt.reference}</dd><dt className="text-slate-600">Navstar receipt</dt><dd className="text-right font-bold text-slate-900">{receipt.navstarReceipt}</dd><dt className="text-slate-600">M-Pesa transaction code</dt><dd className="text-right font-bold tracking-wide text-slate-900">{receipt.mpesaCode}</dd><dt className="text-slate-600">Phone</dt><dd className="text-right font-semibold text-slate-900">{receipt.phone}</dd><dt className="text-slate-600">Date received</dt><dd className="text-right font-semibold text-slate-900">{new Date(receipt.date).toLocaleString('en-KE')}</dd><dt className="text-slate-600">Status</dt><dd className="text-right font-black text-green-800">RECEIVED</dd></dl></div>
           <blockquote className="mt-5 rounded-xl border-l-4 border-amber-400 bg-amber-50 p-4 text-center text-sm italic leading-6 text-amber-950">“No act of kindness, no matter how small, is ever wasted.”</blockquote>
-          <Button onClick={downloadDocuments} className="mt-5 h-12 w-full rounded-xl bg-blue-900 font-bold hover:bg-blue-950"><Download className="mr-2 h-4 w-4"/>Download donation receipt & thank-you letter (PDF)</Button>
-          <p className="mt-3 text-center text-xs text-slate-500">In the print window, choose “Save as PDF”. This document includes your payment details and a formal thank-you letter.</p>
+          <Button onClick={downloadDocuments} className="mt-5 h-12 w-full rounded-xl bg-blue-900 font-bold hover:bg-blue-950"><Download className="mr-2 h-4 w-4"/>Download PDF receipt & thank-you letter</Button>
+          <p className="mt-3 text-center text-xs text-slate-500">A two-page PDF downloads directly to this phone or device. Page 1 shows the confirmed payment details; page 2 contains your formal thank-you letter.</p>
           <button type="button" onClick={onClose} className="mt-3 w-full rounded-xl border border-green-300 px-4 py-3 text-sm font-bold text-green-900 hover:bg-green-50">Close</button>
         </div>}
       </motion.section>
-      {receipt && <div className="donation-print hidden">
-        <div className="mx-auto max-w-3xl bg-white p-8 text-slate-900">
-          <header className="border-b-4 border-blue-900 pb-5"><p className="text-xs font-black tracking-[.3em] text-green-700">NAVSTAR DIGITAL HUB</p><h1 className="mt-2 text-2xl font-black text-blue-950">OFFICIAL DONATION RECEIPT</h1><p className="mt-1 text-xs font-bold tracking-widest text-amber-700">HOME OF TECHNOCRATS</p></header>
-          <div className="mt-7 grid grid-cols-2 gap-5 text-sm"><div><p className="text-xs font-bold uppercase text-slate-500">Received from</p><p className="mt-1 font-bold">Valued Supporter</p><p className="mt-1">{receipt.phone}</p></div><div><p className="text-xs font-bold uppercase text-slate-500">Donation details</p><p className="mt-1">Date: {new Date(receipt.date).toLocaleString('en-KE')}</p><p>Reference: {receipt.reference}</p><p>Status: <strong className="text-green-800">RECEIVED / PAID</strong></p></div></div>
-          <div className="mt-7 rounded-xl border border-slate-300 p-5"><div className="flex justify-between gap-4"><span>Community support donation</span><strong>{money(receipt.amount)}</strong></div><div className="mt-4 border-t pt-4 text-sm"><p>Navstar receipt number: <strong>{receipt.navstarReceipt}</strong></p><p className="mt-1">Safaricom M-Pesa code: <strong>{receipt.mpesaCode}</strong></p><p className="mt-1">Payment method: M-Pesa</p></div><div className="mt-5 flex justify-between border-t pt-4 text-lg font-black"><span>TOTAL RECEIVED</span><span>{money(receipt.amount)}</span></div></div>
-          <p className="mt-5 text-xs text-slate-500">This receipt confirms a donation payment acknowledged following Safaricom M-Pesa confirmation.</p>
-          <div className="mt-12 break-before-page border-t-4 border-green-700 pt-8"><p className="text-xs font-black tracking-[.25em] text-green-700">A LETTER OF APPRECIATION</p><h2 className="mt-3 text-2xl font-black text-blue-950">Thank you for standing with Navstar</h2><p className="mt-6">Dear Valued Supporter,</p><p className="mt-4 leading-7">On behalf of Navstar Digital Hub, we sincerely thank you for your generous contribution of <strong>{money(receipt.amount)}</strong>, received on <strong>{new Date(receipt.date).toLocaleDateString('en-KE')}</strong> through M-Pesa. Your donation, recorded under reference <strong>{receipt.reference}</strong>, is a meaningful expression of confidence in our work and in the potential of our community.</p><p className="mt-4 leading-7">Your support strengthens our mission to widen access to digital knowledge and practical technology. Contributions help us work towards learning resources, supervised computer access, skills development, innovation activities and digital assistance for people who need an opportunity to learn, create and participate in the digital world.</p><p className="mt-4 leading-7">We value every contribution, regardless of its size. Your kindness encourages us to keep building a community where technology is a tool for opportunity, creativity and positive change. We undertake to handle support responsibly and direct it towards the stated community and learning objectives of Navstar Digital Hub.</p><p className="mt-4 leading-7">Please keep this letter and the attached receipt as your record of appreciation and payment confirmation. We are grateful that you chose to be part of this journey.</p><p className="mt-6 font-semibold">With sincere gratitude,</p><p className="mt-8 font-black text-blue-950">Management</p><p className="font-bold">NAVSTAR DIGITAL HUB</p><p className="text-xs font-bold tracking-widest text-green-700">HOME OF TECHNOCRATS</p><p className="mt-4 text-sm">Email: navstardigitalhub@gmail.com<br/>Tel: +254 797 688 576 / +254 706 637 485</p><blockquote className="mt-8 border-l-4 border-amber-400 bg-amber-50 p-4 italic">“No act of kindness, no matter how small, is ever wasted.”</blockquote></div>
-        </div>
-      </div>}
       <style>{'@media print { @page { size: A4; margin: 16mm; } body * { visibility: hidden !important; } .donation-print, .donation-print * { visibility: visible !important; } .donation-print { display: block !important; position: absolute; inset: 0; width: 100%; } .donation-print .break-before-page { break-before: page; page-break-before: always; } }'}</style>
     </motion.div>}
   </AnimatePresence>;
