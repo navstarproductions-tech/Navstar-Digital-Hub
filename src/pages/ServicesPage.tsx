@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Search, ShoppingBag, ShoppingCart, Trash2, Plus, Minus, Sparkles, Camera, Printer, FileText, MonitorCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -26,10 +26,11 @@ const specialized = ['IT Consulting','Data Recovery','Network Setup','Marketing'
 const money = (amount?: number | null, label?: string) => amount && amount > 0 ? 'KES '+amount.toLocaleString('en-KE') : label || 'Request a quotation';
 
 export function ServicesPage() {
+  const [searchParams]=useSearchParams();
   const [services,setServices]=useState<Service[]>([]);
   const [loadingServices,setLoadingServices]=useState(true);
   const [query,setQuery]=useState('');
-  const [category,setCategory]=useState('All Services');
+  const [category,setCategory]=useState(()=>searchParams.get('category')||'All Services');
   const [cart,setCart]=useState<CartLine[]>([]);
   const [name,setName]=useState('');
   const [email,setEmail]=useState('');
