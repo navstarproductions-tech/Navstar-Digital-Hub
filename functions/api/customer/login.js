@@ -1,5 +1,6 @@
 import { loginCustomer,setCustomerSession } from '../../_shared/customer-auth.js';
-import { error,isSameOrigin,json,readJson,safeString,sha256,uuid } from '../../_shared/http.js';
+import { error,isSameOrigin,json,readJson,safeString,uuid } from '../../_shared/http.js';
+import { sha256 } from '../../_shared/auth.js';
 export async function onRequestPost({request,env}) {
   if(!isSameOrigin(request)) return error('Cross-origin request rejected.',403);
   if(!env.DB) return error('Customer accounts are not configured yet.',503);
