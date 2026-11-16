@@ -4,6 +4,7 @@ import { ArrowLeft, LockKeyhole, ShieldCheck, Sparkles, Eye, EyeOff, GraduationC
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { readApiResponse } from '@/lib/api';
 
 const allowedRoles = ['student', 'tutor', 'admissions', 'principal', 'admin'];
 export function LoginPage() {
@@ -21,7 +22,7 @@ export function LoginPage() {
     if (role !== 'admin') return;
     let active = true;
     fetch('/api/admin/bootstrap')
-      .then(async (response) => response.ok ? response.json() as Promise<{ setupAvailable?: boolean }> : null)
+      .then(async (response) => response.ok ? readApiResponse<{ setupAvailable?: boolean }>(response) : null)
       .then((result) => { if (active) setAdminSetupAvailable(Boolean(result?.setupAvailable)); })
       .catch(() => undefined);
     return () => { active = false; };
@@ -38,7 +39,7 @@ export function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role, email: formData.get('email'), password: formData.get('password') }),
       });
-      const result = await response.json() as { error?: string; user?: { role: string; mustChangePassword: boolean } };
+      const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Sign-in could not be completed. Check your details or contact the school.');
       navigate(result.user.mustChangePassword ? '/change-password' : `/portals/${result.user.role}`);
     } catch (error) {
