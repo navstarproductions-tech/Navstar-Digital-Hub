@@ -71,7 +71,7 @@ export function Navbar() {
   const closeMenu = () => setIsOpen(false);
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b-2 border-green-500 bg-blue-950 text-white shadow-sm">
+    <nav className="sticky top-0 z-50 w-full border-t-2 border-amber-400 border-b-2 border-green-500 bg-blue-950 text-white shadow-sm">
       <div className="container mx-auto px-3 sm:px-5 lg:px-7">
         <div className="flex min-h-16 items-center justify-between gap-3">
           <Link to="/" className="flex min-w-0 shrink-0 items-center gap-2.5" aria-label="NAVSTAR DIGITAL HUB home">
@@ -111,7 +111,7 @@ export function Navbar() {
         >
           {[...contactTicker, ...contactTicker].map((item, index) => (
             <span key={index} className="shrink-0 font-serif text-xs font-bold italic tracking-[.08em] text-white sm:text-sm">
-              {item}<span className="ml-8 text-green-300">✦</span>
+              {item}<span className="ml-8 text-amber-300">✦</span>
             </span>
           ))}
         </motion.div>
