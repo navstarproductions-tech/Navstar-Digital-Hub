@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Search, ShoppingBag, ShoppingCart, Trash2, Plus, Minus, Sparkles, Camera, Printer, FileText, MonitorCog } from 'lucide-react';
+import { ArrowRight, Search, ShoppingBag, ShoppingCart, Trash2, Plus, Minus, Sparkles, Camera, Printer, FileText, MonitorCog, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type Service = { id: string; reference?: string; name: string; category: string; price: string; priceAmount?: number | null };
@@ -41,6 +41,9 @@ export function ServicesPage() {
   const [message,setMessage]=useState('');
   const [receipt,setReceipt]=useState<Receipt|null>(null);
   const [orderRef,setOrderRef]=useState('');
+  const [pendingPayment,setPendingPayment]=useState(false);
+  const [processingStage,setProcessingStage]=useState('');
+  const paymentCheckId=useRef(0);
 
   useEffect(()=>{let active=true;fetch('/api/services').then(async r=>r.ok?r.json() as Promise<{services?:Service[]}>:null).then(data=>{if(active)setServices(data?.services||[]);}).catch(()=>{if(active)setMessage('Service catalogue could not be loaded. Please refresh or contact Navstar.');}).finally(()=>{if(active)setLoadingServices(false);});return()=>{active=false;};},[]);
   useEffect(()=>{let active=true;if(loadingServices)return;const restore=async()=>{try{const session=await fetch('/api/customer/me');if(!session.ok)return;const account=await session.json() as {customer?:{id:string}};if(!account.customer)return;const saved=await fetch('/api/customer/cart');if(!saved.ok)return;const data=await saved.json() as {items?:{itemType:string;itemId:string;quantity:number;instructions?:string}[]};if(!active)return;setCustomerAccountId(account.customer.id);const restored=(data.items||[]).filter(item=>item.itemType==='service').flatMap(item=>{const service=services.find(entry=>entry.id===item.itemId);return service?[{service,quantity:item.quantity,instructions:item.instructions||''}]:[];});if(restored.length)setCart(restored);}catch{/* Keep the local basket available if account sync is offline. */}};void restore();return()=>{active=false};},[loadingServices,services]);
@@ -62,39 +65,48 @@ export function ServicesPage() {
     if(cart.some(x=>!Number.isSafeInteger(x.service.priceAmount)||Number(x.service.priceAmount)<1)){setMessage('Your cart contains a quotation-only service. Please contact us first so we can confirm its price.');return;}
     const normalized=phone.replace(/[\s-]/g,'');
     if(!/^(?:\+?254|0)?[17]\d{8}$/.test(normalized)){setMessage('Enter a valid Kenyan M-Pesa number.');return;}
+    const checkId=++paymentCheckId.current;
+    setPendingPayment(false);setProcessingStage('Registering your order…');
     setBusy(true);setMessage('Registering your order…');setReceipt(null);
     try{
       const response=await fetch('/api/service-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customerName:name,phone:normalized,email,customerNotes,items:cart.map(line=>({serviceId:line.service.id,code:line.service.reference,quantity:line.quantity,instructions:line.instructions})),notes:customerNotes})});
       const order=await response.json() as {id?:string;reference?:string;amount?:number;error?:string};
       if(!response.ok||!order.id)throw new Error(order.error||'Could not register your order.');
-      setOrderRef(order.reference||'');setMessage('Order '+order.reference+' registered. Sending your M-Pesa prompt…');
+      setOrderRef(order.reference||'');setProcessingStage('Sending M-Pesa prompt…');setMessage('Order '+order.reference+' registered. Sending your M-Pesa prompt…');
       const pay=await fetch('/api/payments/stk-push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({purpose:'service',reference:order.id,phone:normalized})});
       const payment=await pay.json() as {id?:string;reference?:string;message?:string;error?:string};
       if(!pay.ok||!payment.id)throw new Error(payment.error||'Order registered, but the payment prompt could not start. Keep your order reference and contact us.');
+      setPendingPayment(true);setProcessingStage('Waiting for M-Pesa confirmation…');
       setMessage('M-Pesa prompt sent to '+normalized+'. '+(payment.message||'Check your phone and enter your PIN on the official Safaricom prompt. Your order reference is '+order.reference+'.'));
       setCart([]);
       setBusy(false);
       void (async()=>{
         for(let attempt=0;attempt<24;attempt++){
           await new Promise(resolve=>window.setTimeout(resolve,5000));
+          if(paymentCheckId.current!==checkId)return;
           try{
             const check=await fetch('/api/payments/stk-push?reference='+encodeURIComponent(payment.id));
             if(!check.ok)continue;
+            if(paymentCheckId.current!==checkId)return;
             const data=await check.json() as {payment?:{status?:string;receipt_number?:string;result_description?:string;amount?:number;callback_phone?:string;transaction_date?:string;display_reference?:string;reference?:string}};
             if(data.payment?.status==='paid'&&data.payment.receipt_number){
+              if(paymentCheckId.current!==checkId)return;
+              setPendingPayment(false);setProcessingStage('');
               setReceipt({reference:data.payment.display_reference||data.payment.reference||order.reference||'',code:data.payment.receipt_number,amount:data.payment.amount||order.amount||0,phone:data.payment.callback_phone||normalized,date:data.payment.transaction_date});
               setMessage('Payment confirmed by M-Pesa. Your order is recorded and your receipt is ready.');
               return;
             }
             if(data.payment?.status==='failed'){
+              if(paymentCheckId.current!==checkId)return;
+              setPendingPayment(false);setProcessingStage('');
               setMessage('Payment not completed: '+(data.payment.result_description||'Safaricom did not confirm this payment.')+' Your order reference is '+order.reference+'.');
               return;
             }
           }catch{/* Continue checking while the network is temporarily unavailable. */}
         }
-        setMessage('Your M-Pesa payment is still awaiting confirmation. Keep order reference '+order.reference+'. You can submit another order meanwhile.');
+        if(paymentCheckId.current===checkId)setMessage('Your M-Pesa payment is still awaiting confirmation. Keep order reference '+order.reference+'. You can submit another order meanwhile.');
       })();
-    }catch(error){setMessage(error instanceof Error?error.message:'Checkout could not be completed.');}
+    }catch(error){setProcessingStage('');setPendingPayment(false);setMessage(error instanceof Error?error.message:'Checkout could not be completed.');}
     finally{setBusy(false);}
   };
 
@@ -125,8 +137,10 @@ export function ServicesPage() {
           {!cart.length?<div className="my-5 rounded-xl border border-dashed border-slate-300 p-6 text-center"><ShoppingCart className="mx-auto h-7 w-7 text-slate-300"/><p className="mt-2 text-sm font-semibold text-slate-600">Your cart is empty</p><p className="mt-1 text-xs text-slate-400">Add services from the catalogue.</p></div>:<div className="mt-4 max-h-[390px] space-y-4 overflow-y-auto pr-1">{cart.map(line=><div key={line.service.id} className="border-b border-slate-100 pb-4 last:border-0"><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-bold text-slate-900">{line.service.name}</p><p className="mt-1 text-xs text-slate-500">{money(line.service.priceAmount,line.service.price)} each</p></div><button type="button" onClick={()=>remove(line.service.id)} className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50" aria-label="Remove service"><Trash2 className="h-4 w-4"/></button></div><div className="mt-2 flex items-center justify-between"><div className="flex items-center gap-2"><button type="button" onClick={()=>update(line.service.id,{quantity:Math.max(1,line.quantity-1)})} className="rounded-md border p-1"><Minus className="h-3 w-3"/></button><span className="min-w-5 text-center text-sm font-bold">{line.quantity}</span><button type="button" onClick={()=>update(line.service.id,{quantity:Math.min(1000,line.quantity+1)})} className="rounded-md border p-1"><Plus className="h-3 w-3"/></button></div><span className="text-sm font-black">KSh {((line.service.priceAmount||0)*line.quantity).toLocaleString('en-KE')}</span></div><textarea value={line.instructions} onChange={e=>update(line.service.id,{instructions:e.target.value})} placeholder="Job details: size, colour, pages, copies, deadline, instructions…" rows={2} className="mt-2 w-full rounded-lg border border-slate-200 p-2 text-xs outline-none focus:border-blue-500"/></div>)}</div>}
           <div className="mt-4 border-t border-dashed pt-4"><div className="flex justify-between text-sm text-slate-500"><span>Items</span><span>{count}</span></div><div className="mt-2 flex justify-between text-lg font-black text-slate-950"><span>Total</span><span>KSh {total.toLocaleString('en-KE')}</span></div></div>
           <div className="mt-5 space-y-3"><p className="text-xs font-extrabold uppercase tracking-widest text-slate-500">Customer details</p><input value={name} onChange={e=>setName(e.target.value)} required minLength={2} placeholder="Full name" className="h-11 w-full rounded-lg border px-3 text-sm"/><input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="Email address (for updates)" className="h-11 w-full rounded-lg border px-3 text-sm"/><input value={phone} onChange={e=>setPhone(e.target.value)} required inputMode="tel" placeholder="M-Pesa phone (+254…)" className="h-11 w-full rounded-lg border px-3 text-sm"/><textarea value={customerNotes} onChange={e=>setCustomerNotes(e.target.value)} placeholder="Additional order instructions (optional)" rows={2} className="w-full rounded-lg border p-3 text-sm"/></div>
-          <Button type="submit" disabled={busy||!cart.length} className="mt-5 h-12 w-full bg-emerald-600 font-bold hover:bg-emerald-700">{busy?'Processing your order…':'Continue to M-Pesa checkout'}</Button>
+          <Button type="submit" disabled={busy||!cart.length} className="mt-5 h-12 w-full bg-emerald-600 font-bold hover:bg-emerald-700">{busy?<><LoaderCircle className="mr-2 h-5 w-5 animate-spin"/>Processing your order…</>:'Continue to M-Pesa checkout'}</Button>
+          {(busy||pendingPayment)&&<div className="mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3" role="status" aria-live="polite"><LoaderCircle className="h-7 w-7 shrink-0 animate-spin text-blue-700"/><div><p className="text-xs font-extrabold text-blue-900">{busy?'PLEASE WAIT':'PAYMENT PROCESSING'}</p><p className="text-xs text-blue-800">{processingStage||'Waiting for payment confirmation…'}</p></div></div>}
           {message&&<p role="status" aria-live="polite" className="mt-3 rounded-lg border bg-slate-50 p-3 text-xs leading-5 text-slate-700">{message}</p>}
+          {pendingPayment&&<button type="button" onClick={()=>{paymentCheckId.current++;setPendingPayment(false);setProcessingStage('');setOrderRef('');setMessage('Pending payment status cleared from this screen. If an M-Pesa prompt was already sent, it may still arrive or complete. You can now submit another order.');}} className="mt-2 w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs font-bold text-amber-900 hover:bg-amber-100">Clear pending status &amp; send another order</button>}
           {orderRef&&!receipt&&<p className="mt-2 text-xs font-bold text-blue-800">Keep your order reference: {orderRef}</p>}
           {receipt&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa payment confirmed</p><p className="mt-2">Order: <strong>{receipt.reference}</strong></p><p>M-Pesa code: <strong>{receipt.code}</strong></p><p>Amount: KSh {receipt.amount.toLocaleString('en-KE')}</p><p>Phone: {receipt.phone}</p>{receipt.date&&<p>{receipt.date}</p>}<button type="button" onClick={()=>downloadReceiptPdf(receipt)} className="mt-3 rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold">Download PDF receipt</button></div>}
           <p className="mt-3 text-[11px] leading-5 text-slate-500">Your M-Pesa PIN is entered only on the official Safaricom prompt. Service prices exclude any third-party government fees unless stated otherwise.</p>
