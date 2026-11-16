@@ -2,12 +2,12 @@ import { ArrowUpRight, BriefcaseBusiness, Code2, FileText, GraduationCap, Palett
 import { Link } from 'react-router-dom';
 
 const serviceAreas = [
-  { title: 'Government & Online Services', description: 'eCitizen, KRA, HELB, KUCCPS, TSC, NTSA and other online application assistance.', icon: ShieldCheck },
-  { title: 'Academic & Student Support', description: 'Student applications, academic documents, research support, typing and related services.', icon: GraduationCap },
-  { title: 'Printing & Document Finishing', description: 'Black-and-white and colour printing, photocopying, scanning and document preparation.', icon: Printer },
-  { title: 'Design & Creative Services', description: 'Posters, branding, certificates, calendars and other graphic design work.', icon: Palette },
-  { title: 'ICT & Digital Solutions', description: 'Computer support, programming, web solutions, troubleshooting and digital assistance.', icon: Code2 },
-  { title: 'Business & Professional Support', description: 'Business documents, digital services and tailored support for organisations and individuals.', icon: BriefcaseBusiness },
+  { title: 'Government & Online Services', to: '/services?category=E-CITIZEN%20%26%20GVMNT', description: 'eCitizen, KRA, HELB, KUCCPS, TSC, NTSA and other online application assistance.', icon: ShieldCheck },
+  { title: 'Academic & Student Support', to: '/services?category=ACADEMIC', description: 'Student applications, academic documents, research support, typing and related services.', icon: GraduationCap },
+  { title: 'Printing & Document Finishing', to: '/services?category=PRINTING', description: 'Black-and-white and colour printing, photocopying, scanning and document preparation.', icon: Printer },
+  { title: 'Design & Creative Services', to: '/services?category=DESIGN', description: 'Posters, branding, certificates, calendars and other graphic design work.', icon: Palette },
+  { title: 'ICT & Digital Solutions', to: '/services?category=ICT', description: 'Computer support, programming, web solutions, troubleshooting and digital assistance.', icon: Code2 },
+  { title: 'Business & Professional Support', to: '/services?category=BUSINESS', description: 'Business documents, digital services and tailored support for organisations and individuals.', icon: BriefcaseBusiness },
 ];
 
 export function Services() {
