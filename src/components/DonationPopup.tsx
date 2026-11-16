@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Download, HeartHandshake, LoaderCircle, ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatEATDate, formatEATDateTime } from '@/lib/datetime';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -20,8 +21,8 @@ function pdfEscape(value: string): string {
   return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7E]/g, ' ').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 }
 function createDonationPdf(receipt: DonationReceipt, money: (value: number) => string): Blob {
-  const date = new Date(receipt.date).toLocaleString('en-KE');
-  const dateOnly = new Date(receipt.date).toLocaleDateString('en-KE');
+  const date = formatEATDateTime(receipt.date);
+  const dateOnly = formatEATDate(receipt.date);
   const pages = [
     [
       'NAVSTAR DIGITAL HUB', 'HOME OF TECHNOCRATS', 'OFFICIAL DONATION RECEIPT', '',
@@ -198,7 +199,7 @@ export function DonationPopup({ open, onClose }: { open: boolean; onClose: () =>
           <p className="flex items-start gap-2 text-xs leading-5 text-slate-500"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-green-700"/>Your donation is marked received only after Safaricom confirms it. Enter your PIN only on the official M-Pesa prompt on your phone.</p>
         </form> : <div className="p-6 sm:p-8">
           <div className="text-center"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-700"><CheckCircle2 className="h-9 w-9"/></span><p className="mt-4 text-xs font-black tracking-[.2em] text-green-700">PAYMENT CONFIRMED</p><h3 className="mt-2 text-2xl font-black text-blue-950">Donation received. Thank you!</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-600">Safaricom has confirmed your contribution. Your generosity helps make digital opportunity more accessible.</p></div>
-          <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-4"><div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-green-900">Amount received</span><strong className="text-xl font-black text-green-900">{money(receipt.amount)}</strong></div><dl className="mt-3 grid grid-cols-2 gap-2 border-t border-green-200 pt-3 text-xs"><dt className="text-slate-600">Donation reference</dt><dd className="text-right font-bold text-slate-900">{receipt.reference}</dd><dt className="text-slate-600">Navstar receipt</dt><dd className="text-right font-bold text-slate-900">{receipt.navstarReceipt}</dd><dt className="text-slate-600">M-Pesa transaction code</dt><dd className="text-right font-bold tracking-wide text-slate-900">{receipt.mpesaCode}</dd><dt className="text-slate-600">Phone</dt><dd className="text-right font-semibold text-slate-900">{receipt.phone}</dd><dt className="text-slate-600">Date received</dt><dd className="text-right font-semibold text-slate-900">{new Date(receipt.date).toLocaleString('en-KE')}</dd><dt className="text-slate-600">Status</dt><dd className="text-right font-black text-green-800">RECEIVED</dd></dl></div>
+          <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-4"><div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-green-900">Amount received</span><strong className="text-xl font-black text-green-900">{money(receipt.amount)}</strong></div><dl className="mt-3 grid grid-cols-2 gap-2 border-t border-green-200 pt-3 text-xs"><dt className="text-slate-600">Donation reference</dt><dd className="text-right font-bold text-slate-900">{receipt.reference}</dd><dt className="text-slate-600">Navstar receipt</dt><dd className="text-right font-bold text-slate-900">{receipt.navstarReceipt}</dd><dt className="text-slate-600">M-Pesa transaction code</dt><dd className="text-right font-bold tracking-wide text-slate-900">{receipt.mpesaCode}</dd><dt className="text-slate-600">Phone</dt><dd className="text-right font-semibold text-slate-900">{receipt.phone}</dd><dt className="text-slate-600">Date received</dt><dd className="text-right font-semibold text-slate-900">{formatEATDateTime(receipt.date)}</dd><dt className="text-slate-600">Status</dt><dd className="text-right font-black text-green-800">RECEIVED</dd></dl></div>
           <blockquote className="mt-5 rounded-xl border-l-4 border-amber-400 bg-amber-50 p-4 text-center text-sm italic leading-6 text-amber-950">“No act of kindness, no matter how small, is ever wasted.”</blockquote>
           <Button onClick={downloadDocuments} className="mt-5 h-12 w-full rounded-xl bg-blue-900 font-bold hover:bg-blue-950"><Download className="mr-2 h-4 w-4"/>Download PDF receipt & thank-you letter</Button>
           <p className="mt-3 text-center text-xs text-slate-500">A two-page PDF downloads directly to this phone or device. Page 1 shows the confirmed payment details; page 2 contains your formal thank-you letter.</p>
