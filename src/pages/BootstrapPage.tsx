@@ -5,6 +5,7 @@ import { ArrowLeft, KeyRound, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { readApiResponse } from '@/lib/api';
 
 export function BootstrapPage() {
   const navigate = useNavigate();
@@ -41,7 +42,7 @@ export function BootstrapPage() {
           confirmPassword,
         }),
       });
-      const result = await response.json() as { error?: string };
+      const result = await readApiResponse<{ error?: string }>(response);
       if (!response.ok) throw new Error(result.error ?? 'Admin account creation failed.');
       form.reset();
       setPassword('');
