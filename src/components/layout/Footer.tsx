@@ -79,7 +79,7 @@ export function Footer() {
             <ul className="mt-4 space-y-3 text-sm">
               {exploreLinks.map(([label, path]) => (
                 <li key={label}>
-                  <Link className="transition hover:text-amber-300" to={path}>{label}</Link>
+                  <Link className="transition hover:text-amber-300" to={path} onClick={() => window.scrollTo(0, 0)}>{label}</Link>
                 </li>
               ))}
             </ul>
@@ -90,7 +90,7 @@ export function Footer() {
             <ul className="mt-4 space-y-3 text-sm">
               {portalLinks.map(([label, path]) => (
                 <li key={label}>
-                  <Link className="transition hover:text-green-300" to={path}>{label}</Link>
+                  <Link className="transition hover:text-green-300" to={path} onClick={() => window.scrollTo(0, 0)}>{label}</Link>
                 </li>
               ))}
             </ul>
