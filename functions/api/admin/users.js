@@ -42,7 +42,7 @@ export async function onRequestPost({ request, env }) {
   const role = safeString(body.role, 24);
   const password = String(body.password ?? '');
   const confirmPassword = String(body.confirmPassword ?? '');
-  if (name.length < 2 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !roles.includes(role)) return error('Enter a valid full name, email and portal role.');
+  if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !roles.includes(role)) return error('Enter a valid full name, email and portal role.');
   if (password.length < 6 || password.length > 200 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
     return error('Password must be at least 6 characters and include uppercase, lowercase and a number.');
   }
