@@ -181,6 +181,23 @@
   --shadow-2xl: var(--shadow-2xl);
 }
 @layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  html {
+    width: 100%;
+    min-width: 320px;
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    width: 100%;
+    min-width: 320px;
+    overflow-x: clip;
+  }
   * {
     @apply border-border outline-ring/50;
   }
