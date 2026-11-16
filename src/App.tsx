@@ -14,6 +14,7 @@ import { BootstrapPage } from '@/pages/BootstrapPage';
 import { AdminResetPage } from '@/pages/AdminResetPage';
 import { CustomerAccountPage } from '@/pages/CustomerAccountPage';
 import { DigitalHubPage } from '@/pages/DigitalHubPage';
+import { ForumPage } from '@/pages/ForumPage';
 import { Toaster } from '@/components/ui/sonner';
 
 function App() {
@@ -34,7 +35,7 @@ function App() {
             <Route path="/campus-life" element={<DigitalHubPage />} />
             <Route path="/admissions-letters" element={<DigitalHubPage />} />
             <Route path="/analytics" element={<DigitalHubPage />} />
-            <Route path="/forum" element={<DigitalHubPage />} />
+            <Route path="/forum" element={<ForumPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
             <Route path="/setup" element={<BootstrapPage />} />
             <Route path="/admin-reset" element={<AdminResetPage />} />
