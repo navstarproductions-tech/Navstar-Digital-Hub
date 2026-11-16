@@ -12,17 +12,22 @@ export async function onRequestPost({request,env}) {
   const phone=body.phone ? normalizePhone(body.phone) : '';
   const password=String(body.password||'');
   if(fullName.length<2||!emailPattern.test(email)||(body.phone&&!phone)||password.length<10||password.length>200) return error('Enter your name, a valid email, a valid phone number if supplied, and a password of at least 10 characters.');
-  let createdCustomerId = null;
   try {
-    const customer=await registerCustomer(env,{fullName,email,phone,password});
-    createdCustomerId = customer.id;
-    const cookie=await setCustomerSession(env,customer.id);
-    return json({customer},201,{'Set-Cookie':cookie});
-  } catch(e) {
-    if (createdCustomerId) {
-      try { await env.DB.prepare('DELETE FROM customer_accounts WHERE id = ?').bind(createdCustomerId).run(); }
-      catch(cleanupError) { console.error('Customer registration rollback failed:', String(cleanupError?.message || cleanupError)); }
+    let customer;
+    let created = true;
+    try {
+      customer = await registerCustomer(env,{fullName,email,phone,password});
+    } catch (insertError) {
+      const detail = String(insertError?.message || insertError || '');
+      if (!/UNIQUE|unique constraint/i.test(detail)) throw insertError;
+      // A previous attempt may have saved the account but failed before creating its session.
+      customer = await (await import('../../_shared/customer-auth.js')).loginCustomer(env,email,password);
+      if (!customer) return error('An account with this email already exists. Please sign in or use the password reset option.',409);
+      created = false;
     }
+    const cookie=await setCustomerSession(env,customer.id);
+    return json({customer},created?201:200,{'Set-Cookie':cookie});
+  } catch(e) {
     const detail = String(e?.message || e || 'unknown error');
     if(/UNIQUE|unique constraint/i.test(detail)) return error('An account with this email already exists. Please sign in instead.',409);
     const supportRef = crypto.randomUUID().slice(0,8).toUpperCase();
