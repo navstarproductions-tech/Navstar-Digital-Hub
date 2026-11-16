@@ -124,11 +124,11 @@ export function PortalsPage() {
       <section className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         {user && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {(user.role === 'student' ? [
-            ['My learning', 'Browse current programmes, check course information and continue your learning journey.', '/courses', 'Browse courses'],
+            ['My learning', 'Open your enrolled programmes, complete lessons, track progress and submit assignments.', '/learning', 'Open learning workspace'],
             ['My applications', 'Track submitted applications and enrolment progress.', '/portals/student', 'View applications'],
             ['Student support', 'Contact Navstar for help with enrolment, learning and payments.', '/services', 'Get support'],
           ] : user.role === 'tutor' ? [
-            ['Teaching workspace', 'Your assigned classes, learner lists and teaching resources will appear here.', '/courses', 'Course catalogue'],
+            ['Teaching workspace', 'Open course content, review learning materials and follow learner submissions as teaching access is enabled.', '/learning', 'Open learning workspace'],
             ['Learning resources', 'Review available course programmes and learning pathways.', '/courses', 'View programmes'],
             ['Tutor support', 'Get assistance with your account and teaching tools.', '/services', 'Contact support'],
           ] : user.role === 'admissions' ? [
