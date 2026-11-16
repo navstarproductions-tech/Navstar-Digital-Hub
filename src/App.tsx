@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { HomePage } from '@/pages/HomePage';
@@ -21,9 +22,20 @@ import { PortalNotificationsPage } from '@/pages/PortalNotificationsPage';
 import { AIChatWidget } from '@/components/AIChatWidget';
 import { Toaster } from '@/components/ui/sonner';
 
+function ScrollToTop() {
+  const { pathname, search, hash } = useLocation();
+
+  useEffect(() => {
+    if (!hash) window.scrollTo(0, 0);
+  }, [pathname, search, hash]);
+
+  return null;
+}
+
 function App() {
   return (
     <Router basename={import.meta.env.BASE_URL}>
+      <ScrollToTop />
       <div className="flex min-h-screen flex-col">
         <Navbar />
         <div className="flex-1">
