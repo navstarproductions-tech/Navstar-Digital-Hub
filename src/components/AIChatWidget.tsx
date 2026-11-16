@@ -21,8 +21,14 @@ export function AIChatWidget(){
   setMessages(next);setInput('');setBusy(true);
   try{
    const response=await fetch('/api/assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:next.slice(-12)})});
-   const data=await response.json() as {answer?:string;error?:string};
-   if(!response.ok)throw new Error(data.error||'The assistant is temporarily unavailable.');
+   const raw=await response.text();
+   let data:{answer?:string;error?:string};
+   try{data=JSON.parse(raw) as {answer?:string;error?:string};}
+   catch{
+    const detail=raw.replace(/<[^>]*>/g,' ').replace(/\\s+/g,' ').trim().slice(0,180);
+    throw new Error(`The AI server returned an invalid response (HTTP ${response.status}). ${detail||'Please try again shortly.'}`);
+   }
+   if(!response.ok)throw new Error(data.error||`The assistant request failed (HTTP ${response.status}).`);
    setMessages(current=>[...current,{role:'assistant',content:data.answer||'I could not prepare an answer. Please try again.'}]);
   }catch(error){setMessages(current=>[...current,{role:'assistant',content:error instanceof Error?error.message:'The assistant is unavailable right now.'}]);}
   finally{setBusy(false);}
