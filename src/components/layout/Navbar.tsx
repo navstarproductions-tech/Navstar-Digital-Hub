@@ -1,18 +1,18 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Monitor, Menu, X, GraduationCap, ShoppingCart } from 'lucide-react';
+import { Monitor, Menu, X, GraduationCap, ShoppingCart, UserRound, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const navigation = [
   { label: 'Home', to: '/' },
-  { label: 'Courses', to: '/courses' },
   { label: 'Services', to: '/services' },
+  { label: 'Courses', to: '/courses' },
   { label: 'Campus Life', to: '/campus-life' },
+  { label: 'Forum', to: '/forum' },
   { label: 'Admission Letters', to: '/admissions-letters' },
   { label: 'Analytics', to: '/analytics' },
-  { label: 'Music', to: '/music' },
-  { label: 'Forum', to: '/forum' },
+  { label: 'Portals', to: '/portals' },
 ];
 
 const contactTicker = [
@@ -23,7 +23,7 @@ const contactTicker = [
   'ALL CYBER, ICT, TRAINING & DIGITAL SERVICES',
   'LOCATION: RAPHAEL ESTATES, ROOM 3',
   'OPPOSITE SHABAN MEDICAL CLINIC, AFTER ABC MEDICAL CLINIC',
-  'OFF AGOROM–BUSIA ROAD • 200 M FROM ACK NAMBale HOSTELS',
+  'OFF AGOROM–BUSIA ROAD • 200 M FROM ACK NAMBALE HOSTELS',
 ];
 
 export function Navbar() {
@@ -51,7 +51,7 @@ export function Navbar() {
             if (result.settings.logoAssetId) setLogoUrl(`/api/media/${result.settings.logoAssetId}`);
           }
         }
-        const sessionResponse = await fetch('/api/auth/me');
+        const sessionResponse = await fetch('/api/customer/me');
         if (!sessionResponse.ok) {
           if (active) setSignedInUser(null);
           return;
@@ -95,7 +95,7 @@ export function Navbar() {
             <Link to="/services#service-cart" aria-label="Your orders and cart" title="Your orders" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white hover:bg-white/10">
               <ShoppingCart className="h-5 w-5" />
             </Link>
-            {signedInUser && <Button size="sm" variant="ghost" className="hidden 2xl:inline-flex text-white hover:bg-white/10 hover:text-white" onClick={signOut}>Sign out</Button>}
+            {signedInUser && <Button size="sm" variant="ghost" className="hidden xl:inline-flex rounded-xl text-white hover:bg-white/10 hover:text-amber-300" onClick={signOut}><LogOut className="mr-1.5 h-4 w-4"/>Log out</Button>}
             <button onClick={() => setIsOpen(!isOpen)} aria-label={isOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={isOpen} className="inline-flex items-center justify-center rounded-lg border border-white/30 p-2 text-white hover:bg-white/10 xl:hidden">
               {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -122,11 +122,11 @@ export function Navbar() {
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="xl:hidden border-b-2 border-green-500 bg-blue-950 shadow-lg">
             <div className="grid grid-cols-2 gap-1 px-3 pb-4 pt-3 sm:grid-cols-3 sm:px-5">
               {navigation.map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `rounded-lg px-3 py-3 text-sm font-bold ${isActive ? 'bg-white/15 text-white' : 'text-blue-100 hover:bg-white/10'}`} onClick={closeMenu}>{item.label}</NavLink>
+                <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `rounded-lg px-3 py-3 text-sm font-bold ${isActive ? 'bg-amber-300 text-blue-950 shadow-md' : 'text-blue-100 hover:bg-white/10'}`} onClick={closeMenu}>{item.label}</NavLink>
               ))}
-              <Link to="/portals" className="rounded-lg bg-white px-3 py-3 text-sm font-bold text-blue-950" onClick={closeMenu}>Student Gateway</Link>
+              {signedInUser ? <div className="col-span-2 rounded-lg border border-amber-300/50 bg-white/10 px-3 py-3 text-sm font-bold text-white">Hi, {signedInUser.name}</div> : <Link to="/account" className="rounded-lg bg-amber-300 px-3 py-3 text-sm font-extrabold text-blue-950" onClick={closeMenu}>Log in / Sign up</Link>}\n              <Link to="/portals" className="rounded-lg border border-green-400/60 bg-green-500/15 px-3 py-3 text-sm font-bold text-white" onClick={closeMenu}>Portals</Link>
               <Link to="/services#service-cart" className="rounded-lg px-3 py-3 text-sm font-bold text-blue-100 hover:bg-white/10" onClick={closeMenu}>Your orders / Cart</Link>
-              {signedInUser && <button onClick={() => { closeMenu(); void signOut(); }} className="rounded-lg px-3 py-3 text-left text-sm font-bold text-blue-100 hover:bg-white/10">Sign out</button>}
+              {signedInUser && <button onClick={() => { closeMenu(); void signOut(); }} className="rounded-lg px-3 py-3 text-left text-sm font-bold text-amber-200 hover:bg-white/10">Log out</button>}
             </div>
           </motion.div>
         )}
