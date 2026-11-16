@@ -30,7 +30,7 @@ Evolve the existing website into an integrated digital ecosystem for learning, i
 - AI chat and `/api/assistant` exist, but its production POST request is currently returning Cloudflare HTTP 502. This remains unresolved and is a separate reliability task.
 - Migration 0007 already provides a substantial multi-school schema: schools, school memberships, academic years/terms, classes, learners, guardians, staff profiles, subjects, fee structures, invoices, payments, allocations and school audit logs. However, the Analytics page still says school account validation is not enabled, and complete operational school APIs, tenant-scoped authorization and UI workflows must be audited and completed. Do not duplicate these existing tables.
 - Migration 0006 already provides customer accounts and carts (currently cart item types are service/course), and the customer API has cart routes. The Admin UI has a customer orders section. A full physical/digital product catalogue, stock ledger, checkout/order lifecycle and fulfilment still require verification/completion; extend the existing cart/order design rather than creating duplicate tables.
-- Course catalogue and enrolment exist; structured modules, lessons, submissions, grading, exam scheduling and progress tracking require implementation.
+- Course catalogue and enrolment exist. The first LMS slice is now implemented on the feature branch: modules, lessons, learner progress, assignments, submissions, grading, admissions activation and explicit tutor-to-course assignment. Cohorts, resources with private uploads, rubrics, CAT/exam scheduling, question banks, controlled results and certificate eligibility remain to be implemented.
 - Library, examination centre, jobs, scholarships, booking and public certificate verification require audits before being described as operational.
 - Start mobile delivery with an accessible installable PWA; consider a separate Android app after APIs and mobile workflows stabilize.
 
@@ -41,7 +41,9 @@ Inventory routes, portals, API endpoints, migrations/tables, integrations and sc
 **Exit:** route/API/schema inventory verified; baseline build/type/function checks pass; no destructive production operation.
 
 ### Phase 2 — Learning management system
-Course programmes, intakes, cohorts, modules, lessons, resources, learner memberships, tutor authoring, assignments, submissions, rubrics, marking, CATs, question banks, exams, controlled results, progress, completion and certificate eligibility.
+**In progress on `navstar-ecosystem-phase-1`:** additive LMS schema for course modules, lessons, lesson progress, assignments, submissions and course tutor assignments; protected learning API; student learning workspace; administrator module/lesson/assignment authoring; learner submission and administrator grading; admissions status review to activate accepted learners; explicit tutor assignment per course. Students only see courses linked to their account by an accepted enrolment, and tutors only see courses assigned to them.
+
+**Still required before Phase 2 is complete:** private file uploads/resources, course cohorts/intakes, rubrics, CAT/exam scheduling, question banks, exam attempts and controlled results, attendance, course completion rules, certificate eligibility/issuance, tutor marking workflows, automated tests and full build/type/function checks. The current branch work is not deployed and the production D1 migration history has not been verified.
 
 ### Phase 3 — Multi-institution school ERP
 Institution registration/approval and isolated workspaces; school admins, principals, teachers, learners, guardians and finance roles; academic years, terms, classes, streams, subjects, timetables, admissions, attendance, staff, fee structures, invoices, balances, receipts, reconciliations, exams, marks, report cards, analytics and parent portal. Enforce tenant isolation in every API and background operation.
@@ -103,7 +105,13 @@ Use compatible text/UUID identifiers consistent with the existing schema after v
 3. Create role/permission and tenant-isolation matrix.
 4. Add baseline smoke tests for public routes, authentication, enrolment, payments, receipts and forum.
 5. Resolve baseline build/test failures before feature migrations.
-6. After foundation verification, implement Phase 2 LMS first, designing tenant-aware foundations required for Phase 3.
+6. Continue Phase 2 LMS implementation on the feature branch. Before any deployment, verify production D1 migration history, run the full configured build/type/function checks, and complete security and learner-access tests. Then design the tenant-aware foundations required for Phase 3.
 
 ## Status policy
 A feature is **Live** only after frontend, backend, database, permissions, tests and deployment are verified. Designs, placeholders, disabled forms and unmerged branches remain **Planned** or **In progress**.
+
+## Current delivery snapshot — 16 November 2026
+- Phase 1 planning and baseline inventory documents are committed to this feature branch; the exhaustive audit and production D1 migration-history verification are not complete.
+- Phase 2 LMS first slice is committed to this feature branch. The additive migration has been exercised locally against SQLite with sample rows, including tutor assignment. This validates the migration SQL shape only; it is not a Cloudflare D1 deployment test.
+- GitHub branch comparison confirms the feature branch is ahead of `main`; no merge to `main` or production deployment has been performed.
+- Full `npm ci`, Pages build, Functions syntax check and TypeScript check remain outstanding because the current execution environment cannot reach GitHub/npm.
