@@ -19,6 +19,7 @@ export function EnrollmentPage() {
   const [phone, setPhone] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkingPayment, setCheckingPayment] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -84,7 +85,8 @@ export function EnrollmentPage() {
   const requestPayment = async () => {
     if (!registrationId || !course) return;
     setLoading(true);
-    setStatus('');
+    setStatus('Connecting securely to M-Pesa…');
+    setReceipt(null);
     try {
       const response = await fetch('/api/payments/stk-push', {
         method: 'POST',
@@ -93,10 +95,12 @@ export function EnrollmentPage() {
       });
       const result = await response.json() as { id?: string; reference?: string; message?: string; error?: string };
       if (!response.ok) throw new Error(result.error ?? 'The payment prompt could not be requested. Please contact the school.');
-      setStatus(`Processing M-Pesa payment for ${result.reference || registrationReference}. ${result.message || 'Check your phone for the official prompt.'}`);
+      setStatus(`M-Pesa has accepted the prompt request for ${result.reference || registrationReference}. Check your phone and enter your PIN only on the official Safaricom prompt. We are now waiting for confirmation.`);
+      setLoading(false);
       if (result.id) {
+        setCheckingPayment(true);
         for (let attempt = 0; attempt < 24; attempt += 1) {
-          await new Promise((resolve) => window.setTimeout(resolve, 5000));
+          await new Promise((resolve) => window.setTimeout(resolve, attempt < 4 ? 3000 : 5000));
           const check = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(result.id)}`, { headers: { Accept: 'application/json' } });
           if (!check.ok) continue;
           const data = await check.json() as { payment?: { status?: string; receipt_number?: string; result_description?: string; amount?: number; callback_phone?: string; transaction_date?: string } };
@@ -114,6 +118,7 @@ export function EnrollmentPage() {
       setStatus(error instanceof Error ? error.message : 'The payment prompt could not be requested.');
     } finally {
       setLoading(false);
+      setCheckingPayment(false);
     }
   };
 
@@ -132,7 +137,7 @@ export function EnrollmentPage() {
           <span className="w-fit border bg-white px-3 py-2 text-sm font-semibold text-slate-700">Application · 01</span>
         </div>
 
-        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] lg:gap-8">
           <form onSubmit={submitApplication} className="space-y-6">
             <Card>
               <CardHeader><CardTitle>Personal details</CardTitle><CardDescription>Use the contact details you want admissions to use.</CardDescription></CardHeader>
@@ -174,10 +179,10 @@ export function EnrollmentPage() {
             <label className="flex items-start gap-3 border bg-white p-4 text-sm leading-6 text-slate-700"><input type="checkbox" name="consent" required className="mt-1 accent-emerald-800" /><span>I agree that admissions may contact me about this application and confirm that the information provided is accurate.</span></label>
             <Button className="w-full bg-emerald-800 hover:bg-emerald-900 sm:w-auto" type="submit" disabled={loading}>{loading ? 'Submitting…' : 'Submit application'}</Button>
             {status && <p role="status" className="border bg-white p-4 text-sm text-slate-700">{status}</p>}
-            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />Application received</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent><Button type="button" className="bg-emerald-800 hover:bg-emerald-900" onClick={requestPayment} disabled={loading}>{loading ? 'Processing…' : 'Request M-Pesa prompt'}</Button>{receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa receipt confirmed</p><p className="mt-2">Account: <strong>{registrationReference}</strong></p><p>M-Pesa code: <strong className="tracking-wide">{receipt.code}</strong></p><p>Amount: <strong>KSh {receipt.amount.toLocaleString()}</strong></p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}</div>}</CardContent></Card>}
+            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />Application received</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent><Button type="button" className="bg-emerald-800 hover:bg-emerald-900" onClick={requestPayment} disabled={loading || checkingPayment}>{loading ? 'Sending M-Pesa prompt…' : checkingPayment ? 'Waiting for M-Pesa confirmation…' : 'Request M-Pesa prompt'}</Button>{receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa receipt confirmed</p><p className="mt-2">Account: <strong>{registrationReference}</strong></p><p>M-Pesa code: <strong className="tracking-wide">{receipt.code}</strong></p><p>Amount: <strong>KSh {receipt.amount.toLocaleString()}</strong></p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {receipt.date}</p>}</div>}</CardContent></Card>}
           </form>
 
-          <aside className="space-y-4 lg:sticky lg:top-24">
+          <aside className="order-first min-w-0 w-full space-y-4 lg:order-last lg:sticky lg:top-24">
             <Card><CardHeader><CardTitle className="text-lg">Application summary</CardTitle></CardHeader><CardContent className="space-y-4"><div className="aspect-video overflow-hidden bg-slate-100"><img src={course.image} alt={course.title} className="h-full w-full object-cover" /></div><div><h2 className="font-bold text-slate-950">{course.title}</h2><p className="mt-1 text-sm text-slate-500">{course.duration} · {course.category}</p></div><div className="flex justify-between border-t pt-4 text-sm"><span className="text-slate-600">Course fee</span><strong>KSh {course.price.toLocaleString()}</strong></div><p className="text-xs leading-5 text-slate-500">Fees are shown for planning. Payment is not marked received until the provider confirms it.</p></CardContent></Card>
             <div className="border-l-2 border-emerald-700 bg-white p-4 text-sm text-slate-700"><div className="flex items-center gap-2 font-semibold"><Smartphone className="h-4 w-4 text-emerald-800" />M-Pesa safety</div><p className="mt-2 leading-5">A prompt can only be sent by a configured secure backend. Enter your PIN only on the official prompt on your phone.</p></div>
             <div className="flex items-start gap-2 text-xs leading-5 text-slate-500"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />Application data is sent to the configured NAVSTAR admissions backend.</div>
