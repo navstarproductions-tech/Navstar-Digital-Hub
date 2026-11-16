@@ -21,3 +21,18 @@ export async function sendCustomerNotice(env, { email, phone, subject, message }
   }
   return Promise.allSettled(tasks);
 }
+
+/**
+ * Queue external customer notifications without holding up the API response.
+ * Cloudflare Pages keeps the task alive with waitUntil after returning the response.
+ */
+export function queueCustomerNotice(context, env, notice) {
+  const task = sendCustomerNotice(env, notice).then((results) => {
+    const failed = results.filter((result) => result.status === 'rejected');
+    if (failed.length) console.error('Customer notification delivery failures:', failed.length);
+  }).catch((error) => {
+    console.error('Customer notification task failed:', String(error?.message || error));
+  });
+  if (typeof context?.waitUntil === 'function') context.waitUntil(task);
+  else void task;
+}
