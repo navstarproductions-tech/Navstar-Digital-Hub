@@ -67,7 +67,7 @@ export function Navbar() {
   const closeMenu = () => setIsOpen(false);
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-t-2 border-amber-400 border-b-2 border-green-500 bg-blue-950 text-white shadow-sm">
+    <nav className="sticky top-0 z-50 w-full border-t-2 border-amber-400 border-b-2 border-green-500 bg-[#061b45] text-white shadow-[0_8px_30px_rgba(6,27,69,0.22)]">
       <div className="w-full px-2 sm:px-3 lg:px-4 2xl:px-6">
         <div className="flex min-h-16 w-full items-center justify-between gap-2 xl:gap-3">
           <Link to="/" className="flex min-w-0 shrink items-center gap-2 xl:gap-2.5" aria-label="NAVSTAR DIGITAL HUB home">
