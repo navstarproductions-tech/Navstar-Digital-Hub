@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import { ArrowRight, BookOpen, CalendarDays, ChartNoAxesCombined, MessageCircle, ShieldCheck, GraduationCap, Wallet, Users, ClipboardList, Library, Bus, FileText, School, Settings, Bell, ReceiptText, Layers3 } from 'lucide-react';
 
 const generalSections:Record<string,{title:string;eyebrow:string;description:string;icon:typeof BookOpen;items:string[]}> = {
@@ -23,35 +24,40 @@ const erpModules = [
 ];
 
 function AnalyticsPage(){
+ const [schoolUsername,setSchoolUsername]=useState('');
+ const [notice,setNotice]=useState('');
+ const [attempted,setAttempted]=useState(false);
+ const validate= (event:React.FormEvent<HTMLFormElement>) => {
+  event.preventDefault();
+  setAttempted(true);
+  setNotice('School account validation is not yet enabled. The multi-school login and verification service will be configured during the next setup phase. No account has been authenticated.');
+ };
  return <main className="min-h-[70vh] bg-slate-50 px-4 py-10 sm:py-14">
-  <div className="mx-auto max-w-7xl">
-   <section className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-blue-950 to-blue-800 p-7 text-white shadow-xl sm:p-12">
-    <div className="absolute -right-20 -top-24 h-80 w-80 rounded-full border-[36px] border-white/5"/><div className="absolute -bottom-40 right-1/4 h-96 w-96 rounded-full bg-cyan-400/10 blur-3xl"/>
-    <div className="relative max-w-4xl">
-     <p className="text-xs font-extrabold tracking-[.28em] text-cyan-200">NAVSTAR EDUCATION TECHNOLOGY</p>
-     <h1 className="mt-5 text-3xl font-black leading-tight sm:text-5xl">School ERP & Learning Management System</h1>
-     <p className="mt-5 max-w-3xl text-sm leading-7 text-blue-100 sm:text-base">A unified school management platform designed for Primary, Junior Secondary, Senior Secondary and other learning institutions. Each school gets its own protected workspace for academics, learners, staff, fees and administration.</p>
-     <div className="mt-7 flex flex-wrap gap-3"><Link to="/portals" className="inline-flex items-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-blue-950 hover:bg-cyan-50">School & staff portals <ArrowRight className="ml-2 h-4 w-4"/></Link><Link to="/account" className="inline-flex items-center rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/15">Customer account</Link></div>
-    </div>
+  <div className="mx-auto max-w-5xl">
+   <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-blue-950 to-blue-800 p-7 text-white shadow-xl sm:p-12">
+    <p className="text-xs font-extrabold tracking-[.28em] text-amber-300">MULTI-SCHOOL PLATFORM</p>
+    <h1 className="mt-4 text-3xl font-black sm:text-5xl">Other Schools Analytics Portal</h1>
+    <p className="mt-4 max-w-3xl text-sm leading-7 text-blue-100 sm:text-base">A separate school management and analytics service for partner institutions. This portal is not Navstar Digital Hub's own school dashboard. Each participating school will have its own protected account and records.</p>
    </section>
-
-   <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-    {[['School levels','Primary • Junior • Senior'],['Academic records','Learners • Classes • Subjects'],['Finance','Fees • Invoices • Payments'],['Learning','Assignments • Exams • Reports']].map(([label,value])=><div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-blue-700">{label}</p><p className="mt-2 font-bold text-slate-900">{value}</p></div>)}
-   </section>
-
-   <section className="mt-12">
-    <div className="max-w-3xl"><p className="text-xs font-extrabold tracking-[.2em] text-blue-700">ONE INTEGRATED PLATFORM</p><h2 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">Core ERP modules</h2><p className="mt-3 text-sm leading-6 text-slate-600">The platform is being built as a multi-school system. School records will be isolated by school membership and role permissions, so one institution cannot access another institution’s data.</p></div>
-    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{erpModules.map((module,index)=>{const Icon=module.icon;return <article key={module.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-center justify-between"><div className="rounded-xl bg-blue-50 p-3 text-blue-800"><Icon className="h-5 w-5"/></div><span className="text-xs font-bold text-slate-300">{String(index+1).padStart(2,'0')}</span></div><h3 className="mt-4 font-bold text-slate-950">{module.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{module.description}</p></article>})}</div>
-   </section>
-
-   <section className="mt-10 grid gap-6 lg:grid-cols-2">
-    <article className="rounded-2xl border border-blue-100 bg-blue-50 p-6 sm:p-8"><div className="flex items-center gap-3"><Wallet className="h-6 w-6 text-blue-800"/><h2 className="text-xl font-black text-slate-950">Fee structures and school accounts</h2></div><p className="mt-3 text-sm leading-6 text-slate-700">A bursar will be able to create an academic-year and term fee structure, then assign it to a grade, class, course or programme. Each structure can contain tuition, activity, meals, transport, boarding, examination and other itemised charges. The system will calculate totals, discounts, invoices, payments and outstanding balances.</p></article>
-    <article className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 sm:p-8"><div className="flex items-center gap-3"><FileText className="h-6 w-6 text-emerald-800"/><h2 className="text-xl font-black text-slate-950">Payment receipts as PDF</h2></div><p className="mt-3 text-sm leading-6 text-slate-700">Every confirmed payment will have a unique school receipt number and a printable PDF receipt showing the school, learner, admission number, amount, payment method, date, invoice allocation and transaction reference. Pending, failed or reversed transactions will never be presented as paid receipts.</p></article>
-   </section>
-
-   <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8"><div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center"><div><h2 className="text-xl font-black text-slate-950">Secure school access</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">The ERP database foundation is being added first. School onboarding, tenant-specific sign-in, role permissions and working academic and finance screens will be enabled in stages after the database migration is applied and tested.</p></div><div className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-xs font-bold text-slate-600"><ShieldCheck className="h-4 w-4 text-emerald-700"/>Protected school data</div></div></section>
+   <div className="mt-7 grid gap-6 md:grid-cols-[1fr_.9fr]">
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+     <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-50 p-3 text-blue-800"><ShieldCheck className="h-6 w-6"/></div><div><p className="text-xs font-bold uppercase tracking-wider text-blue-700">School access gate</p><h2 className="text-xl font-black text-slate-950">Sign in with school username</h2></div></div>
+     <p className="mt-4 text-sm leading-6 text-slate-600">Enter the username assigned to your institution. Username validation and account activation will be connected later, before the school dashboards are opened.</p>
+     <form onSubmit={validate} className="mt-6 space-y-3">
+      <label htmlFor="school-username" className="block text-sm font-semibold text-slate-800">School username</label>
+      <input id="school-username" value={schoolUsername} onChange={event=>{setSchoolUsername(event.target.value);setNotice('');setAttempted(false)}} placeholder="Enter your school username" autoComplete="username" required minLength={3} maxLength={80} className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100"/>
+      <button type="submit" disabled={!schoolUsername.trim()} className="w-full rounded-xl bg-blue-900 px-5 py-3 font-bold text-white hover:bg-blue-950 disabled:cursor-not-allowed disabled:opacity-50">Validate school account</button>
+     </form>
+     {notice&&<p role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">{notice}</p>}
+     <p className="mt-4 text-xs text-slate-500">This is a setup placeholder only. Entering a username does not authenticate or create an account.</p>
+    </section>
+    <aside className="rounded-2xl border border-green-100 bg-green-50 p-6 sm:p-8">
+     <p className="text-xs font-extrabold tracking-[.2em] text-green-800">FOR PARTNER INSTITUTIONS</p><h2 className="mt-3 text-xl font-black text-slate-950">Independent school workspaces</h2>
+     <ul className="mt-5 space-y-3 text-sm leading-6 text-slate-700"><li>• Separate school profiles and usernames</li><li>• Learners, classes, staff and academic records</li><li>• Fees, payments, balances and receipts</li><li>• Exams, report cards and performance analytics</li><li>• School-specific reports and downloadable PDFs</li></ul>
+     <p className="mt-6 rounded-xl border border-green-200 bg-white/80 p-4 text-xs leading-5 text-slate-600">School registration, username validation, password setup and tenant-level data permissions will be configured in a later implementation phase.</p>
+    </aside>
+   </div>
   </div>
  </main>
 }
-
 export function DigitalHubPage(){const {pathname}=useLocation();if(pathname==='/analytics')return <AnalyticsPage/>;const page=generalSections[pathname]||generalSections['/campus-life'];const Icon=page.icon;return <main className="min-h-[70vh] bg-slate-50 px-4 py-12 sm:py-16"><div className="mx-auto max-w-6xl"><section className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-blue-950 to-blue-800 p-8 text-white shadow-xl sm:p-12"><p className="text-xs font-bold tracking-[.25em] text-blue-200">{page.eyebrow}</p><div className="mt-6 flex items-start gap-4"><div className="rounded-2xl bg-white/10 p-3"><Icon className="h-8 w-8"/></div><div><h1 className="text-3xl font-black sm:text-5xl">{page.title}</h1><p className="mt-4 max-w-2xl leading-7 text-blue-100">{page.description}</p></div></div></section>{pathname==='/campus-life'&&<><section className="mt-8 grid gap-4 md:grid-cols-2"><article id="gallery" className="scroll-mt-28 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm"><div className="bg-gradient-to-r from-blue-950 to-blue-700 p-6 text-white"><p className="text-xs font-extrabold tracking-[.2em] text-amber-300">CAMPUS GALLERY</p><h2 className="mt-2 text-2xl font-black">Gallery</h2><p className="mt-2 text-sm leading-6 text-blue-100">A visual collection of learning, projects, events, workshops and life around the Navstar community.</p></div><div className="grid grid-cols-3 gap-2 bg-blue-50 p-3"><div className="flex aspect-square items-center justify-center rounded-xl bg-blue-200 text-3xl">🎓</div><div className="flex aspect-square items-center justify-center rounded-xl bg-green-100 text-3xl">💻</div><div className="flex aspect-square items-center justify-center rounded-xl bg-amber-100 text-3xl">🏆</div></div><p className="p-4 text-xs text-slate-500">Photo albums and approved uploads can be showcased here as campus gallery content is published.</p></article><article id="moments" className="scroll-mt-28 overflow-hidden rounded-2xl border border-green-100 bg-white shadow-sm"><div className="bg-gradient-to-r from-green-800 to-green-600 p-6 text-white"><p className="text-xs font-extrabold tracking-[.2em] text-amber-200">CAMPUS MOMENTS</p><h2 className="mt-2 text-2xl font-black">Moments</h2><p className="mt-2 text-sm leading-6 text-green-50">Celebrate memorable milestones, student achievements, community activities and behind-the-scenes stories.</p></div><div className="space-y-3 p-5"><div className="rounded-xl border border-green-100 bg-green-50 p-4"><p className="text-xs font-bold text-green-800">LEARNING & INNOVATION</p><p className="mt-1 font-semibold text-slate-900">Projects, practical sessions and technology showcases</p></div><div className="rounded-xl border border-amber-100 bg-amber-50 p-4"><p className="text-xs font-bold text-amber-800">PEOPLE & ACHIEVEMENTS</p><p className="mt-1 font-semibold text-slate-900">Graduations, awards and community celebrations</p></div></div></article></section><div className="mt-5 flex flex-wrap gap-3"><Link to="/forum" className="inline-flex items-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900">Share a campus moment <ArrowRight className="ml-2 h-4 w-4"/></Link><Link to="/account" className="inline-flex items-center rounded-xl border border-green-500 px-5 py-3 text-sm font-bold text-green-800 hover:bg-green-50">Sign in to participate</Link></div></>}<section className="mt-8 grid gap-4 sm:grid-cols-2">{page.items.map((item,i)=><article key={item} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-bold text-blue-700">0{i+1}</p><h2 className="mt-2 font-semibold text-slate-900">{item}</h2></article>)}</section><section className="mt-8 rounded-2xl border bg-white p-6 sm:p-8"><div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center"><div><h2 className="text-xl font-bold text-slate-950">Access your Navstar account</h2><p className="mt-1 text-sm text-slate-600">Sign in or create an account to access customer and community features as they are enabled.</p></div><Link to="/account" className="inline-flex items-center justify-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-900">Customer account <ArrowRight className="ml-2 h-4 w-4"/></Link></div></section></div></main>}
