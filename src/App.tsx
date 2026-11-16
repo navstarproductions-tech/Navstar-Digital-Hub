@@ -15,6 +15,7 @@ import { AdminResetPage } from '@/pages/AdminResetPage';
 import { CustomerAccountPage } from '@/pages/CustomerAccountPage';
 import { DigitalHubPage } from '@/pages/DigitalHubPage';
 import { ForumPage } from '@/pages/ForumPage';
+import { PaymentReceiptsPage } from '@/pages/PaymentReceiptsPage';
 import { Toaster } from '@/components/ui/sonner';
 
 function App() {
@@ -41,6 +42,8 @@ function App() {
             <Route path="/admin-reset" element={<AdminResetPage />} />
             <Route path="/enroll/:id" element={<EnrollmentPage />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin/receipts" element={<PaymentReceiptsPage />} />
+            <Route path="/payment-receipt/:id" element={<PaymentReceiptsPage />} />
             <Route path="*" element={<HomePage />} />
           </Routes>
         </div>
