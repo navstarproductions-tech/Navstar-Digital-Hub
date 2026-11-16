@@ -53,6 +53,8 @@ export function ServicesPage() {
   const checkout=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
     if(!cart.length){setMessage('Add at least one service to your cart.');return;}
+    const fractionalItem=cart.find(x=>x.service.reference==='NADH-013');
+    if(fractionalItem){setMessage('NADH-013 is listed at KES 60.5. M-Pesa STK Push accepts whole-shilling amounts, so please contact Navstar to arrange payment for this item.');return;}
     if(cart.some(x=>!Number.isSafeInteger(x.service.priceAmount)||Number(x.service.priceAmount)<1)){setMessage('Your cart contains a quotation-only service. Please contact us first so we can confirm its price.');return;}
     const normalized=phone.replace(/[\s-]/g,'');
     if(!/^(?:\+?254|0)?[17]\d{8}$/.test(normalized)){setMessage('Enter a valid Kenyan M-Pesa number.');return;}
