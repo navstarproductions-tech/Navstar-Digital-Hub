@@ -12,6 +12,10 @@ const navigation = [
   { label: 'Services', to: '/services' },
   { label: 'Donations', to: '/donations' },
   { label: 'Portals', to: '/portals' },
+  { label: 'Campus Life', to: '/campus-life' },
+  { label: 'Admissions Letters', to: '/admissions-letters' },
+  { label: 'Analytics', to: '/analytics' },
+  { label: 'Forum', to: '/forum' },
 ];
 
 export function Navbar() {
@@ -103,7 +107,7 @@ export function Navbar() {
             </Link>
           </div>
           
-          <div className="hidden md:block">
+          <div className="hidden 2xl:block">
             <div className="flex items-center gap-1">
               {navigation.map((item) => (
                 <NavLink
@@ -116,11 +120,11 @@ export function Navbar() {
                 </NavLink>
               ))}
               <div className="relative ml-2">{notificationButton}</div>
-              {signedIn ? <><Button asChild size="sm" variant="outline"><Link to="/portals">Portal</Link></Button><Button size="sm" className="ml-1 bg-emerald-800 hover:bg-emerald-900" onClick={signOut}>Sign out</Button></> : <Button asChild size="sm" className="ml-1 bg-emerald-800 hover:bg-emerald-900"><Link to="/services">Login / Continue</Link></Button>}
+              {signedIn ? <><Button asChild size="sm" variant="outline"><Link to="/portals">Portal</Link></Button><Button asChild size="sm" variant="outline"><Link to="/account">Account</Link></Button><Button size="sm" className="ml-1 bg-emerald-800 hover:bg-emerald-900" onClick={signOut}>Sign out</Button></> : <Button asChild size="sm" className="ml-1 bg-emerald-800 hover:bg-emerald-900"><Link to="/account">Account</Link></Button>}
             </div>
           </div>
 
-          <div className="flex items-center gap-1 md:hidden">
+          <div className="flex items-center gap-1 2xl:hidden">
             {notificationButton}
             <button
               onClick={() => setIsOpen(!isOpen)}
@@ -148,7 +152,7 @@ export function Navbar() {
                 </NavLink>
               ))}
               <Link to="/portals/admissions" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Admissions</Link>
-              {signedIn ? <><Link to="/portals" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Portal</Link><button onClick={() => { setIsOpen(false); void signOut(); }} className="block w-full rounded-md px-3 py-2 text-left text-base font-medium text-slate-700 hover:bg-slate-100">Sign out</button></> : <Link to="/services" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Login / Continue</Link>}
+              {signedIn ? <><Link to="/portals" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Portal</Link><Link to="/account" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Customer Account</Link><button onClick={() => { setIsOpen(false); void signOut(); }} className="block w-full rounded-md px-3 py-2 text-left text-base font-medium text-slate-700 hover:bg-slate-100">Sign out</button></> : <Link to="/account" className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100" onClick={() => setIsOpen(false)}>Customer Account / Sign in</Link>}
               <div className="mt-4">
                 <Button asChild className="w-full bg-emerald-800 hover:bg-emerald-900">
                   <Link to="/courses" onClick={() => setIsOpen(false)}>Enroll Now</Link>
