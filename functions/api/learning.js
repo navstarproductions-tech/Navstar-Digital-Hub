@@ -69,15 +69,26 @@ export async function onRequestGet({ request, env }) {
   const progressResult = user.role === 'student'
     ? await env.DB.prepare('SELECT lesson_id, completed, completed_at FROM course_lesson_progress WHERE user_id = ?').bind(user.id).all()
     : { results: [] };
-  const submissionResult = await env.DB.prepare(`
-    SELECT s.id, s.assignment_id, s.status, s.points_awarded, s.feedback, s.submitted_at
+  const submissionSql = `
+    SELECT s.id, s.assignment_id, s.user_id, u.name AS learner_name, s.response_text, s.attachment_url,
+      s.status, s.points_awarded, s.feedback, s.submitted_at
     FROM course_assignment_submissions s
     JOIN course_assignments a ON a.id = s.assignment_id
-    WHERE s.user_id = ? AND a.course_id IN (${courseIds.map(() => '?').join(',')})
-  `).bind(user.id, ...courseIds).all();
+    JOIN users u ON u.id = s.user_id
+    WHERE ${user.role === 'student' ? 's.user_id = ? AND ' : ''}a.course_id IN (${courseIds.map(() => '?').join(',')})
+    ORDER BY s.submitted_at DESC
+  `;
+  const submissionResult = user.role === 'student'
+    ? await env.DB.prepare(submissionSql).bind(user.id, ...courseIds).all()
+    : await env.DB.prepare(submissionSql).bind(...courseIds).all();
 
   const progressByLesson = new Map((progressResult.results ?? []).map((item) => [item.lesson_id, item]));
-  const submissionsByAssignment = new Map((submissionResult.results ?? []).map((item) => [item.assignment_id, item]));
+  const submissionsByAssignment = new Map();
+  for (const submission of submissionResult.results ?? []) {
+    const current = submissionsByAssignment.get(submission.assignment_id) ?? [];
+    current.push(submission);
+    submissionsByAssignment.set(submission.assignment_id, current);
+  }
   const resultCourses = courseRows.map((course) => ({
     ...course,
     modules: modules.filter((module) => module.course_id === course.id).map((module) => ({
@@ -90,7 +101,9 @@ export async function onRequestGet({ request, env }) {
     })),
     assignments: assignments.filter((assignment) => assignment.course_id === course.id).map((assignment) => ({
       ...assignment,
-      submission: submissionsByAssignment.get(assignment.id) ?? null,
+      ...(user.role === 'student'
+        ? { submission: submissionsByAssignment.get(assignment.id)?.[0] ?? null }
+        : { submissions: submissionsByAssignment.get(assignment.id) ?? [] }),
     })),
   }));
   return json({ courses: resultCourses, role: user.role });
