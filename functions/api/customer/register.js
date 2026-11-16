@@ -17,7 +17,11 @@ export async function onRequestPost({request,env}) {
     const cookie=await setCustomerSession(env,customer.id);
     return json({customer},201,{'Set-Cookie':cookie});
   } catch(e) {
-    if(String(e).includes('UNIQUE')) return error('An account with this email already exists. Please sign in instead.',409);
-    return error('We could not create your account. Please try again.',500);
+    const detail = String(e?.message || e || 'unknown error');
+    if(/UNIQUE|unique constraint/i.test(detail)) return error('An account with this email already exists. Please sign in instead.',409);
+    const supportRef = crypto.randomUUID().slice(0,8).toUpperCase();
+    console.error('Customer registration failed [' + supportRef + ']:', detail);
+    if(/no such table|no such column|schema/i.test(detail)) return error('Customer account storage is not fully configured yet. Please contact Navstar support and quote ' + supportRef + '.',503);
+    return error('We could not create your account. Please contact Navstar support and quote ' + supportRef + '.',500);
   }
 }
