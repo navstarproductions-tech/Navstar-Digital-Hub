@@ -36,6 +36,7 @@ export function Navbar() {
   const signOut = async () => {
     await fetch('/api/customer/logout', { method: 'POST' }).catch(() => undefined);
     setSignedInUser(null);
+    window.dispatchEvent(new Event('navstar:customer-auth-changed'));
     navigate('/');
   };
 
@@ -65,7 +66,8 @@ export function Navbar() {
       }
     };
     void loadHeaderData();
-    return () => { active = false; };
+    window.addEventListener('navstar:customer-auth-changed', loadHeaderData);
+    return () => { active = false; window.removeEventListener('navstar:customer-auth-changed', loadHeaderData); };
   }, []);
 
   const closeMenu = () => setIsOpen(false);
