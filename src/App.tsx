@@ -17,6 +17,7 @@ import { DigitalHubPage } from '@/pages/DigitalHubPage';
 import { ForumPage } from '@/pages/ForumPage';
 import { PaymentReceiptsPage } from '@/pages/PaymentReceiptsPage';
 import { MusicPage } from '@/pages/MusicPage';
+import { PortalNotificationsPage } from '@/pages/PortalNotificationsPage';
 import { AIChatWidget } from '@/components/AIChatWidget';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -33,6 +34,7 @@ function App() {
             <Route path="/donations" element={<DonationsPage />} />
             <Route path="/portals" element={<PortalsPage />} />
             <Route path="/portals/:role" element={<PortalsPage />} />
+            <Route path="/portals/notifications" element={<PortalNotificationsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/account" element={<CustomerAccountPage />} />
             <Route path="/campus-life" element={<DigitalHubPage />} />
