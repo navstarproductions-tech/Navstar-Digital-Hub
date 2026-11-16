@@ -77,22 +77,22 @@ export function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 w-full border-t-2 border-amber-400 border-b-2 border-green-500 bg-blue-950 text-white shadow-sm">
-      <div className="container mx-auto px-3 sm:px-5 lg:px-7">
-        <div className="flex min-h-16 items-center justify-between gap-3">
-          <Link to="/" className="flex min-w-0 shrink-0 items-center gap-2.5" aria-label="NAVSTAR DIGITAL HUB home">
+      <div className="w-full px-2 sm:px-3 lg:px-4 2xl:px-6">
+        <div className="flex min-h-16 w-full items-center justify-between gap-2 xl:gap-3">
+          <Link to="/" className="flex min-w-0 shrink items-center gap-2 xl:gap-2.5" aria-label="NAVSTAR DIGITAL HUB home">
             {logoUrl ? <img src={logoUrl} alt="" className="h-9 w-9 object-contain" /> : <div className="rounded-lg bg-white/10 p-2 text-white"><Monitor className="h-5 w-5" /></div>}
-            <span className="max-w-[150px] truncate text-xs font-black tracking-wide text-white sm:max-w-none sm:text-sm">{brandName}</span>
+            <span className="max-w-[112px] truncate text-[11px] font-black tracking-tight text-white sm:max-w-[170px] sm:text-xs 2xl:max-w-none 2xl:text-sm">{brandName}</span>
           </Link>
 
-          <div className="hidden xl:flex min-w-0 flex-1 items-center justify-center gap-0.5">
-            {navigation.map((item) => item.to === '#donate' ? <button key={item.to} type="button" onClick={() => setDonationOpen(true)} className="whitespace-nowrap rounded-lg bg-amber-300 px-2 py-2 text-[13px] font-extrabold text-blue-950 shadow-md shadow-amber-400/20 transition-colors hover:bg-amber-200 2xl:px-2.5" aria-haspopup="dialog">{item.label}</button> : <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-bold transition-colors 2xl:px-2.5 ${isActive ? 'bg-amber-300 text-blue-950 shadow-md shadow-amber-400/20' : 'text-blue-100 hover:bg-white/10 hover:text-white'}`}>
+          <div className="hidden xl:flex min-w-0 flex-1 items-center justify-between gap-0.5 px-1 2xl:px-2">
+            {navigation.map((item) => item.to === '#donate' ? <button key={item.to} type="button" onClick={() => setDonationOpen(true)} className="whitespace-nowrap rounded-lg bg-amber-300 px-1.5 py-2 text-xs font-extrabold text-blue-950 shadow-md shadow-amber-400/20 transition-colors hover:bg-amber-200 2xl:px-2" aria-haspopup="dialog">{item.label}</button> : <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-lg px-1.5 py-2 text-xs font-bold transition-colors 2xl:px-2.5 ${isActive ? 'bg-amber-300 text-blue-950 shadow-md shadow-amber-400/20' : 'text-blue-100 hover:bg-white/10 hover:text-white'}`}>
                 {item.label}
               </NavLink>)}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1 xl:gap-1.5">
             {signedInUser ? <div className="hidden md:flex max-w-[190px] items-center gap-2 rounded-xl border border-amber-300/70 bg-white/10 px-3 py-2 text-xs font-bold text-white" title={signedInUser.name}><UserRound className="h-4 w-4 shrink-0 text-amber-300"/><span className="truncate">Hi, {signedInUser.name}</span></div> : <Button asChild size="sm" className="hidden sm:inline-flex rounded-xl border border-amber-300 bg-amber-300 px-3 font-extrabold text-blue-950 shadow-md shadow-amber-400/20 hover:bg-amber-200"><Link to="/account"><UserRound className="mr-1.5 h-4 w-4"/>Log in / Sign up</Link></Button>}
-            <Link to="/services#service-cart" aria-label="Your orders and cart" title="Your orders and cart" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-green-400/70 bg-green-500/15 text-white shadow-sm transition hover:border-amber-300 hover:bg-amber-300 hover:text-blue-950">
+            <Link to="/services#service-cart" aria-label="Your orders and cart" title="Your orders and cart" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-green-400/70 bg-green-500/15 text-white shadow-sm transition hover:border-amber-300 hover:bg-amber-300 hover:text-blue-950">
               <ShoppingCart className="h-5 w-5" />
             </Link>
             {signedInUser && <Button size="sm" variant="ghost" className="hidden xl:inline-flex rounded-xl text-white hover:bg-white/10 hover:text-amber-300" onClick={signOut}><LogOut className="mr-1.5 h-4 w-4"/>Log out</Button>}
