@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 export function ChangePasswordPage() {
   const navigate = useNavigate();
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);\n  const [newPassword, setNewPassword] = useState('');\n  const [confirmPassword, setConfirmPassword] = useState('');\n  const strong = newPassword.length >= 6 && newPassword.length <= 12 && [/[A-Z]/.test(newPassword), /[a-z]/.test(newPassword), /[0-9]/.test(newPassword), /[^A-Za-z0-9]/.test(newPassword)].filter(Boolean).length >= 3;
 
   const changePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -26,7 +26,7 @@ export function ChangePasswordPage() {
       const response = await fetch('/api/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword: values.get('currentPassword'), newPassword }),
+        body: JSON.stringify({ currentPassword: values.get('currentPassword'), newPassword, confirmPassword: values.get('confirmPassword') }),
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error ?? 'Password change failed.');
@@ -45,12 +45,12 @@ export function ChangePasswordPage() {
         <Link to="/login" className="inline-flex items-center gap-2 text-sm text-slate-600"><ArrowLeft className="h-4 w-4" /> Sign in</Link>
         <KeyRound className="mt-7 h-6 w-6 text-emerald-800" />
         <h1 className="mt-4 text-2xl font-bold text-slate-950">Change temporary password</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Choose a unique password with at least 14 characters. It will be stored as a salted password hash.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Choose a strong password of 6–12 characters. Use at least three of the four character types below.</p>
         <form onSubmit={changePassword} className="mt-6 space-y-4">
           <div className="space-y-2"><Label htmlFor="current-password">Temporary password</Label><Input id="current-password" name="currentPassword" type="password" autoComplete="current-password" required /></div>
-          <div className="space-y-2"><Label htmlFor="new-password">New password</Label><Input id="new-password" name="newPassword" type="password" autoComplete="new-password" minLength={14} required /></div>
-          <div className="space-y-2"><Label htmlFor="confirm-password">Confirm new password</Label><Input id="confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength={14} required /></div>
-          <Button type="submit" disabled={loading} className="w-full bg-emerald-800 hover:bg-emerald-900">{loading ? 'Updating…' : 'Update password'}</Button>
+          <div className="space-y-2"><Label htmlFor="new-password">New password</Label><Input id="new-password" name="newPassword" type="password" autoComplete="new-password" minLength={6} maxLength={12} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><p className="text-xs leading-5 text-slate-600">Use at least 3: capital letter, small letter, number, special character (! @ #).</p><p className={strong ? 'text-xs font-semibold text-emerald-700' : 'text-xs text-slate-500'}>{newPassword ? (strong ? 'Strong password ✓' : 'Password does not meet the strength rule yet.') : 'Strength is checked as you type.'}</p></div>
+          <div className="space-y-2"><Label htmlFor="confirm-password">Confirm new password</Label><Input id="confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength={6} maxLength={12} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />{confirmPassword && <p className={newPassword === confirmPassword ? 'text-xs text-emerald-700' : 'text-xs text-red-600'}>{newPassword === confirmPassword ? 'Passwords match ✓' : 'Passwords do not match.'}</p>}</div>
+          <Button type="submit" disabled={loading || !strong || !confirmPassword || newPassword !== confirmPassword} className="w-full bg-emerald-800 hover:bg-emerald-900">{loading ? 'Updating…' : 'Update password'}</Button>
           {message && <p role="status" className="text-sm text-red-700">{message}</p>}
         </form>
       </section>
