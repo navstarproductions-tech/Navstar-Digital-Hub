@@ -11,7 +11,7 @@ export async function onRequestPost({request,env}) {
   const fullName=safeString(body.fullName,120), email=safeString(body.email,254).toLowerCase();
   const phone=body.phone ? normalizePhone(body.phone) : '';
   const password=String(body.password||'');
-  if(fullName.length<2||!emailPattern.test(email)||(body.phone&&!phone)||password.length<10||password.length>200) return error('Enter your name, a valid email, a valid phone number if supplied, and a password of at least 10 characters.');
+  if(fullName.length<2||!emailPattern.test(email)||(body.phone&&!phone)||password.length<6||password.length>12) return error('Enter your name, a valid email, a valid phone number if supplied, and a password between 6 and 12 characters.');
   try {
     let customer;
     let created = true;
