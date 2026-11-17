@@ -10,7 +10,7 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
   const currentPassword = String(body.currentPassword ?? '');
   const newPassword = String(body.newPassword ?? '');
-  if (newPassword.length < 14 || newPassword.length > 200) return error('New password must be at least 14 characters.');
+  if (newPassword.length < 6 || newPassword.length > 12) return error('New password must contain 6 to 12 characters.');
   const record = await env.DB.prepare('SELECT password_hash, password_salt FROM users WHERE id = ?').bind(user.id).first();
   if (!record || !await verifyPassword(currentPassword, record.password_salt, record.password_hash)) return error('Current password is incorrect.', 401);
   const password = await hashPassword(newPassword);
