@@ -18,7 +18,7 @@ export async function onRequestPost({ request, env }) {
   const confirmPassword = String(body.confirmPassword ?? password);
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error('Enter a valid administrator email address.');
-  if (password.length < 14 || password.length > 200) return error('Choose a password of at least 14 characters.');
+  if (password.length < 6 || password.length > 12) return error('Choose a password containing 6 to 12 characters.');
   if (password !== confirmPassword) return error('The passwords do not match.');
 
   // Never convert a student, tutor, customer, or staff account into an Admin.
