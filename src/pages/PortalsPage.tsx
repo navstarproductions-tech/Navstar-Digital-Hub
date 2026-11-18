@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, BookOpen, BriefcaseBusiness, GraduationCap, ShieldCheck, UserRound, UsersRound, Sparkles, LockKeyhole, ChevronRight, Bell } from 'lucide-react';
+import { ArrowRight, BookOpen, BriefcaseBusiness, GraduationCap, ShieldCheck, UserRound, UsersRound, Sparkles, LockKeyhole, Bell, UserRound, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatEATDate } from '@/lib/datetime';
 
@@ -25,6 +25,7 @@ export function PortalsPage() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [status, setStatus] = useState('Checking your secure session…');
+  const signOut = async () => { await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined); setUser(null); navigate('/login', { replace: true }); };
 
   useEffect(() => {
     if (!selectedPortal) return;
@@ -97,8 +98,8 @@ export function PortalsPage() {
                   <h3 className="mt-6 text-xl font-black text-slate-950">{title}</h3>
                   <p className="mt-2 flex-1 text-sm leading-7 text-slate-600">{summary}</p>
                   <div className="mt-6 flex items-center gap-3">
-                    <Button asChild className={`flex-1 rounded-xl bg-gradient-to-r ${accent} text-white shadow-sm hover:opacity-90`}><Link to={id === 'customer' ? '/services' : `/login?role=${id}`}>{id === 'customer' ? 'Browse & order' : 'Enter portal'} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
-                    <Link to={id === 'customer' ? '/services' : `/portals/${id}`} aria-label={id === 'customer' ? 'Browse customer services' : `View ${title}`} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-blue-300 hover:text-blue-700"><ChevronRight className="h-5 w-5" /></Link>
+                    <Button asChild className={`flex-1 rounded-xl bg-gradient-to-r ${accent} text-white shadow-sm hover:opacity-90`}><Link to={id === 'customer' ? '/services' : `/login?role=${id}`}>{id === 'customer' ? 'Browse & order' : 'Sign in'} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+
                   </div>
                 </div>
               </article>
@@ -120,7 +121,7 @@ export function PortalsPage() {
         <div className="container mx-auto flex flex-col justify-between gap-4 px-4 py-10 sm:flex-row sm:items-end sm:px-6 lg:px-8">
           <div><p className="text-xs font-bold uppercase tracking-[.25em] text-cyan-300">NAVSTAR DIGITAL HUB / {selectedPortal.id}</p><h1 className="mt-2 text-3xl font-black">{selectedPortal.title}</h1><p className="mt-2 text-slate-300">{user ? `Welcome, ${user.name}` : status}</p></div>
           {!user && <Button asChild className="w-fit rounded-full bg-blue-600 hover:bg-blue-500"><Link to={`/login?role=${selectedPortal.id}`}>Sign in securely <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>}
-          {user && <div className="flex flex-wrap gap-2"><Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/portals/notifications"><Bell className="mr-2 h-4 w-4"/>Notifications</Link></Button>{user.role === 'admin' && <Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/admin">Open admin workspace</Link></Button>}</div>}
+          {user && <div className="flex flex-wrap gap-2"><Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/portals/notifications"><Bell className="mr-2 h-4 w-4"/>Notifications</Link></Button><Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/my-account"><UserRound className="mr-2 h-4 w-4"/>My account</Link></Button>{user.role === 'admin' && <Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/admin">Admin workspace</Link></Button>}<Button type="button" variant="outline" onClick={() => void signOut()} className="border-amber-300/60 bg-amber-300/10 text-white hover:bg-amber-300/20"><LogOut className="mr-2 h-4 w-4"/>Log out</Button></div>}
         </div>
       </section>
       <section className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
