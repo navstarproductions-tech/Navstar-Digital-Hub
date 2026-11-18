@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS enrollment_application_otps (
   email TEXT NOT NULL,
   phone TEXT NOT NULL,
   otp_hash TEXT NOT NULL,
+  sms_otp_hash TEXT NOT NULL,
   verification_token_hash TEXT,
   expires_at TEXT NOT NULL,
   attempts INTEGER NOT NULL DEFAULT 0,
