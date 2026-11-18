@@ -32,7 +32,7 @@ function ScrollToTop() {
 
 function AppShell() {
   const { pathname } = useLocation();
-  const standalone = pathname === '/admin'
+  const standalone = pathname.startsWith('/admin')
     || pathname.startsWith('/portals/')
     || pathname === '/login'
     || pathname === '/setup'
