@@ -1,5 +1,5 @@
 import { hashPassword } from '../../../_shared/auth.js';
-import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../../_shared/http.js';
+import { error, isSameOrigin, json, readJson, uuid } from '../../../_shared/http.js';
 
 const digest = async (value) => {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
