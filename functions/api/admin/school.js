@@ -32,7 +32,7 @@ export async function onRequestPost({ request, env }) {
   const access = await requireRole(request, env, ['admin']);
   if (access.response) return access.response;
   let body;
-  try { body = await readJson(request, 16384); } catch { return error('Invalid request body.'); }
+  try { body = await readJson(request, 65536); } catch { return error('Invalid request body.'); }
   const action = safeString(body.action, 40);
   const schoolId = safeString(body.schoolId, 80);
 
@@ -91,6 +91,38 @@ export async function onRequestPost({ request, env }) {
     }
     await audit(env.DB, access.user.id, 'class_created', 'school_class', id);
     return json({ id }, 201);
+  }
+
+  if (action === 'bulk_create_learners') {
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    if (rows.length < 1 || rows.length > 100) return error('Upload between 1 and 100 learner rows.');
+    const normalized = rows.map(row => ({
+      admission: safeString(row?.admissionNumber, 40),
+      first: safeString(row?.firstName, 80),
+      middle: safeString(row?.middleName, 80),
+      last: safeString(row?.lastName, 80),
+      classId: safeString(row?.classId, 80) || null,
+      gender: safeString(row?.gender, 24) || null,
+      dob: safeString(row?.dateOfBirth, 10) || null,
+    }));
+    const invalid = normalized.findIndex(row => !row.admission || row.first.length < 1 || row.last.length < 1 || (row.dob && !/^\d{4}-\d{2}-\d{2}$/.test(row.dob)));
+    if (invalid >= 0) return error(`Learner row ${invalid + 1} needs an admission number, first name and surname, with a valid date of birth. Nothing was imported.`);
+    for (const row of normalized) {
+      if (row.classId && !(await env.DB.prepare('SELECT id FROM school_classes WHERE id = ? AND school_id = ?').bind(row.classId, schoolId).first())) return error('A learner row contains a class that does not belong to this institution. Nothing was imported.');
+    }
+    const prepared = normalized.map(row => ({ ...row, id: uuid() }));
+    const statements = prepared.flatMap(row => [
+      env.DB.prepare('INSERT INTO school_learners (id, school_id, admission_number, first_name, middle_name, last_name, date_of_birth, gender, class_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(row.id, schoolId, row.admission, row.first, row.middle || null, row.last, row.dob || null, row.gender, row.classId),
+      env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
+        .bind(uuid(), access.user.id, 'learner_registered', 'school_learner', row.id),
+    ]);
+    try { await env.DB.batch(statements); }
+    catch (cause) {
+      console.error('Navstar bulk learner import failed:', String(cause?.stack || cause));
+      return error('The learner import could not be saved. No existing learners were changed. Check admission numbers and try again.', 500);
+    }
+    return json({ imported: prepared.length, ids: prepared.map(row => row.id) }, 201);
   }
 
   if (action === 'create_learner') {
