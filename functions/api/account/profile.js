@@ -46,7 +46,7 @@ export async function onRequestPatch({ request, env }) {
   const employmentType = safeString(body.employmentType, 40);
   const joinedOn = safeString(body.joinedOn, 10);
   if (name.length < 2) return error('Enter your full name.');
-  if (dateOfBirth && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dateOfBirth)) return error('Enter a valid date of birth.');
+  if (dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return error('Enter a valid date of birth.');
   if (nationalId && !/^[A-Za-z0-9/-]{4,32}$/.test(nationalId)) return error('Enter a valid National ID or identity reference.');
   await env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, access.user.id).run();
   await env.DB.prepare(`
