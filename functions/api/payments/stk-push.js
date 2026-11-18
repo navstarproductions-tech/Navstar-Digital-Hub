@@ -1,4 +1,5 @@
 import { getSession } from '../../_shared/auth.js';
+import { rateLimited } from '../../_shared/rate-limit.js';
 import { startStkPush, darajaReady } from '../../_shared/daraja.js';
 import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../../_shared/http.js';
 
@@ -23,14 +24,25 @@ export async function onRequestPost({ request, env }) {
     displayReference = donation.display_ref;
   } else if (purpose === 'enrollment') {
     const session = await getSession(request, env);
-    if (!session || !['student', 'admin', 'finance', 'admissions'].includes(session.role)) return error('Sign in to the Student Portal before requesting an enrollment payment.', 401);
+    if (!session && await rateLimited(env.DB, request, 'public-enrollment-payment', { maximum: 3, minutes: 15 })) return error('Too many payment prompts. Please wait before trying again.', 429);
     const enrollment = await env.DB.prepare(`
-      SELECT enrollments.id, enrollments.display_ref, enrollments.email, enrollments.phone, enrollments.payment_status, courses.price
+      SELECT enrollments.id, enrollments.display_ref, enrollments.email, enrollments.phone, enrollments.payment_status, enrollments.status, courses.price
       FROM enrollments JOIN courses ON courses.id = enrollments.course_id WHERE enrollments.id = ?
     `).bind(reference).first();
     if (!enrollment || enrollment.phone !== phone || enrollment.payment_status === 'paid') return error('Enrollment payment is not available.', 404);
-    if (session.role === 'student' && String(enrollment.email).toLowerCase() !== String(session.email).toLowerCase()) return error('You can only pay fees for your own student account.', 403);
-    amount = enrollment.price;
+    if (session && !['student', 'admin', 'finance', 'admissions'].includes(session.role)) return error('This account cannot make an enrollment payment.', 403);
+    if (session?.role === 'student' && String(enrollment.email).toLowerCase() !== String(session.email).toLowerCase()) return error('You can only pay fees for your own student account.', 403);
+    if (!session && enrollment.status !== 'under_review') return error('Sign in to the Student Portal before requesting a payment for an existing enrolment.', 401);
+    const configRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
+    let config = {}; try { config = JSON.parse(configRow?.value || '{}'); } catch {}
+    const minimum = Number(config['enrollment-settings']?.minimumEnrollmentPayment || 0);
+    if (enrollment.status === 'under_review') {
+      amount = minimum > 0 ? minimum : enrollment.price;
+    } else {
+      const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
+      amount = Math.max(0, Number(enrollment.price) - Number(paidRow?.paid_total || 0));
+    }
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > enrollment.price) return error('There is no outstanding enrollment balance or the minimum payment is not configured correctly.', 409);
     displayReference = enrollment.display_ref;
   } else {
     const service = await env.DB.prepare("SELECT id, display_ref, phone, amount, status FROM service_requests WHERE id = ?").bind(reference).first();

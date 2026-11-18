@@ -2,10 +2,22 @@ import { getSession } from '../_shared/auth.js';
 import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../_shared/http.js';
 import { rateLimited } from '../_shared/rate-limit.js';
 import { nextReference } from '../_shared/references.js';
-import { queueCustomerNotice } from '../_shared/notifications.js';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+async function currentIntake(DB) {
+  const row = await DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
+  let config = {}; try { config = JSON.parse(row?.value || '{}'); } catch {}
+  const section = config['academic-intakes'] || {};
+  const today = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const entries = String(section.intakes || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0]);
+  const mapped = entries.map(parts => ({ name: parts[0], enrollmentOpen: parts[1], enrollmentClose: parts[2], trainingStart: parts[3] || '', trainingEnd: parts[4] || '', graduationDate: parts[5] || '' }));
+  if (!mapped.length && section.currentIntake) mapped.push({ name: section.currentIntake, enrollmentOpen: section.enrollmentOpen || '', enrollmentClose: section.enrollmentClose || '', trainingStart: section.trainingStart || '', trainingEnd: section.trainingEnd || '', graduationDate: section.graduationDate || '' });
+  const open = mapped.find(item => item.enrollmentOpen && item.enrollmentClose && today >= item.enrollmentOpen && today <= item.enrollmentClose);
+  const upcoming = mapped.filter(item => item.enrollmentOpen && item.enrollmentOpen > today).sort((a,b) => a.enrollmentOpen.localeCompare(b.enrollmentOpen))[0];
+  return open ? { ...open, status: 'open' } : upcoming ? { ...upcoming, status: 'upcoming' } : mapped.length ? { ...mapped.sort((a,b) => b.enrollmentClose.localeCompare(a.enrollmentClose))[0], status: 'closed' } : null;
+}
 
 async function enrollmentRules(DB) {
   const row = await DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
@@ -24,6 +36,7 @@ async function existingStudentCourse(DB, { courseId, identityNumber, email }) {
     JOIN users u ON lower(u.email) = lower(e.email)
     LEFT JOIN user_profiles p ON p.user_id = u.id
     WHERE u.role = 'student' AND u.status = 'active'
+      AND e.status IN ('submitted','under_review','accepted')
       AND ((? <> '' AND (e.identity_number = ? OR p.national_id = ?))
         OR (? <> '' AND lower(e.email) = lower(?)))
   `).bind(courseId, identityNumber || '', identityNumber || '', identityNumber || '', email || '', email || '').first();
@@ -38,6 +51,8 @@ export async function onRequestPost(context) {
 
   let body;
   try { body = await readJson(request, 16384); } catch { return error('Invalid request body.'); }
+  const intake = await currentIntake(env.DB);
+  if (!intake || intake.status !== 'open') return error(intake?.status === 'upcoming' ? `Enrollment is not open yet. The next intake is ${intake.name}, opening ${intake.enrollmentOpen}.` : 'Enrollment is currently closed. Please check the next intake dates on the Courses page.', 403);
   const courseId = safeString(body.courseId, 80);
   const course = await env.DB.prepare('SELECT id, title, price FROM courses WHERE id = ? AND status = ?').bind(courseId, 'active').first();
   if (!course) return error('Selected course is not available.', 404);
@@ -46,6 +61,7 @@ export async function onRequestPost(context) {
   const email = safeString(body.email, 254).toLowerCase();
   const phone = normalizePhone(body.phone);
   const dateOfBirth = safeString(body.dateOfBirth, 10);
+  const identityType = safeString(body.identityType, 30);
   const studyMode = safeString(body.studyMode, 40);
   const educationLevel = safeString(body.educationLevel, 40);
   const county = safeString(body.county, 80);
@@ -53,7 +69,9 @@ export async function onRequestPost(context) {
   const emergencyContactName = safeString(body.emergencyContactName, 120);
   const emergencyContactPhone = normalizePhone(body.emergencyContactPhone);
   const consent = body.consent === true || body.consent === 'on';
-  if (fullName.length < 2 || !emailPattern.test(email) || !phone || !datePattern.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyContactName || !emergencyContactPhone || !consent) {
+  const birthTime = datePattern.test(dateOfBirth) ? new Date(`${dateOfBirth}T00:00:00Z`).getTime() : NaN;
+  const age = Number.isFinite(birthTime) ? Math.floor((Date.now() - birthTime) / 31557600000) : -1;
+  if (!['national-id','maisha-card','birth-certificate','passport'].includes(identityType) || !safeString(body.identityNumber, 80) || age < 18 || fullName.length < 2 || !emailPattern.test(email) || !phone || !datePattern.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyContactName || !emergencyContactPhone || !consent) {
     return error('Complete all required fields with valid contact details.');
   }
 
@@ -66,29 +84,27 @@ export async function onRequestPost(context) {
     return error(`The student has reached the maximum of ${maximumCourses} course(s) allowed by Navstar. Please contact Admissions for assistance.`, 409);
   }
 
+  const configuredMinimum = Number(rules.minimumEnrollmentPayment || 0);
+  const amountDueNow = configuredMinimum > 0 ? configuredMinimum : Number(course.price);
+  if (!Number.isSafeInteger(amountDueNow) || amountDueNow < 1 || amountDueNow > Number(course.price)) return error('The minimum enrolment payment in Admin Settings must be at least KSh 1 and cannot exceed the published course fee.', 409);
+
   const id = uuid();
   const displayRef = await nextReference(env.DB, 'ENR');
   await env.DB.prepare(`
     INSERT INTO enrollments (
-      id, display_ref, course_id, full_name, email, phone, date_of_birth, identity_number, gender, nationality,
-      study_mode, education_level, preferred_intake, experience, county, town, address,
+      id, display_ref, course_id, full_name, email, phone, date_of_birth, identity_type, identity_number, gender, nationality,
+      study_mode, education_level, preferred_intake, experience, county, town, address, sub_county, ward, location, sub_location,
       emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, support_needs, consent
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      , status, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'under_review', 'pending')
   `).bind(
-    id, displayRef, course.id, fullName, email, phone, dateOfBirth, identityNumber || null,
+    id, displayRef, course.id, fullName, email, phone, dateOfBirth, identityType, identityNumber || null,
     safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null, studyMode, educationLevel,
-    safeString(body.preferredIntake, 20) || null, safeString(body.experience, 2000) || null, county, town,
-    safeString(body.address, 250) || null, emergencyContactName, emergencyContactPhone,
+    safeString(intake.name, 80) || null, safeString(body.experience, 2000) || null, county, town,
+    safeString(body.address, 250) || null, safeString(body.subCounty, 100) || null, safeString(body.ward, 100) || null, safeString(body.location, 100) || null, safeString(body.subLocation, 100) || null, emergencyContactName, emergencyContactPhone,
     safeString(body.emergencyContactRelationship, 80) || null, safeString(body.supportNeeds, 2000) || null,
   ).run();
 
-  const staff = await env.DB.prepare("SELECT id FROM users WHERE role IN ('admin', 'admissions') AND status = 'active'").all();
-  if (staff.results?.length) {
-    await env.DB.batch(staff.results.map((user) => env.DB.prepare('INSERT INTO notifications (id, user_id, title, message) VALUES (?, ?, ?, ?)')
-      .bind(uuid(), user.id, 'New application', `An application was received for ${course.title}.`)));
-  }
-  queueCustomerNotice(context, env, { email, phone, subject: 'Navstar application received', message: `Hello ${fullName}, your application for ${course.title} has been received. Reference: ${displayRef}. Navstar Digital Hub — HOME OF TECHNOCRATS.` });
-  return json({ id, reference: displayRef, status: 'submitted', course: { id: course.id, title: course.title, amount: course.price } }, 201);
+  return json({ id, reference: displayRef, status: 'awaiting_payment', paymentRequired: true, amountDueNow, course: { id: course.id, title: course.title, amount: course.price } }, 201);
 }
 
 export async function onRequestGet({ request, env }) {
