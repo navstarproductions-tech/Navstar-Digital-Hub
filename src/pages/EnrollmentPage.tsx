@@ -51,6 +51,10 @@ export function EnrollmentPage() {
     const form = event.currentTarget;
     const formData = new FormData(form);
     const normalizedPhone = String(formData.get('phone') ?? '').replace(/[\s-]/g, '');
+    const dob = String(formData.get('dateOfBirth') || '');
+    const parsedDob = new Date(`${dob}T00:00:00`);
+    const age = dob && !Number.isNaN(parsedDob.getTime()) ? Math.floor((Date.now() - parsedDob.getTime()) / 31557600000) : -1;
+    if (age < 18) { setStatus('Applicants must be at least 18 years old. Check the date of birth and enter it again.'); return; }
     if (!/^(?:\+?254|0)?[17]\d{8}$/.test(normalizedPhone)) {
       setStatus('Enter a valid Kenyan mobile number to continue.');
       return;
