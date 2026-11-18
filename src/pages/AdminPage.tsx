@@ -79,6 +79,10 @@ export function AdminPage() {
   const [temporaryPassword, setTemporaryPassword] = useState('');
   const [applications, setApplications] = useState<Record<string, unknown>[]>([]);
   const [cashoutRequests, setCashoutRequests] = useState<Record<string, unknown>[]>([]);
+  const [financePayments, setFinancePayments] = useState<Record<string, unknown>[]>([]);
+  const [financeTotals, setFinanceTotals] = useState<Record<string, unknown>>({});
+  const [mpesaBalance, setMpesaBalance] = useState<Record<string, unknown> | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
   const [metrics, setMetrics] = useState<Record<string, unknown>>({});
   const [documents, setDocuments] = useState<{ id: string; title: string; description: string; originalName: string; sizeBytes: number; url: string }[]>([]);
   const [documentTitle, setDocumentTitle] = useState('');
@@ -160,6 +164,30 @@ export function AdminPage() {
       .then((result) => { if (result?.orders) setCustomerOrders(result.orders); })
       .catch(() => undefined);
   }, [user, backendReady]);
+
+  const refreshFinance = async () => {
+    const response = await fetch('/api/admin/payments');
+    const result = await response.json() as { payments?: Record<string, unknown>[]; totals?: Record<string, unknown>; mpesaBalance?: Record<string, unknown> | null; error?: string };
+    if (!response.ok) { setNotice(result.error ?? 'Could not load payment register.'); return; }
+    setFinancePayments(result.payments ?? []); setFinanceTotals(result.totals ?? {}); setMpesaBalance(result.mpesaBalance ?? null);
+  };
+
+  const reviewPayment = async (paymentId: string, decision: 'confirmed' | 'flagged') => {
+    const response = await fetch('/api/admin/payments/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId, decision }) });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) { setNotice(result.error ?? 'Payment review failed.'); return; }
+    setNotice(decision === 'confirmed' ? 'Payment reviewed and confirmed by Admin.' : 'Payment flagged for follow-up.');
+    await refreshFinance();
+  };
+
+  const requestMpesaBalance = async () => {
+    setBalanceLoading(true);
+    try { const response = await fetch('/api/admin/mpesa-balance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); const result = await response.json() as { message?: string; error?: string }; setNotice(response.ok ? (result.message ?? 'Balance enquiry sent.') : (result.error ?? 'Balance enquiry failed.')); }
+    catch { setNotice('Could not request the live M-Pesa balance.'); }
+    finally { setBalanceLoading(false); }
+  };
+
+  useEffect(() => { if (user && ['admin','principal','admissions'].includes(user.role) && backendReady) void refreshFinance(); }, [user, backendReady]);
 
   const uploadDocument = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -480,7 +508,26 @@ export function AdminPage() {
 
           {active === 'receipts' && <section className="rounded-2xl border bg-white p-6"><div className="flex items-center gap-3"><ReceiptText className="h-6 w-6 text-blue-800"/><div><h3 className="font-bold text-slate-950">Confirmed payment receipts</h3><p className="mt-1 text-sm text-slate-600">View confirmed payments and print or save official Navstar receipts as PDF.</p></div></div><Link to="/admin/receipts" className="mt-5 inline-flex items-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900">Open payment receipt register</Link></section>}
 
-          {active === 'finance' && <div className="grid gap-6 xl:grid-cols-2"><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Verified donations and payments</h3><p className="mt-2 text-sm leading-6 text-slate-600">Only provider callbacks mark donations and tuition as paid. No M-Pesa PIN or payment credentials are shown here.</p><p className="mt-5 border bg-slate-50 p-4 text-sm text-slate-600">Verified donations: KSh {Number(metrics.verifiedDonations ?? 0).toLocaleString()} · Verified payments: KSh {Number(metrics.verifiedPayments ?? 0).toLocaleString()}</p></section><form onSubmit={startCashout} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Request cashout</h3><p className="mt-2 text-sm leading-6 text-slate-600">This creates an approval request only; it does not transfer funds. Never withdraw from the browser.</p></div><div className="space-y-2"><Label htmlFor="cashout-amount">Amount (KSh)</Label><Input id="cashout-amount" type="number" min="1" value={cashoutAmount} onChange={(event) => setCashoutAmount(event.target.value)} required /></div><Button className="bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={!backendReady || !user}><CircleDollarSign className="mr-2 h-4 w-4" />{backendReady ? 'Submit for approval' : 'Backend required'}</Button><div className="divide-y border">{cashoutRequests.map((item) => <div key={String(item.id)} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><span>KSh {Number(item.amount).toLocaleString()} · {String(item.status)}</span>{item.status === 'pending_approval' && user?.role === 'admin' && <span className="flex gap-2"><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'approved')}>Approve</Button><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'rejected')}>Reject</Button></span>}</div>)}{cashoutRequests.length === 0 && <p className="p-3 text-xs text-slate-500">No cashout requests.</p>}</div></form></div>}
+          {active === 'finance' && <div className="space-y-6">
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ['Safaricom received', financeTotals.mpesa_received], ['Admin confirmed', financeTotals.admin_confirmed],
+                ['Awaiting M-Pesa', financeTotals.awaiting_mpesa], ['Awaiting admin review', financeTotals.awaiting_admin_review]
+              ].map(([label,value]) => <div key={String(label)} className="border bg-white p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-2 text-xl font-black text-slate-950">KSh {Number(value ?? 0).toLocaleString()}</p></div>)}
+            </section>
+            <section className="flex flex-wrap items-center justify-between gap-4 border bg-white p-5">
+              <div><h3 className="font-bold text-slate-950">Live M-Pesa balance</h3><p className="mt-1 text-sm text-slate-600">Safaricom Account Balance enquiry. A balance is displayed only after Safaricom returns its callback.</p>
+                {mpesaBalance?.received_at ? <p className="mt-2 text-sm font-bold text-emerald-800">{mpesaBalance.balance_amount !== null && mpesaBalance.balance_amount !== undefined ? 'KSh '+Number(mpesaBalance.balance_amount).toLocaleString() : String(mpesaBalance.balance_text || mpesaBalance.result_description || 'Balance callback received')} · {formatEATDateTime(String(mpesaBalance.received_at))}</p> : <p className="mt-2 text-sm text-amber-700">No live balance response received yet.</p>}
+              </div>
+              <Button type="button" onClick={() => void requestMpesaBalance()} disabled={balanceLoading || user?.role !== 'admin'} className="bg-blue-800 hover:bg-blue-900">{balanceLoading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Requesting…</> : 'Refresh live balance'}</Button>
+            </section>
+            <section className="overflow-hidden border bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><div><h3 className="font-bold text-slate-950">All payments and contribution register</h3><p className="mt-1 text-sm text-slate-600">Donations, agreed contributions, debt repayments, course fees and service payments. Safaricom receipt and Admin review are tracked separately.</p></div><Button type="button" variant="outline" onClick={() => void refreshFinance()}>Refresh register</Button></div>
+              <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-xs"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Payer / purpose</th><th className="p-3">Reference</th><th className="p-3">Amount</th><th className="p-3">M-Pesa</th><th className="p-3">Admin review</th><th className="p-3">Action</th></tr></thead><tbody>{financePayments.map(item => <tr key={String(item.id)} className="border-t"><td className="p-3"><strong>{String(item.payer_name || 'Supporter')}</strong><p className="mt-1 text-slate-500">{String(item.description || item.purpose)}{item.debt_reference ? ' · '+String(item.debt_reference) : ''}</p></td><td className="p-3">{String(item.display_reference || '—')}<p className="text-slate-500">{String(item.receipt_number || '')}</p></td><td className="p-3 font-bold">KSh {Number(item.amount || 0).toLocaleString()}</td><td className="p-3">{String(item.status || '—')}{item.mpesa_receipt ? <p className="text-slate-500">{String(item.mpesa_receipt)}</p> : null}</td><td className="p-3">{String(item.admin_status || 'not_received')}</td><td className="p-3">{item.status === 'paid' && item.admin_status !== 'confirmed' && user?.role === 'admin' ? <div className="flex gap-2"><Button size="sm" type="button" onClick={() => void reviewPayment(String(item.id),'confirmed')}>Confirm</Button><Button size="sm" variant="outline" type="button" onClick={() => void reviewPayment(String(item.id),'flagged')}>Flag</Button></div> : '—'}</td></tr>)}</tbody></table></div>
+              {financePayments.length === 0 && <p className="p-5 text-sm text-slate-500">No payment transactions recorded yet.</p>}
+            </section>
+            <form onSubmit={startCashout} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Request cashout</h3><p className="mt-2 text-sm leading-6 text-slate-600">This creates an approval request only; it does not transfer funds. Never withdraw from the browser.</p></div><div className="space-y-2"><Label htmlFor="cashout-amount">Amount (KSh)</Label><Input id="cashout-amount" type="number" min="1" value={cashoutAmount} onChange={(event) => setCashoutAmount(event.target.value)} required /></div><Button className="bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={!backendReady || !user}><CircleDollarSign className="mr-2 h-4 w-4" />{backendReady ? 'Submit for approval' : 'Backend required'}</Button><div className="divide-y border">{cashoutRequests.map((item) => <div key={String(item.id)} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><span>KSh {Number(item.amount).toLocaleString()} · {String(item.status)}</span>{item.status === 'pending_approval' && user?.role === 'admin' && <span className="flex gap-2"><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'approved')}>Approve</Button><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'rejected')}>Reject</Button></span>}</div>)}{cashoutRequests.length === 0 && <p className="p-3 text-xs text-slate-500">No cashout requests.</p>}</div></form>
+          </div>}
 
           {active === 'orders' && <section className="overflow-hidden rounded-2xl border bg-white">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><div><h3 className="font-bold text-slate-950">Customer service orders</h3><p className="mt-1 text-sm text-slate-600">Requests submitted from the public Customer Service Desk.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">{customerOrders.length} orders</span></div>
