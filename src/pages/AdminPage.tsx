@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound, LoaderCircle, Search, ArrowLeft, RefreshCw, ChevronDown } from 'lucide-react';
+import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound, LoaderCircle, Search, ArrowLeft, ArrowUpRight, RefreshCw, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -96,31 +96,74 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   {id:'settings',label:'Settings',icon:Settings},
 ];
 
-const sectionSubtabs: Record<Section, { label: string; target: Section; settingsTab?: 'site' | 'notifications' | 'my-profile' | 'geography' | 'staff-ids'; coursesTab?: 'catalogue' | 'manage' | 'edit'; learningTab?: 'modules' | 'bulk' }[]> = {
+type AdminSubtab = {label:string;target:Section;settingsTab?:'site'|'notifications'|'my-profile'|'geography'|'staff-ids';coursesTab?:'catalogue'|'manage'|'edit';learningTab?:'modules'|'bulk'};
+const makeTabs = (labels:string[],target:Section):AdminSubtab[] => labels.map(label=>({label,target}));
+const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   overview: [],
-  employees: [{label:'Employee Directory',target:'users'},{label:'Staff Applications',target:'enrollments'}],
-  'navstar-analytics': [{label:'Analytics Dashboard',target:'overview'}],
-  finance: [{label:'Accounts Overview',target:'finance'},{label:'Payment Receipts',target:'receipts'},{label:'Cashouts',target:'finance'}],
-  'staff-applications': [{label:'Applications',target:'enrollments'},{label:'Staff Directory',target:'users'}],
-  pos: [{label:'New Sale',target:'pos'},{label:'Service Catalogue',target:'services'},{label:'Customer Orders',target:'orders'},{label:'Sales & Receipts',target:'receipts'}],
-  courses: [{label:'Course Catalogue',target:'courses',coursesTab:'catalogue'},{label:'Manage Courses',target:'courses',coursesTab:'manage'},{label:'Edit Courses',target:'courses',coursesTab:'edit'},{label:'Modules',target:'learning',learningTab:'modules'},{label:'Add Multiple Modules',target:'learning',learningTab:'bulk'},{label:'Student Enrolment',target:'enrollments'},{label:'Academic Registry',target:'school'}],
-  learning: [{label:'Courses & Modules',target:'learning'},{label:'Assignments',target:'learning'},{label:'Learner Records',target:'school'},{label:'Course Catalogue',target:'courses'}],
-  school: [{label:'School Registry',target:'school'},{label:'Classes & Subjects',target:'school'},{label:'Fee Structures',target:'finance'},{label:'Admissions',target:'enrollments'}],
-  services: [{label:'Service Catalogue',target:'services'},{label:'Customer Orders',target:'orders'},{label:'Gallery & Media',target:'gallery'},{label:'Downloads',target:'downloads'}],
-  enrollments: [{label:'Applications',target:'enrollments'},{label:'Student Accounts',target:'users'},{label:'Course Allocation',target:'courses'},{label:'Payment Receipts',target:'receipts'}],
-  receipts: [{label:'Payment Receipts',target:'receipts'},{label:'Finance',target:'finance'},{label:'Admissions Payments',target:'enrollments'}],
-  gallery: [{label:'Gallery',target:'gallery'},{label:'Documents',target:'downloads'},{label:'Site Branding',target:'settings',settingsTab:'site'}],
-  downloads: [{label:'Documents',target:'downloads'},{label:'Gallery & Media',target:'gallery'},{label:'Service Catalogue',target:'services'}],
-  orders: [{label:'Service Orders',target:'orders'},{label:'Service Catalogue',target:'services'},{label:'Payment Receipts',target:'receipts'}],
-  users: [{label:'User Directory',target:'users'},{label:'Staff Applications',target:'enrollments'},{label:'Staff IDs',target:'settings',settingsTab:'staff-ids'},{label:'Access Settings',target:'settings',settingsTab:'site'}],
-  'profile': [{label:'Account Details',target:'settings',settingsTab:'my-profile'}],
-  settings: [{label:'Site Settings',target:'settings',settingsTab:'site'},{label:'Notifications',target:'settings',settingsTab:'notifications'},{label:'My Profile',target:'settings',settingsTab:'my-profile'},{label:'Geography',target:'settings',settingsTab:'geography'},{label:'Staff IDs',target:'settings',settingsTab:'staff-ids'}],
+  courses: [{label:'Course Catalogue',target:'courses',coursesTab:'catalogue'},{label:'Manage Courses',target:'courses',coursesTab:'manage'},{label:'Fee Structures',target:'finance'}],
+  learning: [{label:'View Modules',target:'learning',learningTab:'modules'},{label:'Assign Modules',target:'learning',learningTab:'modules'},{label:'Auto-Assign Modules',target:'learning',learningTab:'bulk'}],
+  school: makeTabs(['All Students','Add New Student','Bulk Enrollment','Completed → Graduates','Edit Student Details','Assign Intakes & Years','Detail Edit Requests','Print Basic List','Students List PDF (Filters & Select)','Manage Logins','Deleted Students & Recovery','Enrollment Links','Generate Bulk PDFs','Student Detail PDF'],'school'),
+  employees: makeTabs(['Employee Directory','Add Employee','Edit Employee Details','Staff Roles & Departments','Staff Attendance','Employee Documents'],'users'),
+  'staff-applications': makeTabs(['All Applications','Pending Review','Approved Applications','Rejected Applications','Application Documents'],'enrollments'),
+  'navstar-analytics': makeTabs(['Overview','Student Analytics','Course Analytics','Revenue Analytics','Attendance Analytics'],'overview'),
+  'ai-intake-advisor': makeTabs(['AI Intake Advisor','Review Recommendations','Intake Forecasts'],'ai-intake-advisor'),
+  'enrollment-summary': makeTabs(['Intake Summary','Enrollment by Course','Enrollment by Year','Enrollment Status'],'enrollments'),
+  services: makeTabs(['Manage Services','Customer Carts','Service Orders'],'services'),
+  pos: makeTabs(['Dashboards','New Sale','Packing & Delivery','Payment Approvals','Sales History','Scan & Sells','Print Barcode Labels','Generate Missing Barcodes'],'pos'),
+  finance: makeTabs(['Accounts Overview','Transactions','Payment Receipts','Cashouts','Financial Reports'],'finance'),
+  fees: makeTabs(['Collect Fees','Receipts','Fee Statements','Fee Defaulters','Enrollment Fee Offers'],'finance'),
+  'marks-tests': makeTabs(['Marks Hub — Practical · CAT · Final · Assignments','Exam Management (AI)','Export Exam as PDF','Exam Room (Live Monitor)','Exam Settings','Results Moderation','Results Visibility','Approve Changes'],'learning'),
+  'student-projects': makeTabs(['All Projects','Submit Project','Review & Approve Projects','Project Showcase'],'student-projects'),
+  scholarships: makeTabs(['Scholarship Register','Discount Applications','Approve Discounts','Award History'],'finance'),
+  certificates: makeTabs(['Dashboard','Merit List — Promote to Complete','Graduation List — Complete → Graduate','Graduate Serial Processing','Certificate Management','Document Access Control','Certificate Templates','Academic Documents','Student Records','Examination Records','QR Auth Center','Digital Signatures','Reports & Analytics','Audit Logs','Certificate Settings'],'certificates'),
+  alumni: makeTabs(['Alumni Directory','Graduate Records','Alumni Updates','Alumni Events'],'alumni'),
+  'report-cards': makeTabs(['Report Card Dashboard','Create Report Cards','Preview & Approve','Transcripts','Print & Export'],'report-cards'),
+  'auto-reports': makeTabs(['Document Generator','Report Templates','Bulk Generate','Generated Documents'],'auto-reports'),
+  'student-status': makeTabs(['Active Students','Completed','Graduated','Deferred','Suspended','Dismissed'],'school'),
+  attendance: makeTabs(['Attendance Register','Record Attendance','Attendance Summary','Attendance Reports'],'school'),
+  'class-rating': makeTabs(['Rating Forms','Create Rating Form','Responses & Analysis'],'class-rating'),
+  fingerprint: makeTabs(['Register Fingerprint','Scan & Verify','Fingerprint Records'],'fingerprint'),
+  applications: makeTabs(['All Applications','New Applications','Review Applications','Application Status'],'enrollments'),
+  'online-forms': makeTabs(['Form Builder','Published Forms','Form Responses'],'online-forms'),
+  reports: makeTabs(['Operational Reports','Student Reports','Finance Reports','Export Reports'],'overview'),
+  'analytics-reports': makeTabs(['Analytics Dashboard','Student Trends','Service Performance','Financial Performance'],'overview'),
+  'songs-music': makeTabs(['Music Library','Upload Music','Playlists'],'songs-music'),
+  gallery: makeTabs(['Photo Gallery','Upload Images','Manage Albums'],'gallery'),
+  'news-updates': makeTabs(['All News','Publish Update','Drafts & Archives'],'downloads'),
+  downloads: makeTabs(['Published Documents','Upload Documents','Manage Downloads'],'downloads'),
+  events: makeTabs(['Upcoming Events','Add Event','Meetings & Minutes'],'events'),
+  'demo-previews': makeTabs(['Available Demos','Preview Gallery','Manage Demo Links'],'demo-previews'),
+  'cv-builder': makeTabs(['Create CV','My CV Templates','Export CV'],'cv-builder'),
+  'upload-notes': makeTabs(['All Notes','Upload Notes','Organise by Course'],'learning'),
+  timetable: makeTabs(['AI Timetable Generator','Academic Almanac','Schedule Calendar','Manual Schedules','Tutors & Daily Timetable PDF'],'school'),
+  'online-classes': makeTabs(['Classrooms','Create Online Class','Class Materials'],'learning'),
+  'eclass-meetings': makeTabs(['Meetings Dashboard','Schedule Meeting','Meeting History'],'learning'),
+  'student-chat': makeTabs(['Student Conversations','New Message','Archived Chats'],'student-chat'),
+  'support-tickets': makeTabs(['All Tickets','Open Tickets','Resolved Tickets'],'support-tickets'),
+  'student-directory': makeTabs(['Student Directory','Search Students','Export Directory'],'school'),
+  'send-notification': makeTabs(['Compose Notification','Notification History','Delivery Status'],'settings'),
+  'broadcast-social': makeTabs(['Broadcast Message','Social Posts','Campaign History'],'settings'),
+  'sms-alerts': makeTabs(['Send SMS','SMS Templates','SMS Delivery Reports'],'settings'),
+  'birthday-center': makeTabs(['Upcoming Birthdays','Birthday Messages','Birthday History'],'birthday-center'),
+  'about-us': makeTabs(['About Navstar','Mission & Vision','Contact Details'],'about-us'),
+  'campus-history': makeTabs(['Campus Life','Institution History','Photo Highlights'],'gallery'),
+  profile: [{label:'Account Details',target:'settings',settingsTab:'my-profile'}],
+  users: makeTabs(['User Directory','Create User','Manage Logins','Staff IDs & Roles'],'users'),
+  'device-management': makeTabs(['Registered Devices','Device Activation','Device Activity'],'device-management'),
+  'admin-access': makeTabs(['Admin Roles','Access Permissions','Access Logs'],'admin-access'),
+  'customer-accounts': makeTabs(['Customer Accounts','Account Balances','Payment History'],'users'),
+  maintenance: makeTabs(['Maintenance Status','Enable / Disable Maintenance','Maintenance Notices'],'maintenance'),
+  'ict-portal': makeTabs(['ICT Service Requests','ICT Services & Pricing','Student Gateway','Tutor Portal','Finance Portal','Principal Portal','Deputy Principal'],'portal-links'),
+  settings: makeTabs(['Institute Profile','Fee Structures (PDFs)','Enrollment Settings','Academic Intakes','Institution & Campuses','Rules & Regulations','Marks & Grading','Institutional Branding','Home Page Content','Trusted Platforms','News & Announcements','Documents & Downloads','Report Card Layout','ID Card Design Studio','ID Card Format','ID Cards (Bulk Print)','Rubber Stamp Designer','Payment Methods','Results & Attendance Criteria','Completion Criteria','System Activity Monitor','Audit Logs','Theme & Language'],'settings'),
+  orders: makeTabs(['Service Orders','Customer Carts','Order Status'],'orders'),
+  receipts: makeTabs(['Payment Receipts','Verified Receipts','Receipt Search'],'receipts'),
 };
 
 export function AdminPage() {
   const navigate = useNavigate();
   const [active, setActive] = useState<Section>('overview');
   const [expandedSection, setExpandedSection] = useState<Section>('overview');
+  const [selectedSubtab, setSelectedSubtab] = useState('');
   const [coursesSubTab, setCoursesSubTab] = useState<'catalogue' | 'manage' | 'edit'>('catalogue');
   const [learningSubTab, setLearningSubTab] = useState<'modules' | 'bulk'>('modules');
   const [settingsTab, setSettingsTab] = useState<'site' | 'notifications' | 'my-profile' | 'geography' | 'staff-ids'>('site');
@@ -593,7 +636,7 @@ export function AdminPage() {
     const response = await fetch('/api/admin/downloads', { method: 'POST', body: form });
     const result = await response.json() as { id?: string; title?: string; description?: string; originalName?: string; sizeBytes?: number; url?: string; error?: string };
     if (!response.ok || !result.id) { setNotice(result.error ?? 'Document upload failed.'); return; }
-    setDocuments((current) => [{ id: result.id!, title: result.title ?? documentFile.name, description: result.description ?? '', originalName: result.originalName ?? documentFile.name, sizeBytes: result.sizeBytes ?? documentFile.size, url: result.url ?? `/api/downloads/${result.id}` }, ...current]);
+    setDocuments((current) => [{ id: result.id!, title: result.title ?? documentFile.name, description: result.description ?? '', originalName: result.originalName ?? documentFile.name, sizeBytes: result.sizeBytes ?? documentFile.size, url: result.url ?? `/api/download/${result.id}` }, ...current]);
     setDocumentTitle(''); setDocumentDescription(''); setDocumentFile(null);
     const input = document.getElementById('admin-document-file') as HTMLInputElement | null;
     if (input) input.value = '';
@@ -966,14 +1009,14 @@ export function AdminPage() {
               const selected = expandedSection === id;
               const children = sectionSubtabs[id] || [];
               return <div key={id} className="min-w-0 shrink-0 md:w-full">
-                <button type="button" onClick={() => { setExpandedSection(id); setActive(id); setNotice(''); }} aria-current={active === id ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+                <button type="button" onClick={() => { setExpandedSection(id); setActive(id); setSelectedSubtab(''); setNotice(''); }} aria-current={active === id ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
                   <Icon className="h-4 w-4 shrink-0"/><span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 truncate"}>{label}</span>
                   {children.length>0 && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${selected ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>}
                 </button>
                 {selected && !sidebarCollapsed && children.length>0 && <div className="ml-5 mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3">
                   {children.map((tab,index) => {
                     const isCurrent = tab.target===active && (!tab.settingsTab || tab.settingsTab===settingsTab) && (!tab.coursesTab || tab.coursesTab===coursesSubTab) && (!tab.learningTab || tab.learningTab===learningSubTab);
-                    return <button key={tab.label} type="button" onClick={() => { setActive(tab.target); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); }} aria-current={isCurrent?'page':undefined} className={`flex min-h-8 w-full items-center rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 rounded-full bg-current opacity-70"/>{tab.label}</button>;
+                    return <button key={tab.label} type="button" onClick={() => { setActive(tab.target); setSelectedSubtab(tab.label); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); }} aria-current={isCurrent?'page':undefined} className={`flex min-h-8 w-full items-center rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 rounded-full bg-current opacity-70"/>{tab.label}</button>;
                   })}
                 </div>}
               </div>;
@@ -995,7 +1038,7 @@ export function AdminPage() {
             </div>
             <div className="hidden w-full max-w-[290px] items-center gap-2 rounded-xl border border-white/10 bg-[#111a2b] px-3 py-2 md:flex">
               <Search className="h-4 w-4 shrink-0 text-slate-500"/>
-              <input aria-label="Search admin sections" placeholder="Search students, courses, fees..." className="w-full min-w-0 bg-transparent text-xs text-white outline-none placeholder:text-slate-500" onKeyDown={event=>{if(event.key==='Enter'){const q=event.currentTarget.value.trim().toLowerCase();const match=sections.find(item=>item.label.toLowerCase().includes(q));if(match){setExpandedSection(match.id);setActive(match.id);setNotice('');}}}}/>
+              <input aria-label="Search admin sections" placeholder="Search students, courses, fees..." className="w-full min-w-0 bg-transparent text-xs text-white outline-none placeholder:text-slate-500" onKeyDown={event=>{if(event.key==='Enter'){const q=event.currentTarget.value.trim().toLowerCase();const match=sections.find(item=>item.label.toLowerCase().includes(q));if(match){setExpandedSection(match.id);setActive(match.id);setSelectedSubtab('');setNotice('');}}}}/>
             </div>
             <button type="button" onClick={()=>window.location.reload()} title="Refresh workspace" aria-label="Refresh workspace" className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white sm:inline-flex"><RefreshCw className="h-4 w-4"/></button>
             <div className="relative">
@@ -1017,6 +1060,8 @@ export function AdminPage() {
               <div className="relative z-10 hidden text-right sm:block"><p className="text-xs font-bold uppercase tracking-[.24em] text-white/90">Learn · Create</p><p className="mt-1 text-xs text-blue-100">Innovate · Grow</p></div>
             </div>}
           {notice && <p role="status" className="mb-5 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</p>}
+
+          {selectedSubtab && <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan-400/20 bg-gradient-to-r from-[#102344] to-[#111c31] px-4 py-3"><div><p className="text-[10px] font-extrabold uppercase tracking-[.2em] text-cyan-300">{sections.find(item=>item.id===expandedSection)?.label || 'Workspace'}</p><h2 className="mt-1 text-base font-extrabold text-white">{selectedSubtab}</h2></div><span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-semibold text-slate-300">Workspace view</span></div>}
 
           {active === 'overview' && <div className="space-y-5"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
             ['Students', String(metrics.students ?? '—'), 'Registered student accounts'], ['Applications', String(metrics.applications ?? applications.length), 'Admissions queue'], ['Courses', String(metrics.courses ?? courses.length), 'Active courses'], ['Services', String(metrics.services ?? services.length), 'Active cyber services'],
@@ -1149,6 +1194,8 @@ export function AdminPage() {
           <div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.staffId || 'ID pending'} · {portalUser.email} · {portalUser.role}</p><p className="mt-1 text-xs text-slate-500">{portalUser.nationalId ? 'National ID recorded' : 'National ID not yet provided'}</p></div><div className="flex items-center gap-3"><span className="border px-2 py-1 text-xs">{portalUser.status}</span><Button type="button" size="sm" variant="outline" onClick={() => { setEditingPortalUser(portalUser); setEditingGeo({ county: portalUser.county || '', subCounty: portalUser.subCounty || '', ward: portalUser.ward || '', location: portalUser.location || '', subLocation: portalUser.subLocation || '' }); }}><Pencil className="mr-1 h-3 w-3"/>Edit profile</Button></div></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div>
           {editingPortalUser && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4"><form onSubmit={savePortalUserEdit} className="my-6 w-full max-w-3xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between gap-3"><div><h3 className="text-xl font-black text-slate-950">Edit account profile</h3><p className="mt-1 text-sm text-slate-600">{editingPortalUser.staffId} · {editingPortalUser.email}</p></div><button type="button" onClick={() => setEditingPortalUser(null)} className="rounded-lg border px-3 py-1 text-sm">Close</button></div><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label>Full name</Label><Input name="name" defaultValue={editingPortalUser.name} required/></div><div className="space-y-1"><Label>Portal role</Label><select name="role" defaultValue={editingPortalUser.role} className="h-10 w-full rounded-md border bg-white px-3 text-sm">{['admin','principal','finance','admissions','tutor','student'].map(role=><option key={role} value={role}>{role}</option>)}</select></div><div className="space-y-1"><Label>National ID</Label><Input name="nationalId" defaultValue={editingPortalUser.nationalId || ''}/></div><div className="space-y-1"><Label>Phone</Label><Input name="phone" defaultValue={editingPortalUser.phone || ''}/></div><div className="space-y-1"><Label>Gender</Label><select name="gender" defaultValue={editingPortalUser.gender || ''} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select gender</option>{GENDER_OPTIONS.map(value=><option key={value}>{value}</option>)}</select></div><div className="space-y-1"><Label>Citizenship</Label><select name="citizenship" defaultValue={editingPortalUser.citizenship || ''} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select citizenship</option>{CITIZENSHIP_OPTIONS.map(value=><option key={value}>{value}</option>)}</select></div><div className="space-y-1"><Label>Date of birth</Label><Input name="dateOfBirth" type="date" defaultValue={editingPortalUser.dateOfBirth || ''}/></div><div className="sm:col-span-2"><GeographyPicker county={editingGeo.county} subCounty={editingGeo.subCounty} ward={editingGeo.ward} location={editingGeo.location} subLocation={editingGeo.subLocation} locations={locationOptions} subLocations={subLocationOptions} onChange={setEditingGeo}/></div><div className="space-y-1"><Label>Department</Label><select name="department" defaultValue={editingPortalUser.department || ''} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select department</option>{DEPARTMENT_OPTIONS.map(value=><option key={value}>{value}</option>)}</select></div><div className="space-y-1"><Label>Job title</Label><select name="jobTitle" defaultValue={editingPortalUser.jobTitle || ''} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select job title</option>{JOB_TITLE_OPTIONS.map(value=><option key={value}>{value}</option>)}</select></div><div className="space-y-1"><Label>Employment type</Label><select name="employmentType" defaultValue={editingPortalUser.employmentType || ''} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select employment type</option>{EMPLOYMENT_TYPE_OPTIONS.map(value=><option key={value}>{value}</option>)}</select></div><div className="space-y-1"><Label>Date joined</Label><Input name="joinedOn" type="date" defaultValue={editingPortalUser.joinedOn || ''}/></div><div className="sm:col-span-2"><Label>Full physical / postal address</Label><Input name="address" defaultValue={editingPortalUser.address || ''} placeholder="Building, street, estate or village, town"/></div></div><p className="text-xs text-slate-500">The system-generated Navstar ID is assigned by the system. The primary Admin can set their own ID under Settings → My Profile.</p><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditingPortalUser(null)}>Cancel</Button><Button type="submit"><Save className="mr-2 h-4 w-4"/>Save changes</Button></div></form></div>}
           </div>}
+          {active === 'portal-links' && <section className="rounded-2xl border border-white/10 bg-[#151d2b] p-6 sm:p-8"><p className="text-xs font-extrabold uppercase tracking-[.2em] text-cyan-300">NAVSTAR DIGITAL HUB · PORTAL ACCESS</p><h3 className="mt-2 text-2xl font-black text-white">Portal login gates</h3><p className="mt-2 text-sm text-slate-400">Open the selected portal's sign-in gate. Each link leads directly to its login card.</p><div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[['Student Gateway','student'],['Tutor Portal','tutor'],['Finance Portal','finance'],['Principal Portal','principal'],['Admissions Portal','admissions'],['Admin Portal','admin']].map(([label,role])=><Link key={role} to={`/login?role=${role}`} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[.04] px-4 py-4 text-sm font-bold text-white transition hover:border-cyan-300/40 hover:bg-cyan-500/10">{label}<ArrowUpRight className="h-4 w-4 text-cyan-300"/></Link>)}</div></section>}
+
           {active === 'receipts' && <section className="rounded-2xl border bg-white p-6"><div className="flex items-center gap-3"><ReceiptText className="h-6 w-6 text-blue-800"/><div><h3 className="font-bold text-slate-950">Confirmed payment receipts</h3><p className="mt-1 text-sm text-slate-600">View confirmed payments and print or save official Navstar receipts as PDF.</p></div></div><Link to="/admin/receipts" className="mt-5 inline-flex items-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900">Open payment receipt register</Link></section>}
 
           {(active === 'finance' || active === 'fees') && <div className="grid gap-6 xl:grid-cols-2"><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Verified donations and payments</h3><p className="mt-2 text-sm leading-6 text-slate-600">Only provider callbacks mark donations and tuition as paid. No M-Pesa PIN or payment credentials are shown here.</p><p className="mt-5 border bg-slate-50 p-4 text-sm text-slate-600">Verified donations: KSh {Number(metrics.verifiedDonations ?? 0).toLocaleString()} · Verified payments: KSh {Number(metrics.verifiedPayments ?? 0).toLocaleString()}</p></section><form onSubmit={startCashout} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Request cashout</h3><p className="mt-2 text-sm leading-6 text-slate-600">This creates an approval request only; it does not transfer funds. Never withdraw from the browser.</p></div><div className="space-y-2"><Label htmlFor="cashout-amount">Amount (KSh)</Label><Input id="cashout-amount" type="number" min="1" value={cashoutAmount} onChange={(event) => setCashoutAmount(event.target.value)} required /></div><Button className="bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={!backendReady || !user}><CircleDollarSign className="mr-2 h-4 w-4" />{backendReady ? 'Submit for approval' : 'Backend required'}</Button><div className="divide-y border">{cashoutRequests.map((item) => <div key={String(item.id)} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><span>KSh {Number(item.amount).toLocaleString()} · {String(item.status)}</span>{item.status === 'pending_approval' && user?.role === 'admin' && <span className="flex gap-2"><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'approved')}>Approve</Button><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'rejected')}>Reject</Button></span>}</div>)}{cashoutRequests.length === 0 && <p className="p-3 text-xs text-slate-500">No cashout requests.</p>}</div></form></div>}
@@ -1277,7 +1324,7 @@ export function AdminPage() {
             </section>}
           </div>}
 
-          {![ 'overview','navstar-analytics','analytics-reports','reports','courses','learning','marks-tests','school','services','pos','finance','fees','enrollments','staff-applications','applications','enrollment-summary','users','employees','student-directory','customer-accounts','downloads','documents','gallery','settings','profile','orders','receipts' ].includes(active) && <section className="rounded-2xl border border-white/10 bg-[#151d2b] p-6 sm:p-8"><p className="text-xs font-extrabold uppercase tracking-[.22em] text-cyan-300">NAVSTAR DIGITAL HUB · WORKSPACE</p><h3 className="mt-2 text-2xl font-black text-white">{sections.find(item=>item.id===active)?.label || 'Workspace'}</h3><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">This main workspace has been added to the Admin navigation. Its dedicated registers, forms and subtabs can now be configured here without mixing its records with other sections. Existing Navstar records and other portal modules remain separate.</p></section>}
+          {![ 'overview','navstar-analytics','analytics-reports','reports','courses','learning','marks-tests','school','services','pos','finance','fees','enrollments','staff-applications','applications','enrollment-summary','users','employees','student-directory','customer-accounts','downloads','documents','gallery','settings','profile','orders','receipts','portal-links' ].includes(active) && <section className="rounded-2xl border border-white/10 bg-[#151d2b] p-6 sm:p-8"><p className="text-xs font-extrabold uppercase tracking-[.22em] text-cyan-300">NAVSTAR DIGITAL HUB · WORKSPACE</p><h3 className="mt-2 text-2xl font-black text-white">{sections.find(item=>item.id===active)?.label || 'Workspace'}</h3><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">This main workspace has been added to the Admin navigation. Its dedicated registers, forms and subtabs can now be configured here without mixing its records with other sections. Existing Navstar records and other portal modules remain separate.</p></section>}
 
           <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Secure Navstar administration · User accounts, student records, uploads and finance operations are protected.</span><span className="font-semibold text-cyan-300">Powered by Navstar Digital Hub</span></footer>
           </div>

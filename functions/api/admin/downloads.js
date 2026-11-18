@@ -18,7 +18,7 @@ export async function onRequestGet({ request, env }) {
   const access = await requireRole(request, env, ['admin']);
   if (access.response) return access.response;
   const rows = await env.DB.prepare('SELECT id, title, description, original_name AS originalName, mime_type AS mimeType, size_bytes AS sizeBytes, is_public AS isPublic, created_at AS createdAt FROM downloadable_documents ORDER BY created_at DESC LIMIT 200').all();
-  return json({ documents: (rows.results ?? []).map((item) => ({ ...item, url: `/api/downloads/${item.id}` })) });
+  return json({ documents: (rows.results ?? []).map((item) => ({ ...item, url: `/api/download/${item.id}` })) });
 }
 
 export async function onRequestPost({ request, env }) {
@@ -44,5 +44,5 @@ export async function onRequestPost({ request, env }) {
   }
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
     .bind(uuid(), access.user.id, 'document_uploaded', 'downloadable_document', id).run();
-  return json({ id, title, description, url: `/api/downloads/${id}`, originalName: file.name, sizeBytes: file.size }, 201);
+  return json({ id, title, description, url: `/api/download/${id}`, originalName: file.name, sizeBytes: file.size }, 201);
 }

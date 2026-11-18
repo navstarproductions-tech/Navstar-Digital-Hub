@@ -3,7 +3,7 @@ import { error, isSameOrigin, json, readJson, safeString } from '../../_shared/h
 
 const staffRoles = ['admin', 'tutor', 'admissions', 'principal', 'finance'];
 const normalizeStaffId = value => safeString(value, 20).toUpperCase().replace(/[^A-Z0-9]/g, '');
-const normalizeNationalId = value => safeString(value, 32).replace(/[^0-9]/g, '');
+const normalizeNationalId = value => safeString(value, 32).trim().replace(/\\.0+$/, '').replace(/[^0-9]/g, '');
 
 async function getNationalIdColumn(db) {
   const result = await db.prepare('PRAGMA table_info(user_profiles)').all();
@@ -74,9 +74,13 @@ export async function onRequestPost({ request, env }) {
 
   const suppliedNationalId = normalizeNationalId(body.nationalId);
   const savedNationalId = normalizeNationalId(staff.nationalId);
-  if (!suppliedNationalId || !savedNationalId || suppliedNationalId !== savedNationalId) {
+  if (!savedNationalId) {
     await recordAttempt(env.DB, attempts.staffHash, ipHash);
-    return error('National ID confirmation did not match the staff record. Please check and try again.', 401);
+    return error('No National ID is saved for this staff account yet. Ask the Admin to update your profile under System Users, then sign in using email and password in the meantime.', 409);
+  }
+  if (!suppliedNationalId || suppliedNationalId !== savedNationalId) {
+    await recordAttempt(env.DB, attempts.staffHash, ipHash);
+    return error('The National ID entered does not match the saved staff record. Ask the Admin to check the National ID under System Users if you believe it is correct.', 401);
   }
 
   await env.DB.prepare('DELETE FROM login_attempts WHERE email_hash = ? AND ip_hash = ?').bind(attempts.staffHash, ipHash).run();
