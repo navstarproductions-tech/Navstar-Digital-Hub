@@ -5,12 +5,14 @@ type Group = { title: string; description?: string; fields: Field[] };
 type Section = { id: string; label: string; description: string; groups: Group[] };
 
 const sections: Section[] = [
+ {id:'notifications',label:'Notifications',description:'Set which system events trigger administrator notifications.',groups:[
+  {title:'Notification preferences',fields:[{key:'notifyNewApplication',label:'Notify on new student applications',type:'toggle'},{key:'notifyPaymentUpdate',label:'Notify on payment status updates',type:'toggle'},{key:'notifyDonation',label:'Notify when a donation is received',type:'toggle'}]}]},
  {id:'institute-profile',label:'Institute Profile',description:'Official institution identity and contact details used across Navstar.',groups:[
   {title:'Institution identity',fields:[
    {key:'institutionName',label:'Institution name',type:'text'},{key:'motto',label:'Official motto',type:'text'},
    {key:'institutionCategory',label:'Institution category',type:'text'},{key:'yearEstablished',label:'Year established',type:'number',min:1900,max:2100},
    {key:'registrationNumber',label:'Registration / accreditation number',type:'text'},{key:'institutionCode',label:'Institution code',type:'text'},
-   {key:'principalName',label:'Principal / Director name',type:'text'},{key:'website',label:'Website',type:'url'}]},
+   {key:'principalName',label:'Principal / Director name',type:'text'},{key:'website',label:'Website',type:'url'},{key:'siteSessionTimeoutMinutes',label:'Automatic inactivity logout (minutes)',type:'select',options:['5','10','15','30','60','120','240','480']}]},
   {title:'Official contacts',fields:[
    {key:'email',label:'Official email',type:'email'},{key:'phone',label:'Official telephone',type:'tel'},
    {key:'whatsapp',label:'Mobile / WhatsApp',type:'tel'},{key:'admissionsContact',label:'Admissions office contact',type:'tel'},
@@ -48,9 +50,9 @@ const sections: Section[] = [
   {title:'Downloads register',fields:[{key:'downloadsRegister',label:'Published documents (one per line: title | file URL | description | status)',type:'textarea'},{key:'downloadsFooterEnabled',label:'Show downloads in website footer',type:'toggle'}]}]},
  {id:'report-card-layout',label:'Report Card Layout',description:'Choose the information displayed on generated report cards.',groups:[
   {title:'Report card fields',fields:[{key:'reportCardFields',label:'Visible report card fields (one per line)',type:'textarea'},{key:'reportCardTitle',label:'Report card heading',type:'text'},{key:'reportCardShowAttendance',label:'Show attendance',type:'toggle'},{key:'reportCardShowFees',label:'Show fee balance',type:'toggle'},{key:'reportCardShowRemarks',label:'Show tutor remarks',type:'toggle'},{key:'trainerSignatureUrl',label:'Trainer signature',type:'image'},{key:'headTrainingSignatureUrl',label:'Head of Training signature',type:'image'},{key:'directorSignatureUrl',label:'Director signature',type:'image'},{key:'reportCardStampEnabled',label:'Include official rubber stamp',type:'toggle'}]}]},
- {id:'id-card-design',label:'ID Card Design Studio',description:'Configure ID card layout and bulk-print defaults.',groups:[
-  {title:'ID card format',fields:[{key:'idCardOrientation',label:'Orientation',type:'select',options:['Portrait','Landscape']},{key:'idCardFields',label:'ID card fields (one per line)',type:'textarea'},{key:'idCardExpiry',label:'Default validity / expiry note',type:'text'}]}]},
- {id:'id-card-format',label:'ID Card Format',description:'Set the standard dimensions, layout and fields used by the ID card designer.',groups:[{title:'Card format',fields:[{key:'idCardSize',label:'Card size',type:'select',options:['CR80 (standard bank-card size)','Custom']},{key:'idCardCustomWidth',label:'Custom width (mm)',type:'number',min:30,max:150},{key:'idCardCustomHeight',label:'Custom height (mm)',type:'number',min:30,max:200},{key:'idCardFrontFields',label:'Front-side fields (one per line)',type:'textarea'},{key:'idCardBackFields',label:'Back-side fields (one per line)',type:'textarea'}]}]},
+ {id:'id-card-design',label:'ID Card Design Studio',description:'Configure the complete ID card design, dimensions, front and back fields, and print layout in one place.',groups:[
+  {title:'Design and orientation',fields:[{key:'idCardOrientation',label:'Orientation',type:'select',options:['Portrait','Landscape']},{key:'idCardFields',label:'ID card fields (one per line)',type:'textarea'},{key:'idCardExpiry',label:'Default validity / expiry note',type:'text'}]},
+  {title:'Card size and sides',fields:[{key:'idCardSize',label:'Card size',type:'select',options:['CR80 (standard bank-card size)','Custom']},{key:'idCardCustomWidth',label:'Custom width (mm)',type:'number',min:30,max:150},{key:'idCardCustomHeight',label:'Custom height (mm)',type:'number',min:30,max:200},{key:'idCardFrontFields',label:'Front-side fields (one per line)',type:'textarea'},{key:'idCardBackFields',label:'Back-side fields (one per line)',type:'textarea'}]}]},
  {id:'id-card-bulk-print',label:'ID Cards (Bulk Print)',description:'Configure bulk ID card print options. Actual course/student selection and PDF generation must be wired to verified student records.',groups:[{title:'Bulk print defaults',fields:[{key:'bulkIdCardCourse',label:'Default course filter',type:'text'},{key:'bulkIdCardIncludePhoto',label:'Include student photo',type:'toggle'},{key:'bulkIdCardIncludeQr',label:'Include verification QR code',type:'toggle'},{key:'bulkIdCardFormat',label:'Output format',type:'select',options:['PDF','Print-ready PDF']}]}]},
  {id:'rubber-stamp',label:'Rubber Stamp Designer',description:'Configure the three official stamp layouts and print styling.',groups:[
   {title:'Stamp layouts',fields:[{key:'stampShapes',label:'Stamp definitions (one per line: shape | colour | office title | text)',type:'textarea',help:'Supported shapes: triangular, circular and rectangular/date-ruler. Colours: blue or red.'},{key:'stampPosition',label:'Default stamp position',type:'select',options:['Bottom left','Bottom centre','Bottom right','Top left','Top right']},{key:'stampOpacity',label:'Stamp opacity (0.1–1)',type:'number',min:0.1,max:1}]}]},
@@ -89,7 +91,7 @@ const defaults: Record<string, Record<string, string|number|boolean>> = {
 };
 
 export function AdminSettingsCenter({activeSectionLabel=''}: {activeSectionLabel?: string}) {
- const [activeId,setActiveId]=useState(sections[0].id);
+ const [activeId,setActiveId]=useState('institute-profile');
  const [values,setValues]=useState<Record<string,Record<string,string|number|boolean>>>({});
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
