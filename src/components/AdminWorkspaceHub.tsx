@@ -13,6 +13,8 @@ type Props = {
 };
 
 const definitions: Record<string,{purpose:string;source:string;endpoint?:string;links:Array<[string,string]>;columns:string[]}> = {
+ finance:{purpose:'Review verified payment transactions, cashout activity and financial reporting data.',source:'Verified Navstar payment register',endpoint:'/api/admin/payments',links:[['Cashouts','/admin'],['Finance settings','/admin']],columns:['payer_name','purpose','receipt_number','amount','status','updated_at']},
+ fees:{purpose:'Review fee collection, receipts, fee statements and outstanding student balances.',source:'Student enrolment and payment register',endpoint:'/api/enrollments',links:[['Student accounts','/admin'],['Payment register','/admin']],columns:['full_name','course_id','payment_status','status','created_at']},
  'ai-intake-advisor':{purpose:'Review intake demand, course interest and the next recommended recruitment actions.',source:'Admissions and course records',endpoint:'/api/enrollments',links:[['Applications','/admin'],['Course catalogue','/courses']],columns:['full_name','course_id','status','created_at']},
  'student-projects':{purpose:'Track project proposals, submissions, review decisions and showcase-ready work.',source:'Student project register',links:[['Learning workspace','/learning']],columns:['Project title','Student','Course','Review status']},
  'scholarships':{purpose:'Review scholarship and discount requests, award decisions and award history.',source:'Scholarship and discount register',links:[['Student directory','/admin'],['Fee settings','/admin']],columns:['Applicant','Course','Requested support','Decision']},
@@ -53,6 +55,13 @@ const definitions: Record<string,{purpose:string;source:string;endpoint?:string;
 
 const subtabDescriptions: Record<string,string> = {
  'Pending Review':'Only records awaiting an authorised review should appear in this view.',
+ 'Fee Defaulters':'This view filters to unpaid enrolment records only.',
+ 'Payment Receipts':'This view filters to confirmed payment records with receipts.',
+ 'Transactions':'Review recorded payment transactions and their provider status.',
+ 'Cashouts':'Review cashout requests separately from received payments.',
+ 'Financial Reports':'Review verified transactions only; pending payment prompts are excluded.',
+ 'Fee Statements':'Review each learner enrolment and payment status.',
+ 'Enrollment Fee Offers':'Review the fee policy and configured offers without altering the underlying course price.',
  'Approved Applications':'Approved records are shown separately from new and rejected applications.',
  'Rejected Applications':'Review declined applications and their recorded decision reasons.',
  'Application Documents':'Review supporting documents attached to applications; sensitive identity details must remain protected.',
@@ -105,7 +114,19 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
   if(section==='services'||section==='ict-portal')return services as unknown as Row[];
   return records;
  },[section,courses,users,applications,services,records]);
- const filtered=sourceRows.filter(row=>JSON.stringify(row).toLowerCase().includes(query.toLowerCase()));
+ const tabRows=sourceRows.filter(row=>{
+  const status=String(row.status||'').toLowerCase();
+  const payment=String(row.payment_status||'').toLowerCase();
+  if(subtab==='Pending Review')return ['submitted','under_review','pending','pending_approval'].includes(status);
+  if(subtab==='Approved Applications')return status==='accepted'||status==='approved';
+  if(subtab==='Rejected Applications')return status==='rejected';
+  if(subtab==='Open Tickets')return !['resolved','closed','completed'].includes(status);
+  if(subtab==='Resolved Tickets')return ['resolved','closed','completed'].includes(status);
+  if(subtab==='Fee Defaulters')return payment!=='paid';
+  if(subtab==='Payment Receipts')return payment==='paid'||Boolean(row.receipt_number||row.mpesa_receipt);
+  return true;
+ });
+ const filtered=tabRows.filter(row=>JSON.stringify(row).toLowerCase().includes(query.toLowerCase()));
  const purpose=definition?.purpose||`Dedicated workspace for ${titleCase(section)}. This view keeps its records and actions separate from other Admin sections.`;
  const source=definition?.source||'Dedicated register for this section';
  const columns=definition?.columns||['Record','Category','Status','Updated'];
