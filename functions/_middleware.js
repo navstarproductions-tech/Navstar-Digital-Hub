@@ -7,7 +7,7 @@ export async function onRequest({ request, next }) {
     if (!isApi) return response;
     // Document endpoints return PDF/Office/binary file streams, not JSON.
     // Pass successful downloads through unchanged instead of converting them to API_NON_JSON_RESPONSE.
-    if (/^\\/api\\/downloads?\\/[^/]+$/.test(url.pathname) && response.ok) return response;
+    if (/^\/api\/downloads?\/[^/]+$/.test(url.pathname) && response.ok) return response;
     const contentType = response.headers.get('Content-Type') || '';
     if (contentType.toLowerCase().includes('application/json')) return response;
     console.error('Navstar API returned a non-JSON response:', requestId, request.method, url.pathname, response.status, contentType);
