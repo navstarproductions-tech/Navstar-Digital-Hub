@@ -49,8 +49,8 @@ export async function onRequestPatch({ request, env }) {
   const requestedStaffId = safeString(body.staffId, 16).toUpperCase();
 
   if (name.length < 2) return error('Enter your full name.');
-  if (dateOfBirth && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dateOfBirth)) return error('Enter a valid date of birth.');
-  if (joinedOn && !/^\\d{4}-\\d{2}-\\d{2}$/.test(joinedOn)) return error('Enter a valid date joined.');
+  if (dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return error('Enter a valid date of birth.');
+  if (joinedOn && !/^\d{4}-\d{2}-\d{2}$/.test(joinedOn)) return error('Enter a valid date joined.');
   if (nationalId && !/^[A-Za-z0-9/-]{4,32}$/.test(nationalId)) return error('Enter a valid National ID or identity reference.');
 
   if (requestedStaffId) {
