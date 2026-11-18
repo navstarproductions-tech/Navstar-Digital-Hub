@@ -1,9 +1,9 @@
 import { sha256 } from './auth.js';
 import { uuid } from './http.js';
 
-export async function rateLimited(db, request, scope, { maximum = 10, minutes = 10 } = {}) {
+export async function rateLimited(db, request, scope, { maximum = 10, minutes = 10 } = {}, discriminator = '') {
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
-  const keyHash = await sha256(ip);
+  const keyHash = await sha256(discriminator ? `${ip}:${String(discriminator).toLowerCase()}` : ip);
   const cutoff = new Date(Date.now() - minutes * 60 * 1000).toISOString();
   const recent = await db.prepare('SELECT COUNT(*) AS count FROM api_rate_limits WHERE scope = ? AND key_hash = ? AND datetime(created_at) > datetime(?)')
     .bind(scope, keyHash, cutoff).first();
