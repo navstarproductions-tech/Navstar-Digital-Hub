@@ -90,7 +90,7 @@ export function LoginPage() {
       <div className="absolute inset-0 -z-10 opacity-[.07] [background-image:linear-gradient(rgba(255,255,255,.4)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.4)_1px,transparent_1px)] [background-size:38px_38px]" />
       <div className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-[1.7rem] border border-white/10 bg-[#111a2b] shadow-2xl shadow-black/40 lg:grid-cols-[.92fr_1.08fr]">
         <aside className="relative hidden min-h-[650px] flex-col justify-between overflow-hidden bg-[#071b40] p-9 text-white lg:flex">
-          <img src="/navstar-admin-hero.webp" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
+          <img src="/gebeya.webp" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
           <div className="absolute inset-0 bg-gradient-to-br from-[#061127]/95 via-[#0a2a55]/75 to-[#061127]/95" />
           <div className="relative">
             <img src="/Navstar_Official_Logo.jpg" alt="Official Navstar Digital Hub logo" className="mb-7 h-24 w-40 object-contain object-left" />
