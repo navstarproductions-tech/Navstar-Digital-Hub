@@ -48,8 +48,8 @@ export async function onRequestPost({ request, env }) {
   `).bind(paid ? 'paid' : 'failed', Number.isFinite(resultCode) ? resultCode : -1, receipt, internalReceipt, resultDescription, transactionDate, callbackPhone || null, Number.isFinite(callbackAmount) ? callbackAmount : null, payment.id).run();
 
   if (payment.purpose === 'enrollment') {
-    await env.DB.prepare('UPDATE enrollments SET payment_status = ? WHERE id = ?')
-      .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
+    await env.DB.prepare('UPDATE enrollments SET payment_status = ?, status = CASE WHEN ? = 1 THEN \'submitted\' ELSE status END WHERE id = ?')
+      .bind(paid ? 'paid' : 'failed', paid ? 1 : 0, payment.reference_id).run();
   } else if (payment.purpose === 'donation') {
     await env.DB.prepare('UPDATE donations SET status = ? WHERE id = ?')
       .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
