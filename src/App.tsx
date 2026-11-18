@@ -1,5 +1,6 @@
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { HomePage } from '@/pages/HomePage';
@@ -13,6 +14,7 @@ import { PortalsPage } from '@/pages/PortalsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ChangePasswordPage } from '@/pages/ChangePasswordPage';
 import { AdminResetPage } from '@/pages/AdminResetPage';
+import { FirstAdminSetupPage } from '@/pages/FirstAdminSetupPage';
 import { CustomerAccountPage } from '@/pages/CustomerAccountPage';
 import { DigitalHubPage } from '@/pages/DigitalHubPage';
 import { ForumPage } from '@/pages/ForumPage';
@@ -28,6 +30,59 @@ function ScrollToTop() {
   useEffect(() => {
     if (!hash) window.scrollTo(0, 0);
   }, [pathname, search, hash]);
+  return null;
+}
+
+function IdleSessionGuard() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const protectedPath = pathname.startsWith('/admin') || pathname.startsWith('/portals/') || pathname === '/my-account' || pathname === '/change-password';
+    if (!protectedPath) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let timeoutMs = 8 * 60 * 60 * 1000;
+    let role = pathname.startsWith('/admin') ? 'admin' : pathname.split('/')[2] || 'student';
+    let lastPing = 0;
+    let active = true;
+    const signOutForInactivity = async () => {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+      if (active) navigate('/login?role=' + encodeURIComponent(role), { replace: true });
+    };
+    const resetIdleTimer = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { void signOutForInactivity(); }, timeoutMs);
+      const now = Date.now();
+      if (now - lastPing > 60000) {
+        lastPing = now;
+        void fetch('/api/auth/me').then(async response => {
+          if (!response.ok) {
+            if (active) navigate('/login?role=' + encodeURIComponent(role), { replace: true });
+            return;
+          }
+          const result = await response.json() as { user?: { role?: string }; sessionTimeoutMinutes?: number };
+          if (result.user?.role) role = result.user.role;
+          if (result.sessionTimeoutMinutes) timeoutMs = Math.max(5, Math.min(480, result.sessionTimeoutMinutes)) * 60000;
+          if (timer) { clearTimeout(timer); timer = setTimeout(() => { void signOutForInactivity(); }, timeoutMs); }
+        }).catch(() => undefined);
+      }
+    };
+    void fetch('/api/auth/me').then(async response => {
+      if (!response.ok) { if (active) navigate('/login?role=' + encodeURIComponent(role), { replace: true }); return; }
+      const result = await response.json() as { user?: { role?: string }; sessionTimeoutMinutes?: number };
+      if (result.user?.role) role = result.user.role;
+      if (result.sessionTimeoutMinutes) timeoutMs = Math.max(5, Math.min(480, result.sessionTimeoutMinutes)) * 60000;
+      resetIdleTimer();
+    }).catch(() => undefined);
+    const events: (keyof WindowEventMap)[] = ['pointerdown', 'keydown', 'mousemove', 'scroll', 'touchstart'];
+    events.forEach(event => window.addEventListener(event, resetIdleTimer, { passive: true }));
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+      events.forEach(event => window.removeEventListener(event, resetIdleTimer));
+    };
+  }, [pathname, navigate]);
+
   return null;
 }
 
@@ -64,7 +119,7 @@ function AppShell() {
             <Route path="/forum" element={<ForumPage />} />
             <Route path="/music" element={<MusicPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
-            <Route path="/setup" element={<Navigate to="/login?role=admin" replace />} />
+            <Route path="/setup" element={<FirstAdminSetupPage />} />
             <Route path="/admin-reset" element={<AdminResetPage />} />
             <Route path="/enroll/:id" element={<EnrollmentPage />} />
             <Route path="/admin" element={<AdminPage />} />
@@ -85,6 +140,7 @@ function App() {
   return (
     <Router basename={import.meta.env.BASE_URL}>
       <ScrollToTop />
+      <IdleSessionGuard />
       <AppShell />
     </Router>
   );
