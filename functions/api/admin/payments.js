@@ -1,21 +1,12 @@
 import { requireRole } from '../../_shared/auth.js';
 import { error, json } from '../../_shared/http.js';
-
-export async function onRequestGet({ request, env }) {
-  if (!env.DB) return error('Payment records are not configured.',503);
-  const access = await requireRole(request,env,['admin','principal','admissions']);
-  if (access.response) return access.response;
-  const result = await env.DB.prepare(`
-    SELECT p.id,p.purpose,p.display_reference,p.internal_receipt_number AS receipt_number,
-      p.receipt_number AS mpesa_receipt,p.amount,p.phone,p.status,p.updated_at,
-      COALESCE(e.full_name,s.customer_name,'Customer') AS payer_name,
-      COALESCE(c.title,CASE WHEN p.purpose='donation' THEN 'Donation' ELSE 'Service payment' END) AS description
-    FROM payments p
-    LEFT JOIN enrollments e ON p.purpose='enrollment' AND e.id=p.reference_id
-    LEFT JOIN courses c ON c.id=e.course_id
-    LEFT JOIN service_requests s ON p.purpose='service' AND s.id=p.reference_id
-    WHERE p.status='paid'
-    ORDER BY p.updated_at DESC LIMIT 300
-  `).all();
-  return json({payments:result.results ?? []});
+export async function onRequestGet({request,env}) {
+ if(!env.DB)return error('Payment records are not configured.',503);
+ const access=await requireRole(request,env,['admin','principal','admissions']);if(access.response)return access.response;
+ const [rows,totals,balance]=await Promise.all([
+  env.DB.prepare(`SELECT p.id,p.purpose,p.display_reference,p.internal_receipt_number AS receipt_number,p.receipt_number AS mpesa_receipt,p.amount,p.phone,p.status,p.admin_status,p.admin_review_note,p.admin_reviewed_at,p.updated_at,p.created_at,COALESCE(e.full_name,s.customer_name,d.payer_name,'Supporter') AS payer_name,COALESCE(c.title,CASE WHEN p.purpose='donation' THEN CASE d.contribution_type WHEN 'debt_payment' THEN 'Debt / deficit repayment' WHEN 'contribution' THEN 'Agreed contribution' ELSE 'Voluntary donation' END ELSE 'Service payment' END) AS description,d.contribution_type,d.debt_reference,d.debt_description FROM payments p LEFT JOIN enrollments e ON p.purpose='enrollment' AND e.id=p.reference_id LEFT JOIN courses c ON c.id=e.course_id LEFT JOIN service_requests s ON p.purpose='service' AND s.id=p.reference_id LEFT JOIN donations d ON p.purpose='donation' AND d.id=p.reference_id ORDER BY p.created_at DESC LIMIT 500`).all(),
+  env.DB.prepare(`SELECT COUNT(*) AS transaction_count,COALESCE(SUM(CASE WHEN status='paid' THEN amount ELSE 0 END),0) AS mpesa_received,COALESCE(SUM(CASE WHEN status='paid' AND admin_status='confirmed' THEN amount ELSE 0 END),0) AS admin_confirmed,COALESCE(SUM(CASE WHEN status IN ('pending','initiating') THEN amount ELSE 0 END),0) AS awaiting_mpesa,COALESCE(SUM(CASE WHEN status='paid' AND admin_status IN ('pending_review','flagged') THEN amount ELSE 0 END),0) AS awaiting_admin_review FROM payments`).first(),
+  env.DB.prepare('SELECT balance_text,balance_amount,currency,received_at,result_description FROM mpesa_balance_snapshots ORDER BY created_at DESC LIMIT 1').first()
+ ]);
+ return json({payments:rows.results||[],totals:totals||{},mpesaBalance:balance||null});
 }
