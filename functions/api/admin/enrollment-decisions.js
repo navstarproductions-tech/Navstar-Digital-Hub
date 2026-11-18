@@ -71,10 +71,10 @@ export async function onRequestPost(context) {
   if (!['paid','deferred'].includes(String(enrollment.payment_status)) && !Number(enrollment.special_enrollment)) {
     return error('The application must have its required payment confirmed or an authorised payment exception recorded before acceptance.', 409);
   }
-  let user = await env.DB.prepare(`SELECT id, name, email, role, status FROM users WHERE lower(email) = lower(?) LIMIT 1`).bind(enrollment.email).first();
+  let user = await env.DB.prepare(`SELECT id, name, email, role, status, must_change_password FROM users WHERE lower(email) = lower(?) LIMIT 1`).bind(enrollment.email).first();
   if (user && user.role !== 'student') return error('This email is already assigned to a non-student Navstar account. Admissions must resolve the account ownership before admission.', 409);
   const userWasCreated = !user;
-  const needsPasswordSetup = !user || user.status !== 'active';
+  const needsPasswordSetup = !user || user.status !== 'active' || Number(user.must_change_password) === 1;
   if (!user) {
     const id = uuid();
     const generated = await hashPassword(strongRandomPassword());
@@ -91,6 +91,7 @@ export async function onRequestPost(context) {
   let setupUrl = new URL('/login?role=student', new URL(request.url).origin).toString();
   let passwordSetupSent = false;
   if (needsPasswordSetup) {
+    await env.DB.prepare("UPDATE student_password_setup_tokens SET used_at = datetime('now') WHERE user_id = ? AND used_at IS NULL").bind(user.id).run();
     const token = randomToken();
     await env.DB.prepare('INSERT INTO student_password_setup_tokens (id,user_id,token_hash,expires_at) VALUES (?,?,?,?)')
       .bind(uuid(), user.id, await digest(token), new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()).run();
