@@ -72,7 +72,12 @@ export function PortalWorkspaceTabs({role,name,enrollments,overview,payments,cas
  const current=tabs.find(tab=>tab.id===active)||tabs[0];
  const myEnrollments=enrollments;
  const unpaid=myEnrollments.filter(item=>item.payment_status!=='paid');
- const applications=role==='student'?myEnrollments:myEnrollments;
+ const applications=myEnrollments;
+ const metricRows: Array<[string,string|number]> = role==='student'
+  ? [['My applications',applications.length],['Awaiting payment',unpaid.length],['Approved courses',applications.filter(item=>item.status==='accepted').length],['Paid enrolments',applications.filter(item=>item.payment_status==='paid').length]]
+  : role==='finance'
+   ? [['Verified payments',payments.length],['Cashout requests',cashouts.length],['Verified collections',`KSh ${(overview?.verifiedPayments||0).toLocaleString()}`],['Verified donations',`KSh ${(overview?.verifiedDonations||0).toLocaleString()}`]]
+   : [['Students',overview?.students??'—'],['Applications',overview?.applications??'—'],['Active courses',overview?.courses??'—'],['Verified payments',`KSh ${(overview?.verifiedPayments||0).toLocaleString()}`]];
  return <section className="space-y-5">
   <nav aria-label={`${role} portal sections`} className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
    {tabs.map(tab=>{const Icon=tab.icon;return <button key={tab.id} type="button" onClick={()=>setActive(tab.id)} aria-current={active===tab.id?'page':undefined} className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition sm:text-sm ${active===tab.id?'bg-blue-800 text-white shadow-md':'text-slate-600 hover:bg-blue-50 hover:text-blue-800'}`}><Icon className="h-4 w-4"/>{tab.label}</button>;})}
