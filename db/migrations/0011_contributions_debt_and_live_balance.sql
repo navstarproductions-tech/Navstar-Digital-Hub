@@ -30,3 +30,7 @@ CREATE TABLE IF NOT EXISTS mpesa_balance_snapshots (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS mpesa_balance_created_idx ON mpesa_balance_snapshots(created_at);
+
+-- Queue already-received legacy payments for an administrator's first review.
+UPDATE payments SET admin_status='pending_review' WHERE status='paid' AND admin_status='not_received';
+UPDATE donations SET admin_status='pending_review' WHERE status='paid' AND admin_status='not_received';
