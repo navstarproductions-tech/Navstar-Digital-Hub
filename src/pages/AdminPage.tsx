@@ -181,6 +181,11 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
     {label:"Theme & Language",target:'settings',settingsTab:'complete'},
     {label:"Maintenance Mode",target:'settings',settingsTab:'complete'},
     {label:"Admissions Progress & Letters",target:'settings',settingsTab:'complete'},
+    {label:'Site settings',target:'settings',settingsTab:'site'},
+    {label:'Notifications',target:'settings',settingsTab:'notifications'},
+    {label:'My Profile',target:'settings',settingsTab:'my-profile'},
+    {label:'Geography directories',target:'settings',settingsTab:'geography'},
+    {label:'Staff ID formats',target:'settings',settingsTab:'staff-ids'},
   ],
   orders: makeTabs(['Service Orders','Customer Carts','Order Status'],'orders'),
   receipts: makeTabs(['Payment Receipts','Verified Receipts','Receipt Search'],'receipts'),
@@ -1057,7 +1062,7 @@ export function AdminPage() {
               const selected = expandedSection === id;
               const children = sectionSubtabs[id] || [];
               return <div key={id} className="min-w-0 shrink-0 md:w-full">
-                <button type="button" onClick={() => { setExpandedSection(id); setActive(id); setSelectedSubtab(''); setNotice(''); }} aria-current={active === id ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+                <button type="button" onClick={() => { setExpandedSection(id); setActive(id); setSelectedSubtab(''); if(id==='settings')setSettingsTab('complete'); setNotice(''); }} aria-current={active === id ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
                   <Icon className="h-4 w-4 shrink-0"/><span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 truncate"}>{label}</span>
                   {children.length>0 && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${selected ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>}
                 </button>
@@ -1286,13 +1291,7 @@ export function AdminPage() {
           {active === 'gallery' && <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]"><section className="space-y-4 border bg-white p-5"><h3 className="font-bold text-slate-950">Logo and site identity</h3><p className="text-sm leading-6 text-slate-600">Choose a local logo preview. It will not be published until secure media storage is connected.</p><Label htmlFor="brand-name">Display name</Label><Input id="brand-name" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} /><Label htmlFor="logo-upload">Logo image</Label><Input id="logo-upload" type="file" accept="image/*" onChange={(event) => setImage(event, 'logo')} />{logoPreview && <img src={logoPreview} alt="Selected NAVSTAR logo preview" className="h-24 w-24 border object-contain p-2" />}<p className="text-xs text-slate-500">Recommended: transparent PNG or SVG, square format.</p></section><section className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Gallery</h3><p className="mt-1 text-sm text-slate-600">Preview up to eight images at a time. Storage is not configured.</p></div><Label htmlFor="gallery-upload">Add gallery images</Label><Input id="gallery-upload" type="file" accept="image/*" multiple onChange={(event) => setImage(event, 'gallery')} /><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{galleryPreview.map((url, index) => <img key={url} src={url} alt={`Gallery preview ${index + 1}`} className="aspect-square w-full border object-cover" />)}</div></section></div>}
 
           {(active === 'settings' || active === 'profile') && <div className="space-y-5">
-            <div className="flex flex-wrap gap-2 border-b pb-3" role="tablist" aria-label="Settings sections">
-              {[
-                ['complete','All Settings'],['site','Site settings'],['notifications','Notifications'],['my-profile','My Profile'],['geography','Geography directories'],['staff-ids','Staff ID formats']
-              ].map(([id,label]) => <button key={id} type="button" role="tab" aria-selected={settingsTab === id} onClick={() => setSettingsTab(id as typeof settingsTab)} className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition ${settingsTab === id ? 'bg-emerald-800 text-white shadow' : 'border bg-white text-slate-700 hover:bg-slate-50'}`}>{label}</button>)}
-            </div>
-
-            {settingsTab === 'complete' && <AdminSettingsCenter />}
+                        {settingsTab === 'complete' && <AdminSettingsCenter activeSectionLabel={selectedSubtab} />}
 
             {settingsTab === 'site' && <form onSubmit={saveSettings} className="max-w-3xl space-y-4 rounded-2xl border bg-white p-5">
               <div><h3 className="font-bold text-slate-950">Site settings</h3><p className="mt-1 text-sm text-slate-600">Configure the official Navstar site and session policy.</p></div>
