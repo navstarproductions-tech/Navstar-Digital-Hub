@@ -38,6 +38,7 @@ function printDonationPageReceipt(receipt: Receipt, money: (value: number) => st
 }
 
 export function DonationsPage() {
+  const money = (value: number) => `KSh ${value.toLocaleString('en-KE')}`;
   const [amount, setAmount] = useState(500);
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
