@@ -95,6 +95,7 @@ export function AdminPage() {
   const [newLocationOption, setNewLocationOption] = useState('');
   const [newSubLocationOption, setNewSubLocationOption] = useState('');
   const [backendReady, setBackendReady] = useState(false);
+  const [sessionResolved, setSessionResolved] = useState(false);
   const [user, setUser] = useState<PortalUser | null>(null);
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [newUserName, setNewUserName] = useState('');
@@ -183,16 +184,19 @@ export function AdminPage() {
     const loadBackend = async () => {
       try {
         const healthResponse = await fetch('/api/health');
-        if (!healthResponse.ok) return;
+        if (!healthResponse.ok) { if (active) setSessionResolved(true); return; }
         const health = await healthResponse.json() as { databaseConfigured?: boolean };
-        if (!active || !health.databaseConfigured) return;
+        if (!active) return;
+        if (!health.databaseConfigured) { setSessionResolved(true); return; }
         setBackendReady(true);
 
         const sessionResponse = await fetch('/api/auth/me');
-        if (!sessionResponse.ok) return;
+        if (!sessionResponse.ok) { if (active) { setSessionResolved(true); navigate('/login?role=admin', { replace: true }); } return; }
         const session = await sessionResponse.json() as { user?: PortalUser };
-        if (!session.user || !active) return;
+        if (!session.user || !active) { if (active) { setSessionResolved(true); navigate('/login?role=admin', { replace: true }); } return; }
+        if (session.user.role !== 'admin') { setSessionResolved(true); navigate('/portals/' + encodeURIComponent(session.user.role), { replace: true }); return; }
         setUser(session.user);
+        setSessionResolved(true);
 
         const [courseResponse, serviceResponse, overviewResponse, userResponse, enrollmentResponse, cashoutResponse, settingsResponse, mediaResponse] = await Promise.all([
           fetch('/api/courses'), fetch('/api/services'), fetch('/api/admin/overview'), fetch('/api/admin/users'), fetch('/api/enrollments'), fetch('/api/admin/cashouts'), fetch('/api/admin/settings'), fetch('/api/admin/media'),
@@ -257,7 +261,7 @@ export function AdminPage() {
         }
         if (!overviewResponse.ok) setNotice('Live database connected; some dashboard metrics are not available for this role.');
       } catch {
-        if (active) setNotice('Backend connection failed. Check Cloudflare Pages Functions and D1 binding.');
+        if (active) { setSessionResolved(true); setNotice('Backend connection failed. Check Cloudflare Pages Functions and D1 binding.'); }
       }
     };
     void loadBackend();
@@ -652,6 +656,10 @@ export function AdminPage() {
   const title = sections.find((section) => section.id === active)?.label ?? 'Overview';
 
   useEffect(() => { if (contentRef.current) contentRef.current.scrollTop = 0; }, [active, settingsTab]);
+
+  if (!sessionResolved) {
+    return <main className="flex min-h-screen items-center justify-center bg-[#080d19] text-white"><div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#171d2b] px-6 py-5"><span className="h-5 w-5 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent"/><span className="text-sm font-semibold">Checking your secure Admin session…</span></div></main>;
+  }
 
   if (!user || user.role !== 'admin') {
     return (
