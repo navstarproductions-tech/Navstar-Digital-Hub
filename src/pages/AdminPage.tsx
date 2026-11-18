@@ -38,6 +38,7 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
 
 export function AdminPage() {
   const [active, setActive] = useState<Section>('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [services, setServices] = useState(initialServices);
   const [serviceName, setServiceName] = useState('');
@@ -432,16 +433,16 @@ export function AdminPage() {
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-[1600px] md:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="border-r bg-slate-950 text-white">
+      <div className={'mx-auto grid h-screen max-w-[1800px] grid-cols-1 grid-rows-[4rem_minmax(0,1fr)] overflow-hidden md:grid-rows-1 ' + (sidebarCollapsed ? 'md:grid-cols-[76px_minmax(0,1fr)]' : 'md:grid-cols-[260px_minmax(0,1fr)]')}>
+        <aside className="sticky top-0 z-40 flex h-16 min-w-0 flex-row border-b bg-slate-950 text-white md:h-screen md:flex-col md:border-b-0 md:border-r">
           <div className="border-b border-white/10 px-5 py-5"><p className="text-[11px] font-bold uppercase text-emerald-300">NAVSTAR DIGITAL HUB</p><h1 className="mt-1 text-lg font-bold">Administration</h1></div>
-          <nav aria-label="Admin sections" className="flex gap-1 overflow-x-auto p-3 md:block md:space-y-1">
+          <nav aria-label="Admin sections" className="flex min-w-0 flex-1 gap-1 overflow-x-auto p-2 md:min-h-0 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:space-y-1 md:p-3">
             {sections.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => { setActive(id); setNotice(''); }} aria-current={active === id ? 'page' : undefined} className={`flex shrink-0 items-center gap-3 px-3 py-2.5 text-left text-sm md:w-full ${active === id ? 'bg-emerald-800 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}><Icon className="h-4 w-4" />{label}</button>)}
           </nav>
           <div className="hidden border-t border-white/10 p-4 text-xs leading-5 text-slate-400 md:block">Preview dashboard. Live records and actions require authenticated server access.</div>
         </aside>
 
-        <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-9">
+        <section className="h-full min-h-0 min-w-0 overflow-y-auto px-4 py-6 sm:px-6 lg:px-9">
           <header className="mb-6 flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
             <div><p className="text-xs font-semibold uppercase text-slate-500">Admin workspace / {title}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{title}</h2></div>
             <span className={`inline-flex w-fit items-center gap-2 border px-3 py-2 text-xs font-semibold ${backendReady && user ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}><ShieldAlert className="h-4 w-4" />{backendReady && user ? `Connected · ${user.role}` : 'Preview mode · backend not connected'}</span>
@@ -510,7 +511,7 @@ export function AdminPage() {
             ['newApplication', 'New student application'], ['paymentUpdate', 'Payment status update'], ['donation', 'Donation received'],
           ].map(([key, label]) => <label key={key} className="flex items-center justify-between gap-4 border-b py-3 last:border-0"><span className="flex items-center gap-2 text-sm font-medium"><Bell className="h-4 w-4 text-emerald-800" />{label}</span><input type="checkbox" checked={notifications[key as keyof typeof notifications]} onChange={(event) => setNotifications((current) => ({ ...current, [key]: event.target.checked }))} className="h-4 w-4 accent-emerald-800" /></label>)}<p className="text-xs leading-5 text-slate-500">Browser push and SMS notifications require user permission and a notification backend.</p></section></div>}
 
-          <footer className="mt-8 border-t pt-4 text-xs leading-5 text-slate-500">Daraja secrets stay server-side. User accounts, student records, uploads, and finance operations require authenticated role access.</footer>
+          <footer className="mt-8 flex flex-col gap-2 border-t pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Daraja secrets stay server-side. User accounts, student records, uploads, and finance operations require authenticated role access.</span><span className="font-semibold text-blue-800">Powered by Navstar Digital Hub</span></footer>
         </section>
       </div>
     </main>
