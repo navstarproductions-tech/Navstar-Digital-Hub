@@ -12,7 +12,18 @@ const portals = [
   { id: 'finance', title: 'Finance portal', icon: CircleDollarSign, summary: 'Manage authorised fee collections, payments, refunds, scholarships and financial reports.', accent: 'from-emerald-600 to-teal-500', tint: 'bg-emerald-500/10 text-emerald-700' },
   { id: 'admin', title: 'Administrator portal', icon: ShieldCheck, summary: 'Manage courses, services, users, payments, notifications, downloadable documents and website settings.', accent: 'from-slate-800 to-blue-700', tint: 'bg-slate-800/10 text-slate-800' },
   { id: 'customer', title: 'Customer service desk', icon: BriefcaseBusiness, summary: 'Browse Navstar services, request assistance, place service orders and pay securely. No student or staff account is required.', accent: 'from-emerald-600 to-teal-500', tint: 'bg-emerald-500/10 text-emerald-700' },
+
 ];
+
+const portalStyles: Record<string, { page: string; hero: string; eyebrow: string }> = {
+  student: { page: 'bg-cyan-50', hero: 'bg-gradient-to-r from-cyan-950 via-sky-900 to-cyan-700', eyebrow: 'text-cyan-200' },
+  tutor: { page: 'bg-violet-50', hero: 'bg-gradient-to-r from-violet-950 via-indigo-900 to-slate-900', eyebrow: 'text-violet-200' },
+  admissions: { page: 'bg-teal-50', hero: 'bg-gradient-to-r from-teal-950 via-cyan-900 to-slate-900', eyebrow: 'text-teal-200' },
+  principal: { page: 'bg-amber-50', hero: 'bg-gradient-to-r from-amber-950 via-orange-900 to-slate-950', eyebrow: 'text-amber-200' },
+  finance: { page: 'bg-emerald-50', hero: 'bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-950', eyebrow: 'text-emerald-200' },
+  admin: { page: 'bg-slate-100', hero: 'bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900', eyebrow: 'text-blue-200' },
+  customer: { page: 'bg-emerald-50', hero: 'bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900', eyebrow: 'text-emerald-200' },
+};
 
 type SessionUser = { id: string; name: string; email: string; role: string; profilePhotoUrl?: string | null; mustChangePassword?: boolean };
 type Enrollment = { id: string; full_name: string; course_id: string; phone?: string; status: string; payment_status: string; created_at: string };
@@ -24,6 +35,7 @@ export function PortalsPage() {
   const { role } = useParams();
   const navigate = useNavigate();
   const selectedPortal = portals.find((portal) => portal.id === role);
+  const selectedStyle = selectedPortal ? portalStyles[selectedPortal.id] : null;
   const [user, setUser] = useState<SessionUser | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -151,7 +163,7 @@ export function PortalsPage() {
     <main className="navstar-portal min-h-screen bg-slate-50">
       <section className="bg-[#061127] text-white">
         <div className="container mx-auto flex flex-col justify-between gap-4 px-4 py-10 sm:flex-row sm:items-end sm:px-6 lg:px-8">
-          <div><p className="text-xs font-bold uppercase tracking-[.25em] text-cyan-300">NAVSTAR DIGITAL HUB / {selectedPortal.id}</p><h1 className="mt-2 text-3xl font-black">{selectedPortal.title}</h1><div className="mt-2 flex items-center gap-3 text-slate-300">{user?.profilePhotoUrl && <img src={user.profilePhotoUrl} alt="Profile photo" className="h-10 w-10 rounded-full border border-white/30 object-cover"/>}<p className="font-semibold text-white">{user ? `Welcome back, ${user.name} · ${selectedPortal.title}` : status}</p></div></div>
+          <div><p className={"text-xs font-bold uppercase tracking-[.25em] " + (selectedStyle?.eyebrow || "text-cyan-300")}>NAVSTAR DIGITAL HUB / {selectedPortal.id}</p><h1 className="mt-2 text-3xl font-black">{selectedPortal.title}</h1><div className="mt-2 flex items-center gap-3 text-slate-300">{user?.profilePhotoUrl && <img src={user.profilePhotoUrl} alt="Profile photo" className="h-10 w-10 rounded-full border border-white/30 object-cover"/>}<p className="font-semibold text-white">{user ? `Welcome back, ${user.name} · ${selectedPortal.title}` : status}</p></div></div>
           {!user && <Button asChild className="w-fit rounded-full bg-blue-600 hover:bg-blue-500"><Link to={`/login?role=${selectedPortal.id}`}>Sign in securely <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>}
           {user && <div className="flex flex-wrap gap-2"><Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/portals/notifications"><Bell className="mr-2 h-4 w-4"/>Notifications</Link></Button><Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/my-account"><UserRound className="mr-2 h-4 w-4"/>My account</Link></Button>{user.role === 'admin' && <Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/admin">Admin workspace</Link></Button>}<Button type="button" variant="outline" onClick={() => void signOut()} className="border-amber-300/60 bg-amber-300/10 text-white hover:bg-amber-300/20"><LogOut className="mr-2 h-4 w-4"/>Log out</Button></div>}
         </div>
