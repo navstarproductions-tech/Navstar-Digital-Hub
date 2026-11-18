@@ -44,14 +44,14 @@ export async function onRequestPost({ request, env }) {
   const resultDescription = safeString(callback.ResultDesc, 500) || (paid ? 'Payment confirmed by M-Pesa.' : 'Payment was not completed.');
   const transactionDate = items.TransactionDate ? String(items.TransactionDate) : null;
   await env.DB.prepare(`
-    UPDATE payments SET status = ?, result_code = ?, receipt_number = ?, internal_receipt_number = ?, result_description = ?, transaction_date = ?, callback_phone = ?, callback_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-  `).bind(paid ? 'paid' : 'failed', Number.isFinite(resultCode) ? resultCode : -1, receipt, internalReceipt, resultDescription, transactionDate, callbackPhone || null, Number.isFinite(callbackAmount) ? callbackAmount : null, payment.id).run();
+    UPDATE payments SET status = ?, admin_status = ?, result_code = ?, receipt_number = ?, internal_receipt_number = ?, result_description = ?, transaction_date = ?, callback_phone = ?, callback_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `).bind(paid ? 'paid' : 'failed', paid ? 'pending_review' : 'not_received', Number.isFinite(resultCode) ? resultCode : -1, receipt, internalReceipt, resultDescription, transactionDate, callbackPhone || null, Number.isFinite(callbackAmount) ? callbackAmount : null, payment.id).run();
 
   if (payment.purpose === 'enrollment') {
     await env.DB.prepare('UPDATE enrollments SET payment_status = ? WHERE id = ?')
-      .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
+      .bind(paid ? 'paid' : 'failed', paid ? 'pending_review' : 'not_received', payment.reference_id).run();
   } else if (payment.purpose === 'donation') {
-    await env.DB.prepare('UPDATE donations SET status = ? WHERE id = ?')
+    await env.DB.prepare('UPDATE donations SET status = ?, admin_status = ? WHERE id = ?')
       .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
   } else if (payment.purpose === 'service') {
     await env.DB.prepare('UPDATE service_requests SET status = ? WHERE id = ?')
