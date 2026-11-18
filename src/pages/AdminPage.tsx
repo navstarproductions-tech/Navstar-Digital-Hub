@@ -105,7 +105,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   school: makeTabs(['All Students','Add New Student','Bulk Enrollment','Completed → Graduates','Edit Student Details','Assign Intakes & Years','Detail Edit Requests','Print Basic List','Students List PDF (Filters & Select)','Manage Logins','Deleted Students & Recovery','Enrollment Links','Generate Bulk PDFs','Student Detail PDF'],'school'),
   employees: makeTabs(['Employee Directory','Add Employee','Edit Employee Details','Staff Roles & Departments','Staff Attendance','Employee Documents'],'users'),
   'staff-applications': makeTabs(['All Applications','Pending Review','Approved Applications','Rejected Applications','Application Documents'],'enrollments'),
-  'navstar-analytics': makeTabs(['Overview','Student Analytics','Course Analytics','Revenue Analytics','Attendance Analytics'],'overview'),
+  'navstar-analytics': makeTabs(['Overview','Student Analytics','Course Analytics','Revenue Analytics','Attendance Analytics'],'navstar-analytics'),
   'ai-intake-advisor': makeTabs(['AI Intake Advisor','Review Recommendations','Intake Forecasts'],'ai-intake-advisor'),
   'enrollment-summary': makeTabs(['Intake Summary','Enrollment by Course','Enrollment by Year','Enrollment Status'],'enrollments'),
   services: makeTabs(['Manage Services','Customer Carts','Service Orders'],'services'),
@@ -126,7 +126,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   applications: makeTabs(['All Applications','New Applications','Review Applications','Application Status'],'enrollments'),
   'online-forms': makeTabs(['Form Builder','Published Forms','Form Responses'],'online-forms'),
   reports: makeTabs(['Operational Reports','Student Reports','Finance Reports','Export Reports'],'overview'),
-  'analytics-reports': makeTabs(['Analytics Dashboard','Student Trends','Service Performance','Financial Performance'],'overview'),
+  'analytics-reports': makeTabs(['Analytics Dashboard','Student Trends','Service Performance','Financial Performance'],'analytics-reports'),
   'songs-music': makeTabs(['Music Library','Upload Music','Playlists'],'songs-music'),
   gallery: makeTabs(['Photo Gallery','Upload Images','Manage Albums'],'gallery'),
   'news-updates': makeTabs(['All News','Publish Update','Drafts & Archives'],'downloads'),
@@ -1040,7 +1040,7 @@ export function AdminPage() {
                 {selected && !sidebarCollapsed && children.length>0 && <div className="ml-5 mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3">
                   {children.map((tab,index) => {
                     const isCurrent = tab.target===active && (!tab.settingsTab || tab.settingsTab===settingsTab) && (!tab.coursesTab || tab.coursesTab===coursesSubTab) && (!tab.learningTab || tab.learningTab===learningSubTab);
-                    return <button key={tab.label} type="button" onClick={() => { setActive(tab.target); setSelectedSubtab(tab.label); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); }} aria-current={isCurrent?'page':undefined} className={`flex min-h-8 w-full items-center rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 rounded-full bg-current opacity-70"/>{tab.label}</button>;
+                    return <button key={tab.label} type="button" onClick={() => { setActive(expandedSection); setSelectedSubtab(tab.label); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); }} aria-current={isCurrent?'page':undefined} className={`flex min-h-8 w-full items-center rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 rounded-full bg-current opacity-70"/>{tab.label}</button>;
                   })}
                 </div>}
               </div>;
@@ -1348,6 +1348,16 @@ export function AdminPage() {
             </section>}
           </div>}
 
+          {active === 'navstar-analytics' && <div className="space-y-6">
+            <section className="overflow-hidden rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-[#071b3a] via-[#102c55] to-[#071827] p-6 text-white shadow-xl">
+              <p className="text-[10px] font-black uppercase tracking-[.28em] text-cyan-300">A separate Navstar product</p>
+              <h2 className="mt-2 text-2xl font-black sm:text-3xl">Navstar Analytics</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-blue-100">A dedicated school-management and analytics platform being prepared for Kenyan schools. It is separate from Navstar Digital Hub's computer-school learners, cyber-service customers, sales and accounts.</p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[['Schools','School register'],['Learners','School enrolment'],['Teachers','Staff and deployment'],['Classes','Grades, streams and timetables'],['Assessments','Marks and learning progress'],['Attendance','Daily school attendance'],['Fees','School fee accounts'],['Insights','Performance and trends']].map(([label,detail])=><div key={label} className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-sm font-bold">{label}</p><p className="mt-1 text-xs text-blue-200">{detail}</p><p className="mt-3 text-xs font-semibold text-cyan-300">Separate school data workspace</p></div>)}</div>
+            </section>
+            <section className="rounded-2xl border border-amber-300/20 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>Data separation:</strong> This dashboard does not reuse Navstar Digital Hub's cyber customers, computer-course enrolments, POS sales or service receipts. School records will be created in the dedicated Navstar Analytics data model as its modules are implemented. No sample school figures are being presented as real data.</section>
+          </div>}
+          {active === 'analytics-reports' && <section className="space-y-4 rounded-2xl border border-cyan-400/20 bg-[#101d31] p-6 text-white"><p className="text-xs font-black uppercase tracking-[.2em] text-cyan-300">Navstar Digital Hub reporting</p><h2 className="text-2xl font-black">Analytics & Reports</h2><p className="max-w-3xl text-sm leading-6 text-slate-300">Operational reporting for Navstar Digital Hub's own computer-school activity and cyber-services business. This is kept separate from the future Navstar Analytics school-management product.</p><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{['Computer-school enrolment','Course and module activity','Cyber-service orders','POS sales and verified payments'].map(item=><div key={item} className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm font-semibold">{item}</div>)}</div></section>}
           {![ 'overview','navstar-analytics','analytics-reports','reports','courses','learning','marks-tests','school','services','pos','finance','fees','enrollments','staff-applications','applications','enrollment-summary','users','employees','student-directory','customer-accounts','downloads','documents','gallery','settings','profile','orders','receipts','portal-links','pos-tools' ].includes(active) && <section className="rounded-2xl border border-white/10 bg-[#151d2b] p-6 sm:p-8"><p className="text-xs font-extrabold uppercase tracking-[.22em] text-cyan-300">NAVSTAR DIGITAL HUB · WORKSPACE</p><h3 className="mt-2 text-2xl font-black text-white">{sections.find(item=>item.id===active)?.label || 'Workspace'}</h3><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">This main workspace has been added to the Admin navigation. Its dedicated registers, forms and subtabs can now be configured here without mixing its records with other sections. Existing Navstar records and other portal modules remain separate.</p></section>}
 
           <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Secure Navstar administration · User accounts, student records, uploads and finance operations are protected.</span><span className="font-semibold text-cyan-300">Powered by Navstar Digital Hub</span></footer>
