@@ -9,6 +9,7 @@ import { readApiResponse } from '@/lib/api';
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
 import { formatEATDateTime } from '@/lib/datetime';
+import { GeographyPicker } from '@/components/GeographyPicker';
 
 type Section = 'overview' | 'courses' | 'learning' | 'school' | 'services' | 'enrollments' | 'finance' | 'receipts' | 'gallery' | 'downloads' | 'orders' | 'users' | 'settings';
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
@@ -93,6 +94,7 @@ export function AdminPage() {
   const [newUserCitizenship, setNewUserCitizenship] = useState('Kenyan');
   const [newUserCounty, setNewUserCounty] = useState('');
   const [newUserSubCounty, setNewUserSubCounty] = useState('');
+  const [newUserWard, setNewUserWard] = useState('');
   const [newUserDepartment, setNewUserDepartment] = useState('');
   const [newUserJobTitle, setNewUserJobTitle] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
@@ -491,7 +493,7 @@ export function AdminPage() {
         body: JSON.stringify({
           name: newUserName, email: newUserEmail, role: newUserRole, password: newUserPassword,
           confirmPassword: newUserConfirmPassword, phone: newUserPhone, nationalId: newUserNationalId, citizenship: newUserCitizenship,
-          country: 'Kenya', county: newUserCounty, subCounty: newUserSubCounty,
+          country: 'Kenya', county: newUserCounty, subCounty: newUserSubCounty, ward: newUserWard,
           department: newUserDepartment, jobTitle: newUserJobTitle
         }),
       });
@@ -499,7 +501,7 @@ export function AdminPage() {
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Account could not be created.');
       setPortalUsers((current) => [result.user!, ...current]);
       setNewUserName(''); setNewUserEmail(''); setNewUserPassword(''); setNewUserConfirmPassword('');
-      setNewUserPhone(''); setNewUserNationalId(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserDepartment(''); setNewUserJobTitle('');
+      setNewUserPhone(''); setNewUserNationalId(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserWard(''); setNewUserDepartment(''); setNewUserJobTitle('');
       setNotice(`Account created successfully. Staff ID: ${result.user.staffId || 'assigned'}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Account could not be created.');
