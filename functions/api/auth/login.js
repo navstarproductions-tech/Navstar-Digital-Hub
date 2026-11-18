@@ -1,7 +1,7 @@
 import { createSession, hashPassword, sha256, verifyPassword } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 
-const roles = ['student', 'tutor', 'admissions', 'principal', 'admin', 'finance'];
+const roles = ['student'];
 
 export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
@@ -13,7 +13,7 @@ export async function onRequestPost({ request, env }) {
   const password = String(body.password ?? '');
   const requestedRole = safeString(body.role, 24);
   if (!email.includes('@') || password.length < 6 || password.length > 200 || !roles.includes(requestedRole)) {
-    return error('Invalid email, password, or portal.', 400);
+    return error('Student sign-in requires a valid email and password. Staff must use their Staff ID and National ID.', 400);
   }
 
   const emailHash = await sha256(email);
