@@ -36,6 +36,7 @@ async function existingStudentCourse(DB, { courseId, identityNumber, email }) {
     JOIN users u ON lower(u.email) = lower(e.email)
     LEFT JOIN user_profiles p ON p.user_id = u.id
     WHERE u.role = 'student' AND u.status = 'active'
+      AND e.status IN ('submitted','under_review','accepted')
       AND ((? <> '' AND (e.identity_number = ? OR p.national_id = ?))
         OR (? <> '' AND lower(e.email) = lower(?)))
   `).bind(courseId, identityNumber || '', identityNumber || '', identityNumber || '', email || '', email || '').first();
@@ -98,7 +99,7 @@ export async function onRequestPost(context) {
   `).bind(
     id, displayRef, course.id, fullName, email, phone, dateOfBirth, identityType, identityNumber || null,
     safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null, studyMode, educationLevel,
-    safeString(body.preferredIntake, 20) || null, safeString(body.experience, 2000) || null, county, town,
+    safeString(intake.name, 80) || null, safeString(body.experience, 2000) || null, county, town,
     safeString(body.address, 250) || null, safeString(body.subCounty, 100) || null, safeString(body.ward, 100) || null, safeString(body.location, 100) || null, safeString(body.subLocation, 100) || null, emergencyContactName, emergencyContactPhone,
     safeString(body.emergencyContactRelationship, 80) || null, safeString(body.supportNeeds, 2000) || null,
   ).run();
