@@ -5,6 +5,7 @@ import { nextReference } from '../_shared/references.js';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const digest = async value => { const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join(''); };
 
 async function currentIntake(DB) {
   const row = await DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
@@ -59,7 +60,8 @@ export async function onRequestPost(context) {
 
   const fullName = safeString(body.fullName, 120);
   const email = safeString(body.email, 254).toLowerCase();
-  const phone = normalizePhone(body.phone);\n  const verificationToken = safeString(body.verificationToken, 120);
+  const phone = normalizePhone(body.phone);
+  const verificationToken = safeString(body.verificationToken, 120);
   const dateOfBirth = safeString(body.dateOfBirth, 10);
   const identityType = safeString(body.identityType, 30);
   const studyMode = safeString(body.studyMode, 40);
@@ -110,8 +112,17 @@ export async function onRequestPost(context) {
     safeString(body.address, 250) || null, safeString(body.subCounty, 100) || null, safeString(body.ward, 100) || null, safeString(body.location, 100) || null, safeString(body.subLocation, 100) || null, emergencyContactName, emergencyContactPhone,
     safeString(body.emergencyContactRelationship, 80) || null, safeString(body.supportNeeds, 2000) || null,
   ).run();
-
-  return json({ id, reference: displayRef, status: 'awaiting_payment', paymentRequired: true, amountDueNow, course: { id: course.id, title: course.title, amount: course.price } }, 201);
+  const savedDetails = { ...body };
+  delete savedDetails.verificationToken;
+  await env.DB.batch([
+    env.DB.prepare('UPDATE enrollments SET application_details_json = ?, application_verified_at = ? WHERE id = ?')
+      .bind(JSON.stringify(savedDetails), new Date().toISOString(), id),
+    env.DB.prepare("UPDATE enrollment_application_otps SET consumed_at = datetime('now') WHERE id = ? AND consumed_at IS NULL")
+      .bind(verification.id)
+  ]);
+  const installmentLines = String(rules.installmentPlans || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0] === course.id);
+  const installments = installmentLines.map(parts => ({ label: parts[1], amount: Number(parts[2]), dueDate: parts[3] || '' }));
+  return json({ id, reference: displayRef, status: 'awaiting_payment', paymentRequired: true, amountDueNow, installments, course: { id: course.id, title: course.title, amount: course.price } }, 201);
 }
 
 export async function onRequestGet({ request, env }) {
