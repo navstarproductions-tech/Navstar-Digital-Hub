@@ -18,7 +18,18 @@ function parseRecords(value: unknown): GeoRecord[] {
   if (!value || typeof value !== 'object') return [];
   const root = value as Record<string, unknown>;
   const data = (root.data && typeof root.data === 'object' ? root.data : root) as Record<string, unknown>;
-  const direct = ['county', 'subcounty', 'ward'].flatMap(key => Array.isArray(data[key]) ? data[key] as GeoRecord[] : []);
+  // The Open Admin Data API returns separate county/subcounty/ward arrays.
+  // Records in those arrays may omit the numeric level, so assign it from the
+  // containing collection instead of silently dropping every option.
+  const direct = ([
+    ['county', 1],
+    ['subcounty', 2],
+    ['ward', 3],
+  ] as const).flatMap(([key, assignedLevel]) =>
+    Array.isArray(data[key])
+      ? (data[key] as GeoRecord[]).map(record => ({ ...record, level: record.level || assignedLevel }))
+      : []
+  );
   if (direct.length) return direct;
   const result: GeoRecord[] = [];
   const visit = (node: unknown) => {
@@ -52,10 +63,16 @@ export function GeographyPicker({ county, subCounty, ward = '', location = '', s
   const countyRecords = useMemo(() => records.filter(record => level(record) === 1), [records]);
   const subCountyRecords = useMemo(() => records.filter(record => level(record) === 2), [records]);
   const wardRecords = useMemo(() => records.filter(record => level(record) === 3), [records]);
-  const selectedCounty = countyRecords.find(record => label(record).toLowerCase() === county.toLowerCase());
-  const subCounties = subCountyRecords.filter(record => parentId(record) === selectedCounty?.id);
-  const selectedSubCounty = subCounties.find(record => label(record).toLowerCase() === subCounty.toLowerCase());
-  const wards = wardRecords.filter(record => parentId(record) === selectedSubCounty?.id);
+  const selectedCounty = countyRecords.find(record => label(record).trim().toLowerCase() === county.trim().toLowerCase());
+  const subCounties = subCountyRecords.filter(record =>
+    parentId(record) === selectedCounty?.id ||
+    (record as GeoRecord & { parent_name_en?: string }).parent_name_en?.trim().toLowerCase() === county.trim().toLowerCase()
+  );
+  const selectedSubCounty = subCounties.find(record => label(record).trim().toLowerCase() === subCounty.trim().toLowerCase());
+  const wards = wardRecords.filter(record =>
+    parentId(record) === selectedSubCounty?.id ||
+    (record as GeoRecord & { parent_name_en?: string }).parent_name_en?.trim().toLowerCase() === subCounty.trim().toLowerCase()
+  );
   const selectClass = 'h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600';
   const update = (patch: Partial<GeoValues>) => onChange({ county, subCounty, ward, location, subLocation, ...patch });
 
@@ -66,7 +83,7 @@ export function GeographyPicker({ county, subCounty, ward = '', location = '', s
     <div className="space-y-1"><label className="text-sm font-medium">Ward</label><select className={selectClass} value={ward} disabled={!subCounty || wards.length === 0} onChange={event => update({ ward: event.target.value })}><option value="">Select ward</option>{wards.map(record => <option key={record.id} value={label(record)}>{label(record)}</option>)}</select></div>
     <div className="space-y-1"><label className="text-sm font-medium">Location</label><select className={selectClass} value={location} disabled={locations.length === 0} onChange={event => update({ location: event.target.value, subLocation: '' })}><option value="">{locations.length ? 'Select location' : 'No location options configured'}</option>{locations.map(value => <option key={value} value={value}>{value}</option>)}</select></div>
     <div className="space-y-1"><label className="text-sm font-medium">Sub-location</label><select className={selectClass} value={subLocation} disabled={!location || subLocations.length === 0} onChange={event => update({ subLocation: event.target.value })}><option value="">{subLocations.length ? 'Select sub-location' : 'No sub-location options configured'}</option>{subLocations.map(value => <option key={value} value={value}>{value}</option>)}</select></div>
-    {loadError && <p className="text-xs text-amber-700 sm:col-span-2">The live county directory could not be reached. County names remain available; reconnect to load sub-counties and wards.</p>}
-    {(!locations.length || !subLocations.length) && <p className="text-xs text-slate-500 sm:col-span-2">Location and sub-location lists are managed by the Admin under Settings → Geography directories. These levels are not included in the national county/sub-county/ward dataset.</p>}
+    {loadError && <p className="text-xs text-amber-700 sm:col-span-2">The national geography directory could not be loaded. Please check your connection and retry; the county list remains available.</p>}
+    {(!locations.length || !subLocations.length) && <p className="text-xs text-slate-500 sm:col-span-2">Location and sub-location options are managed under Settings → Geography directories. Add your local options there; national county/sub-county/ward records are loaded separately.</p>}
   </div>;
 }
