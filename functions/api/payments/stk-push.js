@@ -45,6 +45,11 @@ export async function onRequestPost({ request, env }) {
       UPDATE payments SET status = 'pending', merchant_request_id = ?, checkout_request_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
     `).bind(prompt.merchantRequestId, prompt.checkoutRequestId, paymentId).run();
     if (purpose === 'enrollment') await env.DB.prepare("UPDATE enrollments SET payment_status = 'pending' WHERE id = ?").bind(reference).run();
+    const administrators = await env.DB.prepare("SELECT id FROM users WHERE role IN ('admin','finance') AND status = 'active'").all();
+    if (administrators.results?.length) {
+      await env.DB.batch(administrators.results.map((administrator) => env.DB.prepare('INSERT INTO notifications (id,user_id,title,message) VALUES (?,?,?,?)')
+        .bind(uuid(), administrator.id, 'M-Pesa prompt sent', `${purpose.toUpperCase()} payment prompt sent to ${phone} for KSh ${amount}. Reference: ${displayReference}.`)));
+    }
     return json({ id: paymentId, reference: displayReference, status: 'pending', message: prompt.customerMessage });
   } catch (errorValue) {
     await env.DB.prepare("UPDATE payments SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(paymentId).run();
