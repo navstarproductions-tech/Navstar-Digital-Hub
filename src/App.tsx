@@ -42,7 +42,8 @@ function IdleSessionGuard() {
     if (!protectedPath) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let timeoutMs = 8 * 60 * 60 * 1000;
-    let role = pathname.startsWith('/admin') ? 'admin' : pathname.startsWith('/portals/') && pathname.split('/')[2] !== 'notifications' ? pathname.split('/')[2] : '';\n    const loginGate = () => role ? '/login?role=' + encodeURIComponent(role) : '/portals';
+    let role = pathname.startsWith('/admin') ? 'admin' : pathname.startsWith('/portals/') && pathname.split('/')[2] !== 'notifications' ? pathname.split('/')[2] : '';
+    const loginGate = () => role ? '/login?role=' + encodeURIComponent(role) : '/portals';
     let lastPing = 0;
     let active = true;
     const signOutForInactivity = async () => {
