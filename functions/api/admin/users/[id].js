@@ -27,7 +27,8 @@ export async function onRequestPatch({ request, env, params }) {
       updated_at = CURRENT_TIMESTAMP WHERE user_id = ?
   `).bind(role, nationalId || null, safeString(body.phone, 32) || null, safeString(body.citizenship, 80) || null,
     safeString(body.country, 80) || 'Kenya', safeString(body.county, 100) || null,
-    safeString(body.subCounty, 100) || null, safeString(body.constituency, 100) || safeString(body.subCounty, 100) || null,\n    safeString(body.ward, 100) || null, safeString(body.department, 100) || null,
+    safeString(body.subCounty, 100) || null, safeString(body.constituency, 100) || safeString(body.subCounty, 100) || null,
+    safeString(body.ward, 100) || null, safeString(body.department, 100) || null,
     safeString(body.jobTitle, 120) || null, safeString(body.employmentType, 40) || null,
     safeString(body.joinedOn, 10) || null, id).run();
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), access.user.id, 'user_profile_admin_updated', 'user', id).run().catch(() => {});
