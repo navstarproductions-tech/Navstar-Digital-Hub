@@ -41,6 +41,7 @@ export async function onRequestPost(context) {
   if (!enrollment) return error('Application not found.', 404);
   const now = new Date().toISOString();
   if (action === 'defer-payment' || action === 'reduced-deposit') {
+    if (['accepted','rejected','withdrawn'].includes(String(enrollment.status))) return error('Payment exceptions can only be approved for an application that has not received a final decision.', 409);
     const approvedAmount = action === 'defer-payment' ? 0 : Number(body.approvedInitialPayment);
     if (action === 'reduced-deposit' && (!Number.isSafeInteger(approvedAmount) || approvedAmount < 1 || approvedAmount >= Number(enrollment.course_fee))) return error('The approved initial payment must be at least KSh 1 and less than the published course fee.');
     const dueDate = safeString(body.paymentDueDate, 10);
@@ -64,6 +65,8 @@ export async function onRequestPost(context) {
   }
 
   if (action === 'reject' || action === 'withdraw') {
+    if (action === 'reject' && enrollment.status === 'accepted') return error('An accepted student cannot be rejected through this action. Use the approved withdrawal process.', 409);
+    if (['rejected','withdrawn'].includes(String(enrollment.status))) return error('This application already has a final rejection or withdrawal decision.', 409);
     const status = action === 'reject' ? 'rejected' : 'withdrawn';
     await env.DB.batch([
       env.DB.prepare('UPDATE enrollments SET status = ?, admissions_decision_reason = ? WHERE id = ?').bind(status, reason, enrollmentId),
@@ -126,7 +129,7 @@ export async function onRequestPost(context) {
     const token = randomToken();
     await env.DB.prepare('INSERT INTO student_password_setup_tokens (id,user_id,token_hash,expires_at) VALUES (?,?,?,?)')
       .bind(uuid(), user.id, await digest(token), new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()).run();
-    setupUrl = new URL('/set-password?token=' + encodeURIComponent(token), new URL(request.url).origin).toString();
+    setupUrl = new URL('/set-password', new URL(request.url).origin).toString() + '#token=' + encodeURIComponent(token);
     passwordSetupSent = true;
   }
   await env.DB.batch([
