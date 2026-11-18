@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/layout/Navbar';
@@ -14,6 +14,7 @@ import { PortalsPage } from '@/pages/PortalsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ChangePasswordPage } from '@/pages/ChangePasswordPage';
 import { AdminResetPage } from '@/pages/AdminResetPage';
+import { FirstAdminSetupPage } from '@/pages/FirstAdminSetupPage';
 import { CustomerAccountPage } from '@/pages/CustomerAccountPage';
 import { DigitalHubPage } from '@/pages/DigitalHubPage';
 import { ForumPage } from '@/pages/ForumPage';
@@ -118,7 +119,7 @@ function AppShell() {
             <Route path="/forum" element={<ForumPage />} />
             <Route path="/music" element={<MusicPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
-            <Route path="/setup" element={<Navigate to="/login?role=admin" replace />} />
+            <Route path="/setup" element={<FirstAdminSetupPage />} />
             <Route path="/admin-reset" element={<AdminResetPage />} />
             <Route path="/enroll/:id" element={<EnrollmentPage />} />
             <Route path="/admin" element={<AdminPage />} />
