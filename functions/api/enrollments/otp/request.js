@@ -50,7 +50,12 @@ export async function onRequestPost({ request, env }) {
   });
   const [mailResult, smsResult] = await Promise.allSettled([mail, sms]);
   const mailOk = mailResult.status === 'fulfilled' && mailResult.value.ok;
-  const smsOk = smsResult.status === 'fulfilled' && smsResult.value.ok;
+  let smsPayload = null;
+  if (smsResult.status === 'fulfilled') smsPayload = await smsResult.value.json().catch(() => null);
+  const recipients = smsPayload?.SMSMessageData?.Recipients;
+  const smsOk = smsResult.status === 'fulfilled' && smsResult.value.ok
+    && Array.isArray(recipients)
+    && recipients.some(recipient => ['Success','Sent','Queued'].includes(String(recipient.status || '')) || [100,101,102].includes(Number(recipient.statusCode)));
   if (!mailOk || !smsOk) {
     await env.DB.prepare("UPDATE enrollment_application_otps SET consumed_at = datetime('now') WHERE email = ? AND phone = ? AND otp_hash = ?").bind(email, phone, await digest(emailOtp)).run();
     console.error('Applicant OTP delivery failed', { email: mailOk, sms: smsOk });
