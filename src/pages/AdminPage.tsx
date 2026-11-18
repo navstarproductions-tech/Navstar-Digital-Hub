@@ -108,7 +108,6 @@ const sectionSubtabs: Record<Section, { label: string; target: Section; settings
   school: [{label:'School Registry',target:'school'},{label:'Classes & Subjects',target:'school'},{label:'Fee Structures',target:'finance'},{label:'Admissions',target:'enrollments'}],
   services: [{label:'Service Catalogue',target:'services'},{label:'Customer Orders',target:'orders'},{label:'Gallery & Media',target:'gallery'},{label:'Downloads',target:'downloads'}],
   enrollments: [{label:'Applications',target:'enrollments'},{label:'Student Accounts',target:'users'},{label:'Course Allocation',target:'courses'},{label:'Payment Receipts',target:'receipts'}],
-  finance: [{label:'Finance Overview',target:'finance'},{label:'Payments & Cashouts',target:'finance'},{label:'Receipts',target:'receipts'},{label:'Service Orders',target:'orders'}],
   receipts: [{label:'Payment Receipts',target:'receipts'},{label:'Finance',target:'finance'},{label:'Admissions Payments',target:'enrollments'}],
   gallery: [{label:'Gallery',target:'gallery'},{label:'Documents',target:'downloads'},{label:'Site Branding',target:'settings',settingsTab:'site'}],
   downloads: [{label:'Documents',target:'downloads'},{label:'Gallery & Media',target:'gallery'},{label:'Service Catalogue',target:'services'}],
