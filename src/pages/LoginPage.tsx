@@ -58,7 +58,7 @@ export function LoginPage() {
           <div className="absolute inset-0 opacity-35"><img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=85" alt="" className="h-full w-full object-cover" /></div>
           <div className="absolute inset-0 bg-gradient-to-br from-[#061127]/95 via-[#0a2a55]/80 to-[#061127]/95" />
           <div className="relative">
-            <img src="/navstar-logo.webp" alt="Official Navstar Digital Hub logo" className="mb-7 h-24 w-40 object-contain object-left" />
+            <img src="/Navstar_Official_Logo.jpg" alt="Official Navstar Digital Hub logo" className="mb-7 h-24 w-40 object-contain object-left" />
             <p className="text-xs font-extrabold uppercase tracking-[.3em] text-amber-300">HOME OF TECHNOCRATS</p>
             <h2 className="mt-4 text-4xl font-black leading-tight">One hub.<br /><span className="text-cyan-300">Many possibilities.</span></h2>
             <p className="mt-5 max-w-sm text-sm leading-7 text-slate-200">Sign in to your Navstar workspace to continue learning, supporting learners or managing digital services.</p>
