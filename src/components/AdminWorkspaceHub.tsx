@@ -49,6 +49,7 @@ const definitions: Record<string,{purpose:string;source:string;endpoint?:string;
  'admin-access':{purpose:'Review administrator roles, permissions and access events.',source:'User roles and audit records',endpoint:'/api/admin/users',links:[['System users','/admin'],['Audit logs','/admin']],columns:['name','email','role','status']},
  maintenance:{purpose:'Configure service interruptions, affected portals and restoration notices.',source:'Maintenance configuration',endpoint:'/api/admin/configuration',links:[['Maintenance settings','/admin']],columns:['Portal','Maintenance status','Return time','Notice']},
  'ict-portal':{purpose:'Coordinate ICT support requests, service information and internal portal access.',source:'ICT service desk and service catalogue',endpoint:'/api/services',links:[['Services','/services'],['Support tickets','/admin']],columns:['name','category','price_label','status']},
+ 'customer-carts':{purpose:'Review active customer cart sessions and saved items before checkout.',source:'Customer cart service',links:[['Customer service desk','/services']],columns:['Customer','Items','Cart total','Last updated']},
  'customer-accounts':{purpose:'Review customer accounts, balances and verified service payment history.',source:'Customer service and payment registers',endpoint:'/api/admin/payments',links:[['Customer service desk','/services'],['Payment records','/admin']],columns:['payer_name','purpose','amount','status']},
 
 };
