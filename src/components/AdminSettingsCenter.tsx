@@ -91,7 +91,7 @@ const defaults: Record<string, Record<string, string|number|boolean>> = {
 };
 
 export function AdminSettingsCenter({activeSectionLabel=''}: {activeSectionLabel?: string}) {
- const [activeId,setActiveId]=useState(sections[0].id);
+ const [activeId,setActiveId]=useState('institute-profile');
  const [values,setValues]=useState<Record<string,Record<string,string|number|boolean>>>({});
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
