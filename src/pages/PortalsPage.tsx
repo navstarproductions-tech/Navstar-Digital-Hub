@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, BookOpen, BriefcaseBusiness, GraduationCap, ShieldCheck, UserRound, UsersRound, Sparkles, LockKeyhole, Bell, LogOut } from 'lucide-react';
+import { ArrowRight, BookOpen, BriefcaseBusiness, GraduationCap, ShieldCheck, UserRound, UsersRound, Sparkles, LockKeyhole, Bell, LogOut, CircleDollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatEATDate } from '@/lib/datetime';
 
@@ -9,6 +9,7 @@ const portals = [
   { id: 'tutor', title: 'Tutor portal', icon: BookOpen, summary: 'Manage class lists, learning resources, attendance and student progress.', accent: 'from-violet-600 to-indigo-500', tint: 'bg-violet-500/10 text-violet-700' },
   { id: 'admissions', title: 'Admissions portal', icon: UserRound, summary: 'Review applications, applicant documents, enquiries and admission follow-up.', accent: 'from-cyan-600 to-blue-500', tint: 'bg-cyan-500/10 text-cyan-700' },
   { id: 'principal', title: 'Principal portal', icon: BriefcaseBusiness, summary: 'View academic activity, approvals, staff operations and institutional reports.', accent: 'from-amber-500 to-orange-500', tint: 'bg-amber-500/10 text-amber-700' },
+  { id: 'finance', title: 'Finance portal', icon: CircleDollarSign, summary: 'Manage authorised fee collections, payments, refunds, scholarships and financial reports.', accent: 'from-emerald-600 to-teal-500', tint: 'bg-emerald-500/10 text-emerald-700' },
   { id: 'admin', title: 'Administrator portal', icon: ShieldCheck, summary: 'Manage courses, services, users, payments, notifications, downloadable documents and website settings.', accent: 'from-slate-800 to-blue-700', tint: 'bg-slate-800/10 text-slate-800' },
   { id: 'customer', title: 'Customer service desk', icon: BriefcaseBusiness, summary: 'Browse Navstar services, request assistance, place service orders and pay securely. No student or staff account is required.', accent: 'from-emerald-600 to-teal-500', tint: 'bg-emerald-500/10 text-emerald-700' },
 ];
