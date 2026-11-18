@@ -4,7 +4,7 @@ import { nextReference } from '../../_shared/references.js';
 
 export async function onRequestGet({ request, env }) {
   if (!env.DB) return error('Cashout requests are not configured.', 503);
-  const access = await requireRole(request, env, ['admin', 'principal']);
+  const access = await requireRole(request, env, ['admin', 'principal', 'finance']);
   if (access.response) return access.response;
   const rows = await env.DB.prepare(`
     SELECT cashout_requests.id, cashout_requests.display_ref AS reference, cashout_requests.amount, cashout_requests.status,
