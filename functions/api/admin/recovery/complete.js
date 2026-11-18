@@ -25,15 +25,18 @@ export async function onRequestPost({ request, env }) {
   if (password !== confirmPassword) return error('The passwords do not match.');
 
   const record = await env.DB.prepare(`
-    SELECT id, user_id, email FROM admin_recovery_codes
-    WHERE reset_token_hash = ? AND verified_at IS NOT NULL AND used_at IS NULL
-      AND datetime(verified_at) > datetime('now', '-15 minutes')
-    ORDER BY created_at DESC LIMIT 1
+    SELECT r.id, r.user_id, r.email FROM admin_recovery_codes r
+    JOIN users u ON u.id = r.user_id
+    LEFT JOIN user_profiles p ON p.user_id = u.id
+    WHERE r.reset_token_hash = ? AND r.verified_at IS NOT NULL AND r.used_at IS NULL
+      AND datetime(r.verified_at) > datetime('now', '-15 minutes')
+      AND lower(u.email) = r.email AND COALESCE(p.portal_role, u.role) = 'admin' AND u.status = 'active'
+    ORDER BY r.created_at DESC LIMIT 1
   `).bind(await digest(resetToken)).first();
   if (!record) return error('Your verified recovery session has expired. Request a new code.', 403);
   const hashed = await hashPassword(password);
-  await env.DB.prepare('UPDATE users SET password_hash = ?, password_salt = ?, must_change_password = 0, status = ? WHERE id = ? AND email = ?')
-    .bind(hashed.hash, hashed.salt, 'active', record.user_id, record.email).run();
+  const updateResult = await env.DB.prepare('UPDATE users SET password_hash = ?, password_salt = ?, must_change_password = 0 WHERE id = ? AND email = ? AND role = 'admin' AND status = 'active'')
+    .bind(hashed.hash, hashed.salt, record.user_id, record.email).run();
   await env.DB.prepare('UPDATE admin_recovery_codes SET used_at = datetime(\'now\'), reset_token_hash = NULL WHERE id = ?').bind(record.id).run();
   await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(record.user_id).run();
   try {
