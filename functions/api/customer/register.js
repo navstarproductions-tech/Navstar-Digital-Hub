@@ -1,13 +1,11 @@
 import { registerCustomer,loginCustomer,setCustomerSession } from '../../_shared/customer-auth.js';
 import { error,isSameOrigin,json,readJson,safeString,normalizePhone } from '../../_shared/http.js';
-import { rateLimited } from '../../_shared/rate-limit.js';
 import { passwordPolicyError } from '../../_shared/password-policy.js';
 
 const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export async function onRequestPost({request,env}) {
   if(!isSameOrigin(request)) return error('Cross-origin request rejected.',403);
   if(!env.DB) return error('Customer accounts are not configured yet.',503);
-  if(await rateLimited(env.DB,request,'customer-register',{maximum:5,minutes:30})) return error('Too many registration attempts. Please try again later.',429);
   let body; try{body=await readJson(request,8192);}catch{return error('Invalid registration details.');}
   const fullName=safeString(body.fullName,120), email=safeString(body.email,254).toLowerCase();
   const phone=body.phone ? normalizePhone(body.phone) : '';
