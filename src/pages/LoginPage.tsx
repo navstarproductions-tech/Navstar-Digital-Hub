@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { readApiResponse } from '@/lib/api';
 
-const allowedRoles = ['student', 'tutor', 'admissions', 'principal', 'admin'];
+const allowedRoles = ['student', 'tutor', 'admissions', 'principal', 'finance', 'admin'];
 export function LoginPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -41,7 +41,7 @@ export function LoginPage() {
       });
       const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Sign-in could not be completed. Check your details or contact the school.');
-      navigate(result.user.mustChangePassword ? '/change-password' : `/portals/${result.user.role}`);
+      navigate(result.user.mustChangePassword ? '/change-password' : result.user.role === 'admin' ? '/admin' : `/portals/${result.user.role}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Sign-in could not be completed.');
     } finally {
@@ -70,7 +70,7 @@ export function LoginPage() {
           </div>
         </aside>
         <section className="p-6 sm:p-9 lg:p-11">
-          <Link to={role === 'admin' ? '/portals/admin' : '/portals'} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-blue-700"><ArrowLeft className="h-4 w-4" /> {role === 'admin' ? 'Admin Portal' : 'All portals'}</Link>
+          <Link to='/portals' className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-blue-700"><ArrowLeft className="h-4 w-4" /> {role === 'admin' ? 'Admin Portal' : 'All portals'}</Link>
           <div className="mt-8 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700"><LockKeyhole className="h-6 w-6" /></div>
           <p className="mt-6 text-xs font-extrabold uppercase tracking-[.25em] text-blue-700">NAVSTAR DIGITAL HUB</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Welcome back.</h1>
