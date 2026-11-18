@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +12,7 @@ import { formatEATDateTime } from '@/lib/datetime';
 
 type Section = 'overview' | 'courses' | 'learning' | 'school' | 'services' | 'enrollments' | 'finance' | 'receipts' | 'gallery' | 'downloads' | 'orders' | 'users' | 'settings';
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
-type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string };
+type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string; nationalId?: string; phone?: string; citizenship?: string; county?: string; subCounty?: string; department?: string; jobTitle?: string };
 type LearningSubmission = { id: string; learner_name: string; response_text: string; attachment_url?: string | null; status: string; points_awarded?: number | null; feedback?: string | null; submitted_at: string };
 type LearningAssignment = { id: string; title: string; instructions: string; due_at?: string | null; max_points: number; status: string; submissions?: LearningSubmission[] };
 type LearningModule = { id: string; title: string; description: string; status: string; lessons: { id: string; title: string; content: string; status: string; estimated_minutes: number }[] };
@@ -51,6 +51,7 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
 ];
 
 export function AdminPage() {
+  const navigate = useNavigate();
   const [active, setActive] = useState<Section>('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
@@ -77,6 +78,7 @@ export function AdminPage() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [schoolAddress, setSchoolAddress] = useState('');
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState('480');
   const [backendReady, setBackendReady] = useState(false);
   const [user, setUser] = useState<PortalUser | null>(null);
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
@@ -86,6 +88,8 @@ export function AdminPage() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserConfirmPassword, setNewUserConfirmPassword] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserNationalId, setNewUserNationalId] = useState('');
+  const [editingPortalUser, setEditingPortalUser] = useState<PortalUser | null>(null);
   const [newUserCitizenship, setNewUserCitizenship] = useState('Kenyan');
   const [newUserCounty, setNewUserCounty] = useState('');
   const [newUserSubCounty, setNewUserSubCounty] = useState('');
@@ -190,12 +194,13 @@ export function AdminPage() {
           if (result.requests) setCashoutRequests(result.requests);
         }
         if (settingsResponse.ok) {
-          const result = await settingsResponse.json() as { settings?: { schoolName?: string; contactEmail?: string; contactPhone?: string; address?: string; logoAssetId?: string } };
+          const result = await settingsResponse.json() as { settings?: { schoolName?: string; contactEmail?: string; contactPhone?: string; address?: string; logoAssetId?: string; sessionTimeoutMinutes?: number } };
           if (result.settings) {
             setSchoolName(result.settings.schoolName ?? 'NAVSTAR DIGITAL HUB');
             setContactEmail(result.settings.contactEmail ?? '');
             setContactPhone(result.settings.contactPhone ?? '');
             setSchoolAddress(result.settings.address ?? '');
+            setSessionTimeoutMinutes(String(result.settings.sessionTimeoutMinutes ?? 480));
             setLogoAssetId(result.settings.logoAssetId ?? '');
             if (result.settings.logoAssetId) setLogoPreview(`/api/media/${result.settings.logoAssetId}`);
           }
@@ -463,7 +468,7 @@ export function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newUserName, email: newUserEmail, role: newUserRole, password: newUserPassword,
-          confirmPassword: newUserConfirmPassword, phone: newUserPhone, citizenship: newUserCitizenship,
+          confirmPassword: newUserConfirmPassword, phone: newUserPhone, nationalId: newUserNationalId, citizenship: newUserCitizenship,
           country: 'Kenya', county: newUserCounty, subCounty: newUserSubCounty,
           department: newUserDepartment, jobTitle: newUserJobTitle
         }),
@@ -472,7 +477,7 @@ export function AdminPage() {
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Account could not be created.');
       setPortalUsers((current) => [result.user!, ...current]);
       setNewUserName(''); setNewUserEmail(''); setNewUserPassword(''); setNewUserConfirmPassword('');
-      setNewUserPhone(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserDepartment(''); setNewUserJobTitle('');
+      setNewUserPhone(''); setNewUserNationalId(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserDepartment(''); setNewUserJobTitle('');
       setNotice(`Account created successfully. Staff ID: ${result.user.staffId || 'assigned'}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Account could not be created.');
@@ -532,7 +537,7 @@ export function AdminPage() {
       const response = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schoolName, contactEmail, contactPhone, address: schoolAddress, logoAssetId }),
+        body: JSON.stringify({ schoolName, contactEmail, contactPhone, address: schoolAddress, logoAssetId, sessionTimeoutMinutes: Number(sessionTimeoutMinutes) }),
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error ?? 'Settings could not be saved.');
@@ -540,6 +545,33 @@ export function AdminPage() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Settings could not be saved.');
     }
+  };
+
+  const savePortalUserEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingPortalUser) return;
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      name: String(form.get('name') ?? ''), role: String(form.get('role') ?? ''),
+      nationalId: String(form.get('nationalId') ?? ''), phone: String(form.get('phone') ?? ''),
+      citizenship: String(form.get('citizenship') ?? ''), country: String(form.get('country') ?? 'Kenya'),
+      county: String(form.get('county') ?? ''), subCounty: String(form.get('subCounty') ?? ''),
+      department: String(form.get('department') ?? ''), jobTitle: String(form.get('jobTitle') ?? ''),
+      employmentType: String(form.get('employmentType') ?? ''), joinedOn: String(form.get('joinedOn') ?? ''),
+    };
+    const response = await fetch(`/api/admin/users/${encodeURIComponent(editingPortalUser.id)}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) { setNotice(result.error || 'User profile could not be updated.'); return; }
+    setPortalUsers(current => current.map(item => item.id === editingPortalUser.id ? { ...item, ...payload } : item));
+    setEditingPortalUser(null);
+    setNotice('User profile updated successfully.');
+  };
+
+  const signOut = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+    navigate('/login?role=admin', { replace: true });
   };
 
   const title = sections.find((section) => section.id === active)?.label ?? 'Overview';
@@ -569,9 +601,16 @@ export function AdminPage() {
         </aside>
 
         <section className="h-full min-h-0 min-w-0 overflow-y-auto px-4 py-6 sm:px-6 lg:px-9">
-          <header className="mb-6 flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
-            <div><p className="text-xs font-semibold uppercase text-slate-500">Admin workspace / {title}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{title}</h2></div>
-            <span className={`inline-flex w-fit items-center gap-2 border px-3 py-2 text-xs font-semibold ${backendReady && user ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}><ShieldAlert className="h-4 w-4" />{backendReady && user ? `Connected · ${user.role}` : 'Preview mode · backend not connected'}</span>
+          <header className="mb-6 flex flex-col gap-4 border-b pb-5">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div><p className="text-xs font-semibold uppercase text-slate-500">Admin workspace / {title}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{title}</h2></div>
+              <span className={`inline-flex w-fit items-center gap-2 border px-3 py-2 text-xs font-semibold ${backendReady && user ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}><ShieldAlert className="h-4 w-4" />{backendReady && user ? `Connected · ${user.role}` : 'Preview mode · backend not connected'}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link to="/portals/notifications" className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Bell className="h-4 w-4"/>Notifications</Link>
+              <Link to="/my-account" className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserRound className="h-4 w-4"/>My account</Link>
+              <button type="button" onClick={() => void signOut()} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"><LogOut className="h-4 w-4"/>Log out</button>
+            </div>
           </header>
 
           {notice && <p role="status" className="mb-5 border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">{notice}</p>}
@@ -651,6 +690,7 @@ export function AdminPage() {
               <div className="space-y-2"><Label htmlFor="portal-user-email">Email address *</Label><Input id="portal-user-email" type="email" value={newUserEmail} onChange={(event) => setNewUserEmail(event.target.value)} required /></div>
               <div className="space-y-2"><Label htmlFor="portal-user-role">Portal role *</Label><select id="portal-user-role" value={newUserRole} onChange={(event) => setNewUserRole(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm">{['admin','principal','finance','admissions','tutor','student'].map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}</select></div>
               <div className="space-y-2"><Label htmlFor="portal-user-phone">Phone number</Label><Input id="portal-user-phone" value={newUserPhone} onChange={(event) => setNewUserPhone(event.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor="portal-user-national-id">National ID / identity reference</Label><Input id="portal-user-national-id" value={newUserNationalId} onChange={(event) => setNewUserNationalId(event.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="portal-user-citizenship">Citizenship</Label><select id="portal-user-citizenship" value={newUserCitizenship} onChange={(event) => setNewUserCitizenship(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Kenyan</option><option>Ugandan</option><option>Tanzanian</option><option>Other</option></select></div>
               <div className="space-y-2"><Label htmlFor="portal-user-county">County</Label><select id="portal-user-county" value={newUserCounty} onChange={(event) => setNewUserCounty(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option value="">Select county</option>{['Baringo','Bomet','Bungoma','Busia','Elgeyo-Marakwet','Embu','Garissa','Homa Bay','Isiolo','Kajiado','Kakamega','Kericho','Kiambu','Kilifi','Kirinyaga','Kisii','Kisumu','Kitui','Kwale','Laikipia','Lamu','Machakos','Makueni','Mandera','Marsabit','Meru','Migori','Mombasa','Murang’a','Nairobi','Nakuru','Nandi','Narok','Nyamira','Nyandarua','Nyeri','Samburu','Siaya','Taita-Taveta','Tana River','Tharaka-Nithi','Trans Nzoia','Turkana','Uasin Gishu','Vihiga','Wajir','West Pokot'].map((county) => <option key={county}>{county}</option>)}</select></div>
               <div className="space-y-2"><Label htmlFor="portal-user-subcounty">Sub-county</Label><Input id="portal-user-subcounty" value={newUserSubCounty} onChange={(event) => setNewUserSubCounty(event.target.value)} /></div>
@@ -661,8 +701,9 @@ export function AdminPage() {
             </div>
             <Button type="submit" disabled={!backendReady || user?.role !== 'admin' || !isPasswordStrong(newUserPassword) || newUserPassword !== newUserConfirmPassword} className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Create account and generate ID</Button>
           </form>
-          <div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.staffId || 'ID pending'} · {portalUser.email} · {portalUser.role}</p></div><span className="border px-2 py-1 text-xs">{portalUser.status}</span></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div></div>}
-
+          <div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.staffId || 'ID pending'} · {portalUser.email} · {portalUser.role}</p><p className="mt-1 text-xs text-slate-500">{portalUser.nationalId ? 'National ID recorded' : 'National ID not yet provided'}</p></div><div className="flex items-center gap-3"><span className="border px-2 py-1 text-xs">{portalUser.status}</span><Button type="button" size="sm" variant="outline" onClick={() => setEditingPortalUser(portalUser)}><Pencil className="mr-1 h-3 w-3"/>Edit profile</Button></div></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div>
+          {editingPortalUser && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4"><form onSubmit={savePortalUserEdit} className="my-6 w-full max-w-3xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between gap-3"><div><h3 className="text-xl font-black text-slate-950">Edit account profile</h3><p className="mt-1 text-sm text-slate-600">{editingPortalUser.staffId} · {editingPortalUser.email}</p></div><button type="button" onClick={() => setEditingPortalUser(null)} className="rounded-lg border px-3 py-1 text-sm">Close</button></div><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label>Full name</Label><Input name="name" defaultValue={editingPortalUser.name} required/></div><div className="space-y-1"><Label>Portal role</Label><select name="role" defaultValue={editingPortalUser.role} className="h-10 w-full rounded-md border bg-white px-3 text-sm">{['admin','principal','finance','admissions','tutor','student'].map(role=><option key={role} value={role}>{role}</option>)}</select></div><div className="space-y-1"><Label>National ID</Label><Input name="nationalId" defaultValue={editingPortalUser.nationalId || ''}/></div><div className="space-y-1"><Label>Phone</Label><Input name="phone" defaultValue={editingPortalUser.phone || ''}/></div><div className="space-y-1"><Label>Citizenship</Label><Input name="citizenship" defaultValue={editingPortalUser.citizenship || ''}/></div><div className="space-y-1"><Label>County</Label><Input name="county" defaultValue={editingPortalUser.county || ''}/></div><div className="space-y-1"><Label>Sub-county</Label><Input name="subCounty" defaultValue={editingPortalUser.subCounty || ''}/></div><div className="space-y-1"><Label>Department</Label><Input name="department" defaultValue={editingPortalUser.department || ''}/></div><div className="space-y-1"><Label>Job title</Label><Input name="jobTitle" defaultValue={editingPortalUser.jobTitle || ''}/></div><div className="space-y-1"><Label>Employment type</Label><Input name="employmentType" defaultValue=""/></div><div className="space-y-1"><Label>Country</Label><Input name="country" defaultValue="Kenya"/></div><div className="space-y-1"><Label>Date joined</Label><Input name="joinedOn" type="date"/></div></div><p className="text-xs text-slate-500">The system-generated Navstar ID is permanent and cannot be edited.</p><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditingPortalUser(null)}>Cancel</Button><Button type="submit"><Save className="mr-2 h-4 w-4"/>Save changes</Button></div></form></div>}
+          </div>}
           {active === 'receipts' && <section className="rounded-2xl border bg-white p-6"><div className="flex items-center gap-3"><ReceiptText className="h-6 w-6 text-blue-800"/><div><h3 className="font-bold text-slate-950">Confirmed payment receipts</h3><p className="mt-1 text-sm text-slate-600">View confirmed payments and print or save official Navstar receipts as PDF.</p></div></div><Link to="/admin/receipts" className="mt-5 inline-flex items-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900">Open payment receipt register</Link></section>}
 
           {active === 'finance' && <div className="grid gap-6 xl:grid-cols-2"><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Verified donations and payments</h3><p className="mt-2 text-sm leading-6 text-slate-600">Only provider callbacks mark donations and tuition as paid. No M-Pesa PIN or payment credentials are shown here.</p><p className="mt-5 border bg-slate-50 p-4 text-sm text-slate-600">Verified donations: KSh {Number(metrics.verifiedDonations ?? 0).toLocaleString()} · Verified payments: KSh {Number(metrics.verifiedPayments ?? 0).toLocaleString()}</p></section><form onSubmit={startCashout} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Request cashout</h3><p className="mt-2 text-sm leading-6 text-slate-600">This creates an approval request only; it does not transfer funds. Never withdraw from the browser.</p></div><div className="space-y-2"><Label htmlFor="cashout-amount">Amount (KSh)</Label><Input id="cashout-amount" type="number" min="1" value={cashoutAmount} onChange={(event) => setCashoutAmount(event.target.value)} required /></div><Button className="bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={!backendReady || !user}><CircleDollarSign className="mr-2 h-4 w-4" />{backendReady ? 'Submit for approval' : 'Backend required'}</Button><div className="divide-y border">{cashoutRequests.map((item) => <div key={String(item.id)} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><span>KSh {Number(item.amount).toLocaleString()} · {String(item.status)}</span>{item.status === 'pending_approval' && user?.role === 'admin' && <span className="flex gap-2"><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'approved')}>Approve</Button><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'rejected')}>Reject</Button></span>}</div>)}{cashoutRequests.length === 0 && <p className="p-3 text-xs text-slate-500">No cashout requests.</p>}</div></form></div>}
@@ -691,7 +732,8 @@ export function AdminPage() {
 
           {active === 'gallery' && <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]"><section className="space-y-4 border bg-white p-5"><h3 className="font-bold text-slate-950">Logo and site identity</h3><p className="text-sm leading-6 text-slate-600">Choose a local logo preview. It will not be published until secure media storage is connected.</p><Label htmlFor="brand-name">Display name</Label><Input id="brand-name" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} /><Label htmlFor="logo-upload">Logo image</Label><Input id="logo-upload" type="file" accept="image/*" onChange={(event) => setImage(event, 'logo')} />{logoPreview && <img src={logoPreview} alt="Selected NAVSTAR logo preview" className="h-24 w-24 border object-contain p-2" />}<p className="text-xs text-slate-500">Recommended: transparent PNG or SVG, square format.</p></section><section className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Gallery</h3><p className="mt-1 text-sm text-slate-600">Preview up to eight images at a time. Storage is not configured.</p></div><Label htmlFor="gallery-upload">Add gallery images</Label><Input id="gallery-upload" type="file" accept="image/*" multiple onChange={(event) => setImage(event, 'gallery')} /><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{galleryPreview.map((url, index) => <img key={url} src={url} alt={`Gallery preview ${index + 1}`} className="aspect-square w-full border object-cover" />)}</div></section></div>}
 
-          {active === 'settings' && <div className="grid gap-6 xl:grid-cols-2"><form onSubmit={saveSettings} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Site settings</h3><p className="mt-1 text-sm text-slate-600">Updates are saved to NAVSTAR when the backend is connected.</p></div><div className="space-y-2"><Label htmlFor="site-name">Site name</Label><Input id="site-name" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="contact-email">Admissions email</Label><Input id="contact-email" type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="admissions@example.org" /></div><div className="space-y-2"><Label htmlFor="contact-phone">Contact phone</Label><Input id="contact-phone" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+254 7xx xxx xxx" /></div><div className="space-y-2"><Label htmlFor="school-address">Address</Label><Input id="school-address" value={schoolAddress} onChange={(event) => setSchoolAddress(event.target.value)} placeholder="Town, county" /></div><Button type="submit" variant="outline" disabled={!backendReady || user?.role !== 'admin'}><Save className="mr-2 h-4 w-4" />Save site settings</Button></form><section className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Notification preferences</h3><p className="mt-1 text-sm text-slate-600">Configure which events the connected admin service should notify.</p></div>{[
+          {active === 'settings' && <div className="grid gap-6 xl:grid-cols-2"><form onSubmit={saveSettings} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Site settings</h3><p className="mt-1 text-sm text-slate-600">Updates are saved to NAVSTAR when the backend is connected.</p></div><div className="space-y-2"><Label htmlFor="site-name">Site name</Label><Input id="site-name" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="contact-email">Admissions email</Label><Input id="contact-email" type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="admissions@example.org" /></div><div className="space-y-2"><Label htmlFor="contact-phone">Contact phone</Label><Input id="contact-phone" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+254 7xx xxx xxx" /></div><div className="space-y-2"><Label htmlFor="school-address">Address</Label><Input id="school-address" value={schoolAddress} onChange={(event) => setSchoolAddress(event.target.value)} placeholder="Town, county" /></div>
+            <div className="space-y-2"><Label htmlFor="session-timeout">Automatic session timeout</Label><select id="session-timeout" value={sessionTimeoutMinutes} onChange={(event) => setSessionTimeoutMinutes(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option><option value="480">8 hours</option></select><p className="text-xs text-slate-500">Applies to new sign-ins immediately and is enforced by the server. Maximum is 8 hours.</p></div><Button type="submit" variant="outline" disabled={!backendReady || user?.role !== 'admin'}><Save className="mr-2 h-4 w-4" />Save site settings</Button></form><section className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Notification preferences</h3><p className="mt-1 text-sm text-slate-600">Configure which events the connected admin service should notify.</p></div>{[
             ['newApplication', 'New student application'], ['paymentUpdate', 'Payment status update'], ['donation', 'Donation received'],
           ].map(([key, label]) => <label key={key} className="flex items-center justify-between gap-4 border-b py-3 last:border-0"><span className="flex items-center gap-2 text-sm font-medium"><Bell className="h-4 w-4 text-emerald-800" />{label}</span><input type="checkbox" checked={notifications[key as keyof typeof notifications]} onChange={(event) => setNotifications((current) => ({ ...current, [key]: event.target.checked }))} className="h-4 w-4 accent-emerald-800" /></label>)}<p className="text-xs leading-5 text-slate-500">Browser push and SMS notifications require user permission and a notification backend.</p></section></div>}
 
