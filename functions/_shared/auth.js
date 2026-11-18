@@ -1,7 +1,13 @@
 import { error } from './http.js';
 
 const cookieName = '__Host-navstar_session';
-const sessionSeconds = 60 * 60 * 8;
+const defaultSessionSeconds = 60 * 60 * 8;
+
+async function configuredSessionSeconds(env) {
+  const row = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'session-timeout-minutes'").first().catch(() => null);
+  const minutes = Number(row?.value ?? 480);
+  return Math.max(5, Math.min(480, Number.isFinite(minutes) ? Math.floor(minutes) : 480)) * 60;
+}
 
 function toBase64Url(bytes) {
   let binary = '';
@@ -30,6 +36,7 @@ export async function verifyPassword(password, salt, expected) {
 export async function createSession(env, userId) {
   const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
   const tokenHash = await sha256(token);
+  const sessionSeconds = await configuredSessionSeconds(env).catch(() => defaultSessionSeconds);
   const expiresAt = new Date(Date.now() + sessionSeconds * 1000).toISOString();
   await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').bind(tokenHash, userId, expiresAt).run();
   return `${cookieName}=${token}; Path=/; Max-Age=${sessionSeconds}; HttpOnly; Secure; SameSite=Strict`;
@@ -53,7 +60,8 @@ export async function getSession(request, env) {
     FROM sessions JOIN users ON users.id = sessions.user_id
     LEFT JOIN user_profiles ON user_profiles.user_id = users.id
     WHERE sessions.token_hash = ? AND sessions.expires_at > ? AND users.status = 'active'
-  `).bind(tokenHash, new Date().toISOString()).first();
+      AND datetime(sessions.created_at, '+' || COALESCE((SELECT CAST(value AS INTEGER) FROM system_state WHERE key = 'session-timeout-minutes'), 480) || ' minutes') > datetime(?)
+  `).bind(tokenHash, new Date().toISOString(), new Date().toISOString()).first();
 }
 
 export async function requireRole(request, env, allowedRoles) {
