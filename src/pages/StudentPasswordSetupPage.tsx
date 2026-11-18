@@ -12,7 +12,7 @@ export function StudentPasswordSetupPage() {
   const [confirmPassword,setConfirmPassword] = useState('');
   const [busy,setBusy] = useState(false);
   const [message,setMessage] = useState('');
-  const [error,setError] = useState('');
+  const [error,setError] = useState(token?'':'This password setup link is incomplete. Ask Navstar Admissions to issue a new link.');
   const [complete,setComplete] = useState(false);
 
   const submit = async (event:FormEvent<HTMLFormElement>) => {
