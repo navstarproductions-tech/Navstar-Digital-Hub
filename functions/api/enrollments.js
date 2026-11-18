@@ -59,7 +59,7 @@ export async function onRequestPost(context) {
 
   const fullName = safeString(body.fullName, 120);
   const email = safeString(body.email, 254).toLowerCase();
-  const phone = normalizePhone(body.phone);
+  const phone = normalizePhone(body.phone);\n  const verificationToken = safeString(body.verificationToken, 120);
   const dateOfBirth = safeString(body.dateOfBirth, 10);
   const identityType = safeString(body.identityType, 30);
   const studyMode = safeString(body.studyMode, 40);
@@ -74,6 +74,13 @@ export async function onRequestPost(context) {
   if (!['national-id','maisha-card','birth-certificate','passport'].includes(identityType) || !safeString(body.identityNumber, 80) || age < 18 || fullName.length < 2 || !emailPattern.test(email) || !phone || !datePattern.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyContactName || !emergencyContactPhone || !consent) {
     return error('Complete all required fields with valid contact details.');
   }
+
+  if (!verificationToken || verificationToken.length < 32) return error('Verify your email address and phone number before submitting this application.', 403);
+  const verification = await env.DB.prepare(`SELECT id FROM enrollment_application_otps
+    WHERE email = ? AND phone = ? AND verification_token_hash = ? AND verified_at IS NOT NULL
+      AND consumed_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 1`)
+    .bind(email, phone, await digest(verificationToken), new Date().toISOString()).first();
+  if (!verification) return error('Your contact verification has expired or has already been used. Request a new code and verify again.', 403);
 
   const identityNumber = safeString(body.identityNumber, 80);
   const rules = await enrollmentRules(env.DB);
