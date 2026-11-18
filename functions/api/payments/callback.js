@@ -61,9 +61,17 @@ export async function onRequestPost({ request, env }) {
   }
 
   let customer = { email: '', phone: payment.phone, name: 'Customer' };
+  let enrollmentDetails = '';
   if (payment.purpose === 'enrollment') {
-    const row = await env.DB.prepare('SELECT full_name AS name, email, phone FROM enrollments WHERE id = ?').bind(payment.reference_id).first();
-    if (row) customer = row;
+    const row = await env.DB.prepare(`SELECT e.full_name AS name,e.email,e.phone,e.display_ref,e.preferred_intake,c.title AS course_title,c.price AS course_fee
+      FROM enrollments e JOIN courses c ON c.id=e.course_id WHERE e.id=?`).bind(payment.reference_id).first();
+    if (row) {
+      customer = row;
+      const totals = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS paid_total FROM payments WHERE purpose='enrollment' AND reference_id=? AND status='paid'").bind(payment.reference_id).first();
+      const paidTotal = Number(totals?.paid_total || 0);
+      const balanceDue = Math.max(0, Number(row.course_fee || 0) - paidTotal);
+      enrollmentDetails = `\n\nAPPLICATION DETAILS\nApplicant: ${row.name}\nApplication reference: ${row.display_ref}\nCourse: ${row.course_title}\nIntake: ${row.preferred_intake || 'As confirmed by Admissions'}\nPublished course fee: KSh ${Number(row.course_fee).toLocaleString('en-KE')}\nTotal confirmed payments: KSh ${paidTotal.toLocaleString('en-KE')}\nOutstanding course balance: KSh ${balanceDue.toLocaleString('en-KE')}\nAdmissions status: Awaiting Admissions review`;
+    }
   } else if (payment.purpose === 'service') {
     const row = await env.DB.prepare('SELECT customer_name AS name, email, phone FROM service_requests WHERE id = ?').bind(payment.reference_id).first();
     if (row) customer = row;
@@ -72,7 +80,7 @@ export async function onRequestPost({ request, env }) {
     if (row) customer = { ...customer, phone: row.phone };
   }
   const customerMessage = paid
-    ? `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment of KSh ${payment.amount} is confirmed. Navstar receipt: ${internalReceipt}. M-Pesa receipt: ${receipt}. Reference: ${payment.display_reference || payment.reference_id}. Thank you.`
+    ? `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment of KSh ${payment.amount} is confirmed.${enrollmentDetails} Navstar receipt: ${internalReceipt}. M-Pesa receipt: ${receipt}. Reference: ${payment.display_reference || payment.reference_id}. Thank you.`
     : `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment was not completed. Reason: ${resultDescription}. Reference: ${payment.display_reference || payment.reference_id}. Please try again or contact Navstar support.`;
   await sendCustomerNotice(env, { email: customer.email, phone: customer.phone, subject: paid ? 'Navstar payment confirmed' : 'Navstar payment not completed', message: customerMessage });
 
