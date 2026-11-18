@@ -50,19 +50,14 @@ export async function onRequestPatch({ request, env }) {
   if (nationalId && !/^[A-Za-z0-9/-]{4,32}$/.test(nationalId)) return error('Enter a valid National ID or identity reference.');
   await env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, access.user.id).run();
   await env.DB.prepare(`
-    INSERT INTO user_profiles (user_id, staff_id, portal_role, national_id, phone, date_of_birth, gender, citizenship, country, province, county, sub_county, constituency, ward, location, sub_location, department, job_title, employment_type, joined_on)
-    SELECT ?, COALESCE(staff_id, ?), COALESCE(portal_role, ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-    FROM user_profiles WHERE user_id = ?
-    ON CONFLICT(user_id) DO UPDATE SET national_id=excluded.national_id, phone=excluded.phone,
-      date_of_birth=excluded.date_of_birth, gender=excluded.gender, citizenship=excluded.citizenship,
-      country=excluded.country, province=excluded.province, county=excluded.county, sub_county=excluded.sub_county,
-      constituency=excluded.constituency, ward=excluded.ward, location=excluded.location,
-      sub_location=excluded.sub_location, department=excluded.department, job_title=excluded.job_title,
-      employment_type=excluded.employment_type, joined_on=excluded.joined_on, updated_at=CURRENT_TIMESTAMP
-  `).bind(access.user.id, 'ST00000', access.user.role, nationalId || null, phone || null, dateOfBirth || null,
-    gender || null, citizenship || null, country, province || null, county || null, subCounty || null,
-    constituency || null, ward || null, location || null, subLocation || null, department || null,
-    jobTitle || null, employmentType || null, joinedOn || null, access.user.id).run();
+    UPDATE user_profiles SET national_id = ?, phone = ?, date_of_birth = ?, gender = ?, citizenship = ?,
+      country = ?, province = ?, county = ?, sub_county = ?, constituency = ?, ward = ?, location = ?,
+      sub_location = ?, department = ?, job_title = ?, employment_type = ?, joined_on = ?,
+      updated_at = CURRENT_TIMESTAMP WHERE user_id = ?
+  `).bind(nationalId || null, phone || null, dateOfBirth || null, gender || null, citizenship || null,
+    country, province || null, county || null, subCounty || null, constituency || null, ward || null,
+    location || null, subLocation || null, department || null, jobTitle || null, employmentType || null,
+    joinedOn || null, access.user.id).run();
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), access.user.id, 'profile_updated', 'user', access.user.id).run().catch(() => {});
   return onRequestGet({ request, env });
 }
