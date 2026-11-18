@@ -114,7 +114,7 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
  const [galleryBusy,setGalleryBusy]=useState(false);
  const [galleryMessage,setGalleryMessage]=useState('');
  const definition=definitions[section];
- const endpoint=section==='pos'&&subtab==='Packing & Delivery'?'/api/admin/service-requests':section==='finance'&&subtab==='Cashouts'?'/api/admin/cashouts':definition?.endpoint;
+ const endpoint=section==='pos'&&['Scan & Sells','Print Barcode Labels','Generate Missing Barcodes'].includes(subtab)?undefined:section==='pos'&&subtab==='Packing & Delivery'?'/api/admin/service-requests':section==='finance'&&subtab==='Cashouts'?'/api/admin/cashouts':section==='fees'&&subtab==='Enrollment Fee Offers'?undefined:definition?.endpoint;
  useEffect(()=>{
   let live=true;
   if(!endpoint){setRecords([]);return;}
@@ -124,10 +124,12 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
  },[endpoint,section,refresh]);
  const sourceRows=useMemo<Row[]>(()=>{
   if(section==='courses')return courses as unknown as Row[];
-  if(section==='school'||section==='student-status')return users.filter(item=>item.role==='student') as unknown as Row[];
+  if(section==='student-status')return subtab==='Active Students'?users.filter(item=>item.role==='student'&&item.status==='active') as unknown as Row[]:[];
+  if(section==='school')return users.filter(item=>item.role==='student') as unknown as Row[];
   if(section==='staff-applications')return records;
   if(section==='employees'||section==='admin-access')return users.filter(item=>item.role!=='student') as unknown as Row[];
   if(section==='applications'||section==='enrollment-summary'||section==='ai-intake-advisor')return applications;
+  if(section==='pos'&&['Scan & Sells','Print Barcode Labels','Generate Missing Barcodes'].includes(subtab))return [];
   if(section==='upload-notes')return records.flatMap(course=>Array.isArray(course.modules)?(course.modules as Row[]).flatMap(module=>Array.isArray(module.lessons)?(module.lessons as Row[]).map(lesson=>({course:String(course.title||''),module:String(module.title||''),resource:String(lesson.title||''),publicationStatus:String(lesson.status||'')})):[]):[]);
   if(section==='services'||section==='ict-portal')return services as unknown as Row[];
   return records;
@@ -141,7 +143,7 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
   if(subtab==='Open Tickets')return !['resolved','closed','completed'].includes(status);
   if(subtab==='Resolved Tickets')return ['resolved','closed','completed'].includes(status);
   if(subtab==='Fee Defaulters')return payment!=='paid';
-  if(subtab==='Payment Receipts'||subtab==='Verified Receipts'||subtab==='Sales History')return payment==='paid'||status==='paid'||Boolean(row.receipt_number||row.mpesa_receipt);
+  if(subtab==='Payment Receipts'||subtab==='Receipts'||subtab==='Verified Receipts'||subtab==='Sales History')return payment==='paid'||status==='paid'||Boolean(row.receipt_number||row.mpesa_receipt);
   if(subtab==='Payment Approvals')return ['initiating','pending','pending_approval'].includes(status);
   if(subtab==='Packing & Delivery')return !['completed','delivered','cancelled'].includes(status);
   if(section==='downloads'&&subtab==='Published Documents')return row.isPublic===true||row.isPublic===1;
