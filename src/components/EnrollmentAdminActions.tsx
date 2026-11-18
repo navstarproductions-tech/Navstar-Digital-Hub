@@ -33,6 +33,8 @@ export function EnrollmentAdminActions({ enrollment }: { enrollment: EnrollmentR
 
   const letter = async (letterType:string) => {
     if (!id) return;
+    const printWindow = window.open('about:blank','_blank');
+    if (!printWindow) { setMessage('Allow pop-ups for Navstar to open and print official letters.'); return; }
     setBusy(true); setMessage('');
     try {
       const response = await fetch('/api/admin/enrollment-letters',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({enrollmentId:id,letterType})});
@@ -41,9 +43,9 @@ export function EnrollmentAdminActions({ enrollment }: { enrollment: EnrollmentR
       const entities:Record<string,string> = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'};
       const escapeHtml = (value:string) => value.replace(/[&<>"]/g, char => entities[char] || char);
       const html = '<!doctype html><html><head><meta charset="utf-8"><title>'+escapeHtml(String(result.subject||'Navstar letter'))+'</title><style>body{font-family:Arial,sans-serif;color:#10213b;margin:42px;line-height:1.6}header{border-bottom:5px solid #0d3970;padding-bottom:18px;margin-bottom:28px}h1{font-size:22px;margin:0;color:#0b2345}small{letter-spacing:3px;color:#b8860b;font-weight:bold}pre{font-family:Arial,sans-serif;white-space:pre-wrap;font-size:14px;line-height:1.7}footer{margin-top:38px;border-top:1px solid #cbd5e1;padding-top:12px;color:#64748b;font-size:11px}@media print{body{margin:18mm}}</style></head><body><header><small>HOME OF TECHNOCRATS</small><h1>NAVSTAR DIGITAL HUB</h1></header><pre>'+escapeHtml(String(result.body))+'</pre><footer>NAVSTAR DIGITAL HUB · HOME OF TECHNOCRATS</footer><script>window.onload=()=>window.print()</script></body></html>';
-      const url = URL.createObjectURL(new Blob([html],{type:'text/html'}));
-      window.open(url,'_blank','noopener');
-      window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
       setMessage('Letter generated and saved. Use the print dialog to save it as PDF.');
     } catch (cause) { setMessage(cause instanceof Error?cause.message:'Letter generation failed.'); }
     finally { setBusy(false); }
