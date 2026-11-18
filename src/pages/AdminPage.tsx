@@ -96,6 +96,8 @@ export function AdminPage() {
   const [newUserDepartment, setNewUserDepartment] = useState('');
   const [newUserJobTitle, setNewUserJobTitle] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [adminProfile, setAdminProfile] = useState<Record<string, string>>({ name: '', nationalId: '', phone: '', dateOfBirth: '', gender: '', citizenship: '', country: 'Kenya', province: '', county: '', subCounty: '', constituency: '', ward: '', location: '', subLocation: '', department: '', jobTitle: '', employmentType: '', joinedOn: '' });
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [applications, setApplications] = useState<Record<string, unknown>[]>([]);
   const [cashoutRequests, setCashoutRequests] = useState<Record<string, unknown>[]>([]);
   const [metrics, setMetrics] = useState<Record<string, unknown>>({});
@@ -245,6 +247,26 @@ export function AdminPage() {
       .then((result) => { if (result?.orders) setCustomerOrders(result.orders); })
       .catch(() => undefined);
   }, [user, backendReady]);
+
+  useEffect(() => {
+    if (!backendReady || user?.role !== 'admin' || profileLoaded) return;
+    fetch('/api/account/profile').then(async response => {
+      const result = await response.json() as { profile?: Record<string, unknown> };
+      if (!response.ok || !result.profile) return;
+      const next: Record<string, string> = {};
+      Object.keys(adminProfile).forEach(key => { next[key] = String(result.profile?.[key] ?? ''); });
+      setAdminProfile(next);
+      setProfileLoaded(true);
+    }).catch(() => undefined);
+  }, [backendReady, user, profileLoaded]);
+
+  const saveAdminProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const response = await fetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminProfile) });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) { setNotice(result.error || 'Profile could not be saved.'); return; }
+    setNotice('Your Admin profile has been saved inside this workspace.');
+  };
 
   const submitLearningAction = async (payload: Record<string, unknown>, success: string) => {
     try {
@@ -608,7 +630,7 @@ export function AdminPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link to="/portals/notifications" className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Bell className="h-4 w-4"/>Notifications</Link>
-              <Link to="/my-account" className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserRound className="h-4 w-4"/>My account</Link>
+              <button type="button" onClick={() => { setActive('settings'); setNotice('My Profile is available below in Settings.'); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserRound className="h-4 w-4"/>Settings · My Profile</button>
               <button type="button" onClick={() => void signOut()} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"><LogOut className="h-4 w-4"/>Log out</button>
             </div>
           </header>
@@ -737,6 +759,15 @@ export function AdminPage() {
             ['newApplication', 'New student application'], ['paymentUpdate', 'Payment status update'], ['donation', 'Donation received'],
           ].map(([key, label]) => <label key={key} className="flex items-center justify-between gap-4 border-b py-3 last:border-0"><span className="flex items-center gap-2 text-sm font-medium"><Bell className="h-4 w-4 text-emerald-800" />{label}</span><input type="checkbox" checked={notifications[key as keyof typeof notifications]} onChange={(event) => setNotifications((current) => ({ ...current, [key]: event.target.checked }))} className="h-4 w-4 accent-emerald-800" /></label>)}<p className="text-xs leading-5 text-slate-500">Browser push and SMS notifications require user permission and a notification backend.</p></section></div>}
 
+          {active === 'settings' && <form onSubmit={saveAdminProfile} className="mt-6 space-y-4 rounded-2xl border bg-white p-5">
+            <div><h3 className="font-bold text-slate-950">My Profile</h3><p className="mt-1 text-sm text-slate-600">Edit your own personal and professional details here without leaving the Admin workspace. Your login email, role and system-generated staff ID remain protected.</p><p className="mt-2 text-sm font-bold text-amber-700">Staff ID: {user?.staffId || 'Assigned by the system'}</p></div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ['name','Full legal name'],['nationalId','National ID'],['phone','Phone number'],['dateOfBirth','Date of birth'],['gender','Gender'],['citizenship','Citizenship'],['country','Country'],['province','Province / region'],['county','County'],['subCounty','Sub-county'],['constituency','Constituency'],['ward','Ward'],['location','Location'],['subLocation','Sub-location'],['department','Department'],['jobTitle','Job title'],['employmentType','Employment type'],['joinedOn','Date joined']
+              ].map(([key,label]) => <div key={key} className="space-y-1"><Label htmlFor={'admin-profile-'+key}>{label}</Label><Input id={'admin-profile-'+key} type={key === 'dateOfBirth' || key === 'joinedOn' ? 'date' : 'text'} value={adminProfile[key] || ''} onChange={event => setAdminProfile(current => ({ ...current, [key]: event.target.value }))} required={key === 'name'} /></div>)}
+            </div>
+            <div className="flex justify-end"><Button type="submit" disabled={!backendReady || user?.role !== 'admin'}><Save className="mr-2 h-4 w-4"/>Save My Profile</Button></div>
+          </form>}
           <footer className="mt-8 flex flex-col gap-2 border-t pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Daraja secrets stay server-side. User accounts, student records, uploads, and finance operations require authenticated role access.</span><span className="font-semibold text-blue-800">Powered by Navstar Digital Hub</span></footer>
         </section>
       </div>
