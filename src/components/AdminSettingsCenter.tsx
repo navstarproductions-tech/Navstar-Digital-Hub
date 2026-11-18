@@ -110,6 +110,5 @@ export function AdminSettingsCenter({activeSectionLabel=''}: {activeSectionLabel
     <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><p aria-live="polite" className="text-sm">{error?<span className="text-rose-700">{error}</span>:message?<span className="font-semibold text-emerald-700">{message}</span>:<span className="text-slate-500">Changes are not applied until you save this section.</span>}</p><button type="button" onClick={()=>void save()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-blue-800 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-60">{saving?<><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"/>Saving…</>:'Save '+active.label}</button></div>
    </div>}
    <p className="mt-3 rounded-lg bg-amber-50 p-2.5 text-[11px] leading-4 text-amber-900">Important: settings are securely stored, but options that control payment processing, portal maintenance, applicant verification, generated documents and global appearance must also be connected to their respective workflows before they can enforce these rules. Payment credentials are never entered or displayed here.</p>
-  </section>
- </div>;
+  </section>;
 }
