@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { formatEATDate } from '@/lib/datetime';
 
 const portals = [
-  { id: 'student', title: 'Student portal', icon: GraduationCap, summary: 'Access learning information, applications, payment receipts and student updates.', accent: 'from-blue-600 to-cyan-500', tint: 'bg-blue-500/10 text-blue-700' },
+  { id: 'student', title: 'Student Gateway', icon: GraduationCap, summary: 'Access learning information, applications, payment receipts and student updates.', accent: 'from-blue-600 to-cyan-500', tint: 'bg-blue-500/10 text-blue-700' },
   { id: 'tutor', title: 'Tutor portal', icon: BookOpen, summary: 'Manage class lists, learning resources, attendance and student progress.', accent: 'from-violet-600 to-indigo-500', tint: 'bg-violet-500/10 text-violet-700' },
   { id: 'admissions', title: 'Admissions portal', icon: UserRound, summary: 'Review applications, applicant documents, enquiries and admission follow-up.', accent: 'from-cyan-600 to-blue-500', tint: 'bg-cyan-500/10 text-cyan-700' },
   { id: 'principal', title: 'Principal portal', icon: BriefcaseBusiness, summary: 'View academic activity, approvals, staff operations and institutional reports.', accent: 'from-amber-500 to-orange-500', tint: 'bg-amber-500/10 text-amber-700' },
