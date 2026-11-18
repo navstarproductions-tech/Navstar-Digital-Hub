@@ -22,7 +22,7 @@ function clean(value, depth = 0) {
     const result = {};
     for (const [key, item] of entries) {
       if (!/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/.test(key)) throw new Error('Invalid settings field name.');
-      if (/password|secret|token|consumerkey|consumersecret|passkey|nationalid/i.test(key)) throw new Error('Sensitive credentials and identity numbers cannot be stored in general settings.');
+      if (/password|secret|token|consumerkey|consumersecret|passkey|nationalid$|national_id/i.test(key)) throw new Error('Sensitive credentials and identity numbers cannot be stored in general settings.');
       result[key] = clean(item, depth + 1);
     }
     return result;
