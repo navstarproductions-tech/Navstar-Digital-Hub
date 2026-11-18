@@ -28,14 +28,14 @@ function parseRecords(value: unknown): GeoRecord[] {
     if (record.id && (record.level || record.level_name || record.name || record.name_en)) result.push(record);
     if (record.children) visit(record.children);
     const obj = node as Record<string, unknown>;
-    for (const key of ['divisions','records','items','administrative_units']) if (obj[key]) visit(obj[key]);
+    for (const key of ['divisions','records','items','administrative_units','counties','subcounties','sub_counties','wards','county','subcounty','ward']) if (obj[key]) visit(obj[key]);
   };
   visit(data);
   return result;
 }
 const label = (record: GeoRecord) => typeof record.name === 'string' ? record.name : record.name?.en || record.name_en || record.level_name?.en || '';
 const parentId = (record: GeoRecord) => typeof record.parent === 'string' ? record.parent : record.parent?.id || record.parent_id || '';
-const level = (record: GeoRecord) => Number(record.level || 0);
+const level = (record: GeoRecord) => { const raw=String(record.level ?? record.level_name?.en ?? '').toLowerCase(); const numeric=Number(raw); if(Number.isFinite(numeric)&&numeric>0)return numeric; if(raw.includes('sub')&&raw.includes('count'))return 2; if(raw.includes('ward'))return 3; if(raw.includes('count'))return 1; return 0; };
 
 export function GeographyPicker({ county, subCounty, ward = '', location = '', subLocation = '', locations = [], subLocations = [], onChange }: Props) {
   const [records, setRecords] = useState<GeoRecord[]>([]);
@@ -44,7 +44,7 @@ export function GeographyPicker({ county, subCounty, ward = '', location = '', s
   const [configuredSubLocations, setConfiguredSubLocations] = useState<string[]>([]);
   useEffect(() => {
     let active = true;
-    fetch('/api/site-settings').then(response => response.ok ? response.json() as Promise<{settings?:{locationOptions?:string[];subLocationOptions?:string[]}}> : null).then(result => { if(active){setConfiguredLocations(result?.settings?.locationOptions || []);setConfiguredSubLocations(result?.settings?.subLocationOptions || []);} }).catch(() => undefined);
+    fetch('/api/geography').then(response => response.ok ? response.json() as Promise<{locationOptions?:string[];subLocationOptions?:string[]}> : null).then(result => { if(active){setConfiguredLocations(result?.locationOptions || []);setConfiguredSubLocations(result?.subLocationOptions || []);} }).catch(() => undefined);
     fetch('https://api.openadmindata.org/api/v1/countries/ke.json')
       .then(response => response.ok ? response.json() as Promise<unknown> : Promise.reject(new Error('Geography directory unavailable')))
       .then(data => { if (active) { const parsed = parseRecords(data); setRecords(parsed); setLoadError(parsed.length === 0); } })
