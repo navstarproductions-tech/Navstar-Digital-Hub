@@ -59,6 +59,7 @@ export async function onRequestPost({ request, env }) {
   }
 
   if (action === 'lookup') {
+    await recordAttempt(env.DB, attempts.staffHash, ipHash);
     return json({
       matched: true,
       staff: {
