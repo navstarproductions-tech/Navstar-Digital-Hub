@@ -448,7 +448,7 @@ export function AdminPage() {
       Course: course.title, Title: module.title, Description: module.description, Status: module.status,
       Lessons: module.lessons.length,
     })));
-    try { exportBrandedData(format, 'Learning Modules Register', ['Course', 'Title', 'Description', 'Status', 'Lessons', 'Sort order'], rows); }
+    try { exportBrandedData(format, 'Learning Modules Register', ['Course', 'Title', 'Description', 'Status', 'Lessons'], rows); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Export could not be created.'); }
   };
 
