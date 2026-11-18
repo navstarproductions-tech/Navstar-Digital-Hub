@@ -1073,14 +1073,14 @@ export function AdminPage() {
         {mobileNavOpen && <button type="button" aria-label="Close navigation menu" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/70 md:hidden" />}
         <aside className={`navstar-admin-sidebar fixed inset-y-0 left-0 z-50 flex h-screen w-[min(19rem,88vw)] min-w-0 flex-col border-r border-white/10 bg-[#0b2348] text-white shadow-2xl transition-transform duration-200 md:sticky md:top-0 md:z-40 md:w-auto md:translate-x-0 md:shadow-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-3 md:px-5 md:py-5">
-            <div className={sidebarCollapsed ? "hidden md:hidden" : "flex items-center gap-3"}>
+            <div className={sidebarCollapsed ? "md:hidden" : "flex items-center gap-3"}>
               <div className="relative"><img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub" className="h-10 w-10 rounded-lg bg-white object-contain p-1"/><span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[#0b2348] bg-emerald-400"/></div>
               <div><h1 className="text-base font-extrabold">Admin Portal</h1><p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">NAVSTAR DIGITAL HUB</p></div>
             </div>
             <button type="button" onClick={() => setSidebarCollapsed(value => !value)} className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-slate-200 transition hover:bg-white/10 hover:text-white md:inline-flex" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4"/> : <PanelLeftClose className="h-4 w-4"/>}</button>
           </div>
           <div className="mx-3 mt-3 hidden h-1 rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 md:block"/>
-          <nav aria-label="Admin sections" className="flex min-w-0 flex-1 gap-1 overflow-x-auto p-2 md:min-h-0 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:space-y-1 md:p-3">
+          <nav aria-label="Admin sections" className="flex min-w-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto p-2 md:min-h-0 md:space-y-1 md:p-3">
             {sections.map(({id,label,icon:Icon}) => {
               const selected = expandedSection === id;
               const children = sectionSubtabs[id] || [];
