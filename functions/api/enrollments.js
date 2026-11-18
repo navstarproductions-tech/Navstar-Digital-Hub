@@ -94,7 +94,7 @@ export async function onRequestPost(context) {
       id, display_ref, course_id, full_name, email, phone, date_of_birth, identity_type, identity_number, gender, nationality,
       study_mode, education_level, preferred_intake, experience, county, town, address, sub_county, ward, location, sub_location,
       emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, support_needs, consent
-      , status, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'under_review', 'pending')
+      , status, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'under_review', 'pending')
   `).bind(
     id, displayRef, course.id, fullName, email, phone, dateOfBirth, identityType, identityNumber || null,
     safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null, studyMode, educationLevel,
