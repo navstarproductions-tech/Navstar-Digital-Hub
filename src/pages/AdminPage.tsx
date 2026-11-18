@@ -11,6 +11,7 @@ import type { Course } from '@/types';
 import { formatEATDateTime } from '@/lib/datetime';
 import { parseCsv, downloadCsvTemplate, exportBrandedData } from '@/lib/navstar-data-tools';
 import { GeographyPicker } from '@/components/GeographyPicker';
+import { AdminSettingsCenter } from '@/components/AdminSettingsCenter';
 import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
 type Section = string;
@@ -96,7 +97,7 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   {id:'settings',label:'Settings',icon:Settings},
 ];
 
-type AdminSubtab = {label:string;target:Section;settingsTab?:'site'|'notifications'|'my-profile'|'geography'|'staff-ids';coursesTab?:'catalogue'|'manage'|'edit';learningTab?:'modules'|'bulk'};
+type AdminSubtab = {label:string;target:Section;settingsTab?:'complete'|'site'|'notifications'|'my-profile'|'geography'|'staff-ids';coursesTab?:'catalogue'|'manage'|'edit';learningTab?:'modules'|'bulk'};
 const makeTabs = (labels:string[],target:Section):AdminSubtab[] => labels.map(label=>({label,target}));
 const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   overview: [],
@@ -155,29 +156,31 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   maintenance: makeTabs(['Maintenance Status','Enable / Disable Maintenance','Maintenance Notices'],'maintenance'),
   'ict-portal': makeTabs(['ICT Service Requests','ICT Services & Pricing','Student Gateway','Tutor Portal','Finance Portal','Principal Portal','Deputy Principal'],'portal-links'),
   settings: [
-    {label:'Institute Profile',target:'settings',settingsTab:'site'},
-    {label:'Fee Structures (PDFs)',target:'finance'},
-    {label:'Enrollment Settings',target:'enrollments'},
-    {label:'Academic Intakes',target:'school'},
-    {label:'Institution & Campuses',target:'school'},
-    {label:'Rules & Regulations',target:'settings',settingsTab:'site'},
-    {label:'Marks & Grading',target:'marks-tests'},
-    {label:'Institutional Branding',target:'gallery'},
-    {label:'Home Page Content',target:'gallery'},
-    {label:'Trusted Platforms',target:'settings',settingsTab:'site'},
-    {label:'News & Announcements',target:'downloads'},
-    {label:'Documents & Downloads',target:'downloads'},
-    {label:'Report Card Layout',target:'report-cards'},
-    {label:'ID Card Design Studio',target:'certificates'},
-    {label:'ID Card Format',target:'certificates'},
-    {label:'ID Cards (Bulk Print)',target:'certificates'},
-    {label:'Rubber Stamp Designer',target:'certificates'},
-    {label:'Payment Methods',target:'finance'},
-    {label:'Results & Attendance Criteria',target:'marks-tests'},
-    {label:'Completion Criteria',target:'certificates'},
-    {label:'System Activity Monitor',target:'settings',settingsTab:'notifications'},
-    {label:'Audit Logs',target:'settings',settingsTab:'notifications'},
-    {label:'Theme & Language',target:'settings',settingsTab:'site'},
+    {label:"Institute Profile",target:'settings',settingsTab:'complete'},
+    {label:"Fee Structures (PDFs)",target:'settings',settingsTab:'complete'},
+    {label:"Enrollment Settings",target:'settings',settingsTab:'complete'},
+    {label:"Academic Intakes",target:'settings',settingsTab:'complete'},
+    {label:"Institution & Campuses",target:'settings',settingsTab:'complete'},
+    {label:"Rules & Regulations",target:'settings',settingsTab:'complete'},
+    {label:"Marks & Grading",target:'settings',settingsTab:'complete'},
+    {label:"Institutional Branding",target:'settings',settingsTab:'complete'},
+    {label:"Home Page Content",target:'settings',settingsTab:'complete'},
+    {label:"Trusted Platforms",target:'settings',settingsTab:'complete'},
+    {label:"News & Announcements",target:'settings',settingsTab:'complete'},
+    {label:"Documents & Downloads",target:'settings',settingsTab:'complete'},
+    {label:"Report Card Layout",target:'settings',settingsTab:'complete'},
+    {label:"ID Card Design Studio",target:'settings',settingsTab:'complete'},
+    {label:"ID Card Format",target:'settings',settingsTab:'complete'},
+    {label:"ID Cards (Bulk Print)",target:'settings',settingsTab:'complete'},
+    {label:"Rubber Stamp Designer",target:'settings',settingsTab:'complete'},
+    {label:"Payment Methods",target:'settings',settingsTab:'complete'},
+    {label:"Results & Attendance Criteria",target:'settings',settingsTab:'complete'},
+    {label:"Completion Criteria",target:'settings',settingsTab:'complete'},
+    {label:"System Activity Monitor",target:'settings',settingsTab:'complete'},
+    {label:"Audit Logs",target:'settings',settingsTab:'complete'},
+    {label:"Theme & Language",target:'settings',settingsTab:'complete'},
+    {label:"Maintenance Mode",target:'settings',settingsTab:'complete'},
+    {label:"Admissions Progress & Letters",target:'settings',settingsTab:'complete'},
   ],
   orders: makeTabs(['Service Orders','Customer Carts','Order Status'],'orders'),
   receipts: makeTabs(['Payment Receipts','Verified Receipts','Receipt Search'],'receipts'),
@@ -190,7 +193,7 @@ export function AdminPage() {
   const [selectedSubtab, setSelectedSubtab] = useState('');
   const [coursesSubTab, setCoursesSubTab] = useState<'catalogue' | 'manage' | 'edit'>('catalogue');
   const [learningSubTab, setLearningSubTab] = useState<'modules' | 'bulk'>('modules');
-  const [settingsTab, setSettingsTab] = useState<'site' | 'notifications' | 'my-profile' | 'geography' | 'staff-ids'>('site');
+  const [settingsTab, setSettingsTab] = useState<'complete' | 'site' | 'notifications' | 'my-profile' | 'geography' | 'staff-ids'>('complete');
   const [profileSubTab, setProfileSubTab] = useState<'account' | 'personal' | 'employment' | 'location'>('account');
   const [profileSystemDetails, setProfileSystemDetails] = useState<Record<string, unknown>>({});
   const [profileLoadError, setProfileLoadError] = useState('');
@@ -1285,9 +1288,11 @@ export function AdminPage() {
           {(active === 'settings' || active === 'profile') && <div className="space-y-5">
             <div className="flex flex-wrap gap-2 border-b pb-3" role="tablist" aria-label="Settings sections">
               {[
-                ['site','Site settings'],['notifications','Notifications'],['my-profile','My Profile'],['geography','Geography directories'],['staff-ids','Staff ID formats']
+                ['complete','All Settings'],['site','Site settings'],['notifications','Notifications'],['my-profile','My Profile'],['geography','Geography directories'],['staff-ids','Staff ID formats']
               ].map(([id,label]) => <button key={id} type="button" role="tab" aria-selected={settingsTab === id} onClick={() => setSettingsTab(id as typeof settingsTab)} className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition ${settingsTab === id ? 'bg-emerald-800 text-white shadow' : 'border bg-white text-slate-700 hover:bg-slate-50'}`}>{label}</button>)}
             </div>
+
+            {settingsTab === 'complete' && <AdminSettingsCenter />}
 
             {settingsTab === 'site' && <form onSubmit={saveSettings} className="max-w-3xl space-y-4 rounded-2xl border bg-white p-5">
               <div><h3 className="font-bold text-slate-950">Site settings</h3><p className="mt-1 text-sm text-slate-600">Configure the official Navstar site and session policy.</p></div>
