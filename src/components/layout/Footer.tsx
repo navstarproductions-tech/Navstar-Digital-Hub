@@ -89,6 +89,7 @@ export function Footer() {
                 ['Tutor portal', '/login?role=tutor'],
                 ['Admissions portal', '/login?role=admissions'],
                 ['Principal portal', '/login?role=principal'],
+                ['Finance portal', '/login?role=finance'],
                 ['Admin portal', '/login?role=admin'],
               ].map(([label, path]) => <li key={label}><Link className="transition hover:text-amber-300" to={path} onClick={() => window.scrollTo(0, 0)}>{label}</Link></li>)}
             </ul>
