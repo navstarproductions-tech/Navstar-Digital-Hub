@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { BriefcaseBusiness, GraduationCap, ShieldCheck, UserRound, UsersRound, Sparkles, LockKeyhole, ArrowRight, ShieldCheck as ShieldIcon } from 'lucide-react';
+import { ArrowRight, Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, GraduationCap, LogOut, LockKeyhole, ShieldCheck, Sparkles, UserRound, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PortalWorkspaceTabs } from '@/components/PortalWorkspaceTabs';
 
