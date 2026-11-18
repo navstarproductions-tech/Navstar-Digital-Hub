@@ -8,6 +8,8 @@ const defaults = {
   address: '',
   logoAssetId: '',
   sessionTimeoutMinutes: 480,
+  locationOptions: [],
+  subLocationOptions: [],
 };
 
 export async function onRequestGet({ request, env }) {
@@ -31,6 +33,7 @@ export async function onRequestPut({ request, env }) {
   try { body = await readJson(request, 8192); } catch { return error('Invalid request body.'); }
   const timeout = Number(body.sessionTimeoutMinutes ?? defaults.sessionTimeoutMinutes);
   if (!Number.isInteger(timeout) || timeout < 5 || timeout > 480) return error('Session timeout must be between 5 minutes and 8 hours.');
+  const cleanOptions = (value) => Array.isArray(value) ? [...new Set(value.map(item => safeString(item, 100).trim()).filter(Boolean))].slice(0, 300) : [];
   const settings = {
     schoolName: safeString(body.schoolName, 100) || defaults.schoolName,
     contactEmail: safeString(body.contactEmail, 254).toLowerCase(),
@@ -38,6 +41,8 @@ export async function onRequestPut({ request, env }) {
     address: safeString(body.address, 240),
     logoAssetId: safeString(body.logoAssetId, 80),
     sessionTimeoutMinutes: timeout,
+    locationOptions: cleanOptions(body.locationOptions),
+    subLocationOptions: cleanOptions(body.subLocationOptions),
   };
   if (settings.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.contactEmail)) return error('Enter a valid contact email.');
   await env.DB.prepare(`INSERT INTO system_state (key, value) VALUES ('site-settings', ?)
