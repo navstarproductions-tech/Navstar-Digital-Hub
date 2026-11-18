@@ -107,6 +107,8 @@ export function AdminPage() {
   const [newUserCounty, setNewUserCounty] = useState('');
   const [newUserSubCounty, setNewUserSubCounty] = useState('');
   const [newUserWard, setNewUserWard] = useState('');
+  const [newUserLocation, setNewUserLocation] = useState('');
+  const [newUserSubLocation, setNewUserSubLocation] = useState('');
   const [newUserDepartment, setNewUserDepartment] = useState('');
   const [newUserJobTitle, setNewUserJobTitle] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
@@ -513,14 +515,14 @@ export function AdminPage() {
           confirmPassword: newUserConfirmPassword, phone: newUserPhone, nationalId: newUserNationalId, citizenship: newUserCitizenship,
           gender: newUserGender, dateOfBirth: newUserDateOfBirth, employmentType: newUserEmploymentType, address: newUserAddress,
           country: 'Kenya', county: newUserCounty, subCounty: newUserSubCounty, ward: newUserWard,
-          location: '', subLocation: '', department: newUserDepartment, jobTitle: newUserJobTitle
+          location: newUserLocation, subLocation: newUserSubLocation, department: newUserDepartment, jobTitle: newUserJobTitle
         }),
       });
       const result = await readApiResponse<{ user?: PortalUser; error?: string }>(response);
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Account could not be created.');
       setPortalUsers((current) => [result.user!, ...current]);
       setNewUserName(''); setNewUserEmail(''); setNewUserPassword(''); setNewUserConfirmPassword('');
-      setNewUserPhone(''); setNewUserNationalId(''); setNewUserGender(''); setNewUserDateOfBirth(''); setNewUserEmploymentType(''); setNewUserAddress(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserWard(''); setNewUserDepartment(''); setNewUserJobTitle('');
+      setNewUserPhone(''); setNewUserNationalId(''); setNewUserGender(''); setNewUserDateOfBirth(''); setNewUserEmploymentType(''); setNewUserAddress(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserWard(''); setNewUserLocation(''); setNewUserSubLocation(''); setNewUserDepartment(''); setNewUserJobTitle('');
       setNotice(`Account created successfully. Staff ID: ${result.user.staffId || 'assigned'}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Account could not be created.');
@@ -736,10 +738,10 @@ export function AdminPage() {
               <div className="space-y-2"><Label htmlFor="portal-user-role">Portal role *</Label><select id="portal-user-role" value={newUserRole} onChange={(event) => setNewUserRole(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm">{['admin','principal','finance','admissions','tutor','student'].map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}</select></div>
               <div className="space-y-2"><Label htmlFor="portal-user-phone">Phone number</Label><Input id="portal-user-phone" value={newUserPhone} onChange={(event) => setNewUserPhone(event.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="portal-user-national-id">National ID / identity reference</Label><Input id="portal-user-national-id" value={newUserNationalId} onChange={(event) => setNewUserNationalId(event.target.value)} /></div>
-              <div className="space-y-2"><Label htmlFor="portal-user-citizenship">Citizenship</Label><select id="portal-user-citizenship" value={newUserCitizenship} onChange={(event) => setNewUserCitizenship(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Kenyan</option><option>Ugandan</option><option>Tanzanian</option><option>Other</option></select></div>
-               <div className="sm:col-span-2"><GeographyPicker county={newUserCounty} subCounty={newUserSubCounty} ward={newUserWard} onChange={(value) => { setNewUserCounty(value.county); setNewUserSubCounty(value.subCounty); setNewUserWard(value.ward); }} /></div>
-              <div className="space-y-2"><Label htmlFor="portal-user-department">Department</Label><Input id="portal-user-department" value={newUserDepartment} onChange={(event) => setNewUserDepartment(event.target.value)} placeholder="e.g. Finance, ICT, Academics" /></div>
-              <div className="space-y-2"><Label htmlFor="portal-user-title">Job title</Label><Input id="portal-user-title" value={newUserJobTitle} onChange={(event) => setNewUserJobTitle(event.target.value)} /></div>
+              <ProfileDropdown id="portal-user-citizenship" label="Citizenship" value={newUserCitizenship} options={CITIZENSHIP_OPTIONS} onChange={setNewUserCitizenship}/><ProfileDropdown id="portal-user-gender" label="Gender" value={newUserGender} options={GENDER_OPTIONS} onChange={setNewUserGender}/><div className="space-y-2"><Label htmlFor="portal-user-dob">Date of birth</Label><Input id="portal-user-dob" type="date" value={newUserDateOfBirth} onChange={event=>setNewUserDateOfBirth(event.target.value)}/></div>
+               <div className="sm:col-span-2 xl:col-span-3"><GeographyPicker county={newUserCounty} subCounty={newUserSubCounty} ward={newUserWard} location={newUserLocation} subLocation={newUserSubLocation} locations={locationOptions} subLocations={subLocationOptions} onChange={(value) => { setNewUserCounty(value.county); setNewUserSubCounty(value.subCounty); setNewUserWard(value.ward); setNewUserLocation(value.location); setNewUserSubLocation(value.subLocation); }} /></div>
+              <ProfileDropdown id="portal-user-department" label="Department" value={newUserDepartment} options={DEPARTMENT_OPTIONS} onChange={setNewUserDepartment}/><ProfileDropdown id="portal-user-title" label="Job title" value={newUserJobTitle} options={JOB_TITLE_OPTIONS} onChange={setNewUserJobTitle}/><ProfileDropdown id="portal-user-employment" label="Employment type" value={newUserEmploymentType} options={EMPLOYMENT_TYPE_OPTIONS} onChange={setNewUserEmploymentType}/><div className="space-y-2 sm:col-span-2 xl:col-span-3"><Label htmlFor="portal-user-address">Full physical / postal address</Label><Input id="portal-user-address" value={newUserAddress} onChange={event=>setNewUserAddress(event.target.value)} placeholder="Building, street, estate or village, town"/></div>
+              
               <div className="space-y-2"><Label htmlFor="portal-user-password">Password *</Label><Input id="portal-user-password" type="password" minLength={6} maxLength={12} value={newUserPassword} onChange={(event) => setNewUserPassword(event.target.value)} autoComplete="new-password" required /><p className="text-xs leading-5 text-slate-600">6–12 characters. Meet at least 3: capital letter, small letter, number, special character (! @ #).</p><p className={isPasswordStrong(newUserPassword)?'text-xs font-semibold text-emerald-700':'text-xs text-slate-500'}>{newUserPassword ? (isPasswordStrong(newUserPassword)?'Strong password ✓':'Password does not meet the strength rule yet.') : 'Password strength will be checked as you type.'}</p></div>
               <div className="space-y-2"><Label htmlFor="portal-user-confirm">Confirm password *</Label><Input id="portal-user-confirm" type="password" minLength={6} maxLength={12} value={newUserConfirmPassword} onChange={(event) => setNewUserConfirmPassword(event.target.value)} autoComplete="new-password" required />{newUserConfirmPassword && <p className={newUserPassword === newUserConfirmPassword ? 'text-xs text-emerald-700' : 'text-xs text-red-600'}>{newUserPassword === newUserConfirmPassword ? 'Passwords match ✓' : 'Passwords do not match.'}</p>}</div>
             </div>
