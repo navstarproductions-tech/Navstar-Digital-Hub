@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Search, ExternalLink, ShieldCheck, Database, FileText, Users, BookOpen, CircleDollarSign, CalendarDays, MessageSquare, Settings2 } from 'lucide-react';
+import { RefreshCw, Search, ExternalLink, ShieldCheck, Database, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 type Row = Record<string, unknown>;
@@ -48,7 +48,7 @@ const definitions: Record<string,{purpose:string;source:string;endpoint?:string;
  maintenance:{purpose:'Configure service interruptions, affected portals and restoration notices.',source:'Maintenance configuration',endpoint:'/api/admin/configuration',links:[['Maintenance settings','/admin']],columns:['Portal','Maintenance status','Return time','Notice']},
  'ict-portal':{purpose:'Coordinate ICT support requests, service information and internal portal access.',source:'ICT service desk and service catalogue',endpoint:'/api/services',links:[['Services','/services'],['Support tickets','/admin']],columns:['name','category','price_label','status']},
  'customer-accounts':{purpose:'Review customer accounts, balances and verified service payment history.',source:'Customer service and payment registers',endpoint:'/api/admin/payments',links:[['Customer service desk','/services'],['Payment records','/admin']],columns:['payer_name','purpose','amount','status']},
- 'device-management':{purpose:'Review registered device activation and access records.',source:'Device registry',links:[['Security controls','/admin']],columns:['Device','User','Activation status','Last activity']},
+
 };
 
 const subtabDescriptions: Record<string,string> = {
