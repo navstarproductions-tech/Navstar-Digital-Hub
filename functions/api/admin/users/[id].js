@@ -14,23 +14,35 @@ export async function onRequestPatch({ request, env, params }) {
   try { body = await readJson(request, 8192); } catch { return error('Invalid user details.'); }
   const current = await env.DB.prepare('SELECT id, role FROM users WHERE id = ?').bind(id).first();
   if (!current) return error('User account not found.', 404);
+
   const name = safeString(body.name, 120);
   const role = safeString(body.role, 24);
+  const nationalId = safeString(body.nationalId, 32);
+  const dateOfBirth = safeString(body.dateOfBirth, 10);
+  const joinedOn = safeString(body.joinedOn, 10);
   if (name.length < 2 || !roles.includes(role)) return error('Enter a valid name and portal role.');
   if (id === access.user.id && role !== 'admin') return error('You cannot remove your own administrator access.');
-  const nationalId = safeString(body.nationalId, 32);
   if (nationalId && !/^[A-Za-z0-9/-]{4,32}$/.test(nationalId)) return error('Enter a valid National ID or identity reference.');
+  if (dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return error('Enter a valid date of birth.');
+  if (joinedOn && !/^\d{4}-\d{2}-\d{2}$/.test(joinedOn)) return error('Enter a valid date joined.');
+
   await env.DB.prepare('UPDATE users SET name = ?, role = ? WHERE id = ?').bind(name, role === 'finance' ? 'admissions' : role, id).run();
   await env.DB.prepare(`
-    UPDATE user_profiles SET portal_role = ?, national_id = ?, phone = ?, citizenship = ?, country = ?,
-      county = ?, sub_county = ?, constituency = ?, ward = ?, department = ?, job_title = ?, employment_type = ?, joined_on = ?, address = ?,
-      updated_at = CURRENT_TIMESTAMP WHERE user_id = ?
-  `).bind(role, nationalId || null, safeString(body.phone, 32) || null, safeString(body.citizenship, 80) || null,
-    safeString(body.country, 80) || 'Kenya', safeString(body.county, 100) || null,
-    safeString(body.subCounty, 100) || null, safeString(body.constituency, 100) || safeString(body.subCounty, 100) || null,
-    safeString(body.ward, 100) || null, safeString(body.department, 100) || null,
+    UPDATE user_profiles SET portal_role = ?, national_id = ?, phone = ?, date_of_birth = ?, gender = ?, citizenship = ?, country = ?,
+      county = ?, sub_county = ?, constituency = ?, ward = ?, location = ?, sub_location = ?, department = ?,
+      job_title = ?, employment_type = ?, joined_on = ?, address = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = ?
+  `).bind(
+    role, nationalId || null, safeString(body.phone, 32) || null, dateOfBirth || null,
+    safeString(body.gender, 30) || null, safeString(body.citizenship, 80) || null, 'Kenya',
+    safeString(body.county, 100) || null, safeString(body.subCounty, 100) || null,
+    safeString(body.constituency, 100) || safeString(body.subCounty, 100) || null,
+    safeString(body.ward, 100) || null, safeString(body.location, 100) || null,
+    safeString(body.subLocation, 100) || null, safeString(body.department, 100) || null,
     safeString(body.jobTitle, 120) || null, safeString(body.employmentType, 40) || null,
-    safeString(body.joinedOn, 10) || null, safeString(body.address, 240) || null, id).run();
-  await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), access.user.id, 'user_profile_admin_updated', 'user', id).run().catch(() => {});
+    joinedOn || null, safeString(body.address, 240) || null, id
+  ).run();
+  await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
+    .bind(uuid(), access.user.id, 'user_profile_admin_updated', 'user', id).run().catch(() => {});
   return json({ updated: true, id });
 }
