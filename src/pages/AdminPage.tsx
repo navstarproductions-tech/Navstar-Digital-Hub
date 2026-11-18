@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound } from 'lucide-react';
@@ -10,6 +10,7 @@ import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
 import { formatEATDateTime } from '@/lib/datetime';
 import { GeographyPicker } from '@/components/GeographyPicker';
+import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
 type Section = 'overview' | 'courses' | 'learning' | 'school' | 'services' | 'enrollments' | 'finance' | 'receipts' | 'gallery' | 'downloads' | 'orders' | 'users' | 'settings';
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
@@ -54,6 +55,8 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
 export function AdminPage() {
   const navigate = useNavigate();
   const [active, setActive] = useState<Section>('overview');
+  const [settingsTab, setSettingsTab] = useState<'site' | 'notifications' | 'my-profile' | 'geography' | 'staff-ids'>('site');
+  const contentRef = useRef<HTMLElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [services, setServices] = useState(initialServices);
@@ -80,6 +83,10 @@ export function AdminPage() {
   const [contactPhone, setContactPhone] = useState('');
   const [schoolAddress, setSchoolAddress] = useState('');
   const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState('480');
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [subLocationOptions, setSubLocationOptions] = useState<string[]>([]);
+  const [newLocationOption, setNewLocationOption] = useState('');
+  const [newSubLocationOption, setNewSubLocationOption] = useState('');
   const [backendReady, setBackendReady] = useState(false);
   const [user, setUser] = useState<PortalUser | null>(null);
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
@@ -99,7 +106,7 @@ export function AdminPage() {
   const [newUserDepartment, setNewUserDepartment] = useState('');
   const [newUserJobTitle, setNewUserJobTitle] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
-  const [adminProfile, setAdminProfile] = useState<Record<string, string>>({ name: '', nationalId: '', phone: '', dateOfBirth: '', gender: '', citizenship: '', country: 'Kenya', province: '', county: '', subCounty: '', constituency: '', ward: '', location: '', subLocation: '', department: '', jobTitle: '', employmentType: '', joinedOn: '' });
+  const [adminProfile, setAdminProfile] = useState<Record<string, string>>({ name: '', nationalId: '', phone: '', dateOfBirth: '', gender: '', citizenship: '', country: 'Kenya', province: '', county: '', subCounty: '', constituency: '', ward: '', location: '', subLocation: '', department: '', jobTitle: '', employmentType: '', joinedOn: '', address: '' });
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [adminStaffId, setAdminStaffId] = useState('');
   const [applications, setApplications] = useState<Record<string, unknown>[]>([]);
@@ -207,6 +214,8 @@ export function AdminPage() {
             setContactPhone(result.settings.contactPhone ?? '');
             setSchoolAddress(result.settings.address ?? '');
             setSessionTimeoutMinutes(String(result.settings.sessionTimeoutMinutes ?? 480));
+            setLocationOptions(Array.isArray(result.settings.locationOptions) ? result.settings.locationOptions : []);
+            setSubLocationOptions(Array.isArray(result.settings.subLocationOptions) ? result.settings.subLocationOptions : []);
             setLogoAssetId(result.settings.logoAssetId ?? '');
             if (result.settings.logoAssetId) setLogoPreview(`/api/media/${result.settings.logoAssetId}`);
           }
@@ -257,6 +266,7 @@ export function AdminPage() {
     fetch('/api/account/profile').then(async response => {
       const result = await response.json() as { profile?: Record<string, unknown> };
       if (!response.ok || !result.profile) return;
+      setAdminStaffId(String(result.profile.staffId ?? ''));
       const next: Record<string, string> = {};
       Object.keys(adminProfile).forEach(key => { next[key] = String(result.profile?.[key] ?? ''); });
       setAdminProfile(next);
@@ -266,10 +276,12 @@ export function AdminPage() {
 
   const saveAdminProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const response = await fetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminProfile) });
+    const response = await fetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...adminProfile, staffId: adminStaffId }) });
     const result = await response.json() as { error?: string };
     if (!response.ok) { setNotice(result.error || 'Profile could not be saved.'); return; }
-    setNotice('Your Admin profile has been saved inside this workspace.');
+    const saved = result.profile as Record<string, unknown> | undefined;
+    if (saved?.staffId) setAdminStaffId(String(saved.staffId));
+    setNotice('Your Admin profile and staff ID have been saved successfully.');
   };
 
   const submitLearningAction = async (payload: Record<string, unknown>, success: string) => {
@@ -563,11 +575,11 @@ export function AdminPage() {
       const response = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schoolName, contactEmail, contactPhone, address: schoolAddress, logoAssetId, sessionTimeoutMinutes: Number(sessionTimeoutMinutes) }),
+        body: JSON.stringify({ schoolName, contactEmail, contactPhone, address: schoolAddress, logoAssetId, sessionTimeoutMinutes: Number(sessionTimeoutMinutes), locationOptions, subLocationOptions }),
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error ?? 'Settings could not be saved.');
-      setNotice('Site settings saved.');
+      setNotice('Settings and dropdown directories saved successfully.');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Settings could not be saved.');
     }
@@ -602,6 +614,8 @@ export function AdminPage() {
 
   const title = sections.find((section) => section.id === active)?.label ?? 'Overview';
 
+  useEffect(() => { if (contentRef.current) contentRef.current.scrollTop = 0; }, [active, settingsTab]);
+
   if (!user || user.role !== 'admin') {
     return (
       <main className="flex min-h-[70vh] items-center justify-center bg-slate-950 px-4 py-12">
@@ -616,7 +630,7 @@ export function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
+    <main className="h-screen overflow-hidden bg-slate-100">
       <div className={'mx-auto grid h-screen max-w-[1800px] grid-cols-1 grid-rows-[4rem_minmax(0,1fr)] overflow-hidden md:grid-rows-1 ' + (sidebarCollapsed ? 'md:grid-cols-[76px_minmax(0,1fr)]' : 'md:grid-cols-[260px_minmax(0,1fr)]')}>
         <aside className="sticky top-0 z-40 flex h-16 min-w-0 flex-row border-b bg-slate-950 text-white md:h-screen md:flex-col md:border-b-0 md:border-r">
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-3 md:px-5 md:py-5"><div className={sidebarCollapsed ? "md:hidden" : ""}><p className="text-[11px] font-bold uppercase text-emerald-300">NAVSTAR DIGITAL HUB</p><h1 className="mt-1 text-lg font-bold">Administration</h1></div><button type="button" onClick={() => setSidebarCollapsed((value) => !value)} className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-slate-200 transition hover:bg-white/10 hover:text-white md:inline-flex" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</button></div>
@@ -626,7 +640,7 @@ export function AdminPage() {
           <div className="hidden border-t border-white/10 p-4 text-xs leading-5 text-slate-400 md:block">Preview dashboard. Live records and actions require authenticated server access.</div>
         </aside>
 
-        <section className="h-full min-h-0 min-w-0 overflow-y-auto px-4 py-6 sm:px-6 lg:px-9">
+        <section ref={contentRef} className="h-full min-h-0 min-w-0 overflow-y-auto px-4 py-6 sm:px-6 lg:px-9">
           <header className="mb-6 flex flex-col gap-4 border-b pb-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div><p className="text-xs font-semibold uppercase text-slate-500">Admin workspace / {title}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{title}</h2></div>
@@ -634,7 +648,7 @@ export function AdminPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link to="/portals/notifications" className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Bell className="h-4 w-4"/>Notifications</Link>
-              <button type="button" onClick={() => { setActive('settings'); setNotice('My Profile is available below in Settings.'); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserRound className="h-4 w-4"/>Settings · My Profile</button>
+              <button type="button" onClick={() => { setSettingsTab('my-profile'); setActive('settings'); setNotice(''); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserRound className="h-4 w-4"/>Settings · My Profile</button>
               <button type="button" onClick={() => void signOut()} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"><LogOut className="h-4 w-4"/>Log out</button>
             </div>
           </header>
