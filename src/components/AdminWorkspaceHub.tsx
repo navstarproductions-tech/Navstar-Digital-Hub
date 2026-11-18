@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Search, ExternalLink, ShieldCheck, Database, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { EnrollmentAdminActions } from '@/components/EnrollmentAdminActions';
 
 type Row = Record<string, unknown>;
 type Props = {
@@ -13,6 +14,7 @@ type Props = {
 };
 
 const definitions: Record<string,{purpose:string;source:string;endpoint?:string;links:Array<[string,string]>;columns:string[]}> = {
+ applications:{purpose:'Review verified student applications, record admissions decisions, approve documented special-payment exceptions and issue course-specific letters.',source:'Verified student admissions register',endpoint:'/api/enrollments',links:[['Courses','/courses'],['Student directory','/admin']],columns:['reference','full_name','email','course_title','status','payment_status','payment_exception','payment_due_date','created_at']},
  'navstar-analytics':{purpose:'Dedicated Navstar Analytics school-management workspace. School records are intentionally isolated from Navstar Digital Hub cyber and computer-course records.',source:'Separate school analytics data model',links:[['Analytics overview','/admin']],columns:['School','Learners','Classes','Reporting period']},
  'analytics-reports':{purpose:'Review operational trends from Navstar Digital Hub course, service and verified finance activity.',source:'Admin operational records',endpoint:'/api/admin/overview',links:[['Admin dashboard','/admin']],columns:['metric','value','period','source']},
  pos:{purpose:'Review POS sales, service orders and confirmed payment status.',source:'Verified payment and service-order registers',endpoint:'/api/admin/payments',links:[['New sale','/admin'],['Receipts','/admin/receipts']],columns:['payer_name','purpose','receipt_number','amount','status','updated_at']},
@@ -128,7 +130,8 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
   if(section==='school')return users.filter(item=>item.role==='student') as unknown as Row[];
   if(section==='staff-applications')return records;
   if(section==='employees'||section==='admin-access')return users.filter(item=>item.role!=='student') as unknown as Row[];
-  if(section==='applications'||section==='enrollment-summary'||section==='ai-intake-advisor')return applications;
+  if(section==='applications')return records.length?records:applications;
+  if(section==='enrollment-summary'||section==='ai-intake-advisor')return applications;
   if(section==='pos'&&['Scan & Sells','Print Barcode Labels','Generate Missing Barcodes'].includes(subtab))return [];
   if(section==='upload-notes')return records.flatMap(course=>Array.isArray(course.modules)?(course.modules as Row[]).flatMap(module=>Array.isArray(module.lessons)?(module.lessons as Row[]).map(lesson=>({course:String(course.title||''),module:String(module.title||''),resource:String(lesson.title||''),publicationStatus:String(lesson.status||'')})):[]):[]);
   if(section==='services'||section==='ict-portal')return services as unknown as Row[];
@@ -181,6 +184,7 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
   {galleryMessage&&<p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{galleryMessage}</p>}
     {loading&&<p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">Loading verified records…</p>}
   {error&&<p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
+  {section==='applications'&&<div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3"><h3 className="font-bold text-slate-950">Admissions decisions and official letters</h3>{rows.map((row,index)=><div key={String(row.id||index)} className="flex flex-col gap-3 rounded-lg border bg-white p-3 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><p className="font-bold text-slate-900">{String(row.full_name||row.name||'Applicant')}</p><p className="text-xs text-slate-500">{String(row.reference||row.display_ref||row.id||'')} · {String(row.course_title||row.course_id||'Course')}</p><p className="mt-1 text-xs text-slate-600">Status: {String(row.status||'—')} · Payment: {String(row.payment_status||'—')}</p></div><EnrollmentAdminActions enrollment={row} onUpdated={()=>setRefresh(value=>value+1)}/></div>)}{rows.length===0&&<p className="text-sm text-slate-500">No applications are available in this view.</p>}</div>}
   <div className="overflow-x-auto rounded-xl border border-slate-200">
    <table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr>{columns.map(column=><th key={column} className="p-3">{titleCase(column)}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={String(row.id||index)} className="border-t border-slate-100">{columns.map(column=><td key={column} className="max-w-[260px] truncate p-3 text-slate-700">{String(row[column]??'—')}</td>)}</tr>)}{!loading&&rows.length===0&&<tr><td colSpan={columns.length} className="p-7 text-center text-sm text-slate-500">{error?'Records could not be loaded.':isConnected?'No records match this view yet.':'No records have been connected to this register yet. No sample records have been invented.'}</td></tr>}</tbody></table>
   </div>

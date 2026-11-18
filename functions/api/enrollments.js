@@ -5,6 +5,7 @@ import { nextReference } from '../_shared/references.js';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const digest = async value => { const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join(''); };
 
 async function currentIntake(DB) {
   const row = await DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
@@ -60,6 +61,7 @@ export async function onRequestPost(context) {
   const fullName = safeString(body.fullName, 120);
   const email = safeString(body.email, 254).toLowerCase();
   const phone = normalizePhone(body.phone);
+  const verificationToken = safeString(body.verificationToken, 120);
   const dateOfBirth = safeString(body.dateOfBirth, 10);
   const identityType = safeString(body.identityType, 30);
   const studyMode = safeString(body.studyMode, 40);
@@ -74,6 +76,13 @@ export async function onRequestPost(context) {
   if (!['national-id','maisha-card','birth-certificate','passport'].includes(identityType) || !safeString(body.identityNumber, 80) || age < 18 || fullName.length < 2 || !emailPattern.test(email) || !phone || !datePattern.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyContactName || !emergencyContactPhone || !consent) {
     return error('Complete all required fields with valid contact details.');
   }
+
+  if (!verificationToken || verificationToken.length < 32) return error('Verify your email address and phone number before submitting this application.', 403);
+  const verification = await env.DB.prepare(`SELECT id FROM enrollment_application_otps
+    WHERE email = ? AND phone = ? AND verification_token_hash = ? AND verified_at IS NOT NULL
+      AND consumed_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 1`)
+    .bind(email, phone, await digest(verificationToken), new Date().toISOString()).first();
+  if (!verification) return error('Your contact verification has expired or has already been used. Request a new code and verify again.', 403);
 
   const identityNumber = safeString(body.identityNumber, 80);
   const rules = await enrollmentRules(env.DB);
@@ -103,8 +112,17 @@ export async function onRequestPost(context) {
     safeString(body.address, 250) || null, safeString(body.subCounty, 100) || null, safeString(body.ward, 100) || null, safeString(body.location, 100) || null, safeString(body.subLocation, 100) || null, emergencyContactName, emergencyContactPhone,
     safeString(body.emergencyContactRelationship, 80) || null, safeString(body.supportNeeds, 2000) || null,
   ).run();
-
-  return json({ id, reference: displayRef, status: 'awaiting_payment', paymentRequired: true, amountDueNow, course: { id: course.id, title: course.title, amount: course.price } }, 201);
+  const savedDetails = { ...body };
+  delete savedDetails.verificationToken;
+  await env.DB.batch([
+    env.DB.prepare('UPDATE enrollments SET application_details_json = ?, application_verified_at = ? WHERE id = ?')
+      .bind(JSON.stringify(savedDetails), new Date().toISOString(), id),
+    env.DB.prepare("UPDATE enrollment_application_otps SET consumed_at = datetime('now') WHERE id = ? AND consumed_at IS NULL")
+      .bind(verification.id)
+  ]);
+  const installmentLines = String(rules.installmentPlans || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && (parts[0] === course.id || parts[0].toLowerCase() === String(course.title).toLowerCase()));
+  const installments = installmentLines.map(parts => ({ label: parts[1], amount: Number(parts[2]), dueDate: parts[3] || '' }));
+  return json({ id, reference: displayRef, status: 'awaiting_payment', paymentRequired: true, amountDueNow, installments, course: { id: course.id, title: course.title, amount: course.price } }, 201);
 }
 
 export async function onRequestGet({ request, env }) {
@@ -113,9 +131,9 @@ export async function onRequestGet({ request, env }) {
   if (!user) return error('Sign in required.', 401);
   let query;
   if (['admin', 'admissions', 'principal'].includes(user.role)) {
-    query = env.DB.prepare(`SELECT id, display_ref AS reference, course_id, full_name, email, phone, status, payment_status, created_at FROM enrollments ORDER BY created_at DESC LIMIT 200`);
+    query = env.DB.prepare(`SELECT e.id, e.display_ref AS reference, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, e.status, e.payment_status, e.special_enrollment, e.payment_exception, e.payment_due_date, e.admissions_decision_reason, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id ORDER BY e.created_at DESC LIMIT 200`);
   } else if (user.role === 'student') {
-    query = env.DB.prepare(`SELECT id, course_id, full_name, email, phone, status, payment_status, created_at FROM enrollments WHERE email = ? ORDER BY created_at DESC`).bind(user.email);
+    query = env.DB.prepare(`SELECT e.id, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, e.status, e.payment_status, e.payment_due_date, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.email = ? ORDER BY e.created_at DESC`).bind(user.email);
   } else {
     return error('Tutor access must be assigned to specific classes before student records are visible.', 403);
   }
