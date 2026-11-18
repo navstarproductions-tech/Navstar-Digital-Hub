@@ -6,6 +6,25 @@ import { passwordPolicyError } from '../../_shared/password-policy.js';
 const roles = ['student', 'tutor', 'admissions', 'principal', 'admin', 'finance'];
 const prefixes = { student: 'ST', tutor: 'TU', admissions: 'AM', principal: 'PR', admin: 'AD', finance: 'FN' };
 
+async function studentEnrollmentRules(db) {
+  const row = await db.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
+  try { return JSON.parse(row?.value || '{}')['enrollment-settings'] || {}; } catch { return {}; }
+}
+
+async function checkExistingStudentEnrollment(db, courseId, identityNumber, email) {
+  const row = await db.prepare(`
+    SELECT COUNT(DISTINCT e.course_id) AS course_count,
+      MAX(CASE WHEN e.course_id = ? THEN 1 ELSE 0 END) AS same_course
+    FROM enrollments e
+    JOIN users u ON lower(u.email) = lower(e.email)
+    LEFT JOIN user_profiles p ON p.user_id = u.id
+    WHERE u.role = 'student' AND u.status = 'active'
+      AND ((? <> '' AND (e.identity_number = ? OR p.national_id = ?))
+        OR (? <> '' AND lower(e.email) = lower(?)))
+  `).bind(courseId, identityNumber || '', identityNumber || '', identityNumber || '', email || '', email || '').first();
+  return { sameCourse: Number(row?.same_course || 0) === 1, courseCount: Number(row?.course_count || 0) };
+}
+
 async function createStaffId(db, role) {
   const prefix = prefixes[role] || 'ST';
   for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -61,7 +80,15 @@ export async function onRequestPost({ request, env }) {
     if (!phone || !emergencyPhone || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyName || !consent) {
       return error('Complete all required student-enrollment fields with valid details.');
     }
-    enrollment = { id: uuid(), displayRef: await nextReference(env.DB, 'ENR'), course, phone, emergencyPhone, dateOfBirth, studyMode, educationLevel, county, town, emergencyName, consent };
+    const identityNumber = safeString(body.identityNumber || body.nationalId, 80);
+    const existing = await checkExistingStudentEnrollment(env.DB, course.id, identityNumber, email);
+    if (existing.sameCourse) return error('This student is already registered for the selected course. Please choose another course or contact Admissions.', 409);
+    const rules = await studentEnrollmentRules(env.DB);
+    const maximumCourses = Number(rules.maximumCourses);
+    if (Number.isInteger(maximumCourses) && maximumCourses > 0 && existing.courseCount >= maximumCourses) {
+      return error(`The student has reached the maximum of ${maximumCourses} course(s) allowed by Navstar. Please contact Admissions for assistance.`, 409);
+    }
+    enrollment = { id: uuid(), displayRef: await nextReference(env.DB, 'ENR'), course, phone, emergencyPhone, dateOfBirth, studyMode, educationLevel, county, town, emergencyName, consent, identityNumber };
   }
   if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !roles.includes(role)) return error('Enter a valid full name, email and portal role.');
   const passwordError = passwordPolicyError(password);
@@ -100,7 +127,7 @@ export async function onRequestPost({ request, env }) {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
       `).bind(
         enrollment.id, enrollment.displayRef, enrollment.course.id, name, email, enrollment.phone, enrollment.dateOfBirth,
-        safeString(body.identityNumber, 80) || null, safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null,
+        enrollment.identityNumber || null, safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null,
         enrollment.studyMode, enrollment.educationLevel, safeString(body.preferredIntake, 20) || null,
         safeString(body.experience, 2000) || null, enrollment.county, enrollment.town, safeString(body.address, 250) || null,
         enrollment.emergencyName, enrollment.emergencyPhone, safeString(body.emergencyContactRelationship, 80) || null,

@@ -7,6 +7,29 @@ import { queueCustomerNotice } from '../_shared/notifications.js';
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
+async function enrollmentRules(DB) {
+  const row = await DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
+  try {
+    const all = JSON.parse(row?.value || '{}');
+    return all['enrollment-settings'] || {};
+  } catch { return {}; }
+}
+
+async function existingStudentCourse(DB, { courseId, identityNumber, email }) {
+  if (!identityNumber && !email) return { sameCourse: false, courseCount: 0 };
+  const row = await DB.prepare(`
+    SELECT COUNT(DISTINCT e.course_id) AS course_count,
+      MAX(CASE WHEN e.course_id = ? THEN 1 ELSE 0 END) AS same_course
+    FROM enrollments e
+    JOIN users u ON lower(u.email) = lower(e.email)
+    LEFT JOIN user_profiles p ON p.user_id = u.id
+    WHERE u.role = 'student' AND u.status = 'active'
+      AND ((? <> '' AND (e.identity_number = ? OR p.national_id = ?))
+        OR (? <> '' AND lower(e.email) = lower(?)))
+  `).bind(courseId, identityNumber || '', identityNumber || '', identityNumber || '', email || '', email || '').first();
+  return { sameCourse: Number(row?.same_course || 0) === 1, courseCount: Number(row?.course_count || 0) };
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
@@ -34,6 +57,15 @@ export async function onRequestPost(context) {
     return error('Complete all required fields with valid contact details.');
   }
 
+  const identityNumber = safeString(body.identityNumber, 80);
+  const rules = await enrollmentRules(env.DB);
+  const studentRecord = await existingStudentCourse(env.DB, { courseId: course.id, identityNumber, email });
+  if (studentRecord.sameCourse) return error('This student is already registered for the selected course. Please choose another course or contact Admissions.', 409);
+  const maximumCourses = Number(rules.maximumCourses);
+  if (Number.isInteger(maximumCourses) && maximumCourses > 0 && studentRecord.courseCount >= maximumCourses) {
+    return error(`The student has reached the maximum of ${maximumCourses} course(s) allowed by Navstar. Please contact Admissions for assistance.`, 409);
+  }
+
   const id = uuid();
   const displayRef = await nextReference(env.DB, 'ENR');
   await env.DB.prepare(`
@@ -43,7 +75,7 @@ export async function onRequestPost(context) {
       emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, support_needs, consent
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).bind(
-    id, displayRef, course.id, fullName, email, phone, dateOfBirth, safeString(body.identityNumber, 80) || null,
+    id, displayRef, course.id, fullName, email, phone, dateOfBirth, identityNumber || null,
     safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null, studyMode, educationLevel,
     safeString(body.preferredIntake, 20) || null, safeString(body.experience, 2000) || null, county, town,
     safeString(body.address, 250) || null, emergencyContactName, emergencyContactPhone,

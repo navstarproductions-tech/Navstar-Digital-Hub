@@ -1,4 +1,4 @@
-import { requireRole } from '../../_shared/auth.js';
+import { getSession } from '../../_shared/auth.js';
 import { startStkPush, darajaReady } from '../../_shared/daraja.js';
 import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../../_shared/http.js';
 
@@ -22,11 +22,14 @@ export async function onRequestPost({ request, env }) {
     amount = donation.amount;
     displayReference = donation.display_ref;
   } else if (purpose === 'enrollment') {
+    const session = await getSession(request, env);
+    if (!session || !['student', 'admin', 'finance', 'admissions'].includes(session.role)) return error('Sign in to the Student Portal before requesting an enrollment payment.', 401);
     const enrollment = await env.DB.prepare(`
-      SELECT enrollments.id, enrollments.display_ref, enrollments.phone, enrollments.payment_status, courses.price
+      SELECT enrollments.id, enrollments.display_ref, enrollments.email, enrollments.phone, enrollments.payment_status, courses.price
       FROM enrollments JOIN courses ON courses.id = enrollments.course_id WHERE enrollments.id = ?
     `).bind(reference).first();
     if (!enrollment || enrollment.phone !== phone || enrollment.payment_status === 'paid') return error('Enrollment payment is not available.', 404);
+    if (session.role === 'student' && String(enrollment.email).toLowerCase() !== String(session.email).toLowerCase()) return error('You can only pay fees for your own student account.', 403);
     amount = enrollment.price;
     displayReference = enrollment.display_ref;
   } else {

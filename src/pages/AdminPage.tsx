@@ -206,6 +206,7 @@ export function AdminPage() {
   const [adminPhotoUrl, setAdminPhotoUrl] = useState<string | null>(null);
   const [adminPhotoUploading, setAdminPhotoUploading] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [services, setServices] = useState(initialServices);
   const [serviceName, setServiceName] = useState('');
@@ -1068,8 +1069,9 @@ export function AdminPage() {
 
   return (
     <main className="h-screen overflow-hidden bg-[#080d19] text-slate-100 navstar-admin">
-      <div className={'mx-auto grid h-screen max-w-[1800px] grid-cols-1 grid-rows-[4rem_minmax(0,1fr)] overflow-hidden md:grid-rows-1 ' + (sidebarCollapsed ? 'md:grid-cols-[76px_minmax(0,1fr)]' : 'md:grid-cols-[250px_minmax(0,1fr)]')}>
-        <aside className="navstar-admin-sidebar sticky top-0 z-40 flex h-16 min-w-0 flex-row border-b border-white/10 bg-[#0b2348] text-white md:h-screen md:flex-col md:border-b-0 md:border-r">
+      <div className={'mx-auto grid h-screen max-w-[1800px] grid-cols-1 overflow-hidden md:grid-rows-1 ' + (sidebarCollapsed ? 'md:grid-cols-[76px_minmax(0,1fr)]' : 'md:grid-cols-[250px_minmax(0,1fr)]')}>
+        {mobileNavOpen && <button type="button" aria-label="Close navigation menu" onClick={() => setMobileNavOpen(false)} className="fixed inset-0 z-40 bg-slate-950/70 md:hidden" />}
+        <aside className={`navstar-admin-sidebar fixed inset-y-0 left-0 z-50 flex h-screen w-[min(19rem,88vw)] min-w-0 flex-col border-r border-white/10 bg-[#0b2348] text-white shadow-2xl transition-transform duration-200 md:sticky md:top-0 md:z-40 md:w-auto md:translate-x-0 md:shadow-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-3 md:px-5 md:py-5">
             <div className={sidebarCollapsed ? "md:hidden" : "flex items-center gap-3"}>
               <div className="relative"><img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub" className="h-10 w-10 rounded-lg bg-white object-contain p-1"/><span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[#0b2348] bg-emerald-400"/></div>
@@ -1078,19 +1080,19 @@ export function AdminPage() {
             <button type="button" onClick={() => setSidebarCollapsed(value => !value)} className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-slate-200 transition hover:bg-white/10 hover:text-white md:inline-flex" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4"/> : <PanelLeftClose className="h-4 w-4"/>}</button>
           </div>
           <div className="mx-3 mt-3 hidden h-1 rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 md:block"/>
-          <nav aria-label="Admin sections" className="flex min-w-0 flex-1 gap-1 overflow-x-auto p-2 md:min-h-0 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:space-y-1 md:p-3">
+          <nav aria-label="Admin sections" className="flex min-w-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto p-2 md:min-h-0 md:space-y-1 md:p-3">
             {sections.map(({id,label,icon:Icon}) => {
               const selected = expandedSection === id;
               const children = sectionSubtabs[id] || [];
               return <div key={id} className="min-w-0 shrink-0 md:w-full">
-                <button type="button" onClick={() => { setExpandedSection(id); setActive(id); setSelectedSubtab(children[0]?.label || ''); if(children[0]?.settingsTab)setSettingsTab(children[0].settingsTab); else if(id==='settings')setSettingsTab('complete'); if(children[0]?.coursesTab)setCoursesSubTab(children[0].coursesTab); if(children[0]?.learningTab)setLearningSubTab(children[0].learningTab); setNotice(''); }} aria-current={selected ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+                <button type="button" onClick={() => { setExpandedSection(id); setActive(id); setSelectedSubtab(children[0]?.label || ''); if(children[0]?.settingsTab)setSettingsTab(children[0].settingsTab); else if(id==='settings')setSettingsTab('complete'); if(children[0]?.coursesTab)setCoursesSubTab(children[0].coursesTab); if(children[0]?.learningTab)setLearningSubTab(children[0].learningTab); setNotice(''); if(children.length===0)setMobileNavOpen(false); }} aria-current={selected ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
                   <Icon className="h-4 w-4 shrink-0"/><span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 truncate"}>{label}</span>
                   {children.length>0 && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${selected ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>}
                 </button>
                 {selected && !sidebarCollapsed && children.length>0 && <div className="ml-5 mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3">
                   {children.map((tab,index) => {
                     const isCurrent = expandedSection === id && selectedSubtab === tab.label && (tab.label !== 'Add New Student' || active === 'student-directory');
-                    return <button key={tab.label} type="button" onClick={() => { setActive(tab.label === 'Add New Student' ? 'student-directory' : expandedSection); setSelectedSubtab(tab.label); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); }} aria-current={isCurrent?'page':undefined} className={`navstar-subtab flex min-h-8 w-full items-center justify-start rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 rounded-full bg-current opacity-70"/>{tab.label}</button>;
+                    return <button key={tab.label} type="button" onClick={() => { setActive(tab.label === 'Add New Student' ? 'student-directory' : expandedSection); setSelectedSubtab(tab.label); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); setMobileNavOpen(false); }} aria-current={isCurrent?'page':undefined} className={`navstar-subtab flex min-h-8 w-full items-center justify-start rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 rounded-full bg-current opacity-70"/>{tab.label}</button>;
                   })}
                 </div>}
               </div>;
@@ -1104,7 +1106,7 @@ export function AdminPage() {
         <section ref={contentRef} className="navstar-admin-content h-full min-h-0 min-w-0 overflow-y-auto">
           <header className="navstar-admin-topbar sticky top-0 z-30 flex min-h-[58px] items-center gap-3 border-b border-white/10 bg-[#0c111e]/95 px-4 py-2 shadow-lg shadow-black/10 backdrop-blur-xl sm:px-5 lg:px-6">
             <button type="button" onClick={() => setSidebarCollapsed(value=>!value)} className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white md:inline-flex" aria-label="Toggle sidebar"><PanelLeftClose className="h-4 w-4"/></button>
-            <button type="button" onClick={() => navigate(-1)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white" aria-label="Go back"><ArrowLeft className="h-4 w-4"/></button>
+            <button type="button" onClick={() => setMobileNavOpen(true)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-cyan-300 transition hover:bg-white/10 hover:text-white md:hidden" aria-label="Open Admin navigation"><PanelLeftOpen className="h-5 w-5"/></button><button type="button" onClick={() => navigate(-1)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white" aria-label="Go back"><ArrowLeft className="h-4 w-4"/></button>
             <img src="/Navstar_Official_Logo.jpg" alt="Navstar" className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain p-0.5"/>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-extrabold text-white">Welcome back, <span className="text-cyan-300">{user.name}</span> 👋</p>
