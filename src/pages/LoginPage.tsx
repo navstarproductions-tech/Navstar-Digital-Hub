@@ -30,7 +30,7 @@ export function LoginPage() {
       });
       const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Sign-in could not be completed. Check your details or contact the school.');
-      navigate(result.user.mustChangePassword ? '/change-password' : `/portals/${result.user.role}`);
+      navigate(result.user.mustChangePassword ? '/change-password' : result.user.role === 'admin' ? '/admin' : `/portals/${result.user.role}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Sign-in could not be completed.');
     } finally {
