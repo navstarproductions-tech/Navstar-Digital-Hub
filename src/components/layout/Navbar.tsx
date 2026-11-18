@@ -71,7 +71,7 @@ export function Navbar() {
       <div className="w-full px-2 sm:px-3 lg:px-4 2xl:px-6">
         <div className="flex min-h-16 w-full items-center justify-between gap-2 xl:gap-3">
           <Link to="/" className="flex min-w-0 shrink items-center gap-2 xl:gap-2.5" aria-label="NAVSTAR DIGITAL HUB home">
-            <img src="/navstar-logo.webp" alt="Navstar Digital Hub logo" className="h-10 w-[4.5rem] shrink-0 rounded-md object-contain" />
+            <img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub logo" className="h-10 w-[4.5rem] shrink-0 rounded-md object-contain" />
             <span className="max-w-[112px] truncate text-[11px] font-black tracking-tight text-white sm:max-w-[170px] sm:text-xs 2xl:max-w-none 2xl:text-sm">{brandName}</span>
           </Link>
 
