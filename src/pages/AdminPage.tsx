@@ -1086,11 +1086,6 @@ export function AdminPage() {
               <input aria-label="Search admin sections" placeholder="Search students, courses, fees..." className="w-full min-w-0 bg-transparent text-xs text-white outline-none placeholder:text-slate-500" onKeyDown={event=>{if(event.key==='Enter'){const q=event.currentTarget.value.trim().toLowerCase();const match=sections.find(item=>item.label.toLowerCase().includes(q));if(match){setExpandedSection(match.id);setActive(match.id);setSelectedSubtab('');setNotice('');}}}}/>
             </div>
             <button type="button" onClick={()=>window.location.reload()} title="Refresh workspace" aria-label="Refresh workspace" className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white sm:inline-flex"><RefreshCw className="h-4 w-4"/></button>
-            <input ref={adminPhotoInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="hidden" onChange={event=>void uploadAdminProfilePhoto(event.target.files?.[0])}/>
-            <button type="button" onClick={()=>adminPhotoInputRef.current?.click()} title="Upload or change Admin profile picture" aria-label="Upload Admin profile picture" disabled={adminPhotoUploading} className="group relative inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-300/70 bg-slate-800 text-cyan-200 shadow-lg shadow-cyan-950/30 hover:border-amber-300 disabled:opacity-60">
-              {adminPhotoUrl ? <img src={adminPhotoUrl} alt="Admin profile" className="h-full w-full object-cover"/> : <UserRound className="h-5 w-5"/>}
-              <span className="absolute inset-0 hidden items-center justify-center bg-black/60 text-white group-hover:flex"><ImagePlus className="h-4 w-4"/></span>
-            </button>
             <div className="relative">
               <button type="button" onClick={()=>{const next=!notificationOpen;setNotificationOpen(next);if(next)void loadAdminNotifications();}} title="Notifications" aria-label="Notifications" aria-expanded={notificationOpen} className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white"><Bell className="h-4 w-4"/>{adminNotifications.some(item=>!item.read_at)&&<span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-400"/>}</button>
               {notificationOpen&&<div className="absolute right-0 top-full z-50 mt-3 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-700 bg-[#111a2b] shadow-2xl shadow-black/50">
@@ -1314,6 +1309,19 @@ export function AdminPage() {
 
             {settingsTab === 'my-profile' && <form onSubmit={saveAdminProfile} className="space-y-5 rounded-2xl border bg-white p-5">
               <div><h3 className="font-bold text-slate-950">My Admin Profile</h3><p className="mt-1 text-sm text-slate-600">Live details for the account currently signed in. Update the existing account; no new account is created.</p></div>
+              <section className="flex flex-wrap items-center gap-5 rounded-xl border border-blue-200 bg-blue-50/60 p-4" aria-label="Admin profile photo settings">
+                <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-slate-200 shadow-md">
+                  {adminPhotoUrl ? <img src={adminPhotoUrl} alt="Current Admin profile picture" className="h-full w-full object-cover"/> : <UserRound className="h-12 w-12 text-slate-500"/>}
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <h4 className="font-bold text-slate-950">Admin profile picture</h4>
+                  <p className="text-sm text-slate-700">Upload a clear photo. The actual image preview appears here after it has been saved.</p>
+                  <p className="text-xs text-slate-600">Accepted formats: JPG, JPEG, PNG, WebP and AVIF. Maximum file size: 3 MB.</p>
+                  <input ref={adminPhotoInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.avif,image/jpeg,image/png,image/webp,image/avif" disabled={adminPhotoUploading} onChange={event=>void uploadAdminProfilePhoto(event.target.files?.[0])} className="block w-full max-w-md rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-800 file:mr-3 file:rounded-md file:border-0 file:bg-blue-700 file:px-3 file:py-2 file:font-semibold file:text-white hover:file:bg-blue-800"/>
+                  {adminPhotoUploading && <p role="status" className="text-sm font-semibold text-blue-800">Uploading and saving your profile picture…</p>}
+                  <p className="text-xs text-slate-500">Unsupported formats or files larger than 3 MB will be rejected with an explanation. You can replace this picture at any time.</p>
+                </div>
+              </section>
               {profileSubTab === 'account' && <section id="profile-account-summary" className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="font-bold text-slate-950">System account information</h4><p className="mt-1 text-xs text-slate-600">Read directly from your active Navstar session and profile record.</p></div><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Signed in · {user?.role || 'Admin'}</span></div>
                 {profileLoadWarning && <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{profileLoadWarning}</div>}
