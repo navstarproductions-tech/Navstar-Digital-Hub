@@ -1,7 +1,6 @@
 import { hashPassword, requireRole } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 import { queueCustomerNotice } from '../../_shared/notifications.js';
-import { nextReference } from '../../_shared/references.js';
 
 const digest = async value => {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -12,6 +11,16 @@ const randomToken = () => {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 };
 const strongRandomPassword = () => randomToken() + 'A9!';
+async function createStudentId(DB) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const number = String(crypto.getRandomValues(new Uint32Array(1))[0] % 100000).padStart(5, '0');
+    const staffId = `ST${number}`;
+    const exists = await DB.prepare('SELECT user_id FROM user_profiles WHERE staff_id = ?').bind(staffId).first();
+    if (!exists) return staffId;
+  }
+  throw new Error('Could not allocate a unique Student ID. Please retry the admission action.');
+}
+
 const validEmail = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 export async function onRequestPost(context) {
@@ -91,7 +100,7 @@ export async function onRequestPost(context) {
 
   const profile = await env.DB.prepare('SELECT user_id FROM user_profiles WHERE user_id = ?').bind(user.id).first();
   if (!profile) {
-    const studentId = await nextReference(env.DB, 'ST');
+    const studentId = await createStudentId(env.DB);
     await env.DB.prepare(`INSERT INTO user_profiles (
       user_id,staff_id,portal_role,national_id,phone,date_of_birth,gender,citizenship,country,
       county,sub_county,ward,location,sub_location,address
