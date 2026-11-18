@@ -7,6 +7,19 @@ import { queueCustomerNotice } from '../_shared/notifications.js';
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
+async function currentIntake(DB) {
+  const row = await DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
+  let config = {}; try { config = JSON.parse(row?.value || '{}'); } catch {}
+  const section = config['academic-intakes'] || {};
+  const today = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const entries = String(section.intakes || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0]);
+  const mapped = entries.map(parts => ({ name: parts[0], enrollmentOpen: parts[1], enrollmentClose: parts[2], trainingStart: parts[3] || '', trainingEnd: parts[4] || '', graduationDate: parts[5] || '' }));
+  if (!mapped.length && section.currentIntake) mapped.push({ name: section.currentIntake, enrollmentOpen: section.enrollmentOpen || '', enrollmentClose: section.enrollmentClose || '', trainingStart: section.trainingStart || '', trainingEnd: section.trainingEnd || '', graduationDate: section.graduationDate || '' });
+  const open = mapped.find(item => item.enrollmentOpen && item.enrollmentClose && today >= item.enrollmentOpen && today <= item.enrollmentClose);
+  const upcoming = mapped.filter(item => item.enrollmentOpen && item.enrollmentOpen > today).sort((a,b) => a.enrollmentOpen.localeCompare(b.enrollmentOpen))[0];
+  return open ? { ...open, status: 'open' } : upcoming ? { ...upcoming, status: 'upcoming' } : mapped.length ? { ...mapped.sort((a,b) => b.enrollmentClose.localeCompare(a.enrollmentClose))[0], status: 'closed' } : null;
+}
+
 async function enrollmentRules(DB) {
   const row = await DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
   try {
@@ -38,6 +51,8 @@ export async function onRequestPost(context) {
 
   let body;
   try { body = await readJson(request, 16384); } catch { return error('Invalid request body.'); }
+  const intake = await currentIntake(env.DB);
+  if (!intake || intake.status !== 'open') return error(intake?.status === 'upcoming' ? `Enrollment is not open yet. The next intake is ${intake.name}, opening ${intake.enrollmentOpen}.` : 'Enrollment is currently closed. Please check the next intake dates on the Courses page.', 403);
   const courseId = safeString(body.courseId, 80);
   const course = await env.DB.prepare('SELECT id, title, price FROM courses WHERE id = ? AND status = ?').bind(courseId, 'active').first();
   if (!course) return error('Selected course is not available.', 404);
@@ -46,6 +61,7 @@ export async function onRequestPost(context) {
   const email = safeString(body.email, 254).toLowerCase();
   const phone = normalizePhone(body.phone);
   const dateOfBirth = safeString(body.dateOfBirth, 10);
+  const identityType = safeString(body.identityType, 30);
   const studyMode = safeString(body.studyMode, 40);
   const educationLevel = safeString(body.educationLevel, 40);
   const county = safeString(body.county, 80);
@@ -53,7 +69,9 @@ export async function onRequestPost(context) {
   const emergencyContactName = safeString(body.emergencyContactName, 120);
   const emergencyContactPhone = normalizePhone(body.emergencyContactPhone);
   const consent = body.consent === true || body.consent === 'on';
-  if (fullName.length < 2 || !emailPattern.test(email) || !phone || !datePattern.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyContactName || !emergencyContactPhone || !consent) {
+  const birthTime = datePattern.test(dateOfBirth) ? new Date(`${dateOfBirth}T00:00:00Z`).getTime() : NaN;
+  const age = Number.isFinite(birthTime) ? Math.floor((Date.now() - birthTime) / 31557600000) : -1;
+  if (!['national-id','maisha-card','birth-certificate','passport'].includes(identityType) || !safeString(body.identityNumber, 80) || age < 18 || fullName.length < 2 || !emailPattern.test(email) || !phone || !datePattern.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyContactName || !emergencyContactPhone || !consent) {
     return error('Complete all required fields with valid contact details.');
   }
 
