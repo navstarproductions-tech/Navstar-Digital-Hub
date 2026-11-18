@@ -7,7 +7,7 @@ const digest = async (value) => {
 };
 const code = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
 
-export async function onRequestPost({ request, env, context }) {
+export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
   if (!env.DB || !env.RESEND_API_KEY || !env.MAIL_FROM) return error('Email recovery is not configured. Navstar must configure its email service first.', 503);
   let body;
