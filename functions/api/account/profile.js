@@ -27,6 +27,7 @@ export async function onRequestPatch({ request, env }) {
   if (access.response) return access.response;
   let body;
   try { body = await readJson(request, 8192); } catch { return error('Invalid profile details.'); }
+
   const name = safeString(body.name, 120);
   const nationalId = safeString(body.nationalId, 32);
   const phone = safeString(body.phone, 32);
@@ -46,12 +47,20 @@ export async function onRequestPatch({ request, env }) {
   const employmentType = safeString(body.employmentType, 40);
   const joinedOn = safeString(body.joinedOn, 10);
   const requestedStaffId = safeString(body.staffId, 16).toUpperCase();
-  const rolePrefix = ({ admin: 'AD', principal: 'PR', finance: 'FN', admissions: 'AM', tutor: 'TU', student: 'ST' })[access.user.role] || 'ST';
-  if (requestedStaffId && access.user.role !== 'admin') return error('Only the Admin can change the primary Admin staff ID from this profile.', 403);
-  if (requestedStaffId && !new RegExp('^' + rolePrefix + '\\\\d{5}
+
   if (name.length < 2) return error('Enter your full name.');
-  if (dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return error('Enter a valid date of birth.');
+  if (dateOfBirth && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dateOfBirth)) return error('Enter a valid date of birth.');
+  if (joinedOn && !/^\\d{4}-\\d{2}-\\d{2}$/.test(joinedOn)) return error('Enter a valid date joined.');
   if (nationalId && !/^[A-Za-z0-9/-]{4,32}$/.test(nationalId)) return error('Enter a valid National ID or identity reference.');
+
+  if (requestedStaffId) {
+    if (access.user.role !== 'admin') return error('Only the Admin can change the primary Admin staff ID from this profile.', 403);
+    if (!/^AD[0-9]{5}$/.test(requestedStaffId)) return error('Admin staff ID must be AD followed by five digits, for example AD12345.');
+    const duplicate = await env.DB.prepare('SELECT user_id FROM user_profiles WHERE staff_id = ? AND user_id <> ?')
+      .bind(requestedStaffId, access.user.id).first();
+    if (duplicate) return error('That staff ID is already assigned to another account.', 409);
+  }
+
   await env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, access.user.id).run();
   await env.DB.prepare(`
     UPDATE user_profiles SET staff_id = COALESCE(?, staff_id), national_id = ?, phone = ?, date_of_birth = ?, gender = ?, citizenship = ?,
@@ -62,27 +71,9 @@ export async function onRequestPatch({ request, env }) {
     country, province || null, county || null, subCounty || null, constituency || null, ward || null,
     location || null, subLocation || null, department || null, jobTitle || null, employmentType || null,
     joinedOn || null, access.user.id).run();
-  await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), access.user.id, 'profile_updated', 'user', access.user.id).run().catch(() => {});
-  return onRequestGet({ request, env });
-}
-).test(requestedStaffId)) return error('Use the staff ID format for your role, for example ' + rolePrefix + '12345.');
-  if (requestedStaffId) {
-    const duplicate = await env.DB.prepare('SELECT user_id FROM user_profiles WHERE staff_id = ? AND user_id <> ?').bind(requestedStaffId, access.user.id).first();
-    if (duplicate) return error('That staff ID is already assigned to another account.', 409);
-  }
-  if (name.length < 2) return error('Enter your full name.');
-  if (dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return error('Enter a valid date of birth.');
-  if (nationalId && !/^[A-Za-z0-9/-]{4,32}$/.test(nationalId)) return error('Enter a valid National ID or identity reference.');
-  await env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, access.user.id).run();
-  await env.DB.prepare(`
-    UPDATE user_profiles SET national_id = ?, phone = ?, date_of_birth = ?, gender = ?, citizenship = ?,
-      country = ?, province = ?, county = ?, sub_county = ?, constituency = ?, ward = ?, location = ?,
-      sub_location = ?, department = ?, job_title = ?, employment_type = ?, joined_on = ?,
-      updated_at = CURRENT_TIMESTAMP WHERE user_id = ?
-  `).bind(nationalId || null, phone || null, dateOfBirth || null, gender || null, citizenship || null,
-    country, province || null, county || null, subCounty || null, constituency || null, ward || null,
-    location || null, subLocation || null, department || null, jobTitle || null, employmentType || null,
-    joinedOn || null, access.user.id).run();
-  await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), access.user.id, 'profile_updated', 'user', access.user.id).run().catch(() => {});
+
+  await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
+    .bind(uuid(), access.user.id, requestedStaffId ? 'admin_staff_id_and_profile_updated' : 'profile_updated', 'user', access.user.id)
+    .run().catch(() => {});
   return onRequestGet({ request, env });
 }
