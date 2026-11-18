@@ -14,7 +14,7 @@ export async function onRequestGet({ request, env }) {
       p.transaction_date,p.created_at,p.updated_at,
       e.full_name AS learner_name,e.email AS learner_email,e.display_ref AS learner_reference,
       c.title AS course_title,sr.customer_name AS service_customer,
-      sr.email AS service_email,d.phone AS donor_phone
+      sr.email AS service_email,sr.notes AS service_notes,d.phone AS donor_phone
     FROM payments p
     LEFT JOIN enrollments e ON p.purpose='enrollment' AND e.id=p.reference_id
     LEFT JOIN courses c ON c.id=e.course_id
@@ -25,6 +25,10 @@ export async function onRequestGet({ request, env }) {
   if (!payment) return error('Confirmed payment receipt was not found.',404);
   if (access.user.role === 'student' && (payment.purpose !== 'enrollment' || payment.learner_email?.toLowerCase() !== access.user.email.toLowerCase())) {
     return error('You are not allowed to view this receipt.',403);
+  }
+  let serviceDescription = '';
+  if (payment.service_notes) {
+    try { const notes = JSON.parse(payment.service_notes); serviceDescription = notes.manualDescription || (Array.isArray(notes.items) ? notes.items.map(item => item.name).filter(Boolean).join(', ') : ''); } catch { serviceDescription = String(payment.service_notes).slice(0, 180); }
   }
   return json({
     receipt: {
@@ -38,7 +42,7 @@ export async function onRequestGet({ request, env }) {
       paymentPurpose:payment.purpose,
       payerName:payment.learner_name || payment.service_customer || 'Customer',
       payerReference:payment.learner_reference || '',
-      description:payment.course_title || (payment.purpose === 'donation' ? 'Donation' : 'Service payment'),
+      description:payment.course_title || (payment.purpose === 'donation' ? 'Donation' : serviceDescription || 'Service payment'),
       phone:payment.phone,
       amount:Number(payment.amount),
       currency:'KES',
