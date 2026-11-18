@@ -73,25 +73,42 @@ export async function onRequestPatch({ request, env }) {
     if (duplicate) return error('That staff ID is already assigned to another account.', 409);
   }
 
-  await env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, access.user.id).run();
+  const existingProfile = await env.DB.prepare('SELECT staff_id AS staffId FROM user_profiles WHERE user_id = ?').bind(access.user.id).first();
+  let staffId = requestedStaffId || existingProfile?.staffId || '';
+  if (!staffId) {
+    const prefixes = { admin: 'AD', principal: 'PR', finance: 'FN', admissions: 'AM', tutor: 'TU', student: 'ST' };
+    const prefix = prefixes[access.user.role] || 'ST';
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const candidate = prefix + String(10000 + Math.floor(Math.random() * 90000));
+      const duplicate = await env.DB.prepare('SELECT user_id FROM user_profiles WHERE staff_id = ?').bind(candidate).first();
+      if (!duplicate) { staffId = candidate; break; }
+    }
+    if (!staffId) return error('A unique staff ID could not be generated. Please retry.', 503);
+  }
+
   const columns = await getProfileColumns(env.DB);
-  const updates = [
-    ['staff_id', 'COALESCE(?, staff_id)', requestedStaffId || null],
-    ['phone', '?', phone || null], ['date_of_birth', '?', dateOfBirth || null],
-    ['gender', '?', gender || null], ['citizenship', '?', citizenship || null],
-    ['country', '?', country], ['province', '?', province || null], ['county', '?', county || null],
-    ['sub_county', '?', subCounty || null], ['constituency', '?', constituency || null],
-    ['ward', '?', ward || null], ['location', '?', location || null],
-    ['sub_location', '?', subLocation || null], ['department', '?', department || null],
-    ['job_title', '?', jobTitle || null], ['employment_type', '?', employmentType || null],
-    ['joined_on', '?', joinedOn || null],
-  ];
-  if (columns.has('national_id')) updates.splice(1, 0, ['national_id', '?', nationalId || null]);
-  if (columns.has('address')) updates.push(['address', '?', address || null]);
-  const assignments = updates.map(([column, expression]) => `${column} = ${expression}`).join(', ');
-  const values = updates.map(([, , value]) => value);
-  await env.DB.prepare(`UPDATE user_profiles SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`)
-    .bind(...values, access.user.id).run();
+  const profileValues = {
+    staff_id: staffId, portal_role: access.user.role, phone: phone || null,
+    date_of_birth: dateOfBirth || null, gender: gender || null, citizenship: citizenship || null,
+    country, province: province || null, county: county || null, sub_county: subCounty || null,
+    constituency: constituency || null, ward: ward || null, location: location || null,
+    sub_location: subLocation || null, department: department || null, job_title: jobTitle || null,
+    employment_type: employmentType || null, joined_on: joinedOn || null,
+  };
+  if (columns.has('national_id')) profileValues.national_id = nationalId || null;
+  if (columns.has('address')) profileValues.address = address || null;
+  const profileColumns = Object.keys(profileValues);
+  const insertColumns = ['user_id', ...profileColumns];
+  const placeholders = insertColumns.map(() => '?').join(', ');
+  const updateAssignments = profileColumns.map(column => column + ' = excluded.' + column).concat('updated_at = CURRENT_TIMESTAMP').join(', ');
+  const profileStatement = env.DB.prepare(
+    'INSERT INTO user_profiles (' + insertColumns.join(', ') + ') VALUES (' + placeholders + ') ' +
+    'ON CONFLICT(user_id) DO UPDATE SET ' + updateAssignments
+  ).bind(access.user.id, ...profileColumns.map(column => profileValues[column]));
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, access.user.id),
+    profileStatement,
+  ]);
 
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
     .bind(uuid(), access.user.id, requestedStaffId ? 'admin_staff_id_and_profile_updated' : 'profile_updated', 'user', access.user.id)
