@@ -203,6 +203,17 @@ export function AdminPage() {
   const [documentDescription, setDocumentDescription] = useState('');
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [customerOrders, setCustomerOrders] = useState<{ id: string; reference: string; customerName: string; email: string; phone: string; amount: number; notes: string; status: string; createdAt: string; serviceName: string }[]>([]);
+  const [posCustomerName, setPosCustomerName] = useState('');
+  const [posPhone, setPosPhone] = useState('');
+  const [posSelectedService, setPosSelectedService] = useState('');
+  const [posQuantity, setPosQuantity] = useState('1');
+  const [posCart, setPosCart] = useState<{serviceId:string;quantity:number}[]>([]);
+  const [posPayment, setPosPayment] = useState<{id:string;reference:string;status:string}|null>(null);
+  const [posProcessing, setPosProcessing] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [adminNotifications, setAdminNotifications] = useState<{id:string;title:string;message:string;read_at:string|null;created_at:string}[]>([]);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+
   const [learningCourses, setLearningCourses] = useState<LearningCourse[]>([]);
   const [learningTutors, setLearningTutors] = useState<{ id: string; name: string; email: string }[]>([]);
   const [learningCourseId, setLearningCourseId] = useState('');
@@ -856,6 +867,64 @@ export function AdminPage() {
     setPortalUsers(current => current.map(item => item.id === editingPortalUser.id ? { ...item, ...payload } : item));
     setEditingPortalUser(null);
     setNotice('User profile updated successfully.');
+  };
+
+  const loadAdminNotifications = async () => {
+    setNotificationLoading(true);
+    try {
+      const response = await fetch('/api/admin/notifications', { credentials: 'same-origin' });
+      const result = await response.json() as { notifications?: typeof adminNotifications; error?: string };
+      if (!response.ok) throw new Error(result.error || 'Could not load notifications.');
+      setAdminNotifications(result.notifications ?? []);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not load notifications.');
+    } finally { setNotificationLoading(false); }
+  };
+
+  const addPosItem = () => {
+    const service = services.find(item => item.id === posSelectedService && item.status === 'Active');
+    const quantity = Number(posQuantity);
+    if (!service || !service.priceAmount || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000) {
+      setNotice('Choose an active service with a fixed online price and a valid quantity.');
+      return;
+    }
+    setPosCart(current => {
+      const found = current.find(item => item.serviceId === service.id);
+      return found ? current.map(item => item.serviceId === service.id ? {...item,quantity:item.quantity+quantity} : item) : [...current,{serviceId:service.id,quantity}];
+    });
+    setPosQuantity('1');
+    setNotice('');
+  };
+
+  const startPosSale = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!posCustomerName.trim() || !posPhone.trim() || !posCart.length) { setNotice('Enter the customer name, phone number and add at least one service.'); return; }
+    setPosProcessing(true); setPosPayment(null); setNotice('Creating sale and sending M-Pesa prompt…');
+    try {
+      const orderResponse = await fetch('/api/service-requests', {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({customerName:posCustomerName,phone:posPhone,items:posCart})});
+      const order = await orderResponse.json() as {id?:string;reference?:string;amount?:number;error?:string};
+      if(!orderResponse.ok || !order.id) throw new Error(order.error || 'Could not create the sale.');
+      const promptResponse = await fetch('/api/payments/stk-push', {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({purpose:'service',reference:order.id,phone:posPhone})});
+      const prompt = await promptResponse.json() as {id?:string;reference?:string;message?:string;error?:string};
+      if(!promptResponse.ok || !prompt.id) throw new Error(prompt.error || 'The M-Pesa prompt could not be sent.');
+      setPosPayment({id:prompt.id,reference:order.reference || prompt.reference || '',status:'pending'});
+      setNotice(prompt.message || 'M-Pesa prompt sent. Waiting for customer confirmation…');
+      const paymentId=prompt.id;
+      const checkPayment = async (attempt:number):Promise<void> => {
+        const statusResponse=await fetch('/api/payments/stk-push?reference='+encodeURIComponent(paymentId),{credentials:'same-origin'});
+        const statusResult=await statusResponse.json() as {payment?:{status:string};error?:string};
+        if(!statusResponse.ok) throw new Error(statusResult.error || 'Could not verify payment status.');
+        const status=statusResult.payment?.status || 'pending';
+        setPosPayment({id:paymentId,reference:order.reference || '',status});
+        if(status==='paid'){setNotice('Payment verified successfully. Your Navstar receipt is ready.');return;}
+        if(status==='failed'){setNotice('M-Pesa payment was not completed. You can retry the sale.');return;}
+        if(attempt<40){await new Promise(resolve=>window.setTimeout(resolve,3000));return checkPayment(attempt+1);}
+        setNotice('The payment is still pending. Check the status before starting another sale.');
+      };
+      await checkPayment(1);
+    } catch(error) {
+      setNotice(error instanceof Error ? error.message : 'The sale could not be completed.');
+    } finally { setPosProcessing(false); }
   };
 
   const signOut = async () => {
