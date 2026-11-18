@@ -3,16 +3,24 @@ import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_sh
 
 const roles = ['student', 'tutor', 'admissions', 'principal', 'admin', 'finance'];
 
+async function getProfileColumns(db) {
+  const result = await db.prepare('PRAGMA table_info(user_profiles)').all();
+  return new Set((result.results || []).map(column => column.name));
+}
+
 export async function onRequestGet({ request, env }) {
   if (!env.DB) return error('Profile service is not configured.', 503);
   const access = await requireRole(request, env, roles);
   if (access.response) return access.response;
+  const columns = await getProfileColumns(env.DB);
+  const nationalIdField = columns.has('national_id') ? 'p.national_id AS nationalId' : 'NULL AS nationalId';
+  const addressField = columns.has('address') ? 'p.address' : 'NULL AS address';
   const profile = await env.DB.prepare(`
     SELECT u.id, u.name, u.email, COALESCE(p.portal_role, u.role) AS role, u.created_at,
-      p.staff_id AS staffId, p.national_id AS nationalId, p.phone, p.date_of_birth AS dateOfBirth,
+      p.staff_id AS staffId, ${nationalIdField}, p.phone, p.date_of_birth AS dateOfBirth,
       p.gender, p.citizenship, p.country, p.province, p.county, p.sub_county AS subCounty,
       p.constituency, p.ward, p.location, p.sub_location AS subLocation, p.department,
-      p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn, p.address,
+      p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn, ${addressField},
       p.profile_photo_url AS profilePhotoUrl
     FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE u.id = ?
   `).bind(access.user.id).first();
@@ -66,18 +74,30 @@ export async function onRequestPatch({ request, env }) {
   }
 
   await env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, access.user.id).run();
-  await env.DB.prepare(`
-    UPDATE user_profiles SET staff_id = COALESCE(?, staff_id), national_id = ?, phone = ?, date_of_birth = ?, gender = ?, citizenship = ?,
-      country = ?, province = ?, county = ?, sub_county = ?, constituency = ?, ward = ?, location = ?,
-      sub_location = ?, department = ?, job_title = ?, employment_type = ?, joined_on = ?, address = ?,
-      updated_at = CURRENT_TIMESTAMP WHERE user_id = ?
-  `).bind(requestedStaffId || null, nationalId || null, phone || null, dateOfBirth || null, gender || null, citizenship || null,
-    country, province || null, county || null, subCounty || null, constituency || null, ward || null,
-    location || null, subLocation || null, department || null, jobTitle || null, employmentType || null,
-    joinedOn || null, address || null, access.user.id).run();
+  const columns = await getProfileColumns(env.DB);
+  const updates = [
+    ['staff_id', 'COALESCE(?, staff_id)', requestedStaffId || null],
+    ['phone', '?', phone || null], ['date_of_birth', '?', dateOfBirth || null],
+    ['gender', '?', gender || null], ['citizenship', '?', citizenship || null],
+    ['country', '?', country], ['province', '?', province || null], ['county', '?', county || null],
+    ['sub_county', '?', subCounty || null], ['constituency', '?', constituency || null],
+    ['ward', '?', ward || null], ['location', '?', location || null],
+    ['sub_location', '?', subLocation || null], ['department', '?', department || null],
+    ['job_title', '?', jobTitle || null], ['employment_type', '?', employmentType || null],
+    ['joined_on', '?', joinedOn || null],
+  ];
+  if (columns.has('national_id')) updates.splice(1, 0, ['national_id', '?', nationalId || null]);
+  if (columns.has('address')) updates.push(['address', '?', address || null]);
+  const assignments = updates.map(([column, expression]) => `${column} = ${expression}`).join(', ');
+  const values = updates.map(([, , value]) => value);
+  await env.DB.prepare(`UPDATE user_profiles SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`)
+    .bind(...values, access.user.id).run();
 
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
     .bind(uuid(), access.user.id, requestedStaffId ? 'admin_staff_id_and_profile_updated' : 'profile_updated', 'user', access.user.id)
     .run().catch(() => {});
-  return onRequestGet({ request, env });
+  const refreshed = await onRequestGet({ request, env });
+  const result = await refreshed.json();
+  const missingProfileColumns = ['national_id', 'address'].filter(column => !columns.has(column));
+  return json({ ...result, ...(missingProfileColumns.length ? { warning: `Some optional profile fields are not yet stored in the database (${missingProfileColumns.join(', ')}). Apply the matching database migrations to enable them.` } : {}) });
 }
