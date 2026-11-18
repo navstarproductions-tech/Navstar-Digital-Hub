@@ -30,6 +30,10 @@ export async function onRequestGet({ request, env }) {
     receipt: {
       businessName:'NAVSTAR DIGITAL HUB',
       motto:'HOME OF TECHNOCRATS',
+      businessAddress:'P.O. Box 546-50200, Bungoma, Kenya',
+      businessLocation:'Raphael Estates, Room 3, opposite Shaban Medical Clinic, after ABC Medical Clinic, off Agorom–Busia Road, 200 m from ACK Nambale Hostels',
+      businessPhones:'+254 797 688 576 / +254 706 637 485',
+      businessEmail:'navstardigitalhub@gmail.com',
       receiptNumber:payment.receipt_number,
       paymentReference:payment.display_reference || payment.reference_id,
       paymentPurpose:payment.purpose,
