@@ -24,20 +24,23 @@ function drawHeader(d:PdfDoc,root:ParentNode,W:number,m:number,logo:string|null,
  const serial=txt(el(root,'.serial'))||'OFFICIAL RECEIPT';
  const contacts=txt(el(root,'.contacts'))||'0797 688 576 · 0706 637 485\nnavstardigitalhub@gmail.com · P.O. Box 546-50200, Bungoma, Kenya';
  const generated=txt(el(root,'.generated,.gen'));
- const headH=popup?49:45;
- d.setFillColor(6,27,59).rect(0,0,W,headH,'F');d.setFillColor(11,67,135).rect(W*.34,0,W*.66,headH,'F');d.setFillColor(8,123,131).rect(W*.78,0,W*.22,headH,'F');d.setFillColor(229,184,75).rect(0,headH,W,1.2,'F');
- addLogo(d,logo,m,8,25,23);
- const tx=m+31;
- d.setFont('helvetica','bold').setFontSize(14).setTextColor(255,255,255).text(brand,tx,12);
- d.setFontSize(7).setTextColor(246,215,125).text(motto,tx,18);
- wrap(d,contacts.replace(/\s*·\s*/g,' · '),tx,24,W*.48,6.1,[226,239,255],3.1);
- const rightX=W-m;
- d.setFont('helvetica','bold').setFontSize(6.8).setTextColor(201,229,255).text('OFFICIAL DIGITAL DOCUMENT',rightX,10,{align:'right'});
- d.setFontSize(11).setTextColor(255,255,255).text(title,rightX,17,{align:'right'});
- const serialW=45, serialX=rightX-serialW;
- d.setFillColor(255,241,242).setDrawColor(254,202,202).roundedRect(serialX,21,serialW,10,2,2,'FD');
- d.setFontSize(7.8).setTextColor(185,28,28).text(serial,serialX+serialW/2,27.3,{align:'center'});
- if(generated){d.setFont('helvetica','normal').setFontSize(5.8).setTextColor(226,239,255).text(generated,rightX,35,{align:'right'});}
+ const headH=popup?53:51;
+ // Smooth full-width gradient blended from navy through royal blue into teal.
+ const stops:[[number,number,number],[number,number,number],[number,number,number]]=[[6,27,59],[11,67,135],[8,123,131]];
+ const mix=(a:number,b:number,t:number)=>Math.round(a+(b-a)*t);
+ for(let i=0;i<120;i++){const t=i/119,seg=t<.66?0:1,local=seg===0?t/.66:(t-.66)/.34,a=stops[seg],b=stops[seg+1];d.setFillColor(mix(a[0],b[0],local),mix(a[1],b[1],local),mix(a[2],b[2],local)).rect(W*i/120,0,W/120+.15,headH,'F');}
+ d.setFillColor(229,184,75).rect(0,headH,W,1.4,'F');
+ addLogo(d,logo,m,8,28,27);
+ const tx=m+33,rightX=W-m,rightW=64,leftW=rightX-tx-rightW-5;
+ d.setFont('helvetica','bold').setFontSize(17).setTextColor(255,255,255).text(brand,tx,14);
+ d.setFontSize(8.5).setTextColor(255,221,131).text(motto,tx,21);
+ wrap(d,contacts,tx,29,Math.max(65,leftW),7.2,[238,246,255],3.8);
+ d.setFont('helvetica','bold').setFontSize(7.4).setTextColor(219,237,255).text('OFFICIAL DIGITAL DOCUMENT',rightX,11,{align:'right'});
+ d.setFontSize(13.5).setTextColor(255,255,255).text(title,rightX,20,{align:'right'});
+ const serialW=52,serialX=rightX-serialW;
+ d.setFillColor(255,245,246).setDrawColor(255,214,218).roundedRect(serialX,25,serialW,12,2.5,2.5,'FD');
+ d.setFontSize(9.2).setTextColor(185,28,28).text(serial,serialX+serialW/2,32.8,{align:'center'});
+ if(generated){d.setFont('helvetica','normal').setFontSize(7.1).setTextColor(238,246,255).text(generated,rightX,42,{align:'right'});}
  return {serial,headH};
 }
 function drawDonation(root:ParentNode,filename:string,C:PdfCtor,logo:string|null,qr:string|null){
@@ -45,17 +48,17 @@ function drawDonation(root:ParentNode,filename:string,C:PdfCtor,logo:string|null
  drawHeader(d,root,W,m,logo,'donation');
  const popup=!!el(root,'.letterhead');
  const status=txt(el(root,'.status'))||'✓ PAYMENT RECEIVED · SAFARICOM CONFIRMED';
- d.setFillColor(220,252,231).roundedRect(m,56,inner,7,3,3,'F');
- d.setFont('helvetica','bold').setFontSize(6.5).setTextColor(22,101,52).text(status.toUpperCase(),m+3,60.5);
+ d.setFillColor(220,252,231).roundedRect(m,61,inner,9,3,3,'F');
+ d.setFont('helvetica','bold').setFontSize(8).setTextColor(22,101,52).text(status.toUpperCase(),m+4,67);
  const left=el(root,popup?'.details .detail-box:first-child':'.grid .box:first-child');
  const right=el(root,popup?'.details .detail-box:nth-child(2)':'.grid .box:nth-child(2)');
- const boxY=68,boxH=39,gap=5,cw=(inner-gap)/2;
+ const boxY=75,boxH=46,gap=6,cw=(inner-gap)/2;
  const drawDetail=(node:Element|null,x:number)=>{
    d.setFillColor(255,255,255).setDrawColor(211,225,241).roundedRect(x,boxY,cw,boxH,3,3,'FD');
    const label=txt(el(node||root,'.section-title,.label'))||'PAYMENT DETAILS';
    const all=txt(node);const body=all.replace(label,'').trim();
-   d.setFont('helvetica','bold').setFontSize(6.4).setTextColor(74,103,137).text(label.toUpperCase(),x+4,boxY+6);
-   wrap(d,body,x+4,boxY+13,cw-8,7.2,[24,47,75],3.6);
+   d.setFont('helvetica','bold').setFontSize(8).setTextColor(74,103,137).text(label.toUpperCase(),x+4,boxY+6);
+   wrap(d,body,x+5,boxY+16,cw-10,9,[24,47,75],4.6);
  };
  drawDetail(left,m);drawDetail(right,m+cw+gap);
  const amountNode=el(root,popup?'.amount-panel':'.amount');
@@ -63,24 +66,24 @@ function drawDonation(root:ParentNode,filename:string,C:PdfCtor,logo:string|null
  const amountLabel=txt(el(amountNode||root,'span,.label'))||'AMOUNT RECEIVED';
  const amountValue=txt(el(amountNode||root,'strong'));
  const amountSub=txt(el(amountNode||root,'small'));
- const amountY=113;
- d.setFillColor(235,245,255).setDrawColor(185,215,245).roundedRect(m,amountY,inner,21,3,3,'FD');
- d.setFont('helvetica','bold').setFontSize(6.6).setTextColor(49,84,119).text(amountLabel.toUpperCase(),m+6,amountY+7);
- wrap(d,amountSub||'Confirmed donation · Kenya Shillings',m+6,amountY+12,inner*.58,5.8,[83,105,128],3);
- d.setFont('helvetica','bold').setFontSize(18).setTextColor(7,91,73).text(amountValue||amountText.replace(amountLabel,'').trim(),W-m-6,amountY+14,{align:'right'});
+ const amountY=127;
+ d.setFillColor(235,245,255).setDrawColor(185,215,245).roundedRect(m,amountY,inner,25,3,3,'FD');
+ d.setFont('helvetica','bold').setFontSize(8).setTextColor(49,84,119).text(amountLabel.toUpperCase(),m+7,amountY+9);
+ wrap(d,amountSub||'Confirmed donation · Kenya Shillings',m+6,amountY+16,inner*.58,7,[83,105,128],3);
+ d.setFont('helvetica','bold').setFontSize(21).setTextColor(7,91,73).text(amountValue||amountText.replace(amountLabel,'').trim(),W-m-6,amountY+17,{align:'right'});
  const confirmation=txt(el(root,'.confirmation'))||'Payment confirmation\nThis digital receipt confirms that the donation shown above was received after confirmation from Safaricom M-Pesa. The Navstar serial number is separate from the Safaricom transaction code.';
- d.setFillColor(240,253,250).rect(m,139,inner,22,'F');d.setFillColor(13,148,136).rect(m,139,1.1,22,'F');
- wrap(d,confirmation,m+5,145,inner-10,6.2,[36,72,91],3.7);
- d.setDrawColor(220,230,240).line(m,167,W-m,167);
+ d.setFillColor(240,253,250).rect(m,160,inner,28,'F');d.setFillColor(13,148,136).rect(m,160,1.3,28,'F');
+ wrap(d,confirmation,m+6,168,inner-12,8,[36,72,91],4.5);
+ d.setDrawColor(220,230,240).line(m,196,W-m,196);
  const qrText=txt(el(root,popup?'.qr-copy':'.qr'));
- wrap(d,qrText||'Digital receipt QR code\nScan to read the receipt reference, Safaricom transaction code, amount and confirmed payment status. Keep this receipt for your records.\nNAVSTAR DIGITAL HUB · HOME OF TECHNOCRATS',m,178,inner-38,6.2,[83,105,128],3.8);
- if(qr){try{d.addImage(qr,'PNG',W-m-29,172,27,27);}catch{}}
- d.setFont('helvetica','bold').setFontSize(6.1).setTextColor(11,67,135).text('NAVSTAR DIGITAL HUB · HOME OF TECHNOCRATS',m,199);
- d.setDrawColor(11,67,135).line(m,210,W-m,210);
+ wrap(d,qrText||'Digital receipt QR code\nScan to read the receipt reference, Safaricom transaction code, amount and confirmed payment status. Keep this receipt for your records.\nNAVSTAR DIGITAL HUB · HOME OF TECHNOCRATS',m,210,inner-42,8,[83,105,128],4.6);
+ if(qr){try{d.addImage(qr,'PNG',W-m-34,204,32,32);}catch{}}
+ d.setFont('helvetica','bold').setFontSize(6.1).setTextColor(11,67,135).text('NAVSTAR DIGITAL HUB · HOME OF TECHNOCRATS',m,241);
+ d.setDrawColor(11,67,135).line(m,251,W-m,251);
  const foot=txt(el(root,popup?'.footer':'.foot'));
  const footParts=foot.split(/Official receipt/i);
- wrap(d,footParts[0]||'Thank you for supporting digital learning. Electronically generated by Navstar Digital Hub.',m,216,inner*.55,5.8,[96,120,142],3.3);
- wrap(d,footParts[1]?'Official receipt'+footParts[1]:'Official receipt · No physical signature required\nGenerated in East Africa Time (EAT)',W-m-inner*.42,216,inner*.42,5.8,[96,120,142],3.3);
+ wrap(d,footParts[0]||'Thank you for supporting digital learning. Electronically generated by Navstar Digital Hub.',m,259,inner*.55,7,[96,120,142],4);
+ wrap(d,footParts[1]?'Official receipt'+footParts[1]:'Official receipt · No physical signature required\nGenerated in East Africa Time (EAT)',W-m-inner*.42,259,inner*.42,7,[96,120,142],4);
  const appreciation=el(root,'.appreciation');
  if(appreciation){
   d.addPage();d.setFillColor(6,27,59).rect(0,0,W,30,'F');d.setFillColor(229,184,75).rect(0,30,W,1.2,'F');
