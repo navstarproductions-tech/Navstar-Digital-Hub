@@ -1,6 +1,6 @@
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../../_shared/http.js';
 
-const emailPattern = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const digest = async (value) => {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -15,7 +15,7 @@ export async function onRequestPost({ request, env, context }) {
   const email = safeString(body.email, 254).toLowerCase();
   if (!emailPattern.test(email)) return error('Enter a valid email address.');
 
-  const recent = await env.DB.prepare("SELECT COUNT(*) AS count FROM admin_recovery_codes WHERE email = ? AND created_at > datetime('now', '-1 hour')").bind(email).first();
+  const recent = await env.DB.prepare("SELECT COUNT(*) AS count FROM admin_recovery_codes WHERE email = ? AND julianday(created_at) > julianday('now', '-1 hour')").bind(email).first();
   if (Number(recent?.count || 0) >= 3) return error('Too many recovery requests. Please wait before requesting another code.', 429);
 
   const admin = await env.DB.prepare(`
