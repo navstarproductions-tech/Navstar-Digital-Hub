@@ -1,13 +1,12 @@
 import { FormEvent, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { CheckCircle2, KeyRound, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export function StudentPasswordSetupPage() {
-  const [params] = useSearchParams();
-  const token = params.get('token') || '';
+  const token = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token') || '';
   const [password,setPassword] = useState('');
   const [confirmPassword,setConfirmPassword] = useState('');
   const [busy,setBusy] = useState(false);
@@ -28,6 +27,7 @@ export function StudentPasswordSetupPage() {
       });
       const data = await response.json() as {saved?:boolean;message?:string;error?:string};
       if (!response.ok || !data.saved) throw new Error(data.error || 'Your password could not be saved.');
+      window.history.replaceState(null, '', window.location.pathname);
       setComplete(true);
       setMessage(data.message || 'Your password is ready. You can now sign in.');
       setPassword(''); setConfirmPassword('');
