@@ -9,6 +9,7 @@ import { readApiResponse } from '@/lib/api';
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
 import { formatEATDateTime } from '@/lib/datetime';
+import { parseCsv, downloadCsvTemplate, exportBrandedData } from '@/lib/navstar-data-tools';
 import { GeographyPicker } from '@/components/GeographyPicker';
 import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
@@ -153,6 +154,11 @@ export function AdminPage() {
   const [learningModuleId, setLearningModuleId] = useState('');
   const [learningModuleTitle, setLearningModuleTitle] = useState('');
   const [learningModuleDescription, setLearningModuleDescription] = useState('');
+  const [moduleImportRows, setModuleImportRows] = useState<{ title: string; description: string; status: string; sortOrder: number }[]>([]);
+  const [moduleImportName, setModuleImportName] = useState('');
+  const [serviceImportRows, setServiceImportRows] = useState<{ name: string; category: string; price: string; priceAmount: string }[]>([]);
+  const [learnerImportRows, setLearnerImportRows] = useState<{ admissionNumber: string; firstName: string; middleName: string; lastName: string; classId: string; gender: string; dateOfBirth: string }[]>([]);
+  const [marksImportRows, setMarksImportRows] = useState<{ submissionId: string; pointsAwarded: number; feedback: string }[]>([]);
   const [learningLessonTitle, setLearningLessonTitle] = useState('');
   const [learningLessonContent, setLearningLessonContent] = useState('');
   const [learningLessonMinutes, setLearningLessonMinutes] = useState('15');
@@ -334,6 +340,138 @@ export function AdminPage() {
     } finally {
       setProfileSaving(false);
     }
+  };
+
+  const readModuleImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = parseCsv(await file.text());
+      if (parsed.length < 2) throw new Error('The CSV must include a header row and at least one module row.');
+      const headers = parsed[0].map(value => value.toLowerCase().replace(/[^a-z]/g, ''));
+      const titleIndex = headers.indexOf('title');
+      if (titleIndex < 0) throw new Error('The template must contain a title column.');
+      const descriptionIndex = headers.indexOf('description');
+      const statusIndex = headers.indexOf('status');
+      const orderIndex = headers.indexOf('sortorder');
+      const rows = parsed.slice(1).map((row, index) => ({
+        title: row[titleIndex] || '',
+        description: descriptionIndex >= 0 ? row[descriptionIndex] || '' : '',
+        status: statusIndex >= 0 && row[statusIndex]?.toLowerCase() === 'published' ? 'published' : 'draft',
+        sortOrder: orderIndex >= 0 && Number.isFinite(Number(row[orderIndex])) ? Number(row[orderIndex]) : index + 1,
+      })).filter(row => row.title.trim());
+      if (!rows.length) throw new Error('No valid module rows were found in that file.');
+      if (rows.length > 100) throw new Error('Upload up to 100 modules at a time.');
+      setModuleImportRows(rows);
+      setModuleImportName(file.name);
+      setNotice(`${rows.length} module rows are ready to import. Review the course selection before saving.`);
+    } catch (error) {
+      setModuleImportRows([]);
+      setModuleImportName('');
+      setNotice(error instanceof Error ? error.message : 'The module template could not be read.');
+    }
+  };
+
+  const importModules = async () => {
+    if (!learningCourseId || !moduleImportRows.length) { setNotice('Select a course and choose a completed module template first.'); return; }
+    const saved = await submitLearningAction({ action: 'bulk_create_modules', courseId: learningCourseId, rows: moduleImportRows }, 'Modules imported and saved successfully.');
+    if (saved) { setModuleImportRows([]); setModuleImportName(''); }
+  };
+
+  const readServiceImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (!file) return;
+    try {
+      const parsed = parseCsv(await file.text());
+      if (parsed.length < 2) throw new Error('The service CSV needs a header and at least one row.');
+      const headers = parsed[0].map(value => value.toLowerCase().replace(/[^a-z]/g, ''));
+      const at = (key: string) => headers.indexOf(key);
+      if (at('name') < 0 || at('category') < 0) throw new Error('The service template needs name and category columns.');
+      const rows = parsed.slice(1).map(row => ({ name: row[at('name')] || '', category: row[at('category')] || '', price: at('price') >= 0 ? row[at('price')] || '' : '', priceAmount: at('priceamount') >= 0 ? row[at('priceamount')] || '' : '' })).filter(row => row.name.trim());
+      if (!rows.length || rows.length > 100) throw new Error('Choose a file with 1–100 valid service rows.');
+      setServiceImportRows(rows); setNotice(`${rows.length} service rows ready. Review before importing.`);
+    } catch (error) { setServiceImportRows([]); setNotice(error instanceof Error ? error.message : 'Service template could not be read.'); }
+  };
+
+  const importServices = async () => {
+    if (!serviceImportRows.length) return;
+    try {
+      const response = await fetch('/api/services', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'bulk_create_services', rows: serviceImportRows.map(row => ({ ...row, priceAmount: row.priceAmount || null })) }) });
+      const result = await response.json() as { error?: string; services?: { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: string }[]; imported?: number };
+      if (!response.ok || !result.services) throw new Error(result.error || 'Service import was not saved.');
+      setServices(current => [...current, ...result.services!.map(service => ({ ...service, status: 'Active' as const }))]);
+      setServiceImportRows([]); setNotice(`${result.imported || result.services.length} services imported and saved successfully.`);
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Service import failed.'); }
+  };
+
+  const readLearnerImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (!file) return;
+    try {
+      const parsed = parseCsv(await file.text());
+      if (parsed.length < 2) throw new Error('The student CSV needs a header and at least one row.');
+      const headers = parsed[0].map(value => value.toLowerCase().replace(/[^a-z]/g, ''));
+      const at = (key: string) => headers.indexOf(key);
+      if (['admissionnumber','firstname','lastname'].some(key => at(key) < 0)) throw new Error('The student template needs admissionNumber, firstName and lastName columns.');
+      const rows = parsed.slice(1).map(row => ({ admissionNumber: row[at('admissionnumber')] || '', firstName: row[at('firstname')] || '', middleName: at('middlename') >= 0 ? row[at('middlename')] || '' : '', lastName: row[at('lastname')] || '', classId: at('classid') >= 0 ? row[at('classid')] || '' : '', gender: at('gender') >= 0 ? row[at('gender')] || '' : '', dateOfBirth: at('dateofbirth') >= 0 ? row[at('dateofbirth')] || '' : '' })).filter(row => row.admissionNumber.trim());
+      if (!rows.length || rows.length > 100) throw new Error('Choose a file with 1–100 valid student rows.');
+      setLearnerImportRows(rows); setNotice(`${rows.length} student rows ready. Confirm the institution before importing.`);
+    } catch (error) { setLearnerImportRows([]); setNotice(error instanceof Error ? error.message : 'Student template could not be read.'); }
+  };
+
+  const importLearners = async () => {
+    if (!selectedSchoolId || !learnerImportRows.length) { setNotice('Select an institution and choose a completed student template first.'); return; }
+    const saved = await submitSchoolAction({ action: 'bulk_create_learners', schoolId: selectedSchoolId, rows: learnerImportRows }, 'Student records imported and saved successfully.');
+    if (saved) setLearnerImportRows([]);
+  };
+
+  const readMarksImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (!file) return;
+    try {
+      const parsed = parseCsv(await file.text());
+      if (parsed.length < 2) throw new Error('The marks CSV needs a header and at least one row.');
+      const headers = parsed[0].map(value => value.toLowerCase().replace(/[^a-z]/g, ''));
+      const idIndex = headers.indexOf('submissionid'); const scoreIndex = headers.indexOf('pointsawarded'); const feedbackIndex = headers.indexOf('feedback');
+      if (idIndex < 0 || scoreIndex < 0) throw new Error('The marks template needs submissionId and pointsAwarded columns.');
+      const rows = parsed.slice(1).map(row => ({ submissionId: row[idIndex] || '', pointsAwarded: Number(row[scoreIndex]), feedback: feedbackIndex >= 0 ? row[feedbackIndex] || '' : '' })).filter(row => row.submissionId.trim());
+      if (!rows.length || rows.length > 100 || rows.some(row => !Number.isSafeInteger(row.pointsAwarded) || row.pointsAwarded < 0)) throw new Error('Choose a file with 1–100 valid marks rows. Scores must be whole numbers of zero or more.');
+      setMarksImportRows(rows); setNotice(`${rows.length} marks rows ready. The server will validate each score against its assessment maximum.`);
+    } catch (error) { setMarksImportRows([]); setNotice(error instanceof Error ? error.message : 'Marks template could not be read.'); }
+  };
+
+  const importMarks = async () => {
+    if (!marksImportRows.length) return;
+    const saved = await submitLearningAction({ action: 'bulk_grade_submissions', rows: marksImportRows }, 'Marks imported and saved successfully.');
+    if (saved) setMarksImportRows([]);
+  };
+
+  const exportLearningModules = (format: 'excel' | 'word' | 'pdf') => {
+    const rows = learningCourses.flatMap(course => course.modules.map(module => ({
+      Course: course.title, Title: module.title, Description: module.description, Status: module.status,
+      Lessons: module.lessons.length,
+    })));
+    try { exportBrandedData(format, 'Learning Modules Register', ['Course', 'Title', 'Description', 'Status', 'Lessons'], rows); }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Export could not be created.'); }
+  };
+
+  const exportServices = (format: 'excel' | 'word' | 'pdf') => {
+    const rows = services.map(service => ({ Name: service.name, Category: service.category, Price: service.price, 'Online amount (KSh)': service.priceAmount ?? '', Status: service.status }));
+    try { exportBrandedData(format, 'Service Catalogue', ['Name', 'Category', 'Price', 'Online amount (KSh)', 'Status'], rows); }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Export could not be created.'); }
+  };
+
+  const exportLearners = (format: 'excel' | 'word' | 'pdf') => {
+    const rows = schoolLearners.map(learner => ({ 'Admission number': learner.admission_number, 'First name': learner.first_name, 'Middle name': learner.middle_name || '', 'Last name': learner.last_name, Class: learner.class_name || '', Status: learner.status }));
+    try { exportBrandedData(format, 'Student Register', ['Admission number', 'First name', 'Middle name', 'Last name', 'Class', 'Status'], rows); }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Export could not be created.'); }
+  };
+
+  const exportMarks = (format: 'excel' | 'word' | 'pdf') => {
+    const rows = learningCourses.flatMap(course => course.assignments.flatMap(assignment => (assignment.submissions || []).map(submission => ({
+      'Submission ID': submission.id, Course: course.title, Assessment: assignment.title, Learner: submission.learner_name,
+      Score: submission.points_awarded ?? '', 'Maximum score': assignment.max_points,
+      Status: submission.status, Feedback: submission.feedback || '',
+    }))));
+    try { exportBrandedData(format, 'Assessment and Marks Register', ['Submission ID', 'Course', 'Assessment', 'Learner', 'Score', 'Maximum score', 'Status', 'Feedback'], rows); }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Export could not be created.'); }
   };
 
   const submitLearningAction = async (payload: Record<string, unknown>, success: string) => {
@@ -739,13 +877,36 @@ export function AdminPage() {
               <form onSubmit={async e=>{e.preventDefault();const ok=await submitSchoolAction({action:'create_subject',schoolId:selectedSchoolId,name:newSubjectName,code:newSubjectCode,educationStage:newSubjectStage},'Subject or training unit added.');if(ok){setNewSubjectName('');setNewSubjectCode('');}}} className="space-y-4 rounded-2xl border bg-white p-5"><h3 className="font-bold">4. Subjects and training units</h3><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label>Subject / unit name</Label><Input value={newSubjectName} onChange={e=>setNewSubjectName(e.target.value)} required /></div><div className="space-y-2"><Label>Unit code</Label><Input value={newSubjectCode} onChange={e=>setNewSubjectCode(e.target.value)} /></div></div><div className="space-y-2"><Label>Education stage</Label><select value={newSubjectStage} onChange={e=>setNewSubjectStage(e.target.value)} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="college">College / training</option><option value="junior_secondary">Junior secondary</option><option value="senior_secondary">Senior secondary</option><option value="primary">Primary</option><option value="other">Other</option></select></div><Button type="submit" disabled={!backendReady||!newSubjectName.trim()} className="bg-blue-800 hover:bg-blue-900">Add subject / unit</Button><div className="divide-y border">{schoolSubjects.map(x=><div key={x.id} className="p-3 text-sm">{x.name} <span className="text-xs text-slate-500">{x.code||'No code'} · {x.education_stage}</span></div>)}</div></form>
               <form onSubmit={async e=>{e.preventDefault();const ok=await submitSchoolAction({action:'create_fee_structure',schoolId:selectedSchoolId,name:newFeeName,totalAmount:Number(newFeeAmount),programmeName:newFeeProgramme,academicYearId:schoolYears.find(y=>y.is_current)?.id||schoolYears[0]?.id||null},'Fee structure saved as a draft for review.');if(ok){setNewFeeName('');setNewFeeAmount('');setNewFeeProgramme('');}}} className="space-y-4 rounded-2xl border bg-white p-5 xl:col-span-2"><h3 className="font-bold">5. Fees and programme pricing</h3><p className="text-xs text-slate-500">Fee structures are saved as drafts; publish/issue invoices only after reviewing the amounts.</p><div className="grid gap-3 sm:grid-cols-3"><div className="space-y-2"><Label>Fee structure name</Label><Input value={newFeeName} onChange={e=>setNewFeeName(e.target.value)} placeholder="e.g. Python Programming Fees" required /></div><div className="space-y-2"><Label>Programme / course</Label><Input value={newFeeProgramme} onChange={e=>setNewFeeProgramme(e.target.value)} placeholder="Course or intake name" /></div><div className="space-y-2"><Label>Total amount (KSh)</Label><Input type="number" min="0" max="10000000" value={newFeeAmount} onChange={e=>setNewFeeAmount(e.target.value)} required /></div></div><Button type="submit" disabled={!backendReady||!newFeeName.trim()||newFeeAmount===''} className="bg-blue-800 hover:bg-blue-900">Save draft fee structure</Button><div className="divide-y border">{schoolFees.map(f=><div key={f.id} className="flex flex-wrap justify-between gap-2 p-3 text-sm"><span>{f.name} · {f.programme_name||'General'} · {f.academic_year||'No year'}</span><span className="font-semibold">KSh {Number(f.total_amount).toLocaleString()} · {f.status}</span></div>)}</div></form>
             </div>}
-            {selectedSchoolId&&<section className="overflow-hidden rounded-2xl border bg-white"><div className="border-b p-5"><h3 className="font-bold">Learner register</h3><p className="mt-1 text-sm text-slate-600">Institutional admissions and cohort placement. This does not create a login account or alter existing portal users.</p></div><div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Admission no.</th><th className="p-3">Learner</th><th className="p-3">Class / cohort</th><th className="p-3">Status</th></tr></thead><tbody>{schoolLearners.map(l=><tr key={l.id} className="border-t"><td className="p-3 font-semibold">{l.admission_number}</td><td className="p-3">{l.first_name} {l.middle_name||''} {l.last_name}</td><td className="p-3">{l.class_name||'Unassigned'}</td><td className="p-3">{l.status}</td></tr>)}{schoolLearners.length===0&&<tr><td colSpan={4} className="p-5 text-center text-slate-500">No learners registered in this institution yet.</td></tr>}</tbody></table></div></section>}
-          </div>}
+            {selectedSchoolId&&<section className="overflow-hidden rounded-2xl border bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
+                <div><h3 className="font-bold">Learner register</h3><p className="mt-1 text-sm text-slate-600">Institutional admissions and cohort placement. Existing portal accounts remain separate.</p><p className="mt-1 text-xs text-slate-500">CSV columns: admissionNumber, firstName, middleName, lastName, classId, gender, dateOfBirth.</p></div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => downloadCsvTemplate('navstar-student-import-template.csv', ['admissionNumber','firstName','middleName','lastName','classId','gender','dateOfBirth'], ['NDH-001','Jane','','Doe','','Female','2010-01-15'])}>Download student template</Button>
+                  <label className="inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-xs font-semibold hover:bg-slate-50">Choose CSV<input type="file" accept=".csv,text/csv" className="sr-only" onChange={readLearnerImport}/></label>
+                  <Button type="button" size="sm" disabled={!learnerImportRows.length||!selectedSchoolId} onClick={() => void importLearners()}>Import {learnerImportRows.length || ''} students</Button>
+                  {(['pdf','word','excel'] as const).map(format=><Button key={'learners-'+format} type="button" size="sm" variant="outline" onClick={() => exportLearners(format)}>Export {format.toUpperCase()}</Button>)}
+                </div>
+                {learnerImportRows.length>0&&<p className="w-full text-xs text-emerald-700">{learnerImportRows.length} valid student rows ready to import.</p>}
+              </div>
+              <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Admission no.</th><th className="p-3">Learner</th><th className="p-3">Class / cohort</th><th className="p-3">Status</th></tr></thead><tbody>{schoolLearners.map(l=><tr key={l.id} className="border-t"><td className="p-3 font-semibold">{l.admission_number}</td><td className="p-3">{l.first_name} {l.middle_name||''} {l.last_name}</td><td className="p-3">{l.class_name||'Unassigned'}</td><td className="p-3">{l.status}</td></tr>)}{schoolLearners.length===0&&<tr><td colSpan={4} className="p-5 text-center text-slate-500">No learners registered in this institution yet.</td></tr>}</tbody></table></div>
+            </section>}
+           </div>}
 
           {active === 'learning' && <div className="space-y-6">
             <section className="rounded-2xl border bg-white p-5">
               <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-950">Learning Management System</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Build course content, publish modules and lessons, set assignments, allocate tutors and assess learner submissions. Published content becomes visible in the authorised Learning Workspace.</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{learningCourses.length} active courses</span></div>
               <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Modules</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.modules.length,0)}</p></div><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Lessons</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.modules.reduce((m,x)=>m+x.lessons.length,0),0)}</p></div><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Assignments</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.assignments.length,0)}</p></div></div>
+            </section>
+            <section className="grid gap-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-[#0b2854] to-[#123e78] p-5 text-white xl:grid-cols-[1.2fr_1fr]">
+              <div><h3 className="font-bold">Bulk module upload & branded registers</h3><p className="mt-1 text-xs leading-5 text-blue-100">Download the Navstar CSV template, fill in module details and import up to 100 rows at once. Existing records are retained.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => downloadCsvTemplate('navstar-module-import-template.csv', ['title','description','status','sortOrder'], ['Introduction to the course','Module learning objectives','draft','1'])}>Download module template</Button>
+                  <label className="inline-flex cursor-pointer items-center rounded-md border border-white/30 px-3 py-2 text-xs font-semibold hover:bg-white/10">Choose CSV file<input type="file" accept=".csv,text/csv" className="sr-only" onChange={readModuleImport}/></label>
+                  <Button type="button" size="sm" disabled={!moduleImportRows.length || !learningCourseId} onClick={() => void importModules()}>Import {moduleImportRows.length || ''} modules</Button>
+                </div>
+                {moduleImportName && <p className="mt-2 text-xs text-cyan-100">Selected: {moduleImportName} · {moduleImportRows.length} valid rows</p>}
+              </div>
+              <div><p className="text-xs font-bold uppercase tracking-wider text-blue-100">Export existing records</p><div className="mt-3 flex flex-wrap gap-2">{(['pdf','word','excel'] as const).map(format=><Button key={'modules-'+format} type="button" size="sm" variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/15" onClick={() => exportLearningModules(format)}>Modules · {format.toUpperCase()}</Button>)}{(['pdf','word','excel'] as const).map(format=><Button key={'marks-'+format} type="button" size="sm" variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/15" onClick={() => exportMarks(format)}>Marks · {format.toUpperCase()}</Button>)}<Button type="button" size="sm" variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/15" onClick={() => downloadCsvTemplate('navstar-marks-import-template.csv', ['submissionId','pointsAwarded','feedback'], ['paste-submission-id','85','Good work'])}>Marks template</Button><label className="inline-flex cursor-pointer items-center rounded-md border border-white/30 px-3 py-2 text-xs font-semibold hover:bg-white/10">Choose marks CSV<input type="file" accept=".csv,text/csv" className="sr-only" onChange={readMarksImport}/></label><Button type="button" size="sm" disabled={!marksImportRows.length} onClick={() => void importMarks()}>Import {marksImportRows.length || ''} marks</Button></div></div>
             </section>
             <div className="grid gap-5 xl:grid-cols-2">
               <form onSubmit={async (event)=>{event.preventDefault();if(!learningCourseId)return;const ok=await submitLearningAction({action:'create_module',courseId:learningCourseId,title:learningModuleTitle,description:learningModuleDescription,status:'published'},'Module created and published.');if(ok){setLearningModuleTitle('');setLearningModuleDescription('');}}} className="space-y-4 rounded-2xl border bg-white p-5">
@@ -784,7 +945,27 @@ export function AdminPage() {
                 {course.modules.length===0&&course.assignments.length===0&&<p className="text-sm text-slate-500">No modules or assignments have been created for this course.</p>}</div></article>)}{learningCourses.length===0&&<p className="p-6 text-sm text-slate-500">{backendReady?'Create a course first, then add modules and lessons.':'Connect the live database to manage learning content.'}</p>}</div></section>
           </div>}
 
-          {active === 'services' && <div className="space-y-5"><form onSubmit={addService} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-[1fr_180px_180px_auto] xl:items-end"><div className="space-y-2"><Label htmlFor="service-name">Service name</Label><Input id="service-name" value={serviceName} onChange={(event) => setServiceName(event.target.value)} placeholder="e.g. Scanning" required /></div><div className="space-y-2"><Label htmlFor="service-category">Category</Label><select id="service-category" value={serviceCategory} onChange={(event) => setServiceCategory(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Cyber cafe</option><option>Document desk</option><option>Digital support</option><option>Training</option><option>Technical help</option></select></div><div className="space-y-2"><Label htmlFor="service-price">Display price</Label><Input id="service-price" value={servicePrice} onChange={(event) => setServicePrice(event.target.value)} placeholder="From KSh 100" /></div><div className="space-y-2"><Label htmlFor="service-price-amount">Fixed online payment (KSh)</Label><Input id="service-price-amount" type="number" min="1" max="150000" value={servicePriceAmount} onChange={(event) => setServicePriceAmount(event.target.value)} placeholder="Optional — e.g. 500" /></div><Button type="submit" className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Add service</Button></form><div className="divide-y border bg-white">{services.map((service) => <div key={service.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold text-slate-950">{service.name}</p><p className="mt-1 text-xs text-slate-500">{service.category} · {service.price}{service.priceAmount ? ` · Online: KSh ${service.priceAmount.toLocaleString()}` : ''}</p></div><div className="flex items-center gap-4"><span className="text-xs font-semibold text-emerald-800">{service.status}</span><button aria-label={`Pause ${service.name}`} onClick={() => void removeService(service.id)} className="text-slate-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>)}</div></div>}
+          {active === 'services' && <div className="space-y-5">
+            <section className="rounded-2xl border border-blue-100 bg-[#0b2854] p-4 text-white">
+              <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold">Bulk service upload & branded exports</h3><p className="text-xs text-blue-100">Use the Navstar CSV template to add up to 100 services. Existing services are retained.</p></div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => downloadCsvTemplate('navstar-service-import-template.csv', ['name','category','price','priceAmount'], ['Passport photos','Digital support','From KSh 40',''])}>Download template</Button>
+                  <label className="inline-flex cursor-pointer items-center rounded-md border border-white/30 px-3 py-2 text-xs font-semibold hover:bg-white/10">Choose CSV<input type="file" accept=".csv,text/csv" className="sr-only" onChange={readServiceImport}/></label>
+                  <Button type="button" size="sm" disabled={!serviceImportRows.length} onClick={() => void importServices()}>Import {serviceImportRows.length || ''} services</Button>
+                  {(['pdf','word','excel'] as const).map(format=><Button key={format} type="button" size="sm" variant="outline" className="border-white/30 text-white hover:bg-white/10" onClick={() => exportServices(format)}>Export {format.toUpperCase()}</Button>)}
+                </div>
+              </div>
+              {serviceImportRows.length>0&&<p className="mt-2 text-xs text-cyan-100">{serviceImportRows.length} valid rows ready to import.</p>}
+            </section>
+            <form onSubmit={addService} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-[1fr_180px_180px_auto] xl:items-end">
+              <div className="space-y-2"><Label htmlFor="service-name">Service name</Label><Input id="service-name" value={serviceName} onChange={(event) => setServiceName(event.target.value)} placeholder="e.g. Scanning" required /></div>
+              <div className="space-y-2"><Label htmlFor="service-category">Category</Label><select id="service-category" value={serviceCategory} onChange={(event) => setServiceCategory(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Cyber cafe</option><option>Document desk</option><option>Digital support</option><option>Training</option><option>Technical help</option></select></div>
+              <div className="space-y-2"><Label htmlFor="service-price">Display price</Label><Input id="service-price" value={servicePrice} onChange={(event) => setServicePrice(event.target.value)} placeholder="From KSh 100" /></div>
+              <div className="space-y-2"><Label htmlFor="service-price-amount">Fixed online payment (KSh)</Label><Input id="service-price-amount" type="number" min="1" max="150000" value={servicePriceAmount} onChange={(event) => setServicePriceAmount(event.target.value)} placeholder="Optional — e.g. 500" /></div>
+              <Button type="submit" className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Add service</Button>
+            </form>
+            <div className="divide-y border bg-white">{services.map((service) => <div key={service.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold text-slate-950">{service.name}</p><p className="mt-1 text-xs text-slate-500">{service.category} · {service.price}{service.priceAmount ? ` · Online: KSh ${service.priceAmount.toLocaleString()}` : ''}</p></div><div className="flex items-center gap-4"><span className="text-xs font-semibold text-emerald-800">{service.status}</span><button aria-label={`Pause ${service.name}`} onClick={() => void removeService(service.id)} className="text-slate-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>)}</div>
+          </div>}
 
           {active === 'enrollments' && <div className="overflow-x-auto border bg-white"><table className="w-full min-w-[820px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Received</th><th className="p-3">Review</th></tr></thead><tbody>{applications.map((application) => <tr key={String(application.id)} className="border-b last:border-0"><td className="p-3"><p className="font-semibold">{String(application.full_name ?? '')}</p><p className="text-xs text-slate-500">{String(application.email ?? '')}</p></td><td className="p-3">{courses.find((item) => item.id === application.course_id)?.title ?? String(application.course_id ?? '')}</td><td className="p-3">{String(application.status ?? '')}</td><td className="p-3">{String(application.payment_status ?? '')}</td><td className="p-3">{formatEATDateTime(application.created_at as string | null | undefined)}</td><td className="p-3">{(user?.role === 'admin' || user?.role === 'admissions') ? <select aria-label={`Review application for ${String(application.full_name ?? 'learner')}`} className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs text-slate-900" value={String(application.status ?? 'submitted')} onChange={(event) => void updateApplicationStatus(String(application.id), event.target.value)}><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="accepted">Accepted — enable LMS</option><option value="rejected">Rejected</option></select> : 'Read only'}</td></tr>)}{applications.length === 0 && <tr><td className="p-6 text-center text-slate-500" colSpan={6}>{backendReady ? 'No applications received yet.' : 'Connect the backend and sign in to view applications.'}</td></tr>}</tbody></table></div>}
 

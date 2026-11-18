@@ -14,7 +14,34 @@ export async function onRequestPost({ request, env }) {
   const access = await requireRole(request, env, ['admin']);
   if (access.response) return access.response;
   let body;
-  try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
+  try { body = await readJson(request, 65536); } catch { return error('Invalid request body.'); }
+  if (body.action === 'bulk_create_services') {
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    if (rows.length < 1 || rows.length > 100) return error('Upload between 1 and 100 service rows.');
+    const normalized = rows.map((row, index) => ({
+      name: safeString(row?.name, 120),
+      category: safeString(row?.category, 60),
+      price: safeString(row?.price, 80) || 'Contact us',
+      priceAmount: row?.priceAmount === '' || row?.priceAmount == null ? null : Number(row.priceAmount),
+    }));
+    const invalid = normalized.findIndex(row => row.name.length < 2 || !row.category || (row.priceAmount !== null && (!Number.isSafeInteger(row.priceAmount) || row.priceAmount < 1 || row.priceAmount > 150000)));
+    if (invalid >= 0) return error(`Service row ${invalid + 1} has an invalid name, category or amount. Nothing was imported.`);
+    const prepared = [];
+    for (const row of normalized) prepared.push({ ...row, id: uuid(), reference: await nextReference(env.DB, 'SRV') });
+    const statements = prepared.flatMap(row => [
+      env.DB.prepare('INSERT INTO services (id, display_ref, name, category, price_label, price_amount) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(row.id, row.reference, row.name, row.category, row.price, row.priceAmount),
+      env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
+        .bind(uuid(), access.user.id, 'service_created', 'service', row.id),
+    ]);
+    try { await env.DB.batch(statements); }
+    catch (cause) {
+      console.error('Navstar bulk service import failed:', String(cause?.stack || cause));
+      return error('The service import could not be saved. No existing services were changed. Check your rows and try again.', 500);
+    }
+    return json({ imported: prepared.length, services: prepared.map(({ id, reference, name, category, price, priceAmount }) => ({ id, reference, name, category, price, priceAmount, status: 'active' })) }, 201);
+  }
+
   const name = safeString(body.name, 120);
   const category = safeString(body.category, 60);
   const price = safeString(body.price, 80) || 'Contact us';
