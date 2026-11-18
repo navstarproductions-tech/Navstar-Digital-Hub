@@ -131,9 +131,9 @@ export async function onRequestGet({ request, env }) {
   if (!user) return error('Sign in required.', 401);
   let query;
   if (['admin', 'admissions', 'principal'].includes(user.role)) {
-    query = env.DB.prepare(`SELECT id, display_ref AS reference, course_id, full_name, email, phone, status, payment_status, created_at FROM enrollments ORDER BY created_at DESC LIMIT 200`);
+    query = env.DB.prepare(`SELECT e.id, e.display_ref AS reference, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, e.status, e.payment_status, e.special_enrollment, e.payment_exception, e.payment_due_date, e.admissions_decision_reason, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id ORDER BY e.created_at DESC LIMIT 200`);
   } else if (user.role === 'student') {
-    query = env.DB.prepare(`SELECT id, course_id, full_name, email, phone, status, payment_status, created_at FROM enrollments WHERE email = ? ORDER BY created_at DESC`).bind(user.email);
+    query = env.DB.prepare(`SELECT e.id, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, e.status, e.payment_status, e.payment_due_date, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.email = ? ORDER BY e.created_at DESC`).bind(user.email);
   } else {
     return error('Tutor access must be assigned to specific classes before student records are visible.', 403);
   }
