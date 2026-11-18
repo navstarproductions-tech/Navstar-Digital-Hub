@@ -128,7 +128,7 @@ export async function onRequestPost({ request, env }) {
   if (!user) return error('Sign in required.', 401);
   if (user.mustChangePassword) return error('Change your temporary password before using this portal.', 403);
   let body;
-  try { body = await readJson(request, 16384); } catch { return error('Invalid request body.'); }
+  try { body = await readJson(request, 262144); } catch { return error('Invalid request body.'); }
   const action = safeString(body.action, 40);
 
   if (['create_module', 'bulk_create_modules', 'create_lesson', 'create_assignment', 'grade_submission', 'bulk_grade_submissions', 'assign_tutor', 'remove_tutor'].includes(action)) {
