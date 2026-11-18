@@ -7,6 +7,7 @@ const defaults = {
   contactPhone: '',
   address: '',
   logoAssetId: '',
+  sessionTimeoutMinutes: 480,
 };
 
 export async function onRequestGet({ request, env }) {
@@ -28,15 +29,20 @@ export async function onRequestPut({ request, env }) {
   if (access.response) return access.response;
   let body;
   try { body = await readJson(request, 8192); } catch { return error('Invalid request body.'); }
+  const timeout = Number(body.sessionTimeoutMinutes ?? defaults.sessionTimeoutMinutes);
+  if (!Number.isInteger(timeout) || timeout < 5 || timeout > 480) return error('Session timeout must be between 5 minutes and 8 hours.');
   const settings = {
     schoolName: safeString(body.schoolName, 100) || defaults.schoolName,
     contactEmail: safeString(body.contactEmail, 254).toLowerCase(),
     contactPhone: safeString(body.contactPhone, 32),
     address: safeString(body.address, 240),
     logoAssetId: safeString(body.logoAssetId, 80),
+    sessionTimeoutMinutes: timeout,
   };
   if (settings.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.contactEmail)) return error('Enter a valid contact email.');
   await env.DB.prepare(`INSERT INTO system_state (key, value) VALUES ('site-settings', ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(settings)).run();
+  await env.DB.prepare(`INSERT INTO system_state (key, value) VALUES ('session-timeout-minutes', ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(String(timeout)).run();
   return json({ settings });
 }
