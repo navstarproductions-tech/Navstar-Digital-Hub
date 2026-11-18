@@ -15,7 +15,7 @@ const portals = [
 ];
 
 type SessionUser = { id: string; name: string; email: string; role: string; profilePhotoUrl?: string | null; mustChangePassword?: boolean };
-type Enrollment = { id: string; full_name: string; course_id: string; status: string; payment_status: string; created_at: string };
+type Enrollment = { id: string; full_name: string; course_id: string; phone?: string; status: string; payment_status: string; created_at: string };
 type Overview = { students: number; applications: number; verifiedPayments: number; verifiedDonations: number; courses: number; services: number };
 type FinancePayment = { id: string; purpose: string; receipt_number?: string; mpesa_receipt?: string; amount: number; payer_name: string; description: string; status: string; updated_at: string };
 type CashoutRequest = { id: string; reference: string; amount: number; status: string; created_at: string; requested_by: string };
@@ -30,8 +30,23 @@ export function PortalsPage() {
   const [financeTab, setFinanceTab] = useState<'overview' | 'payments' | 'cashouts' | 'reports'>('overview');
   const [financePayments, setFinancePayments] = useState<FinancePayment[]>([]);
   const [financeCashouts, setFinanceCashouts] = useState<CashoutRequest[]>([]);
+  const [paymentBusyId, setPaymentBusyId] = useState('');
+  const [paymentNotice, setPaymentNotice] = useState('');
   const [status, setStatus] = useState('Checking your secure session…');
   const signOut = async () => { await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined); setUser(null); navigate('/login', { replace: true }); };
+  const requestStudentPayment = async (item: Enrollment) => {
+    if (!item.phone) { setPaymentNotice('No registered payment phone is available. Please update your phone number in My Account or contact Finance.'); return; }
+    setPaymentBusyId(item.id); setPaymentNotice('');
+    try {
+      const response = await fetch('/api/payments/stk-push', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'enrollment', reference: item.id, phone: item.phone }) });
+      const result = await response.json() as { id?: string; message?: string; error?: string };
+      if (!response.ok || !result.id) throw new Error(result.error || 'The M-Pesa prompt could not be sent.');
+      setPaymentNotice(result.message || 'M-Pesa prompt sent. Check your registered phone and complete the request using your Safaricom PIN.');
+      setEnrollments(current => current.map(row => row.id === item.id ? { ...row, payment_status: 'pending' } : row));
+    } catch (error) {
+      setPaymentNotice(error instanceof Error ? error.message : 'Payment request could not be completed.');
+    } finally { setPaymentBusyId(''); }
+  };
 
   useEffect(() => {
     if (!selectedPortal) return;
@@ -143,7 +158,7 @@ export function PortalsPage() {
         </div>
       </section>
       <section className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        {user && user.role !== 'finance' && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {user && user.role !== 'finance' && user.role !== 'student' && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {(user.role === 'student' ? [
             ['My learning', 'Open your enrolled programmes, complete lessons, track progress and submit assignments.', '/learning', 'Open learning workspace'],
             ['My applications', 'Track submitted applications and enrolment progress.', '/portals/student', 'View applications'],
@@ -185,7 +200,7 @@ export function PortalsPage() {
         </section>}
         {user && user.role !== 'finance' && overview && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[['Students', overview.students], ['Applications', overview.applications], ['Verified payments', `KSh ${overview.verifiedPayments.toLocaleString()}`], ['Active courses', overview.courses]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-black text-slate-950">{value}</p></div>)}</div>}
         {user && user.role !== 'finance' && <section className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-bold text-slate-950">{user.role === 'student' ? 'My applications' : user.role === 'tutor' ? 'My classes' : 'Admissions queue'}</h2><p className="mt-1 text-sm text-slate-600">{user.role === 'tutor' ? 'Class rosters are shown once a principal assigns classes to your account.' : 'Live records from the NAVSTAR admissions database.'}</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase text-blue-700">{user.role}</span></div>
-          {user.role === 'tutor' ? <p className="mt-5 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">No classes are assigned to this tutor account yet.</p> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course ID</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Date</th></tr></thead><tbody>{enrollments.map((item) => <tr key={item.id} className="border-b last:border-0"><td className="p-3 font-medium">{item.full_name}</td><td className="p-3">{item.course_id}</td><td className="p-3">{item.status}</td><td className="p-3">{item.payment_status}</td><td className="p-3">{formatEATDate(item.created_at)}</td></tr>)}{enrollments.length === 0 && <tr><td className="p-5 text-center text-slate-500" colSpan={5}>No applications to show.</td></tr>}</tbody></table></div>}
+          {user.role === 'tutor' ? <p className="mt-5 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">No classes are assigned to this tutor account yet.</p> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course ID</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Date</th>{user.role === 'student' && <th className="p-3">Action</th>}</tr></thead><tbody>{enrollments.map((item) => <tr key={item.id} className="border-b last:border-0"><td className="p-3 font-medium">{item.full_name}</td><td className="p-3">{item.course_id}</td><td className="p-3">{item.status}</td><td className="p-3">{item.payment_status}</td><td className="p-3">{formatEATDate(item.created_at)}</td>{user.role === 'student' && <td className="p-3">{item.payment_status === 'paid' ? <span className="font-bold text-emerald-700">Paid</span> : <Button type="button" size="sm" disabled={paymentBusyId === item.id} onClick={() => void requestStudentPayment(item)}>{paymentBusyId === item.id ? 'Sending…' : 'Pay fees'}</Button>}</td>}</tr>)}{enrollments.length === 0 && <tr><td className="p-5 text-center text-slate-500" colSpan={5}>No applications to show.</td></tr>}</tbody></table></div>}{user.role === 'student' && paymentNotice && <p role="status" className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">{paymentNotice}</p>}
         </section>}
         {!user && <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">{status || 'Sign in is required to view private portal records.'} <Link to={`/login?role=${selectedPortal.id}`} className="ml-2 font-bold underline">Go to sign in</Link></div>}
       </section>
