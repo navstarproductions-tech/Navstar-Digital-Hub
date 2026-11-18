@@ -57,7 +57,7 @@ function IdleSessionGuard() {
         lastPing = now;
         void fetch('/api/auth/me').then(async response => {
           if (!response.ok) {
-            if (active) navigate('/login?role=' + encodeURIComponent(role), { replace: true });
+            if (active) navigate(loginGate(), { replace: true });
             return;
           }
           const result = await response.json() as { user?: { role?: string }; sessionTimeoutMinutes?: number };
