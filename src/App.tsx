@@ -19,6 +19,7 @@ import { ForumPage } from '@/pages/ForumPage';
 import { PaymentReceiptsPage } from '@/pages/PaymentReceiptsPage';
 import { MusicPage } from '@/pages/MusicPage';
 import { PortalNotificationsPage } from '@/pages/PortalNotificationsPage';
+import { MyAccountPage } from '@/pages/MyAccountPage';
 import { AIChatWidget } from '@/components/AIChatWidget';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -37,7 +38,8 @@ function AppShell() {
     || pathname === '/login'
     || pathname === '/setup'
     || pathname === '/admin-reset'
-    || pathname === '/change-password';
+    || pathname === '/change-password'
+    || pathname === '/my-account';
 
   return (
     <>
@@ -55,6 +57,7 @@ function AppShell() {
             <Route path="/portals/notifications" element={<PortalNotificationsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/account" element={<CustomerAccountPage />} />
+            <Route path="/my-account" element={<MyAccountPage />} />
             <Route path="/campus-life" element={<DigitalHubPage />} />
             <Route path="/admissions-letters" element={<DigitalHubPage />} />
             <Route path="/analytics" element={<DigitalHubPage />} />
