@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound, LoaderCircle } from 'lucide-react';
+import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound, LoaderCircle, Search, ArrowLeft, RefreshCw, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -835,33 +835,65 @@ export function AdminPage() {
     <main className="h-screen overflow-hidden bg-[#080d19] text-slate-100 navstar-admin">
       <div className={'mx-auto grid h-screen max-w-[1800px] grid-cols-1 grid-rows-[4rem_minmax(0,1fr)] overflow-hidden md:grid-rows-1 ' + (sidebarCollapsed ? 'md:grid-cols-[76px_minmax(0,1fr)]' : 'md:grid-cols-[250px_minmax(0,1fr)]')}>
         <aside className="navstar-admin-sidebar sticky top-0 z-40 flex h-16 min-w-0 flex-row border-b border-white/10 bg-[#0b2348] text-white md:h-screen md:flex-col md:border-b-0 md:border-r">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-3 md:px-5 md:py-5"><div className={sidebarCollapsed ? "md:hidden" : "flex items-center gap-3"}><img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub" className="h-10 w-10 rounded-lg bg-white object-contain p-1"/><div><h1 className="text-base font-extrabold">Admin Portal</h1><p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">NAVSTAR DIGITAL HUB</p><p className="text-[9px] text-emerald-300">● Online</p></div></div><button type="button" onClick={() => setSidebarCollapsed((value) => !value)} className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-slate-200 transition hover:bg-white/10 hover:text-white md:inline-flex" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</button></div>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-3 md:px-5 md:py-5">
+            <div className={sidebarCollapsed ? "md:hidden" : "flex items-center gap-3"}>
+              <div className="relative"><img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub" className="h-10 w-10 rounded-lg bg-white object-contain p-1"/><span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[#0b2348] bg-emerald-400"/></div>
+              <div><h1 className="text-base font-extrabold">Admin Portal</h1><p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">NAVSTAR DIGITAL HUB</p></div>
+            </div>
+            <button type="button" onClick={() => setSidebarCollapsed(value => !value)} className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-slate-200 transition hover:bg-white/10 hover:text-white md:inline-flex" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4"/> : <PanelLeftClose className="h-4 w-4"/>}</button>
+          </div>
+          <div className="mx-3 mt-3 hidden h-1 rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 md:block"/>
           <nav aria-label="Admin sections" className="flex min-w-0 flex-1 gap-1 overflow-x-auto p-2 md:min-h-0 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:space-y-1 md:p-3">
-            {sections.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => { setActive(id); setNotice(''); }} aria-current={active === id ? 'page' : undefined} className={`flex shrink-0 items-center gap-3 px-3 py-2.5 text-left text-sm md:w-full ${active === id ? 'bg-emerald-800 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}><Icon className="h-4 w-4 shrink-0" /><span className={sidebarCollapsed ? "md:hidden" : ""}>{label}</span></button>)}
+            {sections.map(({id,label,icon:Icon}) => {
+              const selected = active === id;
+              const children = sectionSubtabs[id] || [];
+              return <div key={id} className="min-w-0 shrink-0 md:w-full">
+                <button type="button" onClick={() => { setActive(id); setNotice(''); }} aria-current={selected ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+                  <Icon className="h-4 w-4 shrink-0"/><span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 truncate"}>{label}</span>
+                  {children.length>0 && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${selected ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>}
+                </button>
+                {selected && !sidebarCollapsed && children.length>0 && <div className="ml-5 mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3">
+                  {children.map((tab,index) => {
+                    const isCurrent = tab.target===active && (!tab.settingsTab || tab.settingsTab===settingsTab) && (!tab.coursesTab || tab.coursesTab===coursesSubTab) && (!tab.learningTab || tab.learningTab===learningSubTab);
+                    return <button key={tab.label} type="button" onClick={() => { setActive(tab.target); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); }} aria-current={isCurrent?'page':undefined} className={`flex min-h-8 w-full items-center rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 rounded-full bg-current opacity-70"/>{tab.label}</button>;
+                  })}
+                </div>}
+              </div>;
+            })}
           </nav>
-          <div className="hidden border-t border-white/10 p-4 text-xs leading-5 text-slate-400 md:block">Preview dashboard. Live records and actions require authenticated server access.</div>
+          <div className="hidden border-t border-white/10 p-3 md:block">
+            <button type="button" onClick={() => void signOut()} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/10 hover:text-rose-200"><LogOut className="h-4 w-4"/> {!sidebarCollapsed && 'Logout'}</button>
+          </div>
         </aside>
 
-        <section ref={contentRef} className="navstar-admin-content h-full min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 lg:px-7">
-          <header className="navstar-admin-topbar mb-5 flex flex-col gap-3 border-b border-white/10 pb-4">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{formatEATDateTime(new Date().toISOString())} · NAVSTAR DIGITAL HUB</p><h2 className="mt-1 text-xl font-extrabold text-white">Welcome back, {user.name} 👋</h2><p className="mt-1 text-xs text-slate-400">Admin Portal / {title}</p></div>
-              <span className={`inline-flex w-fit items-center gap-2 border px-3 py-2 text-xs font-semibold ${backendReady && user ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}><ShieldAlert className="h-4 w-4" />{backendReady && user ? `Connected · ${user.role}` : 'Preview mode · backend not connected'}</span>
+        <section ref={contentRef} className="navstar-admin-content h-full min-h-0 min-w-0 overflow-y-auto">
+          <header className="navstar-admin-topbar sticky top-0 z-30 flex min-h-[58px] items-center gap-3 border-b border-white/10 bg-[#0c111e]/95 px-4 py-2 shadow-lg shadow-black/10 backdrop-blur-xl sm:px-5 lg:px-6">
+            <button type="button" onClick={() => setSidebarCollapsed(value=>!value)} className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white md:inline-flex" aria-label="Toggle sidebar"><PanelLeftClose className="h-4 w-4"/></button>
+            <button type="button" onClick={() => navigate(-1)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white" aria-label="Go back"><ArrowLeft className="h-4 w-4"/></button>
+            <img src="/Navstar_Official_Logo.jpg" alt="Navstar" className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain p-0.5"/>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-extrabold text-white">Welcome back, <span className="text-cyan-300">{user.name}</span> 👋</p>
+              <p className="truncate text-[10px] text-slate-400">{formatEATDateTime(new Date().toISOString())} · <span className="text-blue-300">NAVSTAR DIGITAL HUB</span> · {title}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link to="/portals/notifications" className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Bell className="h-4 w-4"/>Notifications</Link>
-              <button type="button" onClick={() => { setSettingsTab('my-profile'); setActive('settings'); setNotice(''); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserRound className="h-4 w-4"/>Settings · My Profile</button>
-              <button type="button" onClick={() => void signOut()} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"><LogOut className="h-4 w-4"/>Log out</button>
+            <div className="hidden w-full max-w-[290px] items-center gap-2 rounded-xl border border-white/10 bg-[#111a2b] px-3 py-2 md:flex">
+              <Search className="h-4 w-4 shrink-0 text-slate-500"/>
+              <input aria-label="Search admin sections" placeholder="Search students, courses, fees..." className="w-full min-w-0 bg-transparent text-xs text-white outline-none placeholder:text-slate-500" onKeyDown={event=>{if(event.key==='Enter'){const q=event.currentTarget.value.trim().toLowerCase();const match=sections.find(item=>item.label.toLowerCase().includes(q));if(match){setActive(match.id);setNotice('');}}}}/>
             </div>
+            <button type="button" onClick={()=>window.location.reload()} title="Refresh workspace" aria-label="Refresh workspace" className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white sm:inline-flex"><RefreshCw className="h-4 w-4"/></button>
+            <Link to="/portals/notifications" title="Notifications" aria-label="Notifications" className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white"><Bell className="h-4 w-4"/><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-400"/></Link>
+            <button type="button" onClick={()=>{setSettingsTab('my-profile');setActive('settings');setNotice('');}} title="My profile" aria-label="My profile" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-950/30"><UserRound className="h-4 w-4"/></button>
+            <div className="hidden min-w-0 max-w-[150px] lg:block"><p className="truncate text-[11px] font-extrabold uppercase text-white">{user.name}</p><p className="text-[9px] font-bold uppercase tracking-wide text-cyan-300">Admin · Secure session</p></div>
+            <button type="button" onClick={()=>void signOut()} title="Log out" aria-label="Log out" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-500/10 hover:text-rose-300"><LogOut className="h-4 w-4"/></button>
           </header>
 
-          <nav aria-label="Admin workspace subtabs" className="mb-5 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-[#111a2b] p-2">
-            {sectionSubtabs[active].map((tab, index) => <button key={tab.label} type="button" onClick={() => { setActive(tab.target); if (tab.settingsTab) setSettingsTab(tab.settingsTab); if (tab.coursesTab) setCoursesSubTab(tab.coursesTab); if (tab.learningTab) setLearningSubTab(tab.learningTab); setNotice(''); }} aria-current={tab.target === active && (!tab.settingsTab || tab.settingsTab === settingsTab) && (!tab.coursesTab || tab.coursesTab === coursesSubTab) && (!tab.learningTab || tab.learningTab === learningSubTab) ? 'page' : undefined} className={`shrink-0 rounded-xl px-4 py-2.5 text-xs font-bold transition ${tab.target === active && (!tab.settingsTab || tab.settingsTab === settingsTab) && (!tab.coursesTab || tab.coursesTab === coursesSubTab) && (!tab.learningTab || tab.learningTab === learningSubTab) ? 'bg-blue-700 text-white shadow-lg shadow-blue-950/30' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>{tab.label}</button>)}
-          </nav>
+          <div className="px-4 py-4 sm:px-6 lg:px-7">
+            <div className="navstar-admin-hero mb-5 flex min-h-[112px] items-center justify-between overflow-hidden rounded-2xl border border-blue-400/20 px-6 py-5 sm:px-8">
+              <div className="relative z-10 max-w-xl"><p className="text-[10px] font-extrabold uppercase tracking-[.32em] text-cyan-300">NAVSTAR DIGITAL HUB</p><h2 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">{title}</h2><p className="mt-1 text-xs font-medium text-blue-100">HOME OF TECHNOCRATS · {formatEATDateTime(new Date().toISOString())}</p></div>
+              <div className="relative z-10 hidden text-right sm:block"><p className="text-xs font-bold uppercase tracking-[.24em] text-white/90">Learn · Create</p><p className="mt-1 text-xs text-blue-100">Innovate · Grow</p></div>
+            </div>
+          {notice && <p role="status" className="mb-5 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</p>}
 
-          {notice && <p role="status" className="mb-5 border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">{notice}</p>}
-
-          {active === 'overview' && <div className="space-y-5"><div className="navstar-admin-hero mb-5 flex min-h-[138px] items-center justify-between overflow-hidden rounded-2xl border border-blue-400/20 px-6 py-5 sm:px-8"><div className="relative z-10 max-w-xl"><p className="text-[10px] font-extrabold uppercase tracking-[.32em] text-cyan-300">NAVSTAR DIGITAL HUB</p><h3 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">Learn. Create. Innovate. Grow.</h3><p className="mt-2 text-sm font-medium text-blue-100">HOME OF TECHNOCRATS</p></div><div className="relative z-10 hidden text-right sm:block"><p className="text-xs font-bold uppercase tracking-[.24em] text-white/90">Your digital command centre</p><p className="mt-2 text-xs text-blue-100">Education · Technology · Innovation</p></div></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
+          {active === 'overview' && <div className="space-y-5"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
             ['Students', String(metrics.students ?? '—'), 'Registered student accounts'], ['Applications', String(metrics.applications ?? applications.length), 'Admissions queue'], ['Courses', String(metrics.courses ?? courses.length), 'Active courses'], ['Services', String(metrics.services ?? services.length), 'Active cyber services'],
           ].map(([label, value, caption]) => <div key={label} className="navstar-admin-stat rounded-2xl border border-white/10 bg-[#171d2b] p-4"><p className="text-xs font-medium text-slate-400">{label}</p><p className="mt-2 text-2xl font-black text-white">{value}</p><p className="mt-1 text-[11px] text-slate-400">{caption}</p></div>)}</div><div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]"><section className="navstar-admin-panel rounded-2xl border border-white/10 bg-[#171d2b] p-5"><h3 className="font-bold text-slate-950">Workspace summary</h3><p className="mt-2 text-sm leading-6 text-slate-600">Use the navigation and subtabs to manage learning, admissions, finance, services, staff records and system settings. Live actions are saved by the connected Navstar services; items marked as previews are not published until saved.</p><div className="mt-5 grid gap-2 sm:grid-cols-2">{sections.slice(1).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActive(id)} className="flex items-center justify-between border p-3 text-left text-sm font-medium hover:bg-slate-50"><span className="flex items-center gap-2"><Icon className="h-4 w-4 text-emerald-800" />{label}</span><span aria-hidden="true">›</span></button>)}</div></section><section className="navstar-admin-panel rounded-2xl border border-white/10 bg-[#171d2b] p-5"><h3 className="font-bold text-white">Important setup</h3><ul className="mt-3 space-y-3 text-sm leading-6 text-slate-600"><li className="border-l-2 border-amber-500 pl-3">Rotate the Daraja production credentials shared in chat.</li><li className="border-l-2 border-emerald-700 pl-3">Keep all Daraja secrets in server environment variables only.</li><li className="border-l-2 border-emerald-700 pl-3">Protect admin actions with verified staff roles and audit logs.</li></ul></section></div></div>}
 
@@ -1107,7 +1139,8 @@ export function AdminPage() {
             </section>}
           </div>}
 
-          <footer className="mt-8 flex flex-col gap-2 border-t pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Daraja secrets stay server-side. User accounts, student records, uploads, and finance operations require authenticated role access.</span><span className="font-semibold text-blue-800">Powered by Navstar Digital Hub</span></footer>
+          <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Secure Navstar administration · User accounts, student records, uploads and finance operations are protected.</span><span className="font-semibold text-cyan-300">Powered by Navstar Digital Hub</span></footer>
+          </div>
         </section>
       </div>
     </main>

@@ -212,9 +212,11 @@ body::-webkit-scrollbar,
 .navstar-admin { background:#080d19; color:#e7eefc; }
 .navstar-admin-sidebar { background:linear-gradient(180deg,#0b2348 0%,#071a38 100%); border-color:rgba(148,163,184,.16); }
 .navstar-admin-sidebar nav button { border-radius:11px; min-height:42px; transition:background .18s ease,color .18s ease; }
-.navstar-admin-sidebar nav button[aria-current="page"] { background:linear-gradient(90deg,#0755b8,#073a79); color:white; box-shadow:inset 3px 0 #f5c542; }
+.navstar-admin-sidebar nav > div > button[aria-current="page"] { background:linear-gradient(90deg,#0755b8,#073a79); color:white; box-shadow:inset 3px 0 #f5c542; }
+.navstar-admin-sidebar nav > div > div button[aria-current="page"] { background:rgba(34,211,238,.13); color:#a5f3fc; box-shadow:inset 2px 0 #22d3ee; }
+.navstar-admin-sidebar nav > div > div button:hover { background:rgba(255,255,255,.06); }
 .navstar-admin-sidebar nav button:not([aria-current="page"]):hover { background:rgba(255,255,255,.08); }
-.navstar-admin-content { background:radial-gradient(ellipse at 80% 0%,rgba(20,76,145,.12),transparent 42%),#080d19; }
+.navstar-admin-content { background:radial-gradient(ellipse at 80% 0%,rgba(20,76,145,.16),transparent 42%),#080d19; }
 .navstar-admin-topbar { border-color:rgba(148,163,184,.18); }
 .navstar-admin-hero { position:relative; isolation:isolate; background-image:linear-gradient(90deg,rgba(4,24,62,.98) 0%,rgba(5,35,86,.92) 38%,rgba(5,35,86,.12) 100%),url('/navstar-admin-hero.webp'); background-position:center; background-size:cover; }
 .navstar-admin-hero:after { content:""; position:absolute; inset:0; z-index:-1; opacity:.4; background:linear-gradient(125deg,transparent 55%,rgba(245,197,66,.16)); }
