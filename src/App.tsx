@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/layout/Navbar';
@@ -12,6 +12,8 @@ import { ServicesPage } from '@/pages/ServicesPage';
 import { DonationsPage } from '@/pages/DonationsPage';
 import { PortalsPage } from '@/pages/PortalsPage';
 import { LoginPage } from '@/pages/LoginPage';
+import { StudentPortalPage } from '@/pages/StudentPortalPage';
+import { StudentRecoveryPage } from '@/pages/StudentRecoveryPage';
 import { ChangePasswordPage } from '@/pages/ChangePasswordPage';
 import { AdminResetPage } from '@/pages/AdminResetPage';
 import { FirstAdminSetupPage } from '@/pages/FirstAdminSetupPage';
@@ -39,11 +41,11 @@ function IdleSessionGuard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const protectedPath = pathname.startsWith('/admin') || pathname.startsWith('/portals/') || pathname === '/my-account' || pathname === '/change-password';
+    const protectedPath = pathname.startsWith('/admin') || pathname.startsWith('/portals/') || pathname === '/student-portal' || pathname === '/my-account' || pathname === '/change-password';
     if (!protectedPath) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let timeoutMs = 8 * 60 * 60 * 1000;
-    let role = pathname.startsWith('/admin') ? 'admin' : pathname.startsWith('/portals/') && pathname.split('/')[2] !== 'notifications' ? pathname.split('/')[2] : '';
+    let role = pathname === '/student-portal' ? 'student' : pathname.startsWith('/admin') ? 'admin' : pathname.startsWith('/portals/') && pathname.split('/')[2] !== 'notifications' ? pathname.split('/')[2] : '';
     const loginGate = () => role ? '/login?role=' + encodeURIComponent(role) : '/portals';
     let lastPing = 0;
     let active = true;
@@ -92,6 +94,8 @@ function AppShell() {
   const { pathname } = useLocation();
   const standalone = pathname.startsWith('/admin')
     || pathname.startsWith('/portals/')
+    || pathname === '/student-portal'
+    || pathname === '/student-recovery'
     || pathname === '/login'
     || pathname === '/setup'
     || pathname === '/admin-reset'
@@ -111,9 +115,12 @@ function AppShell() {
             <Route path="/pay" element={<PayPage />} />
             <Route path="/donations" element={<DonationsPage />} />
             <Route path="/portals" element={<PortalsPage />} />
+            <Route path="/portals/student" element={<Navigate to="/student-portal" replace />} />
+            <Route path="/student-portal" element={<StudentPortalPage />} />
             <Route path="/portals/:role" element={<PortalsPage />} />
             <Route path="/portals/notifications" element={<PortalNotificationsPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/student-recovery" element={<StudentRecoveryPage />} />
             <Route path="/account" element={<CustomerAccountPage />} />
             <Route path="/my-account" element={<MyAccountPage />} />
             <Route path="/campus-life" element={<DigitalHubPage />} />
