@@ -1,10 +1,10 @@
-import { requireRole } from '../../_shared/auth.js';
+import { getSession } from '../../_shared/auth.js';
 import { error, json } from '../../_shared/http.js';
 
 export async function onRequestGet({ request, env }) {
   if (!env.DB) return error('Payment receipt service is not configured.', 503);
-  const access = await requireRole(request, env, ['admin','principal','admissions','student']);
-  if (access.response) return access.response;
+  const user = await getSession(request, env);
+  if (user && !['admin','principal','admissions','student','finance'].includes(user.role)) return error('You are not allowed to view payment receipts.',403);
   const url = new URL(request.url);
   const id = url.searchParams.get('id') || '';
   if (!id || id.length > 100) return error('A valid payment ID is required.');
@@ -23,7 +23,8 @@ export async function onRequestGet({ request, env }) {
     WHERE p.id=? AND p.status='paid'
   `).bind(id).first();
   if (!payment) return error('Confirmed payment receipt was not found.',404);
-  if (access.user.role === 'student' && (payment.purpose !== 'enrollment' || payment.learner_email?.toLowerCase() !== access.user.email.toLowerCase())) {
+  if (!user && payment.purpose !== 'service') return error('Sign in to view this receipt.',401);
+  if (user?.role === 'student' && (payment.purpose !== 'enrollment' || payment.learner_email?.toLowerCase() !== user.email.toLowerCase())) {
     return error('You are not allowed to view this receipt.',403);
   }
   let serviceDescription = '';
