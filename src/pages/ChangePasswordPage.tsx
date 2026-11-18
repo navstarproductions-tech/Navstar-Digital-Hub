@@ -9,7 +9,10 @@ import { Label } from '@/components/ui/label';
 export function ChangePasswordPage() {
   const navigate = useNavigate();
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);\n  const [newPassword, setNewPassword] = useState('');\n  const [confirmPassword, setConfirmPassword] = useState('');\n  const strong = newPassword.length >= 6 && newPassword.length <= 12 && [/[A-Z]/.test(newPassword), /[a-z]/.test(newPassword), /[0-9]/.test(newPassword), /[^A-Za-z0-9]/.test(newPassword)].filter(Boolean).length >= 3;
+  const [loading, setLoading] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const strong = newPassword.length >= 6 && newPassword.length <= 12 && [/[A-Z]/.test(newPassword), /[a-z]/.test(newPassword), /[0-9]/.test(newPassword), /[^A-Za-z0-9]/.test(newPassword)].filter(Boolean).length >= 3;
 
   const changePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
