@@ -17,6 +17,7 @@ const exploreLinks = [
   ['Services', '/services'],
   ['Gallery', '/gallery'],
   ['Fee Structures', '/fees'],
+  ['Pay for Services', '/pay'],
 ];
 
 
