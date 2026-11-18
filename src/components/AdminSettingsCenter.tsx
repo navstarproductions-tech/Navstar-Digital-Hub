@@ -33,7 +33,8 @@ const sections: Section[] = [
  {id:'campuses',label:'Institution & Campuses',description:'Manage branches of Navstar Digital Hub. Deactivation should not delete historical records.',groups:[
   {title:'Institution',fields:[{key:'institutionType',label:'Institution type',type:'select',options:['Private','Public','Community','Other']}]},
   {title:'Branch directory',fields:[{key:'campusDirectory',label:'Branches (one per line: branch name | town | status)',type:'textarea',help:'Example: Main, Bungoma Branch | Bungoma | Active'}]},
-  {title:'Staff assignment',fields:[{key:'campusStaffRules',label:'Campus staff assignment notes / rules',type:'textarea'}]}]},
+  {title:'Staff assignment',fields:[{key:'campusStaffRules',label:'Campus staff assignment notes / rules',type:'textarea'}]},
+  {title:'Kenya local administration directory',fields:[{key:'locationOptions',label:'Locations (one per line: Ward | Location)',type:'textarea',help:'Use the exact ward name from the national directory, then the location name. Example: Township | Nambale Township.'},{key:'subLocationOptions',label:'Sub-locations (one per line: Location | Sub-location)',type:'textarea',help:'Link each sub-location to its parent location. Example: Nambale Township | Nambale Central.'}]}]},
  {id:'rules',label:'Rules & Regulations',description:'Maintain institution rules, categories and effective status.',groups:[
   {title:'Rules register',fields:[{key:'rulesRegister',label:'Rules (one per line: category | rule | effective status)',type:'textarea',help:'Add one rule per line. Use Active or Archived as the final value.'}]}]},
  {id:'grading',label:'Marks & Grading',description:'Configure the grading scale. Conditional grades such as ABS, MM and I are not percentage-based.',groups:[
