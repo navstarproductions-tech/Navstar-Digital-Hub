@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { readApiResponse } from '@/lib/api';
+import { GeographyPicker } from '@/components/GeographyPicker';
 
 type Profile = {
   id: string; name: string; email: string; role: string; staffId?: string; nationalId?: string | null;
@@ -80,7 +81,8 @@ export function MyAccountPage() {
       <form onSubmit={save} className="mt-6 rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
         <div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-1 h-5 w-5 text-emerald-700"/><div><h2 className="font-bold text-slate-950">Profile information</h2><p className="mt-1 text-sm text-slate-600">Your email, portal role and generated staff ID are managed by the system and cannot be changed here. Your National ID is visible only to authorized administrators and you.</p></div></div>
         {loading ? <p className="py-8 text-sm text-slate-500">Loading profile…</p> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {fields.map(field => <div key={field.key} className="space-y-2"><Label htmlFor={`profile-${field.key}`}>{field.label}</Label><Input id={`profile-${field.key}`} type={field.type || 'text'} value={values[field.key] || ''} onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))} required={field.key === 'name'} /></div>)}
+          {fields.filter(field => !['country','province','county','subCounty','constituency','ward','location','subLocation'].includes(field.key)).map(field => <div key={field.key} className="space-y-2"><Label htmlFor={`profile-${field.key}`}>{field.label}</Label><Input id={`profile-${field.key}`} type={field.type || 'text'} value={values[field.key] || ''} onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))} required={field.key === 'name'} /></div>)}
+          <div className="sm:col-span-2 lg:col-span-3"><GeographyPicker county={values.county || ''} subCounty={values.subCounty || ''} ward={values.ward || ''} onChange={geo => setValues(current => ({ ...current, country: 'Kenya', county: geo.county, subCounty: geo.subCounty, ward: geo.ward, province: '', constituency: geo.subCounty, location: '', subLocation: '' }))} /></div>
         </div>}
         {status && <p role="status" className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">{status}</p>}
         <div className="mt-6 flex flex-wrap justify-end"><Button type="submit" disabled={loading || saving}><Save className="mr-2 h-4 w-4"/>{saving ? 'Saving…' : 'Save profile'}</Button></div>
