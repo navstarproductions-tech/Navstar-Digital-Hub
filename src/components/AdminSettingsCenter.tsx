@@ -79,7 +79,9 @@ const defaults: Record<string, Record<string, string|number|boolean>> = {
  'completion': {completionMinimumPass:true,completionPassMark:50,completionAttendance:true,completionAttendancePercent:60,completionFees:true,completionActive:true,completionAdmissionNumber:true,completionAllMarks:true,completionNoCheating:true},
  'payment-methods': {paymentCash:true,paymentMpesa:true,paymentBank:false,paymentCard:false,activePaymentMethod:'M-Pesa / Daraja'},
  'theme-language': {globalTheme:'System',globalAccent:'Blue',interfaceLanguage:'English',highContrast:false},
- 'maintenance': {maintenanceEnabled:false,maintenanceMessage:'Navstar Digital Hub is undergoing scheduled maintenance. Please check back soon.'},\n 'campuses': {institutionType:'Private',campusDirectory:'Main, Bungoma Branch | Bungoma | Active\\nAlupe, Busia Branch | Alupe | Active\\nThika, Nairobi Branch | Nairobi | Active'},\n 'id-card-bulk-print': {bulkIdCardIncludePhoto:true,bulkIdCardIncludeQr:true,bulkIdCardFormat:'PDF'},
+ 'maintenance': {maintenanceEnabled:false,maintenanceMessage:'Navstar Digital Hub is undergoing scheduled maintenance. Please check back soon.'},
+ 'campuses': {institutionType:'Private',campusDirectory:'Main, Bungoma Branch | Bungoma | Active\nAlupe, Busia Branch | Alupe | Active\nThika, Nairobi Branch | Nairobi | Active'},
+ 'id-card-bulk-print': {bulkIdCardIncludePhoto:true,bulkIdCardIncludeQr:true,bulkIdCardFormat:'PDF'},
  'activity-monitor': {activityRetentionDays:'30',activityIncludeLogins:true,activityIncludeDownloads:true,activityIncludePayments:true,activityIncludeEnrollments:true},
  'audit-logs': {auditRetentionDays:365,auditTrackCreate:true,auditTrackUpdate:true,auditTrackDelete:true,auditExcludeSensitive:true}
 };
