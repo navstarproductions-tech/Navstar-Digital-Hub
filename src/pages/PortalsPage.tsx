@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, BookOpen, BriefcaseBusiness, GraduationCap, ShieldCheck, UserRound, UsersRound, Sparkles, LockKeyhole, Bell, LogOut, CircleDollarSign } from 'lucide-react';
+import { BriefcaseBusiness, GraduationCap, ShieldCheck, UserRound, UsersRound, Sparkles, LockKeyhole, ArrowRight, ShieldCheck as ShieldIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { formatEATDate } from '@/lib/datetime';
 import { PortalWorkspaceTabs } from '@/components/PortalWorkspaceTabs';
 
 const portals = [
@@ -28,7 +27,6 @@ export function PortalsPage() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [financeTab, setFinanceTab] = useState<'overview' | 'payments' | 'cashouts' | 'reports'>('overview');
   const [financePayments, setFinancePayments] = useState<FinancePayment[]>([]);
   const [financeCashouts, setFinanceCashouts] = useState<CashoutRequest[]>([]);
   const [paymentBusyId, setPaymentBusyId] = useState('');
