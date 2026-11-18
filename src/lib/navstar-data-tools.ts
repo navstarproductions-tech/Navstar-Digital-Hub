@@ -59,7 +59,7 @@ export function exportBrandedData(format: 'excel' | 'word' | 'pdf', title: strin
     saveBlob(safeName + '-navstar.doc', new Blob([html], { type: 'application/msword;charset=utf-8' }));
     return;
   }
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=800');
+  const printWindow = window.open('', '_blank', 'width=1100,height=800');
   if (!printWindow) { throw new Error('Allow pop-ups to create the branded PDF printout.'); }
   printWindow.document.open(); printWindow.document.write(html); printWindow.document.close();
   printWindow.focus();
