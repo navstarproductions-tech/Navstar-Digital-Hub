@@ -35,7 +35,7 @@ export async function onRequestPost({ request, env }) {
   const hashed = await hashPassword(password);
   const update = await env.DB.prepare(`
     UPDATE users SET password_hash = ?, password_salt = ?, must_change_password = 0
-    WHERE id = ? AND lower(email) = ? AND status = 'active'
+    WHERE id = ? AND lower(email) = ? AND status = 'active' AND id IN (SELECT u.id FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE COALESCE(p.portal_role, u.role) = 'student')
   `).bind(hashed.hash, hashed.salt, record.user_id, record.email).run();
   if (Number(update?.meta?.changes ?? 0) < 1) return error('This Student account is no longer active. Contact Navstar support.', 409);
 
