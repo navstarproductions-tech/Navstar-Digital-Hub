@@ -55,13 +55,13 @@ export async function onRequestPut({ request, env }) {
   let values;
   try { values = clean(body.values); } catch (e) { return error(e instanceof Error ? e.message : 'Invalid settings values.'); }
   if (body.section === 'enrollment-settings' && typeof values.installmentPlans === 'string' && values.installmentPlans.trim()) {
-    const lines = values.installmentPlans.split(/\\r?\\n/).map(line => line.trim()).filter(Boolean);
+    const lines = values.installmentPlans.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     const totals = new Map();
     for (const line of lines) {
       const parts = line.split('|').map(part => part.trim());
-      if (parts.length < 3 || !parts[0] || !parts[1] || !/^\\d+$/.test(parts[2])) return error('Installment lines must use: course ID | instalment name | amount in KSh | due date (YYYY-MM-DD, optional).');
+      if (parts.length < 3 || !parts[0] || !parts[1] || !/^\d+$/.test(parts[2])) return error('Installment lines must use: course ID | instalment name | amount in KSh | due date (YYYY-MM-DD, optional).');
       const amount = Number(parts[2]);
-      if (!Number.isSafeInteger(amount) || amount < 1 || (parts[3] && !/^\\d{4}-\\d{2}-\\d{2}$/.test(parts[3]))) return error('Each instalment must have a positive whole-shilling amount and a valid optional due date.');
+      if (!Number.isSafeInteger(amount) || amount < 1 || (parts[3] && !/^\d{4}-\d{2}-\d{2}$/.test(parts[3]))) return error('Each instalment must have a positive whole-shilling amount and a valid optional due date.');
       totals.set(parts[0], (totals.get(parts[0]) || 0) + amount);
     }
     for (const [courseId, total] of totals) {
