@@ -231,3 +231,33 @@ body::-webkit-scrollbar,
 .navstar-admin-content table th { color:#94a8c4; border-color:rgba(148,163,184,.18); }
 .navstar-admin-content table td { color:#dbe7f8; border-color:rgba(148,163,184,.14); }
 @media(max-width:767px){.navstar-admin-content{padding:14px}.navstar-admin-hero{min-height:120px}}
+
+
+/* Navstar visibility and active-state consistency across the admin and role portals. */
+.navstar-admin-content .text-slate-900,
+.navstar-admin-content .text-slate-800,
+.navstar-admin-content .text-slate-700 { color:#e4edf9 !important; }
+.navstar-admin-content .text-slate-600,
+.navstar-admin-content .text-slate-500 { color:#aebed4 !important; }
+.navstar-admin-content .text-slate-400 { color:#8fa3bf !important; }
+.navstar-admin-content .bg-slate-50,
+.navstar-admin-content .bg-slate-100 { background:#101a2b !important; }
+.navstar-admin-content .border-slate-300 { border-color:rgba(148,163,184,.32) !important; }
+.navstar-admin-content input::placeholder,
+.navstar-admin-content textarea::placeholder { color:#8fa3bf !important; opacity:1; }
+.navstar-admin-content input[type="checkbox"] { accent-color:#38bdf8; }
+.navstar-admin-content button[aria-current="page"],
+.navstar-admin-content button[aria-pressed="true"] { background:linear-gradient(100deg,#0755b8,#087eaa) !important; color:#fff !important; border-color:rgba(125,211,252,.65) !important; box-shadow:inset 0 -3px 0 #f5c542,0 4px 14px rgba(2,132,199,.2); }
+.navstar-admin-content button[aria-current="page"] svg,
+.navstar-admin-content button[aria-pressed="true"] svg { color:#fff !important; }
+
+/* Shared role-portal visual language: readable content and unmistakable selected tabs. */
+.navstar-portal { color:#10213c; background:linear-gradient(180deg,#f4f8ff 0%,#eef4fb 100%); }
+.navstar-portal button[aria-pressed="true"],
+.navstar-portal button[aria-current="page"],
+.navstar-portal [role="tab"][aria-selected="true"] { background:linear-gradient(100deg,#0755b8,#087eaa) !important; color:#fff !important; border-color:#0b72b9 !important; box-shadow:inset 0 -3px 0 #f5c542,0 4px 14px rgba(2,132,199,.16); }
+.navstar-portal button[aria-pressed="true"] svg,
+.navstar-portal button[aria-current="page"] svg { color:#fff !important; }
+.navstar-portal :is(input,select,textarea) { color:#10213c; }
+.navstar-portal :is(input,select,textarea)::placeholder { color:#64748b; opacity:1; }
+.navstar-portal :is(h1,h2,h3) { text-wrap:balance; }
