@@ -14,7 +14,7 @@ export async function onRequestPost({ request, env }) {
   const access = await requireRole(request, env, ['admin']);
   if (access.response) return access.response;
   let body;
-  try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
+  try { body = await readJson(request, 65536); } catch { return error('Invalid request body.'); }
   if (body.action === 'bulk_create_services') {
     const rows = Array.isArray(body.rows) ? body.rows : [];
     if (rows.length < 1 || rows.length > 100) return error('Upload between 1 and 100 service rows.');
