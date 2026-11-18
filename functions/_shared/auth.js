@@ -39,7 +39,7 @@ export async function createSession(env, userId) {
   const sessionSeconds = await configuredSessionSeconds(env).catch(() => defaultSessionSeconds);
   const expiresAt = new Date(Date.now() + sessionSeconds * 1000).toISOString();
   await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').bind(tokenHash, userId, expiresAt).run();
-  return `${cookieName}=${token}; Path=/; Max-Age=${sessionSeconds}; HttpOnly; Secure; SameSite=Strict`;
+  return `${cookieName}=${token}; Path=/; Max-Age=${defaultSessionSeconds}; HttpOnly; Secure; SameSite=Strict`;
 }
 
 function getCookie(request, name) {
@@ -55,13 +55,20 @@ export async function getSession(request, env) {
   const token = getCookie(request, cookieName);
   if (!token || !env.DB) return null;
   const tokenHash = await sha256(token);
-  return env.DB.prepare(`
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const user = await env.DB.prepare(`
     SELECT users.id, users.name, users.email, COALESCE(user_profiles.portal_role, users.role) AS role, users.must_change_password AS mustChangePassword
     FROM sessions JOIN users ON users.id = sessions.user_id
     LEFT JOIN user_profiles ON user_profiles.user_id = users.id
     WHERE sessions.token_hash = ? AND sessions.expires_at > ? AND users.status = 'active'
-      AND datetime(sessions.created_at, '+' || COALESCE((SELECT CAST(value AS INTEGER) FROM system_state WHERE key = 'session-timeout-minutes'), 480) || ' minutes') > datetime(?)
-  `).bind(tokenHash, new Date().toISOString(), new Date().toISOString()).first();
+  `).bind(tokenHash, nowIso).first();
+  if (!user) return null;
+  const idleSeconds = await configuredSessionSeconds(env).catch(() => defaultSessionSeconds);
+  const refreshedExpiry = new Date(now.getTime() + idleSeconds * 1000).toISOString();
+  await env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE token_hash = ? AND expires_at > ?')
+    .bind(refreshedExpiry, tokenHash, nowIso).run();
+  return user;
 }
 
 export async function requireRole(request, env, allowedRoles) {
