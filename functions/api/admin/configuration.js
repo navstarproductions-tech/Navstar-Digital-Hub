@@ -59,14 +59,14 @@ export async function onRequestPut({ request, env }) {
     const totals = new Map();
     for (const line of lines) {
       const parts = line.split('|').map(part => part.trim());
-      if (parts.length < 3 || !parts[0] || !parts[1] || !/^\d+$/.test(parts[2])) return error('Installment lines must use: course ID | instalment name | amount in KSh | due date (YYYY-MM-DD, optional).');
+      if (parts.length < 3 || !parts[0] || !parts[1] || !/^\d+$/.test(parts[2])) return error('Installment lines must use: course ID or exact course title | instalment name | amount in KSh | due date (YYYY-MM-DD, optional).');
       const amount = Number(parts[2]);
       if (!Number.isSafeInteger(amount) || amount < 1 || (parts[3] && !/^\d{4}-\d{2}-\d{2}$/.test(parts[3]))) return error('Each instalment must have a positive whole-shilling amount and a valid optional due date.');
       totals.set(parts[0], (totals.get(parts[0]) || 0) + amount);
     }
     for (const [courseId, total] of totals) {
       const course = await env.DB.prepare("SELECT title, price FROM courses WHERE (id = ? OR lower(title) = lower(?)) AND status = 'active'").bind(courseId, courseId).first();
-      if (!course) return error('An instalment plan references an unavailable course. Check the course ID.');
+      if (!course) return error('An instalment plan references an unavailable course. Check the course ID or exact title.');
       if (total !== Number(course.price)) return error(`The instalments for ${course.title} total KSh ${total.toLocaleString('en-KE')}, but the published course fee is KSh ${Number(course.price).toLocaleString('en-KE')}. The totals must match exactly.`);
     }
   }
