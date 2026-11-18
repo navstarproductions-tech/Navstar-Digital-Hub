@@ -1,3 +1,4 @@
+import { downloadNavstarTablePdf } from '@/lib/receipt-pdf';
 export type ExportCell = string | number | boolean | null | undefined;
 export type ExportRow = Record<string, ExportCell>;
 
@@ -59,9 +60,7 @@ export function exportBrandedData(format: 'excel' | 'word' | 'pdf', title: strin
     saveBlob(safeName + '-navstar.doc', new Blob([html], { type: 'application/msword;charset=utf-8' }));
     return;
   }
-  const printWindow = window.open('', '_blank', 'width=1100,height=800');
-  if (!printWindow) { throw new Error('Allow pop-ups to create the branded PDF printout.'); }
-  printWindow.document.open(); printWindow.document.write(html); printWindow.document.close();
-  printWindow.focus();
-  window.setTimeout(() => printWindow.print(), 350);
+  const pdfRows = rows.map(row => headers.map(header => row[header] ?? ''));
+  void downloadNavstarTablePdf(title, headers, pdfRows, safeName + '-navstar.pdf')
+    .catch(error => window.alert(error instanceof Error ? error.message : 'The branded PDF could not be generated.'));
 }
