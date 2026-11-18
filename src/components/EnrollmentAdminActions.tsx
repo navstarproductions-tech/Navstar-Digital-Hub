@@ -1,7 +1,7 @@
 import { useState } from 'react';
 type EnrollmentRow = Record<string, unknown>;
 
-export function EnrollmentAdminActions({ enrollment }: { enrollment: EnrollmentRow }) {
+export function EnrollmentAdminActions({ enrollment, onUpdated }: { enrollment: EnrollmentRow; onUpdated?: () => void }) {
   const [busy,setBusy] = useState(false);
   const [message,setMessage] = useState('');
   const id = String(enrollment.id || '');
@@ -26,6 +26,7 @@ export function EnrollmentAdminActions({ enrollment }: { enrollment: EnrollmentR
       const response = await fetch('/api/admin/enrollment-decisions',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const result = await response.json();
       if (!response.ok || !result.saved) throw new Error(result.error || 'Admissions action could not be saved.');
+      onUpdated?.();
       setMessage(action==='accept'?'Admission approved. Secure password setup instructions have been sent.':action==='defer-payment'||action==='reduced-deposit'?'Special payment exception saved and audited.':'Admissions decision saved and applicant notified.');
     } catch (cause) { setMessage(cause instanceof Error?cause.message:'Admissions action failed.'); }
     finally { setBusy(false); }
@@ -46,6 +47,7 @@ export function EnrollmentAdminActions({ enrollment }: { enrollment: EnrollmentR
       printWindow.document.open();
       printWindow.document.write(html);
       printWindow.document.close();
+      onUpdated?.();
       window.setTimeout(()=>printWindow.print(),500);
       setMessage('Letter generated and saved. Use the print dialog to save it as PDF.');
     } catch (cause) { printWindow.close(); setMessage(cause instanceof Error?cause.message:'Letter generation failed.'); }
