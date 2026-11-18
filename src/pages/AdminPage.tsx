@@ -636,7 +636,7 @@ export function AdminPage() {
     const response = await fetch('/api/admin/downloads', { method: 'POST', body: form });
     const result = await response.json() as { id?: string; title?: string; description?: string; originalName?: string; sizeBytes?: number; url?: string; error?: string };
     if (!response.ok || !result.id) { setNotice(result.error ?? 'Document upload failed.'); return; }
-    setDocuments((current) => [{ id: result.id!, title: result.title ?? documentFile.name, description: result.description ?? '', originalName: result.originalName ?? documentFile.name, sizeBytes: result.sizeBytes ?? documentFile.size, url: result.url ?? `/api/downloads/${result.id}` }, ...current]);
+    setDocuments((current) => [{ id: result.id!, title: result.title ?? documentFile.name, description: result.description ?? '', originalName: result.originalName ?? documentFile.name, sizeBytes: result.sizeBytes ?? documentFile.size, url: result.url ?? `/api/download/${result.id}` }, ...current]);
     setDocumentTitle(''); setDocumentDescription(''); setDocumentFile(null);
     const input = document.getElementById('admin-document-file') as HTMLInputElement | null;
     if (input) input.value = '';
