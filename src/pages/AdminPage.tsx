@@ -82,7 +82,6 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   {id:'eclass-meetings',label:'E-Class Meetings',icon:BookOpen},
   {id:'student-chat',label:'Student Chat',icon:Users},
   {id:'support-tickets',label:'Support Tickets',icon:Users},
-  {id:'student-directory',label:'Student Directory',icon:Users},
   {id:'send-notification',label:'Send Notification',icon:Bell},
   {id:'broadcast-social',label:'Broadcast & Social',icon:Bell},
   {id:'sms-alerts',label:'SMS Alerts',icon:Bell},
