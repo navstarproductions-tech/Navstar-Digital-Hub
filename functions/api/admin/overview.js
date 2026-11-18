@@ -3,7 +3,7 @@ import { error, json } from '../../_shared/http.js';
 
 export async function onRequestGet({ request, env }) {
   if (!env.DB) return error('Admin database is not configured.', 503);
-  const access = await requireRole(request, env, ['admin', 'principal']);
+  const access = await requireRole(request, env, ['admin', 'principal', 'finance']);
   if (access.response) return access.response;
   const [students, applications, payments, donations, courses, services] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'student' AND status = 'active'").first(),
