@@ -1,4 +1,4 @@
-import { error, isSameOrigin, json, readJson, safeString } from '../../../_shared/http.js';
+import { error, isSameOrigin, json, normalizePhone, readJson, safeString } from '../../../_shared/http.js';
 import { rateLimited } from '../../../_shared/rate-limit.js';
 
 const digest = async (value) => {
@@ -17,7 +17,7 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await readJson(request, 2048); } catch { return error('Enter your email, phone and verification code.'); }
   const email = safeString(body.email, 254).trim().toLowerCase();
-  const phone = safeString(body.phone, 32);
+  const phone = normalizePhone(body.phone);
   const otp = safeString(body.otp, 6);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(otp)) return error('The verification code is invalid.');
   const record = await env.DB.prepare(`SELECT id, otp_hash, attempts, expires_at FROM enrollment_application_otps
