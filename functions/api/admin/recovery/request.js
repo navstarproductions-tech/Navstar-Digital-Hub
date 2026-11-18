@@ -25,8 +25,8 @@ export async function onRequestPost({ request, env }) {
     LIMIT 1
   `).bind(email).first();
 
-  // Keep the public response identical whether or not the email belongs to an Admin.
-  if (!admin) return json({ sent: true, message: 'If that address belongs to an active Navstar Admin, a recovery code has been sent.' });
+  // Give a clear result on this Admin-only recovery page when no active Admin matches.
+  if (!admin) return error('No active Admin account was found with that email address. Check the email and try again.', 404);
 
   const otp = code();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -50,5 +50,5 @@ export async function onRequestPost({ request, env }) {
     console.error('Admin recovery email provider rejected delivery:', mailResponse?.status || 'network error');
     return error('The recovery email could not be sent. Please try again later or contact Navstar support.', 502);
   }
-  return json({ sent: true, message: 'If that address belongs to an active Navstar Admin, a recovery code has been sent. Check your inbox and spam folder.' });
+  return json({ sent: true, message: 'Your verification code has been sent. Check your inbox and spam folder.' });
 }
