@@ -1,4 +1,5 @@
 import { getSession } from '../../_shared/auth.js';
+import { rateLimited } from '../../_shared/rate-limit.js';
 import { startStkPush, darajaReady } from '../../_shared/daraja.js';
 import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../../_shared/http.js';
 
@@ -23,6 +24,7 @@ export async function onRequestPost({ request, env }) {
     displayReference = donation.display_ref;
   } else if (purpose === 'enrollment') {
     const session = await getSession(request, env);
+    if (!session && await rateLimited(env.DB, request, 'public-enrollment-payment', { maximum: 3, minutes: 15 })) return error('Too many payment prompts. Please wait before trying again.', 429);
     const enrollment = await env.DB.prepare(`
       SELECT enrollments.id, enrollments.display_ref, enrollments.email, enrollments.phone, enrollments.payment_status, enrollments.status, courses.price
       FROM enrollments JOIN courses ON courses.id = enrollments.course_id WHERE enrollments.id = ?
