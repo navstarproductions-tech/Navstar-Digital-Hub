@@ -28,10 +28,10 @@ const money = (value: unknown) => new Intl.NumberFormat('en-KE', { maximumFracti
 const monthLabel = (date: Date) => date.toLocaleDateString('en-KE', { month: 'short' });
 
 export function AdminDashboard({ metrics, applications, courses, users, onNavigate }: Props) {
-  const activeStudents = users.filter(user => user.role === 'student' && user.status === 'active').length || number(metrics.students);
-  const staffCount = users.filter(user => user.role !== 'student').length;
-  const pendingApplications = applications.filter(item => ['submitted', 'under_review'].includes(String(item.status))).length;
-  const pendingFees = applications.filter(item => ['unpaid', 'pending'].includes(String(item.payment_status))).length;
+  const activeStudents = metrics.students !== undefined ? number(metrics.students) : users.filter(user => user.role === 'student' && user.status === 'active').length;
+  const staffCount = metrics.employees !== undefined ? number(metrics.employees) : users.filter(user => user.role !== 'student' && user.status === 'active').length;
+  const pendingApplications = metrics.applications !== undefined ? number(metrics.applications) : applications.filter(item => ['submitted', 'under_review'].includes(String(item.status))).length;
+  const pendingFees = metrics.pendingFeeApplications !== undefined ? number(metrics.pendingFeeApplications) : applications.filter(item => ['unpaid', 'pending'].includes(String(item.payment_status))).length;
   const revenue = number(metrics.verifiedPayments);
   const now = new Date();
   const months = Array.from({ length: 6 }, (_, index) => {
