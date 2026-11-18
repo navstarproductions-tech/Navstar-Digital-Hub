@@ -17,35 +17,32 @@ function el(root:ParentNode,selectors:string):Element|null{return root.querySele
 async function dataUrl(url?:string|null):Promise<string|null>{if(!url)return null;try{const r=await fetch(new URL(url,location.origin).href,{mode:'cors'});if(!r.ok)return null;const b=await r.blob();return await new Promise(res=>{const f=new FileReader();f.onload=()=>res(typeof f.result==='string'?f.result:null);f.onerror=()=>res(null);f.readAsDataURL(b);});}catch{return null;}}
 function wrap(d:PdfDoc,s:string,x:number,y:number,w:number,size=8,color:[number,number,number]=[45,62,82],leading=4.1):number{if(!s)return y;d.setFont('helvetica','normal').setFontSize(size).setTextColor(...color);const lines=d.splitTextToSize(s,w);d.text(lines,x,y);return y+lines.length*leading;}
 function addLogo(d:PdfDoc,logo:string|null,x:number,y:number,w:number,h:number){if(logo){try{d.addImage(logo,'JPEG',x,y,w,h);}catch{}}}
-function drawHeader(d:PdfDoc,root:ParentNode,W:number,m:number,logo:string|null,kind:'donation'|'payment'){
- const popup=!!el(root,'.letterhead'), header=el(root,'header');
- const brand=txt(el(root,'.brand h1'))||'NAVSTAR DIGITAL HUB', motto=txt(el(root,'.motto'))||'HOME OF TECHNOCRATS';
- const title=txt(el(root,'.receipt-label h2'))|| (kind==='donation'?'DONATION RECEIPT':'PAYMENT RECEIPT');
+function drawHeader(d:PdfDoc,root:ParentNode,W:number,m:number,logo:string|null,qr:string|null,kind:'donation'|'payment'){
+ const brand=txt(el(root,'.brand h1'))||'NAVSTAR DIGITAL HUB',motto=txt(el(root,'.motto'))||'HOME OF TECHNOCRATS';
+ const title=txt(el(root,'.receipt-label h2'))||(kind==='donation'?'DONATION RECEIPT':'PAYMENT RECEIPT');
  const serial=txt(el(root,'.serial'))||'OFFICIAL RECEIPT';
- const contacts=txt(el(root,'.contacts'))||'0797 688 576 · 0706 637 485\nnavstardigitalhub@gmail.com · P.O. Box 546-50200, Bungoma, Kenya';
+ const contacts=txt(el(root,'.contacts'))||'0797 688 576 · 0706 637 485 · navstardigitalhub@gmail.com · P.O. Box 546-50200, Bungoma, Kenya';
  const generated=txt(el(root,'.generated,.gen'));
- const headH=popup?53:51;
- // Smooth full-width gradient blended from navy through royal blue into teal.
+ const headH=40;
  const stops:[[number,number,number],[number,number,number],[number,number,number]]=[[6,27,59],[11,67,135],[8,123,131]];
  const mix=(a:number,b:number,t:number)=>Math.round(a+(b-a)*t);
  for(let i=0;i<120;i++){const t=i/119,seg=t<.66?0:1,local=seg===0?t/.66:(t-.66)/.34,a=stops[seg],b=stops[seg+1];d.setFillColor(mix(a[0],b[0],local),mix(a[1],b[1],local),mix(a[2],b[2],local)).rect(W*i/120,0,W/120+.15,headH,'F');}
- d.setFillColor(229,184,75).rect(0,headH,W,1.4,'F');
- addLogo(d,logo,m,8,28,27);
- const tx=m+33,rightX=W-m,rightW=64,leftW=rightX-tx-rightW-5;
- d.setFont('helvetica','bold').setFontSize(17).setTextColor(255,255,255).text(brand,tx,14);
- d.setFontSize(8.5).setTextColor(255,221,131).text(motto,tx,21);
- wrap(d,contacts,tx,29,Math.max(65,leftW),7.2,[238,246,255],3.8);
- d.setFont('helvetica','bold').setFontSize(7.4).setTextColor(219,237,255).text('OFFICIAL DIGITAL DOCUMENT',rightX,11,{align:'right'});
- d.setFontSize(13.5).setTextColor(255,255,255).text(title,rightX,20,{align:'right'});
- const serialW=52,serialX=rightX-serialW;
- d.setFillColor(255,245,246).setDrawColor(255,214,218).roundedRect(serialX,25,serialW,12,2.5,2.5,'FD');
- d.setFontSize(9.2).setTextColor(185,28,28).text(serial,serialX+serialW/2,32.8,{align:'center'});
- if(generated){d.setFont('helvetica','normal').setFontSize(7.1).setTextColor(238,246,255).text(generated,rightX,42,{align:'right'});}
+ d.setFillColor(229,184,75).rect(0,headH,W,1.3,'F');
+ addLogo(d,logo,m,7,25,25);
+ const tx=m+30,qrX=W-m-25,centerW=qrX-tx-5;
+ d.setFont('helvetica','bold').setFontSize(14).setTextColor(255,255,255).text(brand,tx,13);
+ d.setFontSize(7.5).setTextColor(255,221,131).text(motto,tx,19);
+ wrap(d,contacts,tx,25,centerW,6.5,[238,246,255],3.4);
+ if(qr){try{d.addImage(qr,'PNG',qrX,7,23,23);}catch{}}
+ // Document identity is kept in a clean line below the compact letterhead.
+ d.setFont('helvetica','bold').setFontSize(10.5).setTextColor(11,67,135).text(title,m,49);
+ d.setFont('helvetica','bold').setFontSize(8.2).setTextColor(185,28,28).text(serial,W-m,49,{align:'right'});
+ if(generated){d.setFont('helvetica','normal').setFontSize(7).setTextColor(96,120,142).text(generated,W-m,54,{align:'right'});}
  return {serial,headH};
 }
 function drawDonation(root:ParentNode,filename:string,C:PdfCtor,logo:string|null,qr:string|null){
  const d=new C({orientation:'portrait',unit:'mm',format:'a4',compress:true}),W=d.internal.pageSize.getWidth(),H=d.internal.pageSize.getHeight(),m=9.5,inner=W-2*m;
- drawHeader(d,root,W,m,logo,'donation');
+ drawHeader(d,root,W,m,logo,qr,'donation');
  const popup=!!el(root,'.letterhead');
  const status=txt(el(root,'.status'))||'✓ PAYMENT RECEIVED · SAFARICOM CONFIRMED';
  d.setFillColor(220,252,231).roundedRect(m,61,inner,9,3,3,'F');
@@ -96,7 +93,7 @@ function drawDonation(root:ParentNode,filename:string,C:PdfCtor,logo:string|null
 }
 function drawPayment(root:ParentNode,filename:string,C:PdfCtor,logo:string|null,qr:string|null){
  const d=new C({orientation:'portrait',unit:'mm',format:'a4',compress:true}),W=d.internal.pageSize.getWidth(),m=9.5,inner=W-2*m;
- drawHeader(d,root,W,m,logo,'payment');
+ drawHeader(d,root,W,m,logo,qr,'payment');
  const status=txt(el(root,'.inline-flex.rounded-full'))||'✓ PAYMENT RECEIVED · CONFIRMED';
  d.setFillColor(220,252,231).roundedRect(m,56,inner,7,3,3,'F');d.setFont('helvetica','bold').setFontSize(6.5).setTextColor(22,101,52).text(status.toUpperCase(),m+3,60.5);
  const sections=Array.from(root.querySelectorAll('section')).slice(0,2),cw=(inner-5)/2;
