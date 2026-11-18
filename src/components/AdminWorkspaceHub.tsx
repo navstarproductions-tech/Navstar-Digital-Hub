@@ -1,0 +1,137 @@
+import { useEffect, useMemo, useState } from 'react';
+import { RefreshCw, Search, ExternalLink, ShieldCheck, Database, FileText, Users, BookOpen, CircleDollarSign, CalendarDays, MessageSquare, Settings2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+type Row = Record<string, unknown>;
+type Props = {
+  section: string;
+  subtab: string;
+  courses: Array<{id:string;title:string;category?:string;price?:number;duration?:string}>;
+  users: Array<{id:string;name:string;email:string;role:string;status:string}>;
+  applications: Array<{id:string;full_name:string;email:string;course_id:string;status:string;payment_status:string;created_at:string}>;
+  services: Array<{id:string;name:string;category:string;price_label?:string;status:string}>;
+};
+
+const definitions: Record<string,{purpose:string;source:string;endpoint?:string;links:Array<[string,string]>;columns:string[]}> = {
+ 'ai-intake-advisor':{purpose:'Review intake demand, course interest and the next recommended recruitment actions.',source:'Admissions and course records',endpoint:'/api/enrollments',links:[['Applications','/admin'],['Course catalogue','/courses']],columns:['full_name','course_id','status','created_at']},
+ 'student-projects':{purpose:'Track project proposals, submissions, review decisions and showcase-ready work.',source:'Student project register',links:[['Learning workspace','/learning']],columns:['Project title','Student','Course','Review status']},
+ 'scholarships':{purpose:'Review scholarship and discount requests, award decisions and award history.',source:'Scholarship and discount register',links:[['Student directory','/admin'],['Fee settings','/admin']],columns:['Applicant','Course','Requested support','Decision']},
+ 'certificates':{purpose:'Manage completion eligibility, certificate templates, serials and verification records.',source:'Academic completion and certificate register',links:[['Learning records','/learning'],['Student directory','/admin']],columns:['Student','Course','Completion status','Certificate serial']},
+ 'alumni':{purpose:'Maintain graduate contacts, alumni updates, events and graduate follow-up.',source:'Graduate and alumni register',links:[['Graduate list','/admin'],['Student records','/admin']],columns:['Graduate','Course','Completion date','Contact status']},
+ 'report-cards':{purpose:'Prepare, review, approve and issue student report cards and academic transcripts.',source:'Marks, attendance and fee records',links:[['Marks and learning','/learning'],['Report settings','/admin']],columns:['Student','Course','Assessment period','Approval status']},
+ 'auto-reports':{purpose:'Generate approved institutional documents from verified Navstar records.',source:'Document templates and approved registers',links:[['Documents','/admin'],['Settings','/admin']],columns:['Template','Document type','Last generated','Status']},
+ 'student-status':{purpose:'Review active, completed, graduated and other authorised student status groups.',source:'Student account directory',endpoint:'/api/admin/users',links:[['Student directory','/admin']],columns:['name','email','status','role']},
+ attendance:{purpose:'Record and review learner attendance by course, module, date and tutor.',source:'Attendance register',links:[['Learning workspace','/learning']],columns:['Student','Course','Session date','Attendance']},
+ 'class-rating':{purpose:'Create class evaluation forms and review learner feedback and rating trends.',source:'Class rating forms and responses',links:[['Learning workspace','/learning']],columns:['Form','Course','Responses','Average rating']},
+ fingerprint:{purpose:'Manage authorised fingerprint enrolment and verification activity. Biometric templates must remain in a protected biometric service.',source:'Biometric service',links:[['User directory','/admin']],columns:['User','Staff / Student ID','Enrolment status','Last verification']},
+ 'online-forms':{purpose:'Build, publish and review online forms and their submissions.',source:'Online forms register',links:[['Admissions applications','/admin']],columns:['Form','Audience','Published','Responses']},
+ reports:{purpose:'Prepare operational, student and finance reports from verified system registers.',source:'Verified student, course and finance records',endpoint:'/api/admin/overview',links:[['Analytics','/admin'],['Finance','/admin']],columns:['Report','Period','Records included','Generated']},
+ 'songs-music':{purpose:'Organise the institution music library, uploads and playlists.',source:'Music media library',endpoint:'/api/gallery',links:[['Media library','/admin']],columns:['Title','Category','Uploaded','Visibility']},
+ 'news-updates':{purpose:'Draft, publish and archive official Navstar announcements and news updates.',source:'Published news register',endpoint:'/api/site-settings',links:[['Home page content','/admin'],['Documents','/admin']],columns:['Headline','Audience','Publish date','Status']},
+ events:{purpose:'Plan institutional events, meetings, agendas and minutes.',source:'Events and meetings register',links:[['Announcements','/admin']],columns:['Event','Date and time','Venue','Status']},
+ 'demo-previews':{purpose:'Organise available product demonstrations, preview media and demo links.',source:'Demo preview register',endpoint:'/api/gallery',links:[['Gallery','/admin']],columns:['Demo','Category','Preview link','Status']},
+ 'cv-builder':{purpose:'Create and manage professional CV drafts and approved CV templates.',source:'CV document workspace',links:[['My account','/my-account']],columns:['CV title','Template','Last edited','Export status']},
+ 'upload-notes':{purpose:'Publish course notes and organise learning resources by course and module.',source:'Learning materials',endpoint:'/api/learning',links:[['Learning workspace','/learning']],columns:['Course','Module','Resource','Publication status']},
+ timetable:{purpose:'Plan tutor timetables, academic calendars, schedules and daily sessions.',source:'Timetable and academic calendar',links:[['Learning workspace','/learning']],columns:['Course','Tutor','Date','Session']},
+ 'online-classes':{purpose:'Manage online classrooms, class materials and published learning sessions.',source:'Learning Management System',endpoint:'/api/learning',links:[['Learning workspace','/learning']],columns:['Class','Course','Tutor','Status']},
+ 'eclass-meetings':{purpose:'Schedule online meetings, distribute joining information and review meeting history.',source:'E-class meeting register',links:[['Learning workspace','/learning']],columns:['Meeting','Course','Start time','Status']},
+ 'student-chat':{purpose:'Review student conversations, create support messages and archive resolved chats.',source:'Student messaging service',links:[['Notifications','/portals/notifications'],['Support services','/services']],columns:['Conversation','Student','Last message','Status']},
+ 'support-tickets':{purpose:'Triage support requests, assign follow-up and track resolution.',source:'Support ticket register',endpoint:'/api/admin/service-requests',links:[['Service requests','/admin'],['Customer services','/services']],columns:['reference','customerName','serviceName','status']},
+ 'send-notification':{purpose:'Compose authorised notifications and inspect delivery history.',source:'Navstar notification service',endpoint:'/api/admin/notifications',links:[['Notifications','/portals/notifications']],columns:['title','message','created_at','read_at']},
+ 'broadcast-social':{purpose:'Prepare approved broadcast messages and social campaign drafts.',source:'Broadcast campaign register',links:[['News and updates','/admin']],columns:['Campaign','Channel','Audience','Status']},
+ 'sms-alerts':{purpose:'Prepare SMS alerts and review delivery records. Actual dispatch requires configured SMS credentials.',source:'SMS delivery service',links:[['Notification settings','/admin']],columns:['Message','Recipient group','Sent at','Delivery status']},
+ 'birthday-center':{purpose:'Review upcoming birthdays and manage approved birthday messages.',source:'Student and staff profile dates',endpoint:'/api/admin/users',links:[['User directory','/admin']],columns:['name','role','email','status']},
+ 'about-us':{purpose:'Manage Navstar profile, mission, vision and public contact information.',source:'Institution profile settings',endpoint:'/api/admin/configuration',links:[['Institute profile','/admin'],['Home page content','/admin']],columns:['Setting','Current value','Visibility','Updated']},
+ 'campus-history':{purpose:'Organise campus stories, institutional history and photo highlights.',source:'Gallery and institutional content',endpoint:'/api/gallery',links:[['Gallery','/admin']],columns:['Image / story','Description','Date','Visibility']},
+ 'device-management':{purpose:'Review registered devices, activation policy and device activity.',source:'Device activation service',links:[['Security settings','/admin']],columns:['Device','Assigned user','Activation','Last seen']},
+ 'admin-access':{purpose:'Review administrator roles, permissions and access events.',source:'User roles and audit records',endpoint:'/api/admin/users',links:[['System users','/admin'],['Audit logs','/admin']],columns:['name','email','role','status']},
+ maintenance:{purpose:'Configure service interruptions, affected portals and restoration notices.',source:'Maintenance configuration',endpoint:'/api/admin/configuration',links:[['Maintenance settings','/admin']],columns:['Portal','Maintenance status','Return time','Notice']},
+ 'ict-portal':{purpose:'Coordinate ICT support requests, service information and internal portal access.',source:'ICT service desk and service catalogue',endpoint:'/api/services',links:[['Services','/services'],['Support tickets','/admin']],columns:['name','category','price_label','status']},
+ 'customer-accounts':{purpose:'Review customer accounts, balances and verified service payment history.',source:'Customer service and payment registers',endpoint:'/api/admin/payments',links:[['Customer service desk','/services'],['Payment records','/admin']],columns:['payer_name','purpose','amount','status']},
+ 'device-management':{purpose:'Review registered device activation and access records.',source:'Device registry',links:[['Security controls','/admin']],columns:['Device','User','Activation status','Last activity']},
+};
+
+const subtabDescriptions: Record<string,string> = {
+ 'Pending Review':'Only records awaiting an authorised review should appear in this view.',
+ 'Approved Applications':'Approved records are shown separately from new and rejected applications.',
+ 'Rejected Applications':'Review declined applications and their recorded decision reasons.',
+ 'Application Documents':'Review supporting documents attached to applications; sensitive identity details must remain protected.',
+ 'Student Analytics':'Student trends are calculated from active student and enrolment records.',
+ 'Course Analytics':'Course activity is based on the current Navstar course catalogue.',
+ 'Revenue Analytics':'Revenue figures must be based on verified payments, not pending STK requests.',
+ 'Attendance Analytics':'Attendance reporting requires saved session registers.',
+ 'Review Recommendations':'Review AI suggestions before applying any action to an applicant record.',
+ 'Intake Forecasts':'Forecasts are based on recorded application volumes and configured intake dates.',
+ 'All Tickets':'All available service requests are listed in this workspace.',
+ 'Open Tickets':'Only requests still awaiting action belong in this view.',
+ 'Resolved Tickets':'Resolved requests are separated from open work.',
+ 'Upload Documents':'Upload approved documents using the Documents workspace and its supported file storage.',
+ 'Manage Downloads':'Manage publication state and public access for existing downloadable documents.',
+ 'Compose Notification':'Create a message for an authorised audience and confirm delivery status.',
+ 'Notification History':'Review saved notifications and delivery timestamps.',
+ 'Delivery Status':'A delivery status is shown only when the messaging provider returns a result.',
+ 'Upcoming Events':'Show scheduled future events and meetings.',
+ 'Meetings & Minutes':'Keep meeting records and minutes separate from event announcements.',
+ 'Create Rating Form':'Create a new class feedback form for a selected course.',
+ 'Responses & Analysis':'Review submitted ratings and calculate summaries from actual responses.',
+ 'Create Online Class':'Create a session only when the classroom service is connected.',
+ 'Meeting History':'Review completed or cancelled online meetings.',
+ 'Register Fingerprint':'Biometric registration requires an approved secure biometric device and service.',
+ 'Scan & Verify':'A scan is accepted only when the connected biometric service confirms a match.',
+ 'Fingerprint Records':'Do not expose raw biometric templates in the Admin interface.',
+};
+
+const titleCase = (value:string) => value.replace(/[-_]/g,' ').replace(/\b\w/g,letter=>letter.toUpperCase());
+
+export function AdminWorkspaceHub({section,subtab,courses,users,applications,services}:Props) {
+ const [records,setRecords]=useState<Row[]>([]);
+ const [loading,setLoading]=useState(false);
+ const [error,setError]=useState('');
+ const [query,setQuery]=useState('');
+ const [refresh,setRefresh]=useState(0);
+ const definition=definitions[section];
+ useEffect(()=>{
+  let live=true;
+  if(!definition?.endpoint){setRecords([]);return;}
+  setLoading(true);setError('');
+  fetch(definition.endpoint,{credentials:'same-origin'}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load this register.');const collection=Object.values(data).find(value=>Array.isArray(value)) as Row[]|undefined;if(live)setRecords(collection||[]);}).catch(cause=>{if(live)setError(cause instanceof Error?cause.message:'Could not load this register.');}).finally(()=>{if(live)setLoading(false);});
+  return()=>{live=false;};
+ },[definition?.endpoint,refresh]);
+ const sourceRows=useMemo<Row[]>(()=>{
+  if(section==='courses')return courses as unknown as Row[];
+  if(section==='school'||section==='student-status')return users.filter(item=>item.role==='student') as unknown as Row[];
+  if(section==='employees'||section==='staff-applications'||section==='admin-access')return users.filter(item=>item.role!=='student') as unknown as Row[];
+  if(section==='applications'||section==='enrollment-summary'||section==='ai-intake-advisor')return applications as unknown as Row[];
+  if(section==='services'||section==='ict-portal')return services as unknown as Row[];
+  return records;
+ },[section,courses,users,applications,services,records]);
+ const filtered=sourceRows.filter(row=>JSON.stringify(row).toLowerCase().includes(query.toLowerCase()));
+ const purpose=definition?.purpose||`Dedicated workspace for ${titleCase(section)}. This view keeps its records and actions separate from other Admin sections.`;
+ const source=definition?.source||'Dedicated register for this section';
+ const columns=definition?.columns||['Record','Category','Status','Updated'];
+ const rows=filtered.slice(0,30);
+ const isConnected=Boolean(definition?.endpoint)||['courses','school','student-status','employees','staff-applications','applications','enrollment-summary','services'].includes(section);
+ return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+  <div className="flex flex-wrap items-start justify-between gap-3">
+   <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.2em] text-blue-700">Dedicated Admin workspace · {titleCase(section)}</p><h2 className="mt-1 text-xl font-extrabold text-slate-950">{subtab||titleCase(section)}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{subtabDescriptions[subtab]||purpose}</p></div>
+   <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-800"><ShieldCheck className="h-3.5 w-3.5"/>{isConnected?'Connected data view':'Dedicated workspace'}</span>
+  </div>
+  <div className="grid gap-3 sm:grid-cols-3">
+   <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Workspace records</p><p className="mt-1 text-2xl font-black text-slate-950">{sourceRows.length}</p></div>
+   <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Current view</p><p className="mt-1 truncate text-base font-bold text-slate-950">{subtab||titleCase(section)}</p></div>
+   <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Data source</p><p className="mt-1 text-sm font-bold text-slate-950">{source}</p></div>
+  </div>
+  <div className="flex flex-wrap items-center gap-2">
+   <div className="relative min-w-[180px] flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder={`Search ${titleCase(section).toLowerCase()} records...`} className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-blue-600"/></div>
+   {definition?.endpoint&&<button type="button" onClick={()=>setRefresh(value=>value+1)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"><RefreshCw className={`h-4 w-4 ${loading?'animate-spin':''}`}/>Refresh</button>}
+   {definition?.links.map(([label,href])=><Link key={label} to={href} className="inline-flex h-10 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-semibold text-blue-800 hover:bg-blue-100">{label}<ExternalLink className="h-3.5 w-3.5"/></Link>)}
+  </div>
+  {loading&&<p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">Loading verified records…</p>}
+  {error&&<p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
+  <div className="overflow-x-auto rounded-xl border border-slate-200">
+   <table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr>{columns.map(column=><th key={column} className="p-3">{titleCase(column)}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={String(row.id||index)} className="border-t border-slate-100">{columns.map(column=><td key={column} className="max-w-[260px] truncate p-3 text-slate-700">{String(row[column]??'—')}</td>)}</tr>)}{!loading&&rows.length===0&&<tr><td colSpan={columns.length} className="p-7 text-center text-sm text-slate-500">{error?'Records could not be loaded.':isConnected?'No records match this view yet.':'No records have been connected to this register yet. No sample records have been invented.'}</td></tr>}</tbody></table>
+  </div>
+  {!definition?.endpoint&&<div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><Database className="mt-0.5 h-4 w-4 shrink-0"/><p><strong>Backend connection required:</strong> This workspace now has its own screen and purpose, but its dedicated save, edit, approval and reporting service is not yet present. I have not stored records in an unrelated register or displayed fabricated data.</p></div>}
+  <div className="flex flex-wrap items-center gap-2 border-t pt-3 text-xs text-slate-500"><FileText className="h-4 w-4"/>This is the {subtab||titleCase(section)} workspace. Its view is kept separate from other tabs.</div>
+ </section>;
+}
