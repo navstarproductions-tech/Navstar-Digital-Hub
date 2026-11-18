@@ -95,6 +95,7 @@ export function AdminPage() {
   const [newLocationOption, setNewLocationOption] = useState('');
   const [newSubLocationOption, setNewSubLocationOption] = useState('');
   const [backendReady, setBackendReady] = useState(false);
+  const [sessionResolved, setSessionResolved] = useState(false);
   const [user, setUser] = useState<PortalUser | null>(null);
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [newUserName, setNewUserName] = useState('');
@@ -183,16 +184,19 @@ export function AdminPage() {
     const loadBackend = async () => {
       try {
         const healthResponse = await fetch('/api/health');
-        if (!healthResponse.ok) return;
+        if (!healthResponse.ok) { if (active) setSessionResolved(true); return; }
         const health = await healthResponse.json() as { databaseConfigured?: boolean };
-        if (!active || !health.databaseConfigured) return;
+        if (!active) return;
+        if (!health.databaseConfigured) { setSessionResolved(true); return; }
         setBackendReady(true);
 
         const sessionResponse = await fetch('/api/auth/me');
-        if (!sessionResponse.ok) return;
+        if (!sessionResponse.ok) { if (active) { setSessionResolved(true); navigate('/login?role=admin', { replace: true }); } return; }
         const session = await sessionResponse.json() as { user?: PortalUser };
-        if (!session.user || !active) return;
+        if (!session.user || !active) { if (active) { setSessionResolved(true); navigate('/login?role=admin', { replace: true }); } return; }
+        if (session.user.role !== 'admin') { setSessionResolved(true); navigate('/portals/' + encodeURIComponent(session.user.role), { replace: true }); return; }
         setUser(session.user);
+        setSessionResolved(true);
 
         const [courseResponse, serviceResponse, overviewResponse, userResponse, enrollmentResponse, cashoutResponse, settingsResponse, mediaResponse] = await Promise.all([
           fetch('/api/courses'), fetch('/api/services'), fetch('/api/admin/overview'), fetch('/api/admin/users'), fetch('/api/enrollments'), fetch('/api/admin/cashouts'), fetch('/api/admin/settings'), fetch('/api/admin/media'),
@@ -257,7 +261,7 @@ export function AdminPage() {
         }
         if (!overviewResponse.ok) setNotice('Live database connected; some dashboard metrics are not available for this role.');
       } catch {
-        if (active) setNotice('Backend connection failed. Check Cloudflare Pages Functions and D1 binding.');
+        if (active) { setSessionResolved(true); setNotice('Backend connection failed. Check Cloudflare Pages Functions and D1 binding.'); }
       }
     };
     void loadBackend();
@@ -653,6 +657,10 @@ export function AdminPage() {
 
   useEffect(() => { if (contentRef.current) contentRef.current.scrollTop = 0; }, [active, settingsTab]);
 
+  if (!sessionResolved) {
+    return <main className="flex min-h-screen items-center justify-center bg-[#080d19] text-white"><div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#171d2b] px-6 py-5"><span className="h-5 w-5 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent"/><span className="text-sm font-semibold">Checking your secure Admin session…</span></div></main>;
+  }
+
   if (!user || user.role !== 'admin') {
     return (
       <main className="flex min-h-[70vh] items-center justify-center bg-slate-950 px-4 py-12">
@@ -667,20 +675,20 @@ export function AdminPage() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-slate-100">
-      <div className={'mx-auto grid h-screen max-w-[1800px] grid-cols-1 grid-rows-[4rem_minmax(0,1fr)] overflow-hidden md:grid-rows-1 ' + (sidebarCollapsed ? 'md:grid-cols-[76px_minmax(0,1fr)]' : 'md:grid-cols-[260px_minmax(0,1fr)]')}>
-        <aside className="sticky top-0 z-40 flex h-16 min-w-0 flex-row border-b bg-slate-950 text-white md:h-screen md:flex-col md:border-b-0 md:border-r">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-3 md:px-5 md:py-5"><div className={sidebarCollapsed ? "md:hidden" : ""}><p className="text-[11px] font-bold uppercase text-emerald-300">NAVSTAR DIGITAL HUB</p><h1 className="mt-1 text-lg font-bold">Administration</h1></div><button type="button" onClick={() => setSidebarCollapsed((value) => !value)} className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-slate-200 transition hover:bg-white/10 hover:text-white md:inline-flex" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</button></div>
+    <main className="h-screen overflow-hidden bg-[#080d19] text-slate-100 navstar-admin">
+      <div className={'mx-auto grid h-screen max-w-[1800px] grid-cols-1 grid-rows-[4rem_minmax(0,1fr)] overflow-hidden md:grid-rows-1 ' + (sidebarCollapsed ? 'md:grid-cols-[76px_minmax(0,1fr)]' : 'md:grid-cols-[250px_minmax(0,1fr)]')}>
+        <aside className="navstar-admin-sidebar sticky top-0 z-40 flex h-16 min-w-0 flex-row border-b border-white/10 bg-[#0b2348] text-white md:h-screen md:flex-col md:border-b-0 md:border-r">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-3 md:px-5 md:py-5"><div className={sidebarCollapsed ? "md:hidden" : "flex items-center gap-3"}><img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub" className="h-10 w-10 rounded-lg bg-white object-contain p-1"/><div><h1 className="text-base font-extrabold">Admin Portal</h1><p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">NAVSTAR DIGITAL HUB</p><p className="text-[9px] text-emerald-300">● Online</p></div></div><button type="button" onClick={() => setSidebarCollapsed((value) => !value)} className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-slate-200 transition hover:bg-white/10 hover:text-white md:inline-flex" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</button></div>
           <nav aria-label="Admin sections" className="flex min-w-0 flex-1 gap-1 overflow-x-auto p-2 md:min-h-0 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:space-y-1 md:p-3">
             {sections.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => { setActive(id); setNotice(''); }} aria-current={active === id ? 'page' : undefined} className={`flex shrink-0 items-center gap-3 px-3 py-2.5 text-left text-sm md:w-full ${active === id ? 'bg-emerald-800 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}><Icon className="h-4 w-4 shrink-0" /><span className={sidebarCollapsed ? "md:hidden" : ""}>{label}</span></button>)}
           </nav>
           <div className="hidden border-t border-white/10 p-4 text-xs leading-5 text-slate-400 md:block">Preview dashboard. Live records and actions require authenticated server access.</div>
         </aside>
 
-        <section ref={contentRef} className="h-full min-h-0 min-w-0 overflow-y-auto px-4 py-6 sm:px-6 lg:px-9">
-          <header className="mb-6 flex flex-col gap-4 border-b pb-5">
+        <section ref={contentRef} className="navstar-admin-content h-full min-h-0 min-w-0 overflow-y-auto px-4 py-4 sm:px-6 lg:px-7">
+          <header className="navstar-admin-topbar mb-5 flex flex-col gap-3 border-b border-white/10 pb-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <div><p className="text-xs font-semibold uppercase text-slate-500">Admin workspace / {title}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{title}</h2></div>
+              <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Wednesday, 18 November 2026 · NAVSTAR DIGITAL HUB</p><h2 className="mt-1 text-xl font-extrabold text-white">Welcome back, {user.name} 👋</h2><p className="mt-1 text-xs text-slate-400">Admin Portal / {title}</p></div>
               <span className={`inline-flex w-fit items-center gap-2 border px-3 py-2 text-xs font-semibold ${backendReady && user ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}><ShieldAlert className="h-4 w-4" />{backendReady && user ? `Connected · ${user.role}` : 'Preview mode · backend not connected'}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -692,9 +700,9 @@ export function AdminPage() {
 
           {notice && <p role="status" className="mb-5 border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">{notice}</p>}
 
-          {active === 'overview' && <div className="space-y-6"><div className="grid gap-px border bg-slate-200 sm:grid-cols-2 xl:grid-cols-4">{[
+          {active === 'overview' && <div className="space-y-5"><div className="navstar-admin-hero mb-5 flex min-h-[138px] items-center justify-between overflow-hidden rounded-2xl border border-blue-400/20 px-6 py-5 sm:px-8"><div className="relative z-10 max-w-xl"><p className="text-[10px] font-extrabold uppercase tracking-[.32em] text-cyan-300">NAVSTAR DIGITAL HUB</p><h3 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">Learn. Create. Innovate. Grow.</h3><p className="mt-2 text-sm font-medium text-blue-100">HOME OF TECHNOCRATS · Fit the Digital Era</p></div><div className="relative z-10 hidden text-right sm:block"><p className="text-xs font-bold uppercase tracking-[.24em] text-white/90">Your digital command centre</p><p className="mt-2 text-xs text-blue-100">Education · Technology · Innovation</p></div></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
             ['Students', String(metrics.students ?? '—'), 'Registered student accounts'], ['Applications', String(metrics.applications ?? applications.length), 'Admissions queue'], ['Courses', String(metrics.courses ?? courses.length), 'Active courses'], ['Services', String(metrics.services ?? services.length), 'Active cyber services'],
-          ].map(([label, value, caption]) => <div key={label} className="bg-white p-5"><p className="text-sm text-slate-500">{label}</p><p className="mt-3 text-xl font-bold text-slate-950">{value}</p><p className="mt-1 text-xs text-slate-500">{caption}</p></div>)}</div><div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]"><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Workspace summary</h3><p className="mt-2 text-sm leading-6 text-slate-600">Use these sections to draft courses and services, preview gallery images, and configure notification preferences. Changes are local previews until server storage and role-based access are connected.</p><div className="mt-5 grid gap-2 sm:grid-cols-2">{sections.slice(1).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActive(id)} className="flex items-center justify-between border p-3 text-left text-sm font-medium hover:bg-slate-50"><span className="flex items-center gap-2"><Icon className="h-4 w-4 text-emerald-800" />{label}</span><span aria-hidden="true">›</span></button>)}</div></section><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Important setup</h3><ul className="mt-3 space-y-3 text-sm leading-6 text-slate-600"><li className="border-l-2 border-amber-500 pl-3">Rotate the Daraja production credentials shared in chat.</li><li className="border-l-2 border-emerald-700 pl-3">Keep all Daraja secrets in server environment variables only.</li><li className="border-l-2 border-emerald-700 pl-3">Protect admin actions with verified staff roles and audit logs.</li></ul></section></div></div>}
+          ].map(([label, value, caption]) => <div key={label} className="navstar-admin-stat rounded-2xl border border-white/10 bg-[#171d2b] p-4"><p className="text-xs font-medium text-slate-400">{label}</p><p className="mt-2 text-2xl font-black text-white">{value}</p><p className="mt-1 text-[11px] text-slate-400">{caption}</p></div>)}</div><div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]"><section className="navstar-admin-panel rounded-2xl border border-white/10 bg-[#171d2b] p-5"><h3 className="font-bold text-slate-950">Workspace summary</h3><p className="mt-2 text-sm leading-6 text-slate-600">Use these sections to draft courses and services, preview gallery images, and configure notification preferences. Changes are local previews until server storage and role-based access are connected.</p><div className="mt-5 grid gap-2 sm:grid-cols-2">{sections.slice(1).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActive(id)} className="flex items-center justify-between border p-3 text-left text-sm font-medium hover:bg-slate-50"><span className="flex items-center gap-2"><Icon className="h-4 w-4 text-emerald-800" />{label}</span><span aria-hidden="true">›</span></button>)}</div></section><section className="navstar-admin-panel rounded-2xl border border-white/10 bg-[#171d2b] p-5"><h3 className="font-bold text-white">Important setup</h3><ul className="mt-3 space-y-3 text-sm leading-6 text-slate-600"><li className="border-l-2 border-amber-500 pl-3">Rotate the Daraja production credentials shared in chat.</li><li className="border-l-2 border-emerald-700 pl-3">Keep all Daraja secrets in server environment variables only.</li><li className="border-l-2 border-emerald-700 pl-3">Protect admin actions with verified staff roles and audit logs.</li></ul></section></div></div>}
 
           {active === 'courses' && <div className="space-y-5"><form onSubmit={editingCourseId ? saveCourse : addCourse} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-3"><div className="space-y-2 sm:col-span-2 xl:col-span-3"><h3 className="font-bold text-slate-950">{editingCourseId ? 'Edit course details' : 'Add a new course'}</h3><p className="text-xs text-slate-500">All fees are whole Kenyan shillings for M-Pesa payment compatibility.</p></div><div className="space-y-2"><Label htmlFor="new-course">Course title</Label><Input id="new-course" value={courseName} onChange={(event) => setCourseName(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="new-course-price">Fee (KSh)</Label><Input id="new-course-price" type="number" min="0" step="1" value={coursePrice} onChange={(event) => setCoursePrice(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-duration">Duration</Label><Input id="course-duration" value={courseDuration} onChange={(event) => setCourseDuration(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-category">Category</Label><select id="course-category" value={courseCategory} onChange={(event) => setCourseCategory(event.target.value as Course['category'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Professional</option><option>Computer School</option><option>Cyber Services</option></select></div><div className="space-y-2"><Label htmlFor="course-image">Course image URL</Label><Input id="course-image" value={courseImage} onChange={(event) => setCourseImage(event.target.value)} placeholder="https://..." /></div><div className="space-y-2"><Label htmlFor="course-level">Course level</Label><select id="course-level" value={courseLevel} onChange={(event) => setCourseLevel(event.target.value as Course['level'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></div><div className="space-y-2 sm:col-span-2 xl:col-span-3"><Label htmlFor="course-description">Course description</Label><textarea id="course-description" value={courseDescription} onChange={(event) => setCourseDescription(event.target.value)} rows={3} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" /></div><div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><Button type="submit" className="bg-emerald-800 hover:bg-emerald-900">{editingCourseId ? <><Save className="mr-2 h-4 w-4" />Save course</> : <><Plus className="mr-2 h-4 w-4" />Add course</>}</Button>{editingCourseId && <Button type="button" variant="outline" onClick={cancelCourseEdit}>Cancel edit</Button>}</div></form><div className="overflow-x-auto border bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Course</th><th className="p-3">Category</th><th className="p-3">Duration</th><th className="p-3">Fee</th><th className="p-3">Actions</th></tr></thead><tbody>{courses.map((course) => <tr key={course.id} className="border-b last:border-0"><td className="p-3 font-semibold text-slate-900">{course.title}<p className="mt-1 max-w-md text-xs font-normal text-slate-500">{course.description}</p></td><td className="p-3">{course.category}</td><td className="p-3">{course.duration}</td><td className="p-3">KSh {course.price.toLocaleString()}</td><td className="p-3"><div className="flex items-center gap-3"><button aria-label={`Edit ${course.title}`} className="text-blue-700 hover:text-blue-900" onClick={() => editCourse(course)}><Pencil className="h-4 w-4" /></button><button aria-label={`Archive ${course.title}`} className="text-slate-500 hover:text-red-700" onClick={() => void removeCourse(course.id)}><Trash2 className="h-4 w-4" /></button></div></td></tr>)}</tbody></table></div></div>}
 
