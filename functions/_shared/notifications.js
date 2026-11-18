@@ -3,7 +3,7 @@ const TEXTSMS_ENDPOINT = 'https://sms.textsms.co.ke/api/services/sendsms/';
 const NAVSTAR_SMS_INTRO = 'Greetings, You are receiving an SMS from Navstar Digital Hub.';
 
 function normalizeKenyanMobile(value) {
-  const digits = String(value || '').replace(/\\D/g, '');
+  const digits = String(value || '').replace(/\D/g, '');
   if (digits.startsWith('254')) return digits;
   if (digits.startsWith('0') && digits.length === 10) return `254${digits.slice(1)}`;
   if (digits.startsWith('7') && digits.length === 9) return `254${digits}`;
@@ -15,12 +15,12 @@ function navstarSmsMessage(message) {
   const body = String(message || '').trim();
   if (!body) return NAVSTAR_SMS_INTRO;
   if (body.toLowerCase().startsWith(NAVSTAR_SMS_INTRO.toLowerCase())) return body;
-  return `${NAVSTAR_SMS_INTRO}\\n\\n${body}`;
+  return `${NAVSTAR_SMS_INTRO}\n\n${body}`;
 }
 
 async function sendTextSms(env, phone, message) {
   const mobile = normalizeKenyanMobile(phone);
-  if (!/^254\\d{9}$/.test(mobile)) {
+  if (!/^254\d{9}$/.test(mobile)) {
     throw new Error('TextSMS rejected notification: recipient must be a valid Kenyan mobile number.');
   }
 
@@ -72,8 +72,16 @@ export async function sendCustomerNotice(env, { email, phone, subject, message }
   }
   if (phone && env.TEXTSMS_API_KEY && env.TEXTSMS_PARTNER_ID) {
     tasks.push(sendTextSms(env, phone, message));
+  } else if (phone) {
+    console.error('TextSMS notification not sent: TEXTSMS_API_KEY or TEXTSMS_PARTNER_ID is not configured.');
   }
-  return Promise.allSettled(tasks);
+  const results = await Promise.allSettled(tasks);
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error('Customer notification delivery failure:', String(result.reason?.message || result.reason));
+    }
+  }
+  return results;
 }
 
 /**
