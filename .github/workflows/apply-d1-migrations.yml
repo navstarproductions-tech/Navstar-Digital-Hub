@@ -1,6 +1,11 @@
 name: Apply Navstar D1 migrations
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-d1-migrations.yml'
+      - 'db/migrations/**'
   workflow_dispatch:
     inputs:
       confirm_production:
@@ -13,7 +18,7 @@ permissions:
 
 jobs:
   migrate:
-    if: ${{ inputs.confirm_production == 'APPLY' }}
+    if: ${{ github.event_name == 'push' || inputs.confirm_production == 'APPLY' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
