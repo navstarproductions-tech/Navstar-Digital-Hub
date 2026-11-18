@@ -27,7 +27,7 @@ export function BootstrapPage() {
   const passwordTypes = passwordRules.filter(Boolean).length;
 
   const passwordValid =
-    password.length >= 6 && passwordTypes >= 3;
+    password.length >= 6 && password.length <= 12 && passwordTypes >= 3;
 
   const passwordStrength =
     !passwordValid
@@ -184,6 +184,7 @@ export function BootstrapPage() {
               type="password"
               autoComplete="new-password"
               minLength={6}
+              maxLength={12}
               required
               value={password}
               onChange={(event) => {
@@ -195,7 +196,7 @@ export function BootstrapPage() {
             <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-xs">
 
               <p className="font-semibold text-slate-700">
-                Minimum 6 characters. Meet at least 3 of these 4 requirements:
+                6–12 characters. Meet at least 3 of these 4 requirements:
               </p>
 
               <p className={passwordRules[0] ? 'text-emerald-700' : 'text-slate-500'}>
@@ -242,6 +243,7 @@ export function BootstrapPage() {
               type="password"
               autoComplete="new-password"
               minLength={6}
+              maxLength={12}
               required
               value={confirmPassword}
               onChange={(event) => {
