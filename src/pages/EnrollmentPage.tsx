@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
+import { GeographyPicker } from '@/components/GeographyPicker';
 
 export function EnrollmentPage() {
   const { id } = useParams();
@@ -18,6 +19,7 @@ export function EnrollmentPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState('');
+  const [geography, setGeography] = useState({ county: '', subCounty: '', ward: '', location: '', subLocation: '' });
 
   useEffect(() => {
     let active = true;
@@ -138,8 +140,13 @@ export function EnrollmentPage() {
             <Card>
               <CardHeader><CardTitle>Address and emergency contact</CardTitle><CardDescription>Use a trusted contact who can be reached if needed.</CardDescription></CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2"><Label htmlFor="county">County *</Label><Input id="county" name="county" autoComplete="address-level1" required /></div>
-                <div className="space-y-2"><Label htmlFor="town">Town or area *</Label><Input id="town" name="town" autoComplete="address-level2" required /></div>
+                <div className="sm:col-span-2"><GeographyPicker {...geography} onChange={setGeography} /></div>
+                <input type="hidden" name="county" value={geography.county} />
+                <input type="hidden" name="subCounty" value={geography.subCounty} />
+                <input type="hidden" name="ward" value={geography.ward} />
+                <input type="hidden" name="location" value={geography.location} />
+                <input type="hidden" name="subLocation" value={geography.subLocation} />
+                <input type="hidden" name="town" value={geography.location || geography.ward || geography.subCounty || geography.county} />
                 <div className="space-y-2"><Label htmlFor="address">Postal or physical address</Label><Input id="address" name="address" autoComplete="street-address" /></div>
                 <div className="space-y-2"><Label htmlFor="emergency-name">Emergency contact name *</Label><Input id="emergency-name" name="emergencyContactName" required /></div>
                 <div className="space-y-2"><Label htmlFor="emergency-phone">Emergency contact phone *</Label><Input id="emergency-phone" name="emergencyContactPhone" inputMode="tel" required /></div>
