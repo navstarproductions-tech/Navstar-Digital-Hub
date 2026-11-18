@@ -112,7 +112,7 @@ export function LoginPage() {
       <img src={loginBackgrounds[role] || loginBackgrounds.student} alt="" aria-hidden="true" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-45" />
       <div className="absolute inset-0 -z-10 bg-gradient-to-br from-[#061329]/65 via-[#071b38]/55 to-[#041024]/75" />
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_12%_12%,rgba(20,120,230,.28),transparent_42%),radial-gradient(ellipse_at_90%_90%,rgba(4,190,210,.2),transparent_40%)]" />
-      <div className="mx-auto grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-2xl border border-white/20 bg-[#101d31]/95 shadow-2xl shadow-black/50 backdrop-blur-md sm:grid-cols-2">
+      <div className="navstar-login-orbit relative mx-auto w-full max-w-5xl"><span className="navstar-login-bubble navstar-bubble-one" aria-hidden="true" /><span className="navstar-login-bubble navstar-bubble-two" aria-hidden="true" /><span className="navstar-login-bubble navstar-bubble-three" aria-hidden="true" /><span className="navstar-login-star navstar-star-one" aria-hidden="true">✦</span><span className="navstar-login-star navstar-star-two" aria-hidden="true">✧</span><span className="navstar-login-star navstar-star-three" aria-hidden="true">✦</span><span className="navstar-login-triangle navstar-triangle-one" aria-hidden="true" /><span className="navstar-login-triangle navstar-triangle-two" aria-hidden="true" /><div className="navstar-login-card relative z-10 grid w-full grid-cols-1 overflow-hidden rounded-2xl border border-white/25 bg-[#101d31]/95 shadow-2xl shadow-black/50 backdrop-blur-md sm:grid-cols-2">
         <aside className={`relative order-1 flex min-h-[210px] flex-col justify-between overflow-hidden bg-[#071b40] p-5 text-white sm:min-h-[360px] sm:p-6 ${staffPreview ? 'sm:order-2' : 'sm:order-1'}`}>
           <img src={loginBackgrounds[role] || loginBackgrounds.student} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover opacity-75" />
           <div className="absolute inset-0 bg-gradient-to-br from-[#061127]/55 via-[#0a2a55]/45 to-[#061127]/65" />
@@ -131,7 +131,7 @@ export function LoginPage() {
           <Link to="/" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300 transition hover:text-cyan-200"><ArrowLeft className="h-3.5 w-3.5" /> Back to Navstar</Link>
           <div className="mt-3 flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20 text-cyan-200"><LockKeyhole className="h-4 w-4" /></div>
-            <div><p className="text-[10px] font-extrabold uppercase tracking-[.18em] text-cyan-200">Secure sign in</p><h1 className="text-lg font-extrabold tracking-tight text-white">Welcome back</h1></div>
+            <div><p className="text-[10px] font-extrabold uppercase tracking-[.18em] text-cyan-200">Secure sign in</p><h1 className="text-lg font-extrabold tracking-tight text-white">Welcome back to {roleLabel} Portal</h1></div>
           </div>
           <p className="mt-1 text-xs leading-5 text-slate-300">Enter your details to access the selected portal.</p>
 
@@ -174,6 +174,7 @@ export function LoginPage() {
           {role === 'admin' && <Link to="/admin-reset" className="mt-4 inline-flex text-sm font-semibold text-cyan-300 hover:text-white">Forgot Admin details? Recover using email OTP</Link>}
           <p className="mt-4 text-center text-[10px] text-slate-400">© Navstar Digital Hub · HOME OF TECHNOCRATS</p>
         </section>
+        </div>
       </div>
     </main>
   );
