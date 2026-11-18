@@ -22,11 +22,12 @@ export async function onRequestPost({ request, env }) {
   const recent = await env.DB.prepare("SELECT COUNT(*) AS total FROM enrollment_application_otps WHERE email = ? AND julianday(created_at) > julianday('now', '-1 hour')").bind(email).first();
   if (Number(recent?.total || 0) >= 5) return error('This email has reached the verification limit. Please contact Admissions.', 429);
 
-  const otp = makeCode();
+  const emailOtp = makeCode();
+  const smsOtp = makeCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   await env.DB.prepare("UPDATE enrollment_application_otps SET consumed_at = datetime('now') WHERE email = ? AND phone = ? AND consumed_at IS NULL").bind(email, phone).run();
-  await env.DB.prepare('INSERT INTO enrollment_application_otps (id,email,phone,otp_hash,expires_at) VALUES (?,?,?,?,?)')
-    .bind(uuid(), email, phone, await digest(otp), expiresAt).run();
+  await env.DB.prepare('INSERT INTO enrollment_application_otps (id,email,phone,otp_hash,sms_otp_hash,expires_at) VALUES (?,?,?,?,?,?)')
+    .bind(uuid(), email, phone, await digest(emailOtp), await digest(smsOtp), expiresAt).run();
 
   const safeEmail = email.replace(/[&<>"']/g, '');
   const mail = fetch('https://api.resend.com/emails', {
@@ -36,11 +37,11 @@ export async function onRequestPost({ request, env }) {
       from: env.MAIL_FROM,
       to: [email],
       subject: 'Verify your Navstar Digital Hub application',
-      text: `Hello applicant, your Navstar Digital Hub application verification code is ${otp}. It expires in 10 minutes and can only be used once. If you did not request this code, ignore this message.`,
-      html: `<div style="font-family:Arial,sans-serif;background:#f1f5f9;padding:28px"><div style="max-width:560px;margin:auto;background:#fff;border-radius:16px;overflow:hidden"><header style="background:#071a38;color:white;padding:24px"><b style="color:#fbbf24">HOME OF TECHNOCRATS</b><h1>Verify your application</h1><p>NAVSTAR DIGITAL HUB</p></header><main style="padding:26px;color:#0f172a"><p>Hello ${safeEmail},</p><p>Use this one-time code to verify your email and phone before submitting your application.</p><div style="font-size:34px;letter-spacing:10px;font-weight:bold;color:#1d4ed8;padding:16px 0">${otp}</div><p>This code expires in 10 minutes. Navstar will never ask you to share it with another person.</p></main></div></div>`
+      text: `Hello applicant, your Navstar Digital Hub application verification code is ${emailOtp}. It expires in 10 minutes and can only be used once. If you did not request this code, ignore this message.`,
+      html: `<div style="font-family:Arial,sans-serif;background:#f1f5f9;padding:28px"><div style="max-width:560px;margin:auto;background:#fff;border-radius:16px;overflow:hidden"><header style="background:#071a38;color:white;padding:24px"><b style="color:#fbbf24">HOME OF TECHNOCRATS</b><h1>Verify your application</h1><p>NAVSTAR DIGITAL HUB</p></header><main style="padding:26px;color:#0f172a"><p>Hello ${safeEmail},</p><p>Use this one-time code to verify your email and phone before submitting your application.</p><div style="font-size:34px;letter-spacing:10px;font-weight:bold;color:#1d4ed8;padding:16px 0">${emailOtp}</div><p>This code expires in 10 minutes. Navstar will never ask you to share it with another person.</p></main></div></div>`
     })
   });
-  const smsBody = new URLSearchParams({ username: env.AT_USERNAME, to: phone.startsWith('+') ? phone : '+' + phone, message: `Navstar Digital Hub application verification code: ${otp}. Expires in 10 minutes. Do not share this code.` });
+  const smsBody = new URLSearchParams({ username: env.AT_USERNAME, to: phone.startsWith('+') ? phone : '+' + phone, message: `Navstar Digital Hub SMS verification code: ${smsOtp}. Expires in 10 minutes. Do not share this code.` });
   if (env.AT_SENDER_ID) smsBody.set('from', env.AT_SENDER_ID);
   const sms = fetch('https://api.africastalking.com/version1/messaging', {
     method: 'POST',
@@ -51,7 +52,7 @@ export async function onRequestPost({ request, env }) {
   const mailOk = mailResult.status === 'fulfilled' && mailResult.value.ok;
   const smsOk = smsResult.status === 'fulfilled' && smsResult.value.ok;
   if (!mailOk || !smsOk) {
-    await env.DB.prepare("UPDATE enrollment_application_otps SET consumed_at = datetime('now') WHERE email = ? AND phone = ? AND otp_hash = ?").bind(email, phone, await digest(otp)).run();
+    await env.DB.prepare("UPDATE enrollment_application_otps SET consumed_at = datetime('now') WHERE email = ? AND phone = ? AND otp_hash = ?").bind(email, phone, await digest(emailOtp)).run();
     console.error('Applicant OTP delivery failed', { email: mailOk, sms: smsOk });
     return error('We could not deliver the verification code to both your email and phone. Check your details or contact Navstar Admissions.', 502);
   }
