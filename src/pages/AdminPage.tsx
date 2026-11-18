@@ -579,8 +579,8 @@ export function AdminPage() {
     const payload = {
       name: String(form.get('name') ?? ''), role: String(form.get('role') ?? ''),
       nationalId: String(form.get('nationalId') ?? ''), phone: String(form.get('phone') ?? ''),
-      citizenship: String(form.get('citizenship') ?? ''), country: String(form.get('country') ?? 'Kenya'),
-      county: String(form.get('county') ?? ''), subCounty: String(form.get('subCounty') ?? ''),
+      citizenship: String(form.get('citizenship') ?? ''), country: 'Kenya',
+      county: editingGeo.county, subCounty: editingGeo.subCounty, constituency: editingGeo.subCounty, ward: editingGeo.ward,
       department: String(form.get('department') ?? ''), jobTitle: String(form.get('jobTitle') ?? ''),
       employmentType: String(form.get('employmentType') ?? ''), joinedOn: String(form.get('joinedOn') ?? ''),
     };
