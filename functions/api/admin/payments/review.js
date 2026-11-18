@@ -12,9 +12,11 @@ export async function onRequestPost({ request, env }) {
   if (!payment) return error('Payment not found.', 404);
   if (payment.status !== 'paid') return error('Only Safaricom-confirmed payments can be reviewed.', 409);
   const now = new Date().toISOString();
-  await env.DB.batch([
+  const statements = [
     env.DB.prepare('UPDATE payments SET admin_status=?,admin_reviewed_by=?,admin_reviewed_at=?,admin_review_note=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(decision,access.user.id,now,note||null,paymentId),
     env.DB.prepare("INSERT INTO audit_logs (id,actor_id,action,entity_type,entity_id) VALUES (?,? ,?,'payment',?)").bind(uuid(),access.user.id,'payment_'+decision,paymentId)
-  ]);
+  ];
+  if (payment.purpose === 'donation') statements.push(env.DB.prepare('UPDATE donations SET admin_status=?,admin_reviewed_by=?,admin_reviewed_at=?,admin_review_note=? WHERE id=?').bind(decision,access.user.id,now,note||null,payment.reference_id));
+  await env.DB.batch(statements);
   return json({success:true,adminStatus:decision,reviewedAt:now});
 }
