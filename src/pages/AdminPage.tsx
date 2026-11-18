@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound } from 'lucide-react';
+import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,6 +61,8 @@ export function AdminPage() {
   const [profileLoadError, setProfileLoadError] = useState('');
   const [profileLoadWarning, setProfileLoadWarning] = useState('');
   const [profileReload, setProfileReload] = useState(0);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const contentRef = useRef<HTMLElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
@@ -280,7 +282,7 @@ export function AdminPage() {
       setProfileSystemDetails(result.profile);
       setProfileLoadError('');
       setProfileLoadWarning(result.warning || '');
-      setAdminStaffId(String(result.profile.staffId ?? ''));
+      setAdminStaffId(String(result.profile.staffId ?? '').replace(/^AD-/, 'AD'));
       const next: Record<string, string> = {};
       Object.keys(adminProfile).forEach(key => { next[key] = String(result.profile?.[key] ?? ''); });
       setAdminProfile(next);
@@ -290,19 +292,28 @@ export function AdminPage() {
 
   const saveAdminProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const response = await fetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...adminProfile, staffId: adminStaffId }) });
-    const result = await response.json() as { error?: string; warning?: string; profile?: Record<string, unknown> };
-    if (!response.ok || !result.profile) { setNotice(result.error || 'Profile could not be saved.'); return; }
-    const saved = result.profile;
-    setProfileSystemDetails(saved);
-    setProfileLoadWarning(result.warning || '');
-    setAdminProfile(current => ({ ...current, ...Object.fromEntries(Object.keys(current).map(key => [key, String(saved[key] ?? current[key] ?? '')])) }));
-    setProfileLoaded(true);
-    if (saved.staffId) {
-      setAdminStaffId(String(saved.staffId));
-      setUser(current => current ? { ...current, staffId: String(saved.staffId) } : current);
+    if (profileSaving) return;
+    setProfileSaving(true);
+    try {
+      const response = await fetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...adminProfile, staffId: adminStaffId.replace(/^AD-/, 'AD') }) });
+      const result = await response.json() as { error?: string; warning?: string; profile?: Record<string, unknown> };
+      if (!response.ok || !result.profile) throw new Error(result.error || 'Profile could not be saved.');
+      const saved = result.profile;
+      setProfileSystemDetails(saved);
+      setProfileLoadWarning(result.warning || '');
+      setAdminProfile(current => ({ ...current, ...Object.fromEntries(Object.keys(current).map(key => [key, String(saved[key] ?? current[key] ?? '')])) }));
+      setProfileLoaded(true);
+      if (saved.staffId) {
+        const savedStaffId = String(saved.staffId).replace(/^AD-/, 'AD');
+        setAdminStaffId(savedStaffId);
+        setUser(current => current ? { ...current, staffId: savedStaffId } : current);
+      }
+      setNotice('Saved successfully. Your Admin profile and staff ID are stored in the Navstar database and will remain available when you return.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Profile could not be saved. Please try again.');
+    } finally {
+      setProfileSaving(false);
     }
-    setNotice('Your Admin profile and staff ID have been saved successfully.');
   };
 
   const submitLearningAction = async (payload: Record<string, unknown>, success: string) => {
@@ -589,6 +600,8 @@ export function AdminPage() {
 
   const saveSettings = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (settingsSaving) return;
+    setSettingsSaving(true);
     if (!backendReady) {
       setNotice('Settings are shown in this browser preview only; connect the backend and sign in to save site-wide changes.');
       return;
@@ -601,9 +614,11 @@ export function AdminPage() {
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error ?? 'Settings could not be saved.');
-      setNotice('Settings and dropdown directories saved successfully.');
+      setNotice('Saved successfully. Your settings and geography dropdowns are now stored in the Navstar database.');
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Settings could not be saved.');
+      setNotice(error instanceof Error ? error.message : 'Settings could not be saved. Please try again.');
+    } finally {
+      setSettingsSaving(false);
     }
   };
 
@@ -861,7 +876,7 @@ export function AdminPage() {
 <div className="space-y-2 sm:col-span-2 lg:col-span-3"><Label htmlFor="admin-profile-address">Full physical / postal address</Label><Input id="admin-profile-address" value={adminProfile.address || ''} onChange={event => setAdminProfile(current => ({...current,address:event.target.value}))} placeholder="Building, street, estate or village, town"/></div>
                 <div className="sm:col-span-2 lg:col-span-3"><GeographyPicker county={adminProfile.county || ''} subCounty={adminProfile.subCounty || ''} ward={adminProfile.ward || ''} location={adminProfile.location || ''} subLocation={adminProfile.subLocation || ''} locations={locationOptions} subLocations={subLocationOptions} onChange={geo => setAdminProfile(current => ({...current,country:'Kenya',county:geo.county,subCounty:geo.subCounty,ward:geo.ward,location:geo.location,subLocation:geo.subLocation,constituency:geo.subCounty,province:''}))}/></div>
               </div>}
-              <div className="flex justify-end"><Button type="submit" disabled={!backendReady || user?.role !== 'admin' || !/^AD[0-9]{5}$/.test(adminStaffId)}><Save className="mr-2 h-4 w-4"/>Save My Profile and Staff ID</Button></div>
+              <div className="flex justify-end"><Button type="submit" disabled={!backendReady || user?.role !== 'admin' || profileSaving || !/^AD[0-9]{5}$/.test(adminStaffId.replace(/^AD-/, 'AD'))}>{profileSaving ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Saving your profile…</> : <><Save className="mr-2 h-4 w-4"/>Save My Profile and Staff ID</>}</Button></div>
             </form>}
 
             {settingsTab === 'geography' && <form onSubmit={saveSettings} className="max-w-4xl space-y-5 rounded-2xl border bg-white p-5">
@@ -870,7 +885,7 @@ export function AdminPage() {
                 <div className="space-y-3"><Label>Locations available in the system</Label><div className="flex gap-2"><Input value={newLocationOption} onChange={event=>setNewLocationOption(event.target.value)} placeholder="Add location name"/><Button type="button" variant="outline" disabled={!newLocationOption.trim()} onClick={()=>{setLocationOptions(current=>Array.from(new Set([...current,newLocationOption.trim()])).sort());setNewLocationOption('');}}>Add</Button></div><div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-3">{locationOptions.map(value=><div key={value} className="flex items-center justify-between gap-2 text-sm"><span>{value}</span><button type="button" onClick={()=>setLocationOptions(current=>current.filter(item=>item!==value))} className="text-xs font-semibold text-rose-700">Remove</button></div>)}{locationOptions.length===0&&<p className="text-xs text-slate-500">No local locations have been configured yet.</p>}</div></div>
                 <div className="space-y-3"><Label>Sub-locations available in the system</Label><div className="flex gap-2"><Input value={newSubLocationOption} onChange={event=>setNewSubLocationOption(event.target.value)} placeholder="Add sub-location name"/><Button type="button" variant="outline" disabled={!newSubLocationOption.trim()} onClick={()=>{setSubLocationOptions(current=>Array.from(new Set([...current,newSubLocationOption.trim()])).sort());setNewSubLocationOption('');}}>Add</Button></div><div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-3">{subLocationOptions.map(value=><div key={value} className="flex items-center justify-between gap-2 text-sm"><span>{value}</span><button type="button" onClick={()=>setSubLocationOptions(current=>current.filter(item=>item!==value))} className="text-xs font-semibold text-rose-700">Remove</button></div>)}{subLocationOptions.length===0&&<p className="text-xs text-slate-500">No sub-locations have been configured yet.</p>}</div></div>
               </div>
-              <Button type="submit" disabled={!backendReady || user?.role !== 'admin'}><Save className="mr-2 h-4 w-4"/>Save geography directories</Button>
+              <Button type="submit" disabled={!backendReady || user?.role !== 'admin' || settingsSaving}>{settingsSaving ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Saving directories…</> : <><Save className="mr-2 h-4 w-4"/>Save geography directories</>}</Button>
             </form>}
 
             {settingsTab === 'staff-ids' && <section className="max-w-3xl space-y-4 rounded-2xl border bg-white p-5">
