@@ -41,7 +41,7 @@ export function LoginPage() {
       const result = await response.json() as { user?: { role?: string; mustChangePassword?: boolean } };
       const signedInRole = result.user?.role;
       if (!active || !signedInRole || !allowedRoles.includes(signedInRole)) return;
-      const destination = result.user?.mustChangePassword ? '/change-password' : signedInRole === 'admin' ? '/admin' : `/portals/${signedInRole}`;
+      const destination = result.user?.mustChangePassword ? '/change-password' : signedInRole === 'admin' ? '/admin' : signedInRole === 'student' ? '/student-portal' : `/portals/${signedInRole}`;
       navigate(destination, { replace: true });
     }).catch(() => undefined);
     return () => { active = false; };
@@ -58,7 +58,7 @@ export function LoginPage() {
       });
       const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Sign-in could not be completed. Check your details or contact Navstar.');
-      navigate(result.user.mustChangePassword ? '/change-password' : '/portals/student', { replace: true });
+      navigate(result.user.mustChangePassword ? '/change-password' : '/student-portal', { replace: true });
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Sign-in could not be completed.'); }
     finally { setLoading(false); }
   };
@@ -71,7 +71,7 @@ export function LoginPage() {
       const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role, email: formData.get('email'), password: formData.get('password') }) });
       const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
       if (!result.user) throw new Error(result.error || 'Sign-in could not be completed.');
-      navigate(result.user.mustChangePassword ? '/change-password' : result.user.role === 'admin' ? '/admin' : `/portals/${result.user.role}`, { replace: true });
+      navigate(result.user.mustChangePassword ? '/change-password' : result.user.role === 'admin' ? '/admin' : result.user.role === 'student' ? '/student-portal' : `/portals/${result.user.role}`, { replace: true });
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Sign-in could not be completed.'); }
     finally { setLoading(false); }
   };
@@ -139,7 +139,7 @@ export function LoginPage() {
             <form onSubmit={signInStudent} className="mt-4 space-y-3">
               <div className="space-y-2"><Label htmlFor="email" className="font-bold text-slate-200">Student email address</Label><Input id="email" name="email" type="email" autoComplete="username" placeholder="you@example.com" required className="h-12 rounded-xl border-slate-600 bg-[#0b1425] text-white placeholder:text-slate-500" /></div>
               <div className="space-y-2"><Label htmlFor="password" className="font-bold text-slate-200">Password</Label><div className="relative"><Input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Enter your password" required className="h-12 rounded-xl border-slate-600 bg-[#0b1425] pr-12 text-white placeholder:text-slate-500" /><button type="button" onClick={() => setShowPassword(value => !value)} className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-cyan-300" aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
-              <Button type="submit" disabled={loading} className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 font-bold">{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Signing in…</> : 'Sign in to Student Gateway'}</Button>
+              <Button type="submit" disabled={loading} className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 font-bold">{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Signing in…</> : 'Sign in to Student Portal'}</Button>
             </form>
           ) : useEmailLogin ? (
             <form onSubmit={signInWithEmail} className="mt-3 space-y-3">
@@ -171,6 +171,7 @@ export function LoginPage() {
           )}
           {status && <div role="alert" className="mt-3 rounded-lg border border-rose-400/40 bg-rose-500/15 p-2.5 text-xs leading-5 text-rose-50"><p>{status}</p>{/no national id is saved/i.test(status) && isStaff && <div className="mt-3 rounded-lg border border-cyan-300/20 bg-cyan-400/5 p-3"><p className="text-xs text-cyan-100">The administrator can add the missing National ID under Admin Portal → System Users → Edit account. You can use your registered email and password while that is being updated.</p><button type="button" onClick={() => { setUseEmailLogin(true); setStatus(''); setStaffPreview(null); setNationalId(''); }} className="mt-3 inline-flex min-h-9 items-center justify-center rounded-lg bg-cyan-500 px-4 py-2 text-xs font-extrabold text-slate-950 hover:bg-cyan-300">Continue with email and password</button></div>}</div>}
           <p className="mt-3 flex items-start gap-2 rounded-lg bg-white/5 p-2.5 text-[11px] leading-4 text-slate-300"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />{isStaff ? 'Your National ID is used only to confirm your identity and is never displayed on this screen.' : 'Student accounts use email and password. Never share your password or M-Pesa PIN.'}</p>
+          {role === 'student' && <Link to="/student-recovery" className="mt-4 inline-flex text-sm font-semibold text-cyan-300 hover:text-white">Forgot password? Reset using email OTP</Link>}
           {role === 'admin' && <Link to="/admin-reset" className="mt-4 inline-flex text-sm font-semibold text-cyan-300 hover:text-white">Forgot Admin details? Recover using email OTP</Link>}
           <p className="mt-4 text-center text-[10px] text-slate-400">© Navstar Digital Hub · HOME OF TECHNOCRATS</p>
         </section>
