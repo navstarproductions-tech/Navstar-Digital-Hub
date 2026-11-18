@@ -14,7 +14,7 @@ const navigation = [
   { label: 'Admission Letters', to: '/admissions-letters' },
   { label: 'Analytics', to: '/analytics' },
   { label: 'Donate', to: '#donate' },
-  { label: 'Student Gateway', to: '/portals' },
+  { label: 'Student Gateway', to: '/login?role=student' },
 ];
 
 const contactTicker = [
