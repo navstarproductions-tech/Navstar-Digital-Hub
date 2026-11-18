@@ -15,7 +15,7 @@ import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTION
 
 type Section = string;
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
-type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string; nationalId?: string; phone?: string; dateOfBirth?: string; gender?: string; citizenship?: string; county?: string; subCounty?: string; ward?: string; location?: string; subLocation?: string; address?: string; department?: string; jobTitle?: string; employmentType?: string; joinedOn?: string };
+type PortalUser = { id: string; name: string; email: string; role: string; status: string; profilePhotoUrl?: string | null; staffId?: string; nationalId?: string; phone?: string; dateOfBirth?: string; gender?: string; citizenship?: string; county?: string; subCounty?: string; ward?: string; location?: string; subLocation?: string; address?: string; department?: string; jobTitle?: string; employmentType?: string; joinedOn?: string };
 type LearningSubmission = { id: string; learner_name: string; response_text: string; attachment_url?: string | null; status: string; points_awarded?: number | null; feedback?: string | null; submitted_at: string };
 type LearningAssignment = { id: string; title: string; instructions: string; due_at?: string | null; max_points: number; status: string; submissions?: LearningSubmission[] };
 type LearningModule = { id: string; title: string; description: string; status: string; lessons: { id: string; title: string; content: string; status: string; estimated_minutes: number }[] };
@@ -199,6 +199,9 @@ export function AdminPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const contentRef = useRef<HTMLElement | null>(null);
+  const adminPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const [adminPhotoUrl, setAdminPhotoUrl] = useState<string | null>(null);
+  const [adminPhotoUploading, setAdminPhotoUploading] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [services, setServices] = useState(initialServices);
@@ -435,6 +438,7 @@ export function AdminPage() {
       const result = await response.json() as { profile?: Record<string, unknown>; error?: string; warning?: string };
       if (!response.ok || !result.profile) { setProfileLoadError(result.error || 'Your existing profile details could not be loaded. Please retry or contact Navstar support.'); return; }
       setProfileSystemDetails(result.profile);
+      setAdminPhotoUrl(String(result.profile.profilePhotoUrl ?? result.profile.profile_photo_url ?? '') || null);
       setProfileLoadError('');
       setProfileLoadWarning(result.warning || '');
       setAdminStaffId(String(result.profile.staffId ?? '').replace(/^AD-/, 'AD'));
@@ -1016,6 +1020,23 @@ export function AdminPage() {
     );
   }
 
+  const uploadAdminProfilePhoto = async (file?: File) => {
+    if (!file) return;
+    if (!['image/jpeg','image/png','image/webp','image/avif'].includes(file.type)) { setNotice('Choose a JPG, PNG, WebP or AVIF profile photo.'); return; }
+    if (file.size > 3 * 1024 * 1024) { setNotice('Profile photo must be 3 MB or smaller.'); return; }
+    setAdminPhotoUploading(true); setNotice('');
+    try {
+      const body = new FormData(); body.append('file', file);
+      const response = await fetch('/api/account/profile-photo', { method: 'POST', body });
+      const result = await readApiResponse<{ profilePhotoUrl?: string; error?: string }>(response);
+      if (!response.ok || !result.profilePhotoUrl) throw new Error(result.error || 'Profile photo could not be saved.');
+      setAdminPhotoUrl(result.profilePhotoUrl);
+      setUser(current => current ? { ...current, profilePhotoUrl: result.profilePhotoUrl } : current);
+      setNotice('Your Admin profile picture has been saved successfully.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Profile photo could not be saved.'); }
+    finally { setAdminPhotoUploading(false); if (adminPhotoInputRef.current) adminPhotoInputRef.current.value = ''; }
+  };
+
   return (
     <main className="h-screen overflow-hidden bg-[#080d19] text-slate-100 navstar-admin">
       <div className={'mx-auto grid h-screen max-w-[1800px] grid-cols-1 grid-rows-[4rem_minmax(0,1fr)] overflow-hidden md:grid-rows-1 ' + (sidebarCollapsed ? 'md:grid-cols-[76px_minmax(0,1fr)]' : 'md:grid-cols-[250px_minmax(0,1fr)]')}>
@@ -1065,6 +1086,11 @@ export function AdminPage() {
               <input aria-label="Search admin sections" placeholder="Search students, courses, fees..." className="w-full min-w-0 bg-transparent text-xs text-white outline-none placeholder:text-slate-500" onKeyDown={event=>{if(event.key==='Enter'){const q=event.currentTarget.value.trim().toLowerCase();const match=sections.find(item=>item.label.toLowerCase().includes(q));if(match){setExpandedSection(match.id);setActive(match.id);setSelectedSubtab('');setNotice('');}}}}/>
             </div>
             <button type="button" onClick={()=>window.location.reload()} title="Refresh workspace" aria-label="Refresh workspace" className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white sm:inline-flex"><RefreshCw className="h-4 w-4"/></button>
+            <input ref={adminPhotoInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="hidden" onChange={event=>void uploadAdminProfilePhoto(event.target.files?.[0])}/>
+            <button type="button" onClick={()=>adminPhotoInputRef.current?.click()} title="Upload or change Admin profile picture" aria-label="Upload Admin profile picture" disabled={adminPhotoUploading} className="group relative inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-cyan-300/70 bg-slate-800 text-cyan-200 shadow-lg shadow-cyan-950/30 hover:border-amber-300 disabled:opacity-60">
+              {adminPhotoUrl ? <img src={adminPhotoUrl} alt="Admin profile" className="h-full w-full object-cover"/> : <UserRound className="h-5 w-5"/>}
+              <span className="absolute inset-0 hidden items-center justify-center bg-black/60 text-white group-hover:flex"><ImagePlus className="h-4 w-4"/></span>
+            </button>
             <div className="relative">
               <button type="button" onClick={()=>{const next=!notificationOpen;setNotificationOpen(next);if(next)void loadAdminNotifications();}} title="Notifications" aria-label="Notifications" aria-expanded={notificationOpen} className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white"><Bell className="h-4 w-4"/>{adminNotifications.some(item=>!item.read_at)&&<span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-400"/>}</button>
               {notificationOpen&&<div className="absolute right-0 top-full z-50 mt-3 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-700 bg-[#111a2b] shadow-2xl shadow-black/50">

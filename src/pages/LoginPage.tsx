@@ -9,6 +9,15 @@ import { readApiResponse } from '@/lib/api';
 const staffRoles = ['admin', 'tutor', 'admissions', 'principal', 'finance'];
 const allowedRoles = ['student', ...staffRoles];
 type StaffPreview = { name: string; staffId: string; role: string; department: string; jobTitle: string };
+const loginBackgrounds: Record<string, string> = {
+  student: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1400&q=85',
+  admin: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1400&q=85',
+  tutor: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1400&q=85',
+  admissions: 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1400&q=85',
+  principal: 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1400&q=85',
+  finance: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1400&q=85',
+};
+
 
 export function LoginPage() {
   const [searchParams] = useSearchParams();
@@ -104,7 +113,7 @@ export function LoginPage() {
       <div className="absolute inset-0 -z-10 opacity-[.07] [background-image:linear-gradient(rgba(255,255,255,.4)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.4)_1px,transparent_1px)] [background-size:38px_38px]" />
       <div className="mx-auto grid w-full max-w-4xl overflow-hidden rounded-[1.7rem] border border-white/10 bg-[#111a2b] shadow-2xl shadow-black/40 lg:grid-cols-[.92fr_1.08fr]">
         <aside className="relative hidden min-h-[560px] flex-col justify-between overflow-hidden bg-[#071b40] p-7 text-white lg:flex">
-          <img src="/gebeya.webp" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
+          <img src={loginBackgrounds[role] || loginBackgrounds.student} alt="" className="absolute inset-0 h-full w-full object-cover opacity-45" />
           <div className="absolute inset-0 bg-gradient-to-br from-[#061127]/95 via-[#0a2a55]/75 to-[#061127]/95" />
           <div className="relative">
             <img src="/Navstar_Official_Logo.jpg" alt="Official Navstar Digital Hub logo" className="mb-7 h-24 w-40 object-contain object-left" />
