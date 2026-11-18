@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, LoaderCircle, Smartphone, Wallet } from 'lucide-react';
 
@@ -32,7 +33,7 @@ export function PayPage() {
     if(item){setDescription(item.name);if(item.priceAmount)setAmount(String(item.priceAmount));}
   };
 
-  const submit=async(event:React.FormEvent<HTMLFormElement>)=>{
+  const submit=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
     const value=Number(amount);
     if(!customerName.trim()||!phone.trim()||!description.trim()||!Number.isSafeInteger(value)||value<1||value>150000){setMessage('Enter your name, valid M-Pesa phone, description and amount (KSh 1–150,000).');return;}
