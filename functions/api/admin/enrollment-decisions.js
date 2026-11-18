@@ -67,12 +67,13 @@ export async function onRequestPost(context) {
     return json({ saved: true, action, status });
   }
 
+  if (!env.RESEND_API_KEY || !env.MAIL_FROM) return error('Admissions email is not configured. Configure RESEND_API_KEY and MAIL_FROM before accepting applications.', 503);
   if (!['paid','deferred'].includes(String(enrollment.payment_status)) && !Number(enrollment.special_enrollment)) {
     return error('The application must have its required payment confirmed or an authorised payment exception recorded before acceptance.', 409);
   }
   let user = await env.DB.prepare(`SELECT id, name, email, role, status FROM users WHERE lower(email) = lower(?) LIMIT 1`).bind(enrollment.email).first();
-  let setupUrl = '';
   if (user && user.role !== 'student') return error('This email is already assigned to a non-student Navstar account. Admissions must resolve the account ownership before admission.', 409);
+  const needsPasswordSetup = !user || user.status !== 'active';
   if (!user) {
     const id = uuid();
     const generated = await hashPassword(strongRandomPassword());
@@ -80,23 +81,41 @@ export async function onRequestPost(context) {
       VALUES (?,?,?,?,?,'student','active',1)`).bind(id, enrollment.full_name, enrollment.email, generated.hash, generated.salt).run();
     user = { id, name: enrollment.full_name, email: enrollment.email, role: 'student', status: 'active' };
   } else if (user.status !== 'active') {
-    await env.DB.prepare("UPDATE users SET status = 'active', must_change_password = 1 WHERE id = ?").bind(user.id).run();
+    const generated = await hashPassword(strongRandomPassword());
+    await env.DB.prepare("UPDATE users SET password_hash = ?, password_salt = ?, status = 'active', must_change_password = 1 WHERE id = ?")
+      .bind(generated.hash, generated.salt, user.id).run();
+    await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
   }
-  const token = randomToken();
-  await env.DB.prepare('INSERT INTO student_password_setup_tokens (id,user_id,token_hash,expires_at) VALUES (?,?,?,?)')
-    .bind(uuid(), user.id, await digest(token), new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()).run();
-  setupUrl = new URL('/set-password?token=' + encodeURIComponent(token), new URL(request.url).origin).toString();
+
+  let setupUrl = new URL('/login?role=student', new URL(request.url).origin).toString();
+  let passwordSetupSent = false;
+  if (needsPasswordSetup) {
+    const token = randomToken();
+    await env.DB.prepare('INSERT INTO student_password_setup_tokens (id,user_id,token_hash,expires_at) VALUES (?,?,?,?)')
+      .bind(uuid(), user.id, await digest(token), new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()).run();
+    setupUrl = new URL('/set-password?token=' + encodeURIComponent(token), new URL(request.url).origin).toString();
+    passwordSetupSent = true;
+  }
   await env.DB.batch([
     env.DB.prepare("UPDATE enrollments SET status = 'accepted', admitted_user_id = ?, admissions_decision_reason = ? WHERE id = ?")
       .bind(user.id, reason || 'Accepted by Admissions.', enrollmentId),
     env.DB.prepare('INSERT INTO audit_logs (id,actor_id,action,entity_type,entity_id) VALUES (?,?,?,?,?)')
       .bind(uuid(), access.user.id, 'enrollment_accepted', 'enrollment', enrollmentId)
   ]);
-  const schedule = 'Contact Admissions for your confirmed installment dates and account statement.';
+
+  const configRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
+  let configuration = {}; try { configuration = JSON.parse(configRow?.value || '{}'); } catch {}
+  const installmentLines = String(configuration['enrollment-settings']?.installmentPlans || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0] === enrollment.course_id);
+  const schedule = installmentLines.length
+    ? installmentLines.map((parts,index) => `${index+1}. ${parts[1]} — KSh ${Number(parts[2]).toLocaleString('en-KE')}${parts[3] ? ' · Due '+parts[3] : ''}`).join('\n')
+    : 'Contact Admissions / Finance for the approved instalment dates.';
+  const accessInstructions = passwordSetupSent
+    ? `Set your own private password using this one-time link (valid for 24 hours):\n${setupUrl}`
+    : `You already have an active Navstar Student Portal account. Sign in using your existing credentials: ${setupUrl}`;
   queueCustomerNotice(context, env, {
     email: enrollment.email, phone: enrollment.phone,
     subject: 'Admission confirmed — Navstar Digital Hub',
-    message: `NAVSTAR DIGITAL HUB — HOME OF TECHNOCRATS\n\nDear ${enrollment.full_name},\n\nCongratulations. Your application has been accepted.\n\nAPPLICATION DETAILS\nReference: ${enrollment.display_ref}\nCourse: ${enrollment.course_title}\nIntake: ${enrollment.preferred_intake || 'As confirmed by Admissions'}\nAdmission status: ACCEPTED\nPublished course fee: KSh ${Number(enrollment.course_fee).toLocaleString('en-KE')}\nPayment status: ${enrollment.payment_status}\n\nSTUDENT PORTAL ACCESS\nYour student account has been created. Set your own private password using this one-time link (valid for 24 hours):\n${setupUrl}\n\nFor security, no password is included in this email or SMS. Do not forward the setup link.\n\nNEXT STEPS\n1. Open the secure password setup link.\n2. Create a strong password and sign in to the Student Portal.\n3. Review your admission letter, fee statement and course information.\n4. Follow the approved payment schedule or contact Finance if you have an authorised arrangement.\n\nAdmissions decision note: ${reason || 'Accepted by Admissions.'}\n\nNavstar Digital Hub\nHOME OF TECHNOCRATS\nnavstardigitalhub@gmail.com | 0797688576`
+    message: `NAVSTAR DIGITAL HUB — HOME OF TECHNOCRATS\n\nDear ${enrollment.full_name},\n\nCongratulations. Your application has been accepted by Navstar Digital Hub.\n\nAPPLICATION AND ADMISSION DETAILS\nApplication reference: ${enrollment.display_ref}\nApplicant: ${enrollment.full_name}\nCourse: ${enrollment.course_title}\nIntake: ${enrollment.preferred_intake || 'As confirmed by Admissions'}\nAdmission status: ACCEPTED\nPublished course fee: KSh ${Number(enrollment.course_fee).toLocaleString('en-KE')}\nPayment status at admission: ${enrollment.payment_status}\nAdmissions decision: ${reason || 'Accepted by Admissions.'}\n\nCOURSE FEE INSTALMENT PLAN\n${schedule}\n\nSTUDENT PORTAL ACCESS\n${accessInstructions}\n\nFor security, Navstar does not send passwords by email or SMS. Never forward a password setup link or share your password.\n\nYOUR NEXT STEPS\n1. Complete password setup if a one-time setup link was issued.\n2. Sign in to the Student Portal and confirm your personal details.\n3. Review your course information, admission letter and fee statement.\n4. Follow the approved instalment plan or contact Finance before a due date if you need assistance.\n5. Keep your application reference for all enquiries.\n\nAdmissions Office\nNAVSTAR DIGITAL HUB\nHOME OF TECHNOCRATS\nnavstardigitalhub@gmail.com | 0797688576`
   });
-  return json({ saved: true, action, status: 'accepted', userCreated: true, passwordSetupSent: true });
+  return json({ saved: true, action, status: 'accepted', userCreated: true, passwordSetupSent });
 }
