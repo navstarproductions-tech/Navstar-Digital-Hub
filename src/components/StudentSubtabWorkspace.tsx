@@ -6,7 +6,7 @@ import type { Course } from '@/types';
 
 type StudentAccount = {
   id: string; name: string; email: string; role: string; status: string;
-  staffId?: string; phone?: string; dateOfBirth?: string; county?: string;
+  staffId?: string; phone?: string; dateOfBirth?: string; county?: string; subCounty?: string; ward?: string; location?: string; subLocation?: string;
 };
 type ApplicationRow = Record<string, unknown>;
 
