@@ -17,6 +17,8 @@ const portals = [
 type SessionUser = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
 type Enrollment = { id: string; full_name: string; course_id: string; status: string; payment_status: string; created_at: string };
 type Overview = { students: number; applications: number; verifiedPayments: number; verifiedDonations: number; courses: number; services: number };
+type FinancePayment = { id: string; purpose: string; receipt_number?: string; mpesa_receipt?: string; amount: number; payer_name: string; description: string; status: string; updated_at: string };
+type CashoutRequest = { id: string; reference: string; amount: number; status: string; created_at: string; requested_by: string };
 
 export function PortalsPage() {
   const { role } = useParams();
@@ -25,6 +27,9 @@ export function PortalsPage() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [financeTab, setFinanceTab] = useState<'overview' | 'payments' | 'cashouts' | 'reports'>('overview');
+  const [financePayments, setFinancePayments] = useState<FinancePayment[]>([]);
+  const [financeCashouts, setFinanceCashouts] = useState<CashoutRequest[]>([]);
   const [status, setStatus] = useState('Checking your secure session…');
   const signOut = async () => { await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined); setUser(null); navigate('/login', { replace: true }); };
 
@@ -53,10 +58,22 @@ export function PortalsPage() {
           const result = await response.json() as { enrollments?: Enrollment[] };
           if (response.ok && active) setEnrollments(result.enrollments ?? []);
         }
-        if (['admin', 'principal'].includes(session.user.role)) {
+        if (['admin', 'principal', 'finance'].includes(session.user.role)) {
           const response = await fetch('/api/admin/overview');
           const result = await response.json() as Overview;
           if (response.ok && active) setOverview(result);
+        }
+        if (session.user.role === 'finance') {
+          const [paymentsResponse, cashoutsResponse] = await Promise.all([
+            fetch('/api/admin/payments'),
+            fetch('/api/admin/cashouts'),
+          ]);
+          const [paymentsResult, cashoutsResult] = await Promise.all([
+            paymentsResponse.json() as Promise<{ payments?: FinancePayment[] }>,
+            cashoutsResponse.json() as Promise<{ requests?: CashoutRequest[] }>,
+          ]);
+          if (active && paymentsResponse.ok) setFinancePayments(paymentsResult.payments ?? []);
+          if (active && cashoutsResponse.ok) setFinanceCashouts(cashoutsResult.requests ?? []);
         }
       } catch {
         if (active) setStatus('The portal service could not be reached. Try again after the backend is connected.');
@@ -126,7 +143,7 @@ export function PortalsPage() {
         </div>
       </section>
       <section className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        {user && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {user && user.role !== 'finance' && <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {(user.role === 'student' ? [
             ['My learning', 'Open your enrolled programmes, complete lessons, track progress and submit assignments.', '/learning', 'Open learning workspace'],
             ['My applications', 'Track submitted applications and enrolment progress.', '/portals/student', 'View applications'],
@@ -150,8 +167,24 @@ export function PortalsPage() {
             ['Documents and downloads', 'Manage the documents published for customers and learners.', '/admin', 'Manage documents'],
           ]).map(([title, detail, href, action]) => <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-blue-700">{selectedPortal.title}</p><h2 className="mt-2 text-lg font-extrabold text-slate-950">{title}</h2><p className="mt-2 min-h-12 text-sm leading-6 text-slate-600">{detail}</p><Link to={href} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-900">{action} <ArrowRight className="h-4 w-4" /></Link></article>)}
         </section>}
+        {user?.role === 'finance' && <section className="space-y-5">
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+            {([['overview','Overview'],['payments','Verified payments'],['cashouts','Cashout requests'],['reports','Reports']] as const).map(([id,label]) => <button key={id} type="button" onClick={() => setFinanceTab(id)} aria-pressed={financeTab === id} className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${financeTab === id ? 'bg-blue-800 text-white shadow' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-800'}`}>{label}</button>)}
+          </div>
+          {financeTab === 'overview' && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ['Verified payments', `KSh ${(overview?.verifiedPayments ?? 0).toLocaleString()}`],
+              ['Verified donations', `KSh ${(overview?.verifiedDonations ?? 0).toLocaleString()}`],
+              ['Payment records', String(financePayments.length)],
+              ['Cashout requests', String(financeCashouts.length)],
+            ].map(([label,value]) => <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-black text-slate-950">{value}</p></article>)}
+          </div>}
+          {financeTab === 'payments' && <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-200 px-5 py-4"><h2 className="font-extrabold text-slate-950">Verified payment records</h2><p className="mt-1 text-sm text-slate-500">Read-only financial records from the Navstar payment register.</p></div><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Payer</th><th className="p-3">Purpose</th><th className="p-3">Receipt</th><th className="p-3">Amount</th><th className="p-3">Date received</th></tr></thead><tbody>{financePayments.map(payment => <tr key={payment.id} className="border-t"><td className="p-3 font-semibold text-slate-900">{payment.payer_name}</td><td className="p-3 text-slate-600">{payment.description}</td><td className="p-3 text-slate-600">{payment.receipt_number || payment.mpesa_receipt || '—'}</td><td className="p-3 font-bold text-slate-900">KSh {Number(payment.amount).toLocaleString()}</td><td className="p-3 text-slate-600">{formatEATDate(payment.updated_at)}</td></tr>)}{financePayments.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-slate-500">No verified payments are available.</td></tr>}</tbody></table></div></div>}
+          {financeTab === 'cashouts' && <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-200 px-5 py-4"><h2 className="font-extrabold text-slate-950">Cashout requests</h2><p className="mt-1 text-sm text-slate-500">View requests and their current approval status. Approval remains restricted to authorised approvers.</p></div><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Reference</th><th className="p-3">Requested by</th><th className="p-3">Amount</th><th className="p-3">Status</th><th className="p-3">Date</th></tr></thead><tbody>{financeCashouts.map(item => <tr key={item.id} className="border-t"><td className="p-3 font-semibold">{item.reference}</td><td className="p-3">{item.requested_by}</td><td className="p-3 font-bold">KSh {Number(item.amount).toLocaleString()}</td><td className="p-3">{item.status}</td><td className="p-3">{formatEATDate(item.created_at)}</td></tr>)}{financeCashouts.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-slate-500">No cashout requests are available.</td></tr>}</tbody></table></div></div>}
+          {financeTab === 'reports' && <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="font-extrabold text-slate-950">Financial report summary</h2><p className="mt-2 text-sm text-slate-500">Summary based on verified records currently available in the system.</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">Verified payments: <strong>KSh {(overview?.verifiedPayments ?? 0).toLocaleString()}</strong></p><p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">Verified donations: <strong>KSh {(overview?.verifiedDonations ?? 0).toLocaleString()}</strong></p></div></div>}
+        </section>}
         {user && overview && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[['Students', overview.students], ['Applications', overview.applications], ['Verified payments', `KSh ${overview.verifiedPayments.toLocaleString()}`], ['Active courses', overview.courses]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-black text-slate-950">{value}</p></div>)}</div>}
-        {user && <section className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-bold text-slate-950">{user.role === 'student' ? 'My applications' : user.role === 'tutor' ? 'My classes' : 'Admissions queue'}</h2><p className="mt-1 text-sm text-slate-600">{user.role === 'tutor' ? 'Class rosters are shown once a principal assigns classes to your account.' : 'Live records from the NAVSTAR admissions database.'}</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase text-blue-700">{user.role}</span></div>
+        {user && user.role !== 'finance' && <section className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-bold text-slate-950">{user.role === 'student' ? 'My applications' : user.role === 'tutor' ? 'My classes' : 'Admissions queue'}</h2><p className="mt-1 text-sm text-slate-600">{user.role === 'tutor' ? 'Class rosters are shown once a principal assigns classes to your account.' : 'Live records from the NAVSTAR admissions database.'}</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase text-blue-700">{user.role}</span></div>
           {user.role === 'tutor' ? <p className="mt-5 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">No classes are assigned to this tutor account yet.</p> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course ID</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Date</th></tr></thead><tbody>{enrollments.map((item) => <tr key={item.id} className="border-b last:border-0"><td className="p-3 font-medium">{item.full_name}</td><td className="p-3">{item.course_id}</td><td className="p-3">{item.status}</td><td className="p-3">{item.payment_status}</td><td className="p-3">{formatEATDate(item.created_at)}</td></tr>)}{enrollments.length === 0 && <tr><td className="p-5 text-center text-slate-500" colSpan={5}>No applications to show.</td></tr>}</tbody></table></div>}
         </section>}
         {!user && <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">{status || 'Sign in is required to view private portal records.'} <Link to={`/login?role=${selectedPortal.id}`} className="ml-2 font-bold underline">Go to sign in</Link></div>}
