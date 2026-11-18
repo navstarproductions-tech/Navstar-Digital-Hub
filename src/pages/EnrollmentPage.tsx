@@ -178,46 +178,46 @@ export function EnrollmentPage() {
         </div>
         <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]">
           <form id="navstar-application-form" noValidate onSubmit={handleFinalSubmit} className="min-w-0 space-y-5">
-            <Card data-wizard-step={step}>
+            <Card>
               <CardHeader><CardTitle>Section {step+1} of 7 · {currentStep.title}</CardTitle><CardDescription>{currentStep.description}</CardDescription></CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
-                {step===0&&<>
+                <div data-wizard-step={0} className={step===0?'':'hidden'}>
                   <div className="space-y-2 sm:col-span-2"><Label htmlFor="full-name">Full legal name *</Label><Input id="full-name" name="fullName" autoComplete="name" required placeholder="As shown on your identity document"/></div>
                   <div className="space-y-2"><Label htmlFor="birth-date">Date of birth *</Label><Input id="birth-date" name="dateOfBirth" type="date" max={new Date().toISOString().slice(0,10)} required/></div>
                   <div className="space-y-2"><Label htmlFor="gender">Gender</Label><select id="gender" name="gender" className={fieldClass}><option value="">Prefer not to say</option><option>Female</option><option>Male</option><option>Another identity</option></select></div>
                   <div className="space-y-2"><Label htmlFor="nationality">Nationality</Label><Input id="nationality" name="nationality" autoComplete="country-name" defaultValue="Kenyan"/></div>
-                </>}
-                {step===1&&<>
+                </div>
+                <div data-wizard-step={1} className={step===1?'':'hidden'}>
                   <div className="space-y-2"><Label htmlFor="email">Email address *</Label><Input id="email" name="email" type="email" autoComplete="email" required placeholder="you@example.com"/></div>
                   <div className="space-y-2"><Label htmlFor="phone">M-Pesa / mobile number *</Label><Input id="phone" name="phone" inputMode="tel" autoComplete="tel" required placeholder="07xx xxx xxx"/></div>
                   <div className="space-y-2 sm:col-span-2"><Label htmlFor="address">Postal or physical address</Label><Input id="address" name="address" autoComplete="street-address" placeholder="Estate, street or postal address"/></div>
-                </>}
-                {step===2&&<>
+                </div>
+                <div data-wizard-step={2} className={step===2?'':'hidden'}>
                   <div className="space-y-2"><Label htmlFor="identity-type">Identity document *</Label><select id="identity-type" name="identityType" required className={fieldClass}><option value="">Select document</option><option value="national-id">National ID</option><option value="maisha-card">Maisha Card</option><option value="birth-certificate">Birth Certificate</option><option value="passport">Passport</option></select></div>
                   <div className="space-y-2"><Label htmlFor="identity-number">Document number *</Label><Input id="identity-number" name="identityNumber" autoComplete="off" required/></div>
                   <p className="text-xs leading-5 text-slate-500 sm:col-span-2">Your identity details are used only for admissions checks and are not displayed in public course listings.</p>
-                </>}
-                {step===3&&<>
+                </div>
+                <div data-wizard-step={3} className={step===3?'':'hidden'}>
                   <div className="space-y-2"><Label>Selected course</Label><Input value={course.title} readOnly/></div>
                   <div className="space-y-2"><Label htmlFor="study-mode">Study mode *</Label><select id="study-mode" name="studyMode" required className={fieldClass}><option value="">Select mode</option><option>On campus</option><option>Online</option><option>Hybrid</option></select></div>
                   <div className="space-y-2"><Label htmlFor="education-level">Highest education level *</Label><select id="education-level" name="educationLevel" required className={fieldClass}><option value="">Select level</option><option>Primary</option><option>Secondary</option><option>Certificate</option><option>Diploma</option><option>Degree or higher</option></select></div>
                   <div className="space-y-2"><Label htmlFor="preferred-intake">Preferred intake</Label><Input id="preferred-intake" name="preferredIntake" type="month"/></div>
                   <div className="space-y-2 sm:col-span-2"><Label htmlFor="experience">Relevant experience or learning goals</Label><textarea id="experience" name="experience" rows={4} className={textAreaClass} placeholder="Tell us about your experience and what you hope to learn."/></div>
-                </>}
-                {step===4&&<>
+                </div>
+                <div data-wizard-step={4} className={step===4?'':'hidden'}>
                   <div className="sm:col-span-2"><GeographyPicker {...geography} onChange={setGeography}/></div>
                   <p className="text-xs text-slate-500 sm:col-span-2">Choose each level in order. Location and sub-location options are maintained by Navstar Admin.</p>
-                </>}
-                {step===5&&<>
+                </div>
+                <div data-wizard-step={5} className={step===5?'':'hidden'}>
                   <div className="space-y-2"><Label htmlFor="emergency-name">Emergency contact full name *</Label><Input id="emergency-name" name="emergencyContactName" required/></div>
                   <div className="space-y-2"><Label htmlFor="emergency-phone">Emergency contact phone *</Label><Input id="emergency-phone" name="emergencyContactPhone" inputMode="tel" required/></div>
                   <div className="space-y-2"><Label htmlFor="relationship">Relationship to applicant</Label><Input id="relationship" name="emergencyContactRelationship" placeholder="Parent, guardian, spouse, friend…"/></div>
                   <div className="space-y-2 sm:col-span-2"><Label htmlFor="support-needs">Accessibility or learning support needs</Label><textarea id="support-needs" name="supportNeeds" rows={4} className={textAreaClass} placeholder="Optional"/></div>
-                </>}
-                {step===6&&<>
+                </div>
+                <div data-wizard-step={6} className={step===6?'':'hidden'}>
                   <div className="rounded-xl border bg-slate-50 p-4 text-sm leading-6 text-slate-700 sm:col-span-2"><p className="font-bold text-slate-950">Application review</p><p>Course: {course.title}</p><p>Published course fee: KSh {Number(course.price).toLocaleString('en-KE')}</p><p>Required initial payment is calculated by Navstar from the published course fee and the approved minimum payment setting.</p><p className="mt-2">After you submit this section, a one-time code will be sent to both your email and mobile phone. You must verify both contact channels before the application is saved and the M-Pesa payment prompt is requested.</p></div>
                   <label className="flex items-start gap-3 rounded-xl border bg-white p-4 text-sm leading-6 text-slate-700 sm:col-span-2"><input type="checkbox" name="consent" required className="mt-1 h-4 w-4 accent-blue-800"/><span>I confirm that the information supplied is accurate and consent to Navstar Digital Hub using it for admissions, student administration and official communication. *</span></label>
-                </>}
+                </div>
               </CardContent>
             </Card>
             <div className="flex flex-wrap items-center justify-between gap-3">
