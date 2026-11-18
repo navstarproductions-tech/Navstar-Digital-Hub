@@ -84,8 +84,7 @@ export function Footer() {
             <h3 className="text-sm font-bold uppercase tracking-wider text-white">Portals</h3>
             <ul className="mt-4 space-y-3 text-sm">
               {[
-                ['Student Gateway', '/portals'],
-                ['Student portal', '/login?role=student'],
+                ['Student Gateway', '/login?role=student'],
                 ['Tutor portal', '/login?role=tutor'],
                 ['Admissions portal', '/login?role=admissions'],
                 ['Principal portal', '/login?role=principal'],
