@@ -65,7 +65,7 @@ export async function onRequestPut({ request, env }) {
       totals.set(parts[0], (totals.get(parts[0]) || 0) + amount);
     }
     for (const [courseId, total] of totals) {
-      const course = await env.DB.prepare("SELECT title, price FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
+      const course = await env.DB.prepare("SELECT title, price FROM courses WHERE (id = ? OR lower(title) = lower(?)) AND status = 'active'").bind(courseId, courseId).first();
       if (!course) return error('An instalment plan references an unavailable course. Check the course ID.');
       if (total !== Number(course.price)) return error(`The instalments for ${course.title} total KSh ${total.toLocaleString('en-KE')}, but the published course fee is KSh ${Number(course.price).toLocaleString('en-KE')}. The totals must match exactly.`);
     }
