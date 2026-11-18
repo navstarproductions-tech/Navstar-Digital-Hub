@@ -17,6 +17,20 @@ export async function onRequestPost(context) {
   if (email && (!email.includes('@') || email.startsWith('@') || email.endsWith('@'))) return error('Enter a valid email address.');
   if (customerName.length < 2 || !phone) return error('Enter your name and a valid M-Pesa phone number.');
 
+  if (body.manualPayment === true) {
+    const amount = Number(body.amount);
+    const description = safeString(body.description, 500);
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > 150000 || description.length < 3) return error('Enter a valid amount and payment description.');
+    const service = await env.DB.prepare("SELECT id FROM services WHERE status = 'active' ORDER BY name LIMIT 1").first();
+    if (!service) return error('The service catalogue is not ready for payments.', 503);
+    const id = uuid();
+    const reference = await nextReference(env.DB, 'SRV');
+    await env.DB.prepare('INSERT INTO service_requests (id, display_ref, service_id, customer_name, phone, amount, notes, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, reference, service.id, customerName, phone, amount, JSON.stringify({ manualDescription: description, items: [] }), email || null).run();
+    queueCustomerNotice(context, env, { email, phone, subject: 'Navstar payment request received', message: `Hello ${customerName}, your Navstar payment request ${reference} for ${description} (KSh ${amount.toLocaleString('en-KE')}) has been created. You will receive an M-Pesa prompt shortly. HOME OF TECHNOCRATS.` });
+    return json({ id, reference, amount, status: 'pending' }, 201);
+  }
+
   const submitted = Array.isArray(body.items) && body.items.length
     ? body.items.slice(0, 30)
     : [{ serviceId: safeString(body.serviceId, 80), quantity: 1, instructions: safeString(body.notes, 1000) }];

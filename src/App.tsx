@@ -19,6 +19,7 @@ import { CustomerAccountPage } from '@/pages/CustomerAccountPage';
 import { DigitalHubPage } from '@/pages/DigitalHubPage';
 import { ForumPage } from '@/pages/ForumPage';
 import { PaymentReceiptsPage } from '@/pages/PaymentReceiptsPage';
+import { PayPage } from '@/pages/PayPage';
 import { MusicPage } from '@/pages/MusicPage';
 import { PortalNotificationsPage } from '@/pages/PortalNotificationsPage';
 import { MyAccountPage } from '@/pages/MyAccountPage';
@@ -107,6 +108,7 @@ function AppShell() {
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/learning" element={<LearningPage />} />
             <Route path="/services" element={<ServicesPage />} />
+            <Route path="/pay" element={<PayPage />} />
             <Route path="/donations" element={<DonationsPage />} />
             <Route path="/portals" element={<PortalsPage />} />
             <Route path="/portals/:role" element={<PortalsPage />} />

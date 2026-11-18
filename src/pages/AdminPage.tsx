@@ -13,7 +13,7 @@ import { parseCsv, downloadCsvTemplate, exportBrandedData } from '@/lib/navstar-
 import { GeographyPicker } from '@/components/GeographyPicker';
 import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
-type Section = 'overview' | 'courses' | 'learning' | 'school' | 'services' | 'enrollments' | 'finance' | 'receipts' | 'gallery' | 'downloads' | 'orders' | 'users' | 'settings';
+type Section = string;
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
 type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string; nationalId?: string; phone?: string; dateOfBirth?: string; gender?: string; citizenship?: string; county?: string; subCounty?: string; ward?: string; location?: string; subLocation?: string; address?: string; department?: string; jobTitle?: string; employmentType?: string; joinedOn?: string };
 type LearningSubmission = { id: string; learner_name: string; response_text: string; attachment_url?: string | null; status: string; points_awarded?: number | null; feedback?: string | null; submitted_at: string };
@@ -38,40 +38,89 @@ const initialServices: ServiceItem[] = [
 ];
 
 const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'courses', label: 'Courses & programmes', icon: BookOpen },
-  { id: 'learning', label: 'Learning management', icon: BookOpen },
-  { id: 'school', label: 'School ERP & registry', icon: Users },
-  { id: 'services', label: 'Cyber service catalogue', icon: BriefcaseBusiness },
-  { id: 'enrollments', label: 'Admissions & applications', icon: Users },
-  { id: 'finance', label: 'Finance & cashouts', icon: CircleDollarSign },
-  { id: 'receipts', label: 'Payment receipts', icon: ReceiptText },
-  { id: 'gallery', label: 'Gallery & branding', icon: ImagePlus },
-  { id: 'downloads', label: 'Downloads & documents', icon: FileDown },
-  { id: 'orders', label: 'Cyber service desk', icon: BriefcaseBusiness },
-  { id: 'users', label: 'Users, staff & Admins', icon: Users },
-  { id: 'settings', label: 'Notifications & settings', icon: Settings },
+  {id:'overview',label:'Dashboard',icon:LayoutDashboard},
+  {id:'courses',label:'Courses',icon:BookOpen},
+  {id:'learning',label:'Modules',icon:BookOpen},
+  {id:'school',label:'Students',icon:Users},
+  {id:'employees',label:'Employees',icon:Users},
+  {id:'staff-applications',label:'Staff Applications',icon:Users},
+  {id:'navstar-analytics',label:'Navstar Analytics',icon:LayoutDashboard},
+  {id:'ai-intake-advisor',label:'AI Intake Advisor',icon:LayoutDashboard},
+  {id:'enrollment-summary',label:'Enrollment Summary',icon:LayoutDashboard},
+  {id:'services',label:'Services',icon:BriefcaseBusiness},
+  {id:'pos',label:'Point of Sale',icon:CircleDollarSign},
+  {id:'finance',label:'Accounts',icon:CircleDollarSign},
+  {id:'fees',label:'Fees',icon:CircleDollarSign},
+  {id:'marks-tests',label:'Marks & Tests',icon:BookOpen},
+  {id:'student-projects',label:'Student Projects',icon:BookOpen},
+  {id:'scholarships',label:'Scholarships & Discounts',icon:CircleDollarSign},
+  {id:'certificates',label:'Certificates',icon:FileDown},
+  {id:'alumni',label:'Alumni Management',icon:Users},
+  {id:'report-cards',label:'Report Cards & Transcripts',icon:FileDown},
+  {id:'auto-reports',label:'Auto Reports & Documents',icon:FileDown},
+  {id:'student-status',label:'Student Status',icon:Users},
+  {id:'attendance',label:'Attendance',icon:Users},
+  {id:'class-rating',label:'Class Rating Form',icon:Users},
+  {id:'fingerprint',label:'Fingerprint Scan & Save',icon:Users},
+  {id:'applications',label:'Applications',icon:FileDown},
+  {id:'online-forms',label:'Online Forms',icon:FileDown},
+  {id:'reports',label:'Reports',icon:FileDown},
+  {id:'analytics-reports',label:'Analytics & Reports',icon:LayoutDashboard},
+  {id:'songs-music',label:'Songs & Music',icon:BookOpen},
+  {id:'gallery',label:'Gallery',icon:ImagePlus},
+  {id:'news-updates',label:'News & Updates',icon:FileDown},
+  {id:'downloads',label:'Documents',icon:FileDown},
+  {id:'events',label:'Events & Meetings',icon:LayoutDashboard},
+  {id:'demo-previews',label:'Demo Previews',icon:LayoutDashboard},
+  {id:'cv-builder',label:'CV Builder',icon:FileDown},
+  {id:'upload-notes',label:'Upload Notes',icon:FileDown},
+  {id:'timetable',label:'Timetable',icon:LayoutDashboard},
+  {id:'online-classes',label:'Online Classes',icon:BookOpen},
+  {id:'eclass-meetings',label:'E-Class Meetings',icon:BookOpen},
+  {id:'student-chat',label:'Student Chat',icon:Users},
+  {id:'support-tickets',label:'Support Tickets',icon:Users},
+  {id:'student-directory',label:'Student Directory',icon:Users},
+  {id:'send-notification',label:'Send Notification',icon:Bell},
+  {id:'broadcast-social',label:'Broadcast & Social',icon:Bell},
+  {id:'sms-alerts',label:'SMS Alerts',icon:Bell},
+  {id:'birthday-center',label:'Birthday Center',icon:Users},
+  {id:'about-us',label:'About Us',icon:LayoutDashboard},
+  {id:'campus-history',label:'Campus Life & History',icon:LayoutDashboard},
+  {id:'profile',label:'My Profile',icon:UserRound},
+  {id:'users',label:'System Users',icon:Users},
+  {id:'device-management',label:'Device Management',icon:Settings},
+  {id:'admin-access',label:'Admin Access Control',icon:ShieldAlert},
+  {id:'customer-accounts',label:'Customer Accounts',icon:Users},
+  {id:'maintenance',label:'Maintenance Mode',icon:Settings},
+  {id:'ict-portal',label:'ICT Portal',icon:Settings},
+  {id:'settings',label:'Settings',icon:Settings},
 ];
 
 const sectionSubtabs: Record<Section, { label: string; target: Section; settingsTab?: 'site' | 'notifications' | 'my-profile' | 'geography' | 'staff-ids'; coursesTab?: 'catalogue' | 'manage' | 'edit'; learningTab?: 'modules' | 'bulk' }[]> = {
-  overview: [{label:'Overview',target:'overview'},{label:'Recent Admissions',target:'enrollments'},{label:'Course Statistics',target:'courses'},{label:'Academic Records',target:'school'},{label:'Finance Summary',target:'finance'},{label:'Quick Actions',target:'services'}],
+  overview: [],
+  employees: [{label:'Employee Directory',target:'users'},{label:'Staff Applications',target:'enrollments'}],
+  'navstar-analytics': [{label:'Analytics Dashboard',target:'overview'}],
+  finance: [{label:'Accounts Overview',target:'finance'},{label:'Payment Receipts',target:'receipts'},{label:'Cashouts',target:'finance'}],
+  'staff-applications': [{label:'Applications',target:'enrollments'},{label:'Staff Directory',target:'users'}],
+  pos: [{label:'New Sale',target:'pos'},{label:'Service Catalogue',target:'services'},{label:'Customer Orders',target:'orders'},{label:'Sales & Receipts',target:'receipts'}],
   courses: [{label:'Course Catalogue',target:'courses',coursesTab:'catalogue'},{label:'Manage Courses',target:'courses',coursesTab:'manage'},{label:'Edit Courses',target:'courses',coursesTab:'edit'},{label:'Modules',target:'learning',learningTab:'modules'},{label:'Add Multiple Modules',target:'learning',learningTab:'bulk'},{label:'Student Enrolment',target:'enrollments'},{label:'Academic Registry',target:'school'}],
   learning: [{label:'Courses & Modules',target:'learning'},{label:'Assignments',target:'learning'},{label:'Learner Records',target:'school'},{label:'Course Catalogue',target:'courses'}],
   school: [{label:'School Registry',target:'school'},{label:'Classes & Subjects',target:'school'},{label:'Fee Structures',target:'finance'},{label:'Admissions',target:'enrollments'}],
   services: [{label:'Service Catalogue',target:'services'},{label:'Customer Orders',target:'orders'},{label:'Gallery & Media',target:'gallery'},{label:'Downloads',target:'downloads'}],
   enrollments: [{label:'Applications',target:'enrollments'},{label:'Student Accounts',target:'users'},{label:'Course Allocation',target:'courses'},{label:'Payment Receipts',target:'receipts'}],
-  finance: [{label:'Finance Overview',target:'finance'},{label:'Payments & Cashouts',target:'finance'},{label:'Receipts',target:'receipts'},{label:'Service Orders',target:'orders'}],
   receipts: [{label:'Payment Receipts',target:'receipts'},{label:'Finance',target:'finance'},{label:'Admissions Payments',target:'enrollments'}],
   gallery: [{label:'Gallery',target:'gallery'},{label:'Documents',target:'downloads'},{label:'Site Branding',target:'settings',settingsTab:'site'}],
   downloads: [{label:'Documents',target:'downloads'},{label:'Gallery & Media',target:'gallery'},{label:'Service Catalogue',target:'services'}],
   orders: [{label:'Service Orders',target:'orders'},{label:'Service Catalogue',target:'services'},{label:'Payment Receipts',target:'receipts'}],
   users: [{label:'User Directory',target:'users'},{label:'Staff Applications',target:'enrollments'},{label:'Staff IDs',target:'settings',settingsTab:'staff-ids'},{label:'Access Settings',target:'settings',settingsTab:'site'}],
+  'profile': [{label:'Account Details',target:'settings',settingsTab:'my-profile'}],
   settings: [{label:'Site Settings',target:'settings',settingsTab:'site'},{label:'Notifications',target:'settings',settingsTab:'notifications'},{label:'My Profile',target:'settings',settingsTab:'my-profile'},{label:'Geography',target:'settings',settingsTab:'geography'},{label:'Staff IDs',target:'settings',settingsTab:'staff-ids'}],
 };
 
 export function AdminPage() {
   const navigate = useNavigate();
   const [active, setActive] = useState<Section>('overview');
+  const [expandedSection, setExpandedSection] = useState<Section>('overview');
   const [coursesSubTab, setCoursesSubTab] = useState<'catalogue' | 'manage' | 'edit'>('catalogue');
   const [learningSubTab, setLearningSubTab] = useState<'modules' | 'bulk'>('modules');
   const [settingsTab, setSettingsTab] = useState<'site' | 'notifications' | 'my-profile' | 'geography' | 'staff-ids'>('site');
@@ -150,6 +199,17 @@ export function AdminPage() {
   const [documentDescription, setDocumentDescription] = useState('');
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [customerOrders, setCustomerOrders] = useState<{ id: string; reference: string; customerName: string; email: string; phone: string; amount: number; notes: string; status: string; createdAt: string; serviceName: string }[]>([]);
+  const [posCustomerName, setPosCustomerName] = useState('');
+  const [posPhone, setPosPhone] = useState('');
+  const [posSelectedService, setPosSelectedService] = useState('');
+  const [posQuantity, setPosQuantity] = useState('1');
+  const [posCart, setPosCart] = useState<{serviceId:string;quantity:number}[]>([]);
+  const [posPayment, setPosPayment] = useState<{id:string;reference:string;status:string}|null>(null);
+  const [posProcessing, setPosProcessing] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [adminNotifications, setAdminNotifications] = useState<{id:string;title:string;message:string;read_at:string|null;created_at:string}[]>([]);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+
   const [learningCourses, setLearningCourses] = useState<LearningCourse[]>([]);
   const [learningTutors, setLearningTutors] = useState<{ id: string; name: string; email: string }[]>([]);
   const [learningCourseId, setLearningCourseId] = useState('');
@@ -805,6 +865,64 @@ export function AdminPage() {
     setNotice('User profile updated successfully.');
   };
 
+  const loadAdminNotifications = async () => {
+    setNotificationLoading(true);
+    try {
+      const response = await fetch('/api/admin/notifications', { credentials: 'same-origin' });
+      const result = await response.json() as { notifications?: typeof adminNotifications; error?: string };
+      if (!response.ok) throw new Error(result.error || 'Could not load notifications.');
+      setAdminNotifications(result.notifications ?? []);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not load notifications.');
+    } finally { setNotificationLoading(false); }
+  };
+
+  const addPosItem = () => {
+    const service = services.find(item => item.id === posSelectedService && item.status === 'Active');
+    const quantity = Number(posQuantity);
+    if (!service || !service.priceAmount || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000) {
+      setNotice('Choose an active service with a fixed online price and a valid quantity.');
+      return;
+    }
+    setPosCart(current => {
+      const found = current.find(item => item.serviceId === service.id);
+      return found ? current.map(item => item.serviceId === service.id ? {...item,quantity:item.quantity+quantity} : item) : [...current,{serviceId:service.id,quantity}];
+    });
+    setPosQuantity('1');
+    setNotice('');
+  };
+
+  const startPosSale = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!posCustomerName.trim() || !posPhone.trim() || !posCart.length) { setNotice('Enter the customer name, phone number and add at least one service.'); return; }
+    setPosProcessing(true); setPosPayment(null); setNotice('Creating sale and sending M-Pesa prompt…');
+    try {
+      const orderResponse = await fetch('/api/service-requests', {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({customerName:posCustomerName,phone:posPhone,items:posCart})});
+      const order = await orderResponse.json() as {id?:string;reference?:string;amount?:number;error?:string};
+      if(!orderResponse.ok || !order.id) throw new Error(order.error || 'Could not create the sale.');
+      const promptResponse = await fetch('/api/payments/stk-push', {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({purpose:'service',reference:order.id,phone:posPhone})});
+      const prompt = await promptResponse.json() as {id?:string;reference?:string;message?:string;error?:string};
+      if(!promptResponse.ok || !prompt.id) throw new Error(prompt.error || 'The M-Pesa prompt could not be sent.');
+      setPosPayment({id:prompt.id,reference:order.reference || prompt.reference || '',status:'pending'});
+      setNotice(prompt.message || 'M-Pesa prompt sent. Waiting for customer confirmation…');
+      const paymentId=prompt.id;
+      const checkPayment = async (attempt:number):Promise<void> => {
+        const statusResponse=await fetch('/api/payments/stk-push?reference='+encodeURIComponent(paymentId),{credentials:'same-origin'});
+        const statusResult=await statusResponse.json() as {payment?:{status:string};error?:string};
+        if(!statusResponse.ok) throw new Error(statusResult.error || 'Could not verify payment status.');
+        const status=statusResult.payment?.status || 'pending';
+        setPosPayment({id:paymentId,reference:order.reference || '',status});
+        if(status==='paid'){setNotice('Payment verified successfully. Your Navstar receipt is ready.');return;}
+        if(status==='failed'){setNotice('M-Pesa payment was not completed. You can retry the sale.');return;}
+        if(attempt<40){await new Promise(resolve=>window.setTimeout(resolve,3000));return checkPayment(attempt+1);}
+        setNotice('The payment is still pending. Check the status before starting another sale.');
+      };
+      await checkPayment(1);
+    } catch(error) {
+      setNotice(error instanceof Error ? error.message : 'The sale could not be completed.');
+    } finally { setPosProcessing(false); }
+  };
+
   const signOut = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
     navigate('/login?role=admin', { replace: true });
@@ -845,10 +963,10 @@ export function AdminPage() {
           <div className="mx-3 mt-3 hidden h-1 rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 md:block"/>
           <nav aria-label="Admin sections" className="flex min-w-0 flex-1 gap-1 overflow-x-auto p-2 md:min-h-0 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:space-y-1 md:p-3">
             {sections.map(({id,label,icon:Icon}) => {
-              const selected = active === id;
+              const selected = expandedSection === id;
               const children = sectionSubtabs[id] || [];
               return <div key={id} className="min-w-0 shrink-0 md:w-full">
-                <button type="button" onClick={() => { setActive(id); setNotice(''); }} aria-current={selected ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+                <button type="button" onClick={() => { setExpandedSection(id); setActive(id); setNotice(''); }} aria-current={active === id ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
                   <Icon className="h-4 w-4 shrink-0"/><span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 truncate"}>{label}</span>
                   {children.length>0 && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${selected ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>}
                 </button>
@@ -877,25 +995,32 @@ export function AdminPage() {
             </div>
             <div className="hidden w-full max-w-[290px] items-center gap-2 rounded-xl border border-white/10 bg-[#111a2b] px-3 py-2 md:flex">
               <Search className="h-4 w-4 shrink-0 text-slate-500"/>
-              <input aria-label="Search admin sections" placeholder="Search students, courses, fees..." className="w-full min-w-0 bg-transparent text-xs text-white outline-none placeholder:text-slate-500" onKeyDown={event=>{if(event.key==='Enter'){const q=event.currentTarget.value.trim().toLowerCase();const match=sections.find(item=>item.label.toLowerCase().includes(q));if(match){setActive(match.id);setNotice('');}}}}/>
+              <input aria-label="Search admin sections" placeholder="Search students, courses, fees..." className="w-full min-w-0 bg-transparent text-xs text-white outline-none placeholder:text-slate-500" onKeyDown={event=>{if(event.key==='Enter'){const q=event.currentTarget.value.trim().toLowerCase();const match=sections.find(item=>item.label.toLowerCase().includes(q));if(match){setExpandedSection(match.id);setActive(match.id);setNotice('');}}}}/>
             </div>
             <button type="button" onClick={()=>window.location.reload()} title="Refresh workspace" aria-label="Refresh workspace" className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white sm:inline-flex"><RefreshCw className="h-4 w-4"/></button>
-            <Link to="/portals/notifications" title="Notifications" aria-label="Notifications" className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white"><Bell className="h-4 w-4"/><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-400"/></Link>
+            <div className="relative">
+              <button type="button" onClick={()=>{const next=!notificationOpen;setNotificationOpen(next);if(next)void loadAdminNotifications();}} title="Notifications" aria-label="Notifications" aria-expanded={notificationOpen} className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white"><Bell className="h-4 w-4"/>{adminNotifications.some(item=>!item.read_at)&&<span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-400"/>}</button>
+              {notificationOpen&&<div className="absolute right-0 top-full z-50 mt-3 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-700 bg-[#111a2b] shadow-2xl shadow-black/50">
+                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><div><p className="text-sm font-extrabold text-white">Notifications</p><p className="text-[10px] text-slate-400">{adminNotifications.filter(item=>!item.read_at).length} unread</p></div><button type="button" onClick={()=>setNotificationOpen(false)} className="text-xs font-semibold text-cyan-300">Close</button></div>
+                <div className="max-h-80 overflow-y-auto">{notificationLoading?<p className="p-4 text-xs text-slate-400">Loading notifications…</p>:adminNotifications.length?adminNotifications.slice(0,12).map(item=><article key={item.id} className={`border-b border-white/5 px-4 py-3 ${item.read_at?'':'bg-blue-500/10'}`}><p className="text-xs font-bold text-white">{item.title}</p><p className="mt-1 text-xs leading-5 text-slate-300">{item.message}</p><p className="mt-1 text-[10px] text-slate-500">{formatEATDateTime(item.created_at)}</p></article>):<p className="p-5 text-center text-xs text-slate-400">No notifications yet.</p>}</div>
+                <Link to="/portals/notifications" className="block border-t border-white/10 px-4 py-3 text-center text-xs font-bold text-cyan-300 hover:bg-white/5">View all notifications</Link>
+              </div>}
+            </div>
             <button type="button" onClick={()=>{setSettingsTab('my-profile');setActive('settings');setNotice('');}} title="My profile" aria-label="My profile" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-950/30"><UserRound className="h-4 w-4"/></button>
             <div className="hidden min-w-0 max-w-[150px] lg:block"><p className="truncate text-[11px] font-extrabold uppercase text-white">{user.name}</p><p className="text-[9px] font-bold uppercase tracking-wide text-cyan-300">Admin · Secure session</p></div>
             <button type="button" onClick={()=>void signOut()} title="Log out" aria-label="Log out" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-500/10 hover:text-rose-300"><LogOut className="h-4 w-4"/></button>
           </header>
 
           <div className="px-4 py-4 sm:px-6 lg:px-7">
-            <div className="navstar-admin-hero mb-5 flex min-h-[112px] items-center justify-between overflow-hidden rounded-2xl border border-blue-400/20 px-6 py-5 sm:px-8">
-              <div className="relative z-10 max-w-xl"><p className="text-[10px] font-extrabold uppercase tracking-[.32em] text-cyan-300">NAVSTAR DIGITAL HUB</p><h2 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">{title}</h2><p className="mt-1 text-xs font-medium text-blue-100">HOME OF TECHNOCRATS · {formatEATDateTime(new Date().toISOString())}</p></div>
+            {active === 'overview' && <div className="navstar-admin-hero mb-5 flex min-h-[138px] items-center justify-between overflow-hidden rounded-2xl border border-blue-400/20 px-6 py-5 sm:px-8">
+              <div className="relative z-10 max-w-xl"><p className="text-[10px] font-extrabold uppercase tracking-[.32em] text-cyan-300">NAVSTAR DIGITAL HUB</p><h2 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">Welcome to your Dashboard</h2><p className="mt-1 text-xs font-medium text-blue-100">HOME OF TECHNOCRATS · {formatEATDateTime(new Date().toISOString())}</p></div>
               <div className="relative z-10 hidden text-right sm:block"><p className="text-xs font-bold uppercase tracking-[.24em] text-white/90">Learn · Create</p><p className="mt-1 text-xs text-blue-100">Innovate · Grow</p></div>
-            </div>
+            </div>}
           {notice && <p role="status" className="mb-5 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</p>}
 
           {active === 'overview' && <div className="space-y-5"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
             ['Students', String(metrics.students ?? '—'), 'Registered student accounts'], ['Applications', String(metrics.applications ?? applications.length), 'Admissions queue'], ['Courses', String(metrics.courses ?? courses.length), 'Active courses'], ['Services', String(metrics.services ?? services.length), 'Active cyber services'],
-          ].map(([label, value, caption]) => <div key={label} className="navstar-admin-stat rounded-2xl border border-white/10 bg-[#171d2b] p-4"><p className="text-xs font-medium text-slate-400">{label}</p><p className="mt-2 text-2xl font-black text-white">{value}</p><p className="mt-1 text-[11px] text-slate-400">{caption}</p></div>)}</div><div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]"><section className="navstar-admin-panel rounded-2xl border border-white/10 bg-[#171d2b] p-5"><h3 className="font-bold text-slate-950">Workspace summary</h3><p className="mt-2 text-sm leading-6 text-slate-600">Use the navigation and subtabs to manage learning, admissions, finance, services, staff records and system settings. Live actions are saved by the connected Navstar services; items marked as previews are not published until saved.</p><div className="mt-5 grid gap-2 sm:grid-cols-2">{sections.slice(1).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActive(id)} className="flex items-center justify-between border p-3 text-left text-sm font-medium hover:bg-slate-50"><span className="flex items-center gap-2"><Icon className="h-4 w-4 text-emerald-800" />{label}</span><span aria-hidden="true">›</span></button>)}</div></section><section className="navstar-admin-panel rounded-2xl border border-white/10 bg-[#171d2b] p-5"><h3 className="font-bold text-white">Important setup</h3><ul className="mt-3 space-y-3 text-sm leading-6 text-slate-600"><li className="border-l-2 border-amber-500 pl-3">Rotate the Daraja production credentials shared in chat.</li><li className="border-l-2 border-emerald-700 pl-3">Keep all Daraja secrets in server environment variables only.</li><li className="border-l-2 border-emerald-700 pl-3">Protect admin actions with verified staff roles and audit logs.</li></ul></section></div></div>}
+          ].map(([label, value, caption]) => <div key={label} className="navstar-admin-stat rounded-2xl border border-white/10 bg-[#171d2b] p-4"><p className="text-xs font-medium text-slate-400">{label}</p><p className="mt-2 text-2xl font-black text-white">{value}</p><p className="mt-1 text-[11px] text-slate-400">{caption}</p></div>)}</div><div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]"><section className="navstar-admin-panel rounded-2xl border border-white/10 bg-[#171d2b] p-5"><h3 className="font-bold text-slate-950">Workspace summary</h3><p className="mt-2 text-sm leading-6 text-slate-600">Use the navigation and subtabs to manage learning, admissions, finance, services, staff records and system settings. Live actions are saved by the connected Navstar services; items marked as previews are not published until saved.</p></section><section className="navstar-admin-panel rounded-2xl border border-white/10 bg-[#171d2b] p-5"><h3 className="font-bold text-white">Important setup</h3><ul className="mt-3 space-y-3 text-sm leading-6 text-slate-600"><li className="border-l-2 border-amber-500 pl-3">Rotate the Daraja production credentials shared in chat.</li><li className="border-l-2 border-emerald-700 pl-3">Keep all Daraja secrets in server environment variables only.</li><li className="border-l-2 border-emerald-700 pl-3">Protect admin actions with verified staff roles and audit logs.</li></ul></section></div></div>}
 
           {active === 'courses' && <div className="space-y-5">{(coursesSubTab === 'manage' || (coursesSubTab === 'edit' && Boolean(editingCourseId))) && <form onSubmit={editingCourseId ? saveCourse : addCourse} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-3"><div className="space-y-2 sm:col-span-2 xl:col-span-3"><h3 className="font-bold text-slate-950">{editingCourseId ? 'Edit course details' : 'Add a new course'}</h3><p className="text-xs text-slate-500">All fees are whole Kenyan shillings for M-Pesa payment compatibility.</p></div><div className="space-y-2"><Label htmlFor="new-course">Course title</Label><Input id="new-course" value={courseName} onChange={(event) => setCourseName(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="new-course-price">Fee (KSh)</Label><Input id="new-course-price" type="number" min="0" step="1" value={coursePrice} onChange={(event) => setCoursePrice(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-duration">Duration</Label><Input id="course-duration" value={courseDuration} onChange={(event) => setCourseDuration(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-category">Category</Label><select id="course-category" value={courseCategory} onChange={(event) => setCourseCategory(event.target.value as Course['category'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Professional</option><option>Computer School</option><option>Cyber Services</option></select></div><div className="space-y-2"><Label htmlFor="course-image">Course image URL</Label><Input id="course-image" value={courseImage} onChange={(event) => setCourseImage(event.target.value)} placeholder="https://..." /></div><div className="space-y-2"><Label htmlFor="course-level">Course level</Label><select id="course-level" value={courseLevel} onChange={(event) => setCourseLevel(event.target.value as Course['level'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></div><div className="space-y-2 sm:col-span-2 xl:col-span-3"><Label htmlFor="course-description">Course description</Label><textarea id="course-description" value={courseDescription} onChange={(event) => setCourseDescription(event.target.value)} rows={3} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" /></div><div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><Button type="submit" className="bg-emerald-800 hover:bg-emerald-900">{editingCourseId ? <><Save className="mr-2 h-4 w-4" />Save course</> : <><Plus className="mr-2 h-4 w-4" />Add course</>}</Button>{editingCourseId && <Button type="button" variant="outline" onClick={cancelCourseEdit}>Cancel edit</Button>}</div></form>}{coursesSubTab === 'edit' && !editingCourseId && <p className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">Choose the pencil icon beside a course in Course Catalogue to edit its details.</p>}{coursesSubTab !== 'edit' && <div className="overflow-x-auto border bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Course</th><th className="p-3">Category</th><th className="p-3">Duration</th><th className="p-3">Fee</th><th className="p-3">Actions</th></tr></thead><tbody>{courses.map((course) => <tr key={course.id} className="border-b last:border-0"><td className="p-3 font-semibold text-slate-900">{course.title}<p className="mt-1 max-w-md text-xs font-normal text-slate-500">{course.description}</p></td><td className="p-3">{course.category}</td><td className="p-3">{course.duration}</td><td className="p-3">KSh {course.price.toLocaleString()}</td><td className="p-3"><div className="flex items-center gap-3"><button aria-label={`Edit ${course.title}`} className="text-blue-700 hover:text-blue-900" onClick={() => editCourse(course)}><Pencil className="h-4 w-4" /></button><button aria-label={`Archive ${course.title}`} className="text-slate-500 hover:text-red-700" onClick={() => void removeCourse(course.id)}><Trash2 className="h-4 w-4" /></button></div></td></tr>)}</tbody></table></div>}</div>}
 
@@ -927,7 +1052,7 @@ export function AdminPage() {
             </section>}
            </div>}
 
-          {active === 'learning' && <div className="space-y-6">
+          {(active === 'learning' || active === 'marks-tests') && <div className="space-y-6">
             <section className="rounded-2xl border bg-white p-5">
               <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-950">Learning Management System</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Build course content, publish modules and lessons, set assignments, allocate tutors and assess learner submissions. Published content becomes visible in the authorised Learning Workspace.</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{learningCourses.length} active courses</span></div>
               <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Modules</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.modules.length,0)}</p></div><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Lessons</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.modules.reduce((m,x)=>m+x.lessons.length,0),0)}</p></div><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Assignments</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.assignments.length,0)}</p></div></div>
@@ -1002,9 +1127,9 @@ export function AdminPage() {
             <div className="divide-y border bg-white">{services.map((service) => <div key={service.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold text-slate-950">{service.name}</p><p className="mt-1 text-xs text-slate-500">{service.category} · {service.price}{service.priceAmount ? ` · Online: KSh ${service.priceAmount.toLocaleString()}` : ''}</p></div><div className="flex items-center gap-4"><span className="text-xs font-semibold text-emerald-800">{service.status}</span><button aria-label={`Pause ${service.name}`} onClick={() => void removeService(service.id)} className="text-slate-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>)}</div>
           </div>}
 
-          {active === 'enrollments' && <div className="overflow-x-auto border bg-white"><table className="w-full min-w-[820px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Received</th><th className="p-3">Review</th></tr></thead><tbody>{applications.map((application) => <tr key={String(application.id)} className="border-b last:border-0"><td className="p-3"><p className="font-semibold">{String(application.full_name ?? '')}</p><p className="text-xs text-slate-500">{String(application.email ?? '')}</p></td><td className="p-3">{courses.find((item) => item.id === application.course_id)?.title ?? String(application.course_id ?? '')}</td><td className="p-3">{String(application.status ?? '')}</td><td className="p-3">{String(application.payment_status ?? '')}</td><td className="p-3">{formatEATDateTime(application.created_at as string | null | undefined)}</td><td className="p-3">{(user?.role === 'admin' || user?.role === 'admissions') ? <select aria-label={`Review application for ${String(application.full_name ?? 'learner')}`} className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs text-slate-900" value={String(application.status ?? 'submitted')} onChange={(event) => void updateApplicationStatus(String(application.id), event.target.value)}><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="accepted">Accepted — enable LMS</option><option value="rejected">Rejected</option></select> : 'Read only'}</td></tr>)}{applications.length === 0 && <tr><td className="p-6 text-center text-slate-500" colSpan={6}>{backendReady ? 'No applications received yet.' : 'Connect the backend and sign in to view applications.'}</td></tr>}</tbody></table></div>}
+          {(active === 'enrollments' || active === 'staff-applications' || active === 'applications' || active === 'enrollment-summary') && <div className="overflow-x-auto border bg-white"><table className="w-full min-w-[820px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Received</th><th className="p-3">Review</th></tr></thead><tbody>{applications.map((application) => <tr key={String(application.id)} className="border-b last:border-0"><td className="p-3"><p className="font-semibold">{String(application.full_name ?? '')}</p><p className="text-xs text-slate-500">{String(application.email ?? '')}</p></td><td className="p-3">{courses.find((item) => item.id === application.course_id)?.title ?? String(application.course_id ?? '')}</td><td className="p-3">{String(application.status ?? '')}</td><td className="p-3">{String(application.payment_status ?? '')}</td><td className="p-3">{formatEATDateTime(application.created_at as string | null | undefined)}</td><td className="p-3">{(user?.role === 'admin' || user?.role === 'admissions') ? <select aria-label={`Review application for ${String(application.full_name ?? 'learner')}`} className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs text-slate-900" value={String(application.status ?? 'submitted')} onChange={(event) => void updateApplicationStatus(String(application.id), event.target.value)}><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="accepted">Accepted — enable LMS</option><option value="rejected">Rejected</option></select> : 'Read only'}</td></tr>)}{applications.length === 0 && <tr><td className="p-6 text-center text-slate-500" colSpan={6}>{backendReady ? 'No applications received yet.' : 'Connect the backend and sign in to view applications.'}</td></tr>}</tbody></table></div>}
 
-          {active === 'users' && <div className="space-y-5"><form onSubmit={createPortalUser} className="space-y-5 border bg-white p-4 sm:p-6">
+          {(active === 'users' || active === 'employees' || active === 'student-directory' || active === 'customer-accounts') && <div className="space-y-5"><form onSubmit={createPortalUser} className="space-y-5 border bg-white p-4 sm:p-6">
             <div><h3 className="font-bold text-slate-900">Create a portal user, staff or Admin account</h3><p className="mt-1 text-sm text-slate-600">Only an authenticated Admin can create accounts here, including additional Admins. A unique Navstar ID is generated automatically. Give each person the least access they need and issue credentials privately.</p></div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2"><Label htmlFor="portal-user-name">Full legal name *</Label><Input id="portal-user-name" value={newUserName} onChange={(event) => setNewUserName(event.target.value)} required /></div>
@@ -1026,14 +1151,27 @@ export function AdminPage() {
           </div>}
           {active === 'receipts' && <section className="rounded-2xl border bg-white p-6"><div className="flex items-center gap-3"><ReceiptText className="h-6 w-6 text-blue-800"/><div><h3 className="font-bold text-slate-950">Confirmed payment receipts</h3><p className="mt-1 text-sm text-slate-600">View confirmed payments and print or save official Navstar receipts as PDF.</p></div></div><Link to="/admin/receipts" className="mt-5 inline-flex items-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900">Open payment receipt register</Link></section>}
 
-          {active === 'finance' && <div className="grid gap-6 xl:grid-cols-2"><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Verified donations and payments</h3><p className="mt-2 text-sm leading-6 text-slate-600">Only provider callbacks mark donations and tuition as paid. No M-Pesa PIN or payment credentials are shown here.</p><p className="mt-5 border bg-slate-50 p-4 text-sm text-slate-600">Verified donations: KSh {Number(metrics.verifiedDonations ?? 0).toLocaleString()} · Verified payments: KSh {Number(metrics.verifiedPayments ?? 0).toLocaleString()}</p></section><form onSubmit={startCashout} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Request cashout</h3><p className="mt-2 text-sm leading-6 text-slate-600">This creates an approval request only; it does not transfer funds. Never withdraw from the browser.</p></div><div className="space-y-2"><Label htmlFor="cashout-amount">Amount (KSh)</Label><Input id="cashout-amount" type="number" min="1" value={cashoutAmount} onChange={(event) => setCashoutAmount(event.target.value)} required /></div><Button className="bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={!backendReady || !user}><CircleDollarSign className="mr-2 h-4 w-4" />{backendReady ? 'Submit for approval' : 'Backend required'}</Button><div className="divide-y border">{cashoutRequests.map((item) => <div key={String(item.id)} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><span>KSh {Number(item.amount).toLocaleString()} · {String(item.status)}</span>{item.status === 'pending_approval' && user?.role === 'admin' && <span className="flex gap-2"><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'approved')}>Approve</Button><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'rejected')}>Reject</Button></span>}</div>)}{cashoutRequests.length === 0 && <p className="p-3 text-xs text-slate-500">No cashout requests.</p>}</div></form></div>}
+          {(active === 'finance' || active === 'fees') && <div className="grid gap-6 xl:grid-cols-2"><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Verified donations and payments</h3><p className="mt-2 text-sm leading-6 text-slate-600">Only provider callbacks mark donations and tuition as paid. No M-Pesa PIN or payment credentials are shown here.</p><p className="mt-5 border bg-slate-50 p-4 text-sm text-slate-600">Verified donations: KSh {Number(metrics.verifiedDonations ?? 0).toLocaleString()} · Verified payments: KSh {Number(metrics.verifiedPayments ?? 0).toLocaleString()}</p></section><form onSubmit={startCashout} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Request cashout</h3><p className="mt-2 text-sm leading-6 text-slate-600">This creates an approval request only; it does not transfer funds. Never withdraw from the browser.</p></div><div className="space-y-2"><Label htmlFor="cashout-amount">Amount (KSh)</Label><Input id="cashout-amount" type="number" min="1" value={cashoutAmount} onChange={(event) => setCashoutAmount(event.target.value)} required /></div><Button className="bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={!backendReady || !user}><CircleDollarSign className="mr-2 h-4 w-4" />{backendReady ? 'Submit for approval' : 'Backend required'}</Button><div className="divide-y border">{cashoutRequests.map((item) => <div key={String(item.id)} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><span>KSh {Number(item.amount).toLocaleString()} · {String(item.status)}</span>{item.status === 'pending_approval' && user?.role === 'admin' && <span className="flex gap-2"><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'approved')}>Approve</Button><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'rejected')}>Reject</Button></span>}</div>)}{cashoutRequests.length === 0 && <p className="p-3 text-xs text-slate-500">No cashout requests.</p>}</div></form></div>}
+
+          {active === 'pos' && <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,.8fr)]">
+            <section className="rounded-2xl border border-white/10 bg-[#151d2b] p-5">
+              <div className="mb-4"><h3 className="text-lg font-extrabold text-white">Point of Sale</h3><p className="mt-1 text-sm text-slate-400">Select one or more priced services. The total is calculated automatically before sending the customer an M-Pesa prompt.</p></div>
+              <form onSubmit={startPosSale} className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="pos-customer" className="text-slate-200">Customer name</Label><Input id="pos-customer" value={posCustomerName} onChange={event=>setPosCustomerName(event.target.value)} placeholder="Customer full name" required/></div><div className="space-y-2"><Label htmlFor="pos-phone" className="text-slate-200">M-Pesa phone number</Label><Input id="pos-phone" value={posPhone} onChange={event=>setPosPhone(event.target.value)} placeholder="07XXXXXXXX" required/></div></div>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_100px_auto] sm:items-end"><div className="space-y-2"><Label htmlFor="pos-service" className="text-slate-200">Choose service</Label><select id="pos-service" value={posSelectedService} onChange={event=>setPosSelectedService(event.target.value)} className="h-10 w-full rounded-md border border-slate-600 bg-[#0b1220] px-3 text-sm text-white"><option value="">Select service…</option>{services.filter(item=>item.status==='Active'&&Number(item.priceAmount)>0).map(item=><option key={item.id} value={item.id}>{item.name} — KSh {Number(item.priceAmount).toLocaleString()}</option>)}</select></div><div className="space-y-2"><Label htmlFor="pos-quantity" className="text-slate-200">Quantity</Label><Input id="pos-quantity" type="number" min="1" max="1000" value={posQuantity} onChange={event=>setPosQuantity(event.target.value)}/></div><Button type="button" onClick={addPosItem} className="bg-cyan-700 hover:bg-cyan-800">Add service</Button></div>
+                <div className="overflow-hidden rounded-xl border border-white/10"><div className="grid grid-cols-[1fr_80px_100px_40px] gap-2 bg-[#0d1524] px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-400"><span>Service</span><span>Qty</span><span className="text-right">Total</span><span/></div>{posCart.map(item=>{const service=services.find(entry=>entry.id===item.serviceId);const lineTotal=Number(service?.priceAmount||0)*item.quantity;return <div key={item.serviceId} className="grid grid-cols-[1fr_80px_100px_40px] items-center gap-2 border-t border-white/5 px-3 py-3 text-xs"><span className="font-semibold text-white">{service?.name||'Service'}</span><span className="text-slate-300">{item.quantity}</span><span className="text-right font-bold text-cyan-200">{lineTotal.toLocaleString()}</span><button type="button" onClick={()=>setPosCart(current=>current.filter(entry=>entry.serviceId!==item.serviceId))} className="text-rose-300" aria-label="Remove service"><Trash2 className="h-4 w-4"/></button></div>})}{!posCart.length&&<p className="p-5 text-center text-xs text-slate-500">Your sale is empty. Add a service to begin.</p>}</div>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-blue-950/70 p-4"><div><p className="text-xs text-blue-200">Total payable</p><p className="text-2xl font-black text-white">KSh {posCart.reduce((sum,item)=>sum+Number(services.find(entry=>entry.id===item.serviceId)?.priceAmount||0)*item.quantity,0).toLocaleString()}</p></div><Button type="submit" disabled={posProcessing||!backendReady||!posCart.length} className="bg-emerald-600 hover:bg-emerald-700">{posProcessing?<><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Processing…</>: 'Send M-Pesa prompt'}</Button></div>
+              </form>
+            </section>
+            <section className="rounded-2xl border border-white/10 bg-[#151d2b] p-5"><h3 className="font-bold text-white">Payment verification</h3><p className="mt-1 text-sm text-slate-400">A receipt is available only after Safaricom confirms payment through the callback.</p>{posPayment?<div className="mt-5 rounded-xl border border-white/10 bg-[#0b1220] p-4"><p className="text-xs text-slate-400">Sale reference</p><p className="mt-1 font-bold text-white">{posPayment.reference}</p><p className="mt-4 text-xs text-slate-400">Payment status</p><p className={`mt-1 text-lg font-extrabold uppercase ${posPayment.status==='paid'?'text-emerald-300':posPayment.status==='failed'?'text-rose-300':'text-amber-300'}`}>{posPayment.status}</p>{posPayment.status==='paid'&&<Link to={`/payment-receipt/${posPayment.id}`} className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700"><ReceiptText className="mr-2 h-4 w-4"/>Open verified receipt</Link>}</div>:<div className="mt-5 rounded-xl border border-dashed border-slate-600 p-6 text-center text-sm text-slate-500">No payment has been started yet.</div>}<p className="mt-4 text-xs leading-5 text-slate-500">Never issue a paid receipt manually. The system waits for the M-Pesa callback and verifies the amount and phone number first.</p></section>
+          </div>}
 
           {active === 'orders' && <section className="overflow-hidden rounded-2xl border bg-white">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><div><h3 className="font-bold text-slate-950">Customer service orders</h3><p className="mt-1 text-sm text-slate-600">Requests submitted from the public Customer Service Desk.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">{customerOrders.length} orders</span></div>
             <div className="divide-y">{customerOrders.map((order) => <article key={order.id} className="grid gap-3 p-4 lg:grid-cols-[1fr_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-950">{order.serviceName}</p><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-600">{order.status}</span></div><p className="mt-1 text-sm text-slate-600">{order.customerName} · {order.phone}{order.email ? ' · ' + order.email : ''}</p><p className="mt-1 text-xs text-slate-500">Reference: {order.reference} · KSh {Number(order.amount).toLocaleString()} · {formatEATDateTime(order.createdAt)}</p>{order.notes && <p className="mt-2 text-sm text-slate-600">{order.notes}</p>}</div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void updateOrderStatus(order.id, 'completed')} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800">Mark completed</button><button type="button" onClick={() => void updateOrderStatus(order.id, 'cancelled')} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700">Cancel</button></div></article>)}{customerOrders.length === 0 && <p className="p-6 text-sm text-slate-500">No customer orders have been submitted yet.</p>}</div>
           </section>}
 
-          {active === 'downloads' && <div className="space-y-5">
+          {(active === 'downloads' || active === 'documents') && <div className="space-y-5">
             <section className="rounded-2xl border bg-white p-5">
               <h3 className="font-bold text-slate-950">Publish downloadable documents</h3>
               <p className="mt-1 text-sm text-slate-600">Upload approved forms, academic calendars, answer booklets, course lists, admission documents and other resources. Published files appear in the website footer.</p>
@@ -1052,7 +1190,7 @@ export function AdminPage() {
 
           {active === 'gallery' && <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]"><section className="space-y-4 border bg-white p-5"><h3 className="font-bold text-slate-950">Logo and site identity</h3><p className="text-sm leading-6 text-slate-600">Choose a local logo preview. It will not be published until secure media storage is connected.</p><Label htmlFor="brand-name">Display name</Label><Input id="brand-name" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} /><Label htmlFor="logo-upload">Logo image</Label><Input id="logo-upload" type="file" accept="image/*" onChange={(event) => setImage(event, 'logo')} />{logoPreview && <img src={logoPreview} alt="Selected NAVSTAR logo preview" className="h-24 w-24 border object-contain p-2" />}<p className="text-xs text-slate-500">Recommended: transparent PNG or SVG, square format.</p></section><section className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Gallery</h3><p className="mt-1 text-sm text-slate-600">Preview up to eight images at a time. Storage is not configured.</p></div><Label htmlFor="gallery-upload">Add gallery images</Label><Input id="gallery-upload" type="file" accept="image/*" multiple onChange={(event) => setImage(event, 'gallery')} /><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{galleryPreview.map((url, index) => <img key={url} src={url} alt={`Gallery preview ${index + 1}`} className="aspect-square w-full border object-cover" />)}</div></section></div>}
 
-          {active === 'settings' && <div className="space-y-5">
+          {(active === 'settings' || active === 'profile') && <div className="space-y-5">
             <div className="flex flex-wrap gap-2 border-b pb-3" role="tablist" aria-label="Settings sections">
               {[
                 ['site','Site settings'],['notifications','Notifications'],['my-profile','My Profile'],['geography','Geography directories'],['staff-ids','Staff ID formats']
@@ -1138,6 +1276,8 @@ export function AdminPage() {
               <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">Existing account IDs are preserved. The logged-in Admin can set the primary Admin ID from Settings → My Profile. New accounts receive their IDs automatically.</p>
             </section>}
           </div>}
+
+          {![ 'overview','navstar-analytics','analytics-reports','reports','courses','learning','marks-tests','school','services','pos','finance','fees','enrollments','staff-applications','applications','enrollment-summary','users','employees','student-directory','customer-accounts','downloads','documents','gallery','settings','profile','orders','receipts' ].includes(active) && <section className="rounded-2xl border border-white/10 bg-[#151d2b] p-6 sm:p-8"><p className="text-xs font-extrabold uppercase tracking-[.22em] text-cyan-300">NAVSTAR DIGITAL HUB · WORKSPACE</p><h3 className="mt-2 text-2xl font-black text-white">{sections.find(item=>item.id===active)?.label || 'Workspace'}</h3><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">This main workspace has been added to the Admin navigation. Its dedicated registers, forms and subtabs can now be configured here without mixing its records with other sections. Existing Navstar records and other portal modules remain separate.</p></section>}
 
           <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Secure Navstar administration · User accounts, student records, uploads and finance operations are protected.</span><span className="font-semibold text-cyan-300">Powered by Navstar Digital Hub</span></footer>
           </div>
