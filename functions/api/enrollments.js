@@ -2,7 +2,6 @@ import { getSession } from '../_shared/auth.js';
 import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../_shared/http.js';
 import { rateLimited } from '../_shared/rate-limit.js';
 import { nextReference } from '../_shared/references.js';
-import { queueCustomerNotice } from '../_shared/notifications.js';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -84,6 +83,10 @@ export async function onRequestPost(context) {
     return error(`The student has reached the maximum of ${maximumCourses} course(s) allowed by Navstar. Please contact Admissions for assistance.`, 409);
   }
 
+  const configuredMinimum = Number(rules.minimumEnrollmentPayment || 0);
+  const amountDueNow = configuredMinimum > 0 ? configuredMinimum : Number(course.price);
+  if (!Number.isSafeInteger(amountDueNow) || amountDueNow < 1 || amountDueNow > Number(course.price)) return error('The minimum enrolment payment in Admin Settings must be at least KSh 1 and cannot exceed the published course fee.', 409);
+
   const id = uuid();
   const displayRef = await nextReference(env.DB, 'ENR');
   await env.DB.prepare(`
@@ -100,9 +103,6 @@ export async function onRequestPost(context) {
     safeString(body.emergencyContactRelationship, 80) || null, safeString(body.supportNeeds, 2000) || null,
   ).run();
 
-  const configuredMinimum = Number(rules.minimumEnrollmentPayment || 0);
-  const amountDueNow = configuredMinimum > 0 ? configuredMinimum : Number(course.price);
-  if (!Number.isSafeInteger(amountDueNow) || amountDueNow < 1 || amountDueNow > Number(course.price)) return error('The minimum enrolment payment in Admin Settings must be at least KSh 1 and cannot exceed the published course fee.', 409);
   return json({ id, reference: displayRef, status: 'awaiting_payment', paymentRequired: true, amountDueNow, course: { id: course.id, title: course.title, amount: course.price } }, 201);
 }
 
