@@ -26,6 +26,7 @@ const definitions: Record<string,{purpose:string;source:string;endpoint?:string;
  'ai-intake-advisor':{purpose:'Review verified payment transactions, cashout activity and financial reporting data.',source:'Verified Navstar payment register',endpoint:'/api/admin/payments',links:[['Cashouts','/admin'],['Finance settings','/admin']],columns:['payer_name','purpose','receipt_number','amount','status','updated_at']},
  fees:{purpose:'Review fee collection, receipts, fee statements and outstanding student balances.',source:'Student enrolment and payment register',endpoint:'/api/enrollments',links:[['Student accounts','/admin'],['Payment register','/admin']],columns:['full_name','course_id','payment_status','status','created_at']},
  'ai-intake-advisor':{purpose:'Review intake demand, course interest and the next recommended recruitment actions.',source:'Admissions and course records',endpoint:'/api/enrollments',links:[['Applications','/admin'],['Course catalogue','/courses']],columns:['full_name','course_id','status','created_at']},
+ 'staff-applications':{purpose:'Review separate staff recruitment applications, supporting documents, interview progress and hiring decisions. This is not the student course-enrolment register.',source:'Staff recruitment register',links:[['Employee directory','/admin'],['Staff roles','/admin']],columns:['Applicant','Position applied for','Submitted date','Recruitment status']},
  'student-projects':{purpose:'Track project proposals, submissions, review decisions and showcase-ready work.',source:'Student project register',links:[['Learning workspace','/learning']],columns:['Project title','Student','Course','Review status']},
  'scholarships':{purpose:'Review scholarship and discount requests, award decisions and award history.',source:'Scholarship and discount register',links:[['Student directory','/admin'],['Fee settings','/admin']],columns:['Applicant','Course','Requested support','Decision']},
  'certificates':{purpose:'Manage completion eligibility, certificate templates, serials and verification records.',source:'Academic completion and certificate register',links:[['Learning records','/learning'],['Student directory','/admin']],columns:['Student','Course','Completion status','Certificate serial']},
@@ -123,7 +124,8 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
  const sourceRows=useMemo<Row[]>(()=>{
   if(section==='courses')return courses as unknown as Row[];
   if(section==='school'||section==='student-status')return users.filter(item=>item.role==='student') as unknown as Row[];
-  if(section==='employees'||section==='staff-applications'||section==='admin-access')return users.filter(item=>item.role!=='student') as unknown as Row[];
+  if(section==='staff-applications')return records;
+  if(section==='employees'||section==='admin-access')return users.filter(item=>item.role!=='student') as unknown as Row[];
   if(section==='applications'||section==='enrollment-summary'||section==='ai-intake-advisor')return applications;
   if(section==='services'||section==='ict-portal')return services as unknown as Row[];
   return records;
