@@ -6,7 +6,7 @@ const digest = async (value) => {
 };
 const token = () => {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes)).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 };
 
 export async function onRequestPost({ request, env }) {
@@ -16,7 +16,7 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 2048); } catch { return error('Enter your email and verification code.'); }
   const email = safeString(body.email, 254).toLowerCase();
   const otp = safeString(body.otp, 6);
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !/^\\d{6}$/.test(otp)) return error('The email or verification code is incorrect.', 400);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(otp)) return error('The email or verification code is incorrect.', 400);
 
   const record = await env.DB.prepare(`
     SELECT id, user_id, otp_hash, attempts, expires_at
