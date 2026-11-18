@@ -158,6 +158,7 @@ export function AdminPage() {
   const [moduleImportName, setModuleImportName] = useState('');
   const [serviceImportRows, setServiceImportRows] = useState<{ name: string; category: string; price: string; priceAmount: string }[]>([]);
   const [learnerImportRows, setLearnerImportRows] = useState<{ admissionNumber: string; firstName: string; middleName: string; lastName: string; classId: string; gender: string; dateOfBirth: string }[]>([]);
+  const [marksImportRows, setMarksImportRows] = useState<{ submissionId: string; pointsAwarded: number; feedback: string }[]>([]);
   const [learningLessonTitle, setLearningLessonTitle] = useState('');
   const [learningLessonContent, setLearningLessonContent] = useState('');
   const [learningLessonMinutes, setLearningLessonMinutes] = useState('15');
@@ -420,6 +421,26 @@ export function AdminPage() {
     if (!selectedSchoolId || !learnerImportRows.length) { setNotice('Select an institution and choose a completed student template first.'); return; }
     const saved = await submitSchoolAction({ action: 'bulk_create_learners', schoolId: selectedSchoolId, rows: learnerImportRows }, 'Student records imported and saved successfully.');
     if (saved) setLearnerImportRows([]);
+  };
+
+  const readMarksImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (!file) return;
+    try {
+      const parsed = parseCsv(await file.text());
+      if (parsed.length < 2) throw new Error('The marks CSV needs a header and at least one row.');
+      const headers = parsed[0].map(value => value.toLowerCase().replace(/[^a-z]/g, ''));
+      const idIndex = headers.indexOf('submissionid'); const scoreIndex = headers.indexOf('pointsawarded'); const feedbackIndex = headers.indexOf('feedback');
+      if (idIndex < 0 || scoreIndex < 0) throw new Error('The marks template needs submissionId and pointsAwarded columns.');
+      const rows = parsed.slice(1).map(row => ({ submissionId: row[idIndex] || '', pointsAwarded: Number(row[scoreIndex]), feedback: feedbackIndex >= 0 ? row[feedbackIndex] || '' : '' })).filter(row => row.submissionId.trim());
+      if (!rows.length || rows.length > 100 || rows.some(row => !Number.isSafeInteger(row.pointsAwarded) || row.pointsAwarded < 0)) throw new Error('Choose a file with 1–100 valid marks rows. Scores must be whole numbers of zero or more.');
+      setMarksImportRows(rows); setNotice(`${rows.length} marks rows ready. The server will validate each score against its assessment maximum.`);
+    } catch (error) { setMarksImportRows([]); setNotice(error instanceof Error ? error.message : 'Marks template could not be read.'); }
+  };
+
+  const importMarks = async () => {
+    if (!marksImportRows.length) return;
+    const saved = await submitLearningAction({ action: 'bulk_grade_submissions', rows: marksImportRows }, 'Marks imported and saved successfully.');
+    if (saved) setMarksImportRows([]);
   };
 
   const exportLearningModules = (format: 'excel' | 'word' | 'pdf') => {
@@ -873,7 +894,7 @@ export function AdminPage() {
                 </div>
                 {moduleImportName && <p className="mt-2 text-xs text-cyan-100">Selected: {moduleImportName} · {moduleImportRows.length} valid rows</p>}
               </div>
-              <div><p className="text-xs font-bold uppercase tracking-wider text-blue-100">Export existing records</p><div className="mt-3 flex flex-wrap gap-2">{(['pdf','word','excel'] as const).map(format=><Button key={'modules-'+format} type="button" size="sm" variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/15" onClick={() => exportLearningModules(format)}>Modules · {format.toUpperCase()}</Button>)}{(['pdf','word','excel'] as const).map(format=><Button key={'marks-'+format} type="button" size="sm" variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/15" onClick={() => exportMarks(format)}>Marks · {format.toUpperCase()}</Button>)}</div></div>
+              <div><p className="text-xs font-bold uppercase tracking-wider text-blue-100">Export existing records</p><div className="mt-3 flex flex-wrap gap-2">{(['pdf','word','excel'] as const).map(format=><Button key={'modules-'+format} type="button" size="sm" variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/15" onClick={() => exportLearningModules(format)}>Modules · {format.toUpperCase()}</Button>)}{(['pdf','word','excel'] as const).map(format=><Button key={'marks-'+format} type="button" size="sm" variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/15" onClick={() => exportMarks(format)}>Marks · {format.toUpperCase()}</Button>)}<Button type="button" size="sm" variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/15" onClick={() => downloadCsvTemplate('navstar-marks-import-template.csv', ['submissionId','pointsAwarded','feedback'], ['paste-submission-id','85','Good work'])}>Marks template</Button><label className="inline-flex cursor-pointer items-center rounded-md border border-white/30 px-3 py-2 text-xs font-semibold hover:bg-white/10">Choose marks CSV<input type="file" accept=".csv,text/csv" className="sr-only" onChange={readMarksImport}/></label><Button type="button" size="sm" disabled={!marksImportRows.length} onClick={() => void importMarks()}>Import {marksImportRows.length || ''} marks</Button></div></div>
             </section>
             <div className="grid gap-5 xl:grid-cols-2">
               <form onSubmit={async (event)=>{event.preventDefault();if(!learningCourseId)return;const ok=await submitLearningAction({action:'create_module',courseId:learningCourseId,title:learningModuleTitle,description:learningModuleDescription,status:'published'},'Module created and published.');if(ok){setLearningModuleTitle('');setLearningModuleDescription('');}}} className="space-y-4 rounded-2xl border bg-white p-5">
