@@ -39,14 +39,14 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   { id: 'courses', label: 'Courses & programmes', icon: BookOpen },
   { id: 'learning', label: 'Learning management', icon: BookOpen },
   { id: 'school', label: 'School ERP & registry', icon: Users },
-  { id: 'services', label: 'Services', icon: BriefcaseBusiness },
-  { id: 'enrollments', label: 'Students & admissions', icon: Users },
-  { id: 'finance', label: 'Donations & cashout', icon: CircleDollarSign },
+  { id: 'services', label: 'Cyber service catalogue', icon: BriefcaseBusiness },
+  { id: 'enrollments', label: 'Admissions & applications', icon: Users },
+  { id: 'finance', label: 'Finance & cashouts', icon: CircleDollarSign },
   { id: 'receipts', label: 'Payment receipts', icon: ReceiptText },
   { id: 'gallery', label: 'Gallery & branding', icon: ImagePlus },
   { id: 'downloads', label: 'Downloads & documents', icon: FileDown },
-  { id: 'orders', label: 'Customer orders', icon: BriefcaseBusiness },
-  { id: 'users', label: 'Portal accounts', icon: Users },
+  { id: 'orders', label: 'Cyber service desk', icon: BriefcaseBusiness },
+  { id: 'users', label: 'Users, staff & Admins', icon: Users },
   { id: 'settings', label: 'Notifications & settings', icon: Settings },
 ];
 
@@ -645,7 +645,7 @@ export function AdminPage() {
           {active === 'enrollments' && <div className="overflow-x-auto border bg-white"><table className="w-full min-w-[820px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Received</th><th className="p-3">Review</th></tr></thead><tbody>{applications.map((application) => <tr key={String(application.id)} className="border-b last:border-0"><td className="p-3"><p className="font-semibold">{String(application.full_name ?? '')}</p><p className="text-xs text-slate-500">{String(application.email ?? '')}</p></td><td className="p-3">{courses.find((item) => item.id === application.course_id)?.title ?? String(application.course_id ?? '')}</td><td className="p-3">{String(application.status ?? '')}</td><td className="p-3">{String(application.payment_status ?? '')}</td><td className="p-3">{formatEATDateTime(application.created_at as string | null | undefined)}</td><td className="p-3">{(user?.role === 'admin' || user?.role === 'admissions') ? <select aria-label={`Review application for ${String(application.full_name ?? 'learner')}`} className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs text-slate-900" value={String(application.status ?? 'submitted')} onChange={(event) => void updateApplicationStatus(String(application.id), event.target.value)}><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="accepted">Accepted — enable LMS</option><option value="rejected">Rejected</option></select> : 'Read only'}</td></tr>)}{applications.length === 0 && <tr><td className="p-6 text-center text-slate-500" colSpan={6}>{backendReady ? 'No applications received yet.' : 'Connect the backend and sign in to view applications.'}</td></tr>}</tbody></table></div>}
 
           {active === 'users' && <div className="space-y-5"><form onSubmit={createPortalUser} className="space-y-5 border bg-white p-4 sm:p-6">
-            <div><h3 className="font-bold text-slate-900">Create staff or student account</h3><p className="mt-1 text-sm text-slate-600">A unique Navstar ID is generated automatically. Passwords require 6–12 characters, uppercase, lowercase and a number.</p></div>
+            <div><h3 className="font-bold text-slate-900">Create a portal user, staff or Admin account</h3><p className="mt-1 text-sm text-slate-600">Only an authenticated Admin can create accounts here, including additional Admins. A unique Navstar ID is generated automatically. Give each person the least access they need and issue credentials privately.</p></div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2"><Label htmlFor="portal-user-name">Full legal name *</Label><Input id="portal-user-name" value={newUserName} onChange={(event) => setNewUserName(event.target.value)} required /></div>
               <div className="space-y-2"><Label htmlFor="portal-user-email">Email address *</Label><Input id="portal-user-email" type="email" value={newUserEmail} onChange={(event) => setNewUserEmail(event.target.value)} required /></div>
