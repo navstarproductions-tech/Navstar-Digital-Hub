@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,7 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
 ];
 
 export function AdminPage() {
+  const navigate = useNavigate();
   const [active, setActive] = useState<Section>('overview');
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [services, setServices] = useState(initialServices);
@@ -91,15 +92,17 @@ export function AdminPage() {
     const loadBackend = async () => {
       try {
         const healthResponse = await fetch('/api/health');
-        if (!healthResponse.ok) return;
+        if (!healthResponse.ok) { if (active) navigate('/login?role=admin', { replace: true }); return; }
         const health = await healthResponse.json() as { databaseConfigured?: boolean };
-        if (!active || !health.databaseConfigured) return;
+        if (!active) return;
+        if (!health.databaseConfigured) { navigate('/login?role=admin', { replace: true }); return; }
         setBackendReady(true);
 
         const sessionResponse = await fetch('/api/auth/me');
-        if (!sessionResponse.ok) return;
+        if (!sessionResponse.ok) { if (active) navigate('/login?role=admin', { replace: true }); return; }
         const session = await sessionResponse.json() as { user?: PortalUser };
-        if (!session.user || !active) return;
+        if (!active) return;
+        if (!session.user || session.user.role !== 'admin') { navigate('/login?role=admin', { replace: true }); return; }
         setUser(session.user);
 
         const [courseResponse, serviceResponse, overviewResponse, userResponse, enrollmentResponse, cashoutResponse, settingsResponse, mediaResponse] = await Promise.all([
@@ -144,7 +147,7 @@ export function AdminPage() {
         }
         if (!overviewResponse.ok) setNotice('Live database connected; some dashboard metrics are not available for this role.');
       } catch {
-        if (active) setNotice('Backend connection failed. Check Cloudflare Pages Functions and D1 binding.');
+        if (active) { setNotice('The Admin service could not be reached. Please sign in again when the service is available.'); navigate('/login?role=admin', { replace: true }); }
       }
     };
     void loadBackend();
@@ -422,9 +425,9 @@ export function AdminPage() {
       <main className="flex min-h-[70vh] items-center justify-center bg-slate-950 px-4 py-12">
         <section className="w-full max-w-lg rounded-2xl border border-white/10 bg-white p-8 shadow-2xl">
           <p className="text-xs font-extrabold uppercase tracking-[.2em] text-blue-700">NAVSTAR DIGITAL HUB</p>
-          <h1 className="mt-3 text-2xl font-black text-slate-950">Administrator sign-in required</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">This workspace is restricted to authorised administrators. Sign in directly to the Admin Portal to continue.</p>
-          <a href="/login?role=admin" className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white hover:bg-blue-800">Continue to Admin Login</a>
+          <h1 className="mt-3 text-2xl font-black text-slate-950">Opening the secure Admin Portal…</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Checking your administrator session. If you are not signed in, you will be taken directly to the Admin login page.</p>
+          <Link to="/login?role=admin" className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white hover:bg-blue-800">Open Admin Login</Link>
         </section>
       </main>
     );
