@@ -130,7 +130,8 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
   if(section==='school')return users.filter(item=>item.role==='student') as unknown as Row[];
   if(section==='staff-applications')return records;
   if(section==='employees'||section==='admin-access')return users.filter(item=>item.role!=='student') as unknown as Row[];
-  if(section==='applications'||section==='enrollment-summary'||section==='ai-intake-advisor')return applications;
+  if(section==='applications')return records.length?records:applications;
+  if(section==='enrollment-summary'||section==='ai-intake-advisor')return applications;
   if(section==='pos'&&['Scan & Sells','Print Barcode Labels','Generate Missing Barcodes'].includes(subtab))return [];
   if(section==='upload-notes')return records.flatMap(course=>Array.isArray(course.modules)?(course.modules as Row[]).flatMap(module=>Array.isArray(module.lessons)?(module.lessons as Row[]).map(lesson=>({course:String(course.title||''),module:String(module.title||''),resource:String(lesson.title||''),publicationStatus:String(lesson.status||'')})):[]):[]);
   if(section==='services'||section==='ict-portal')return services as unknown as Row[];
