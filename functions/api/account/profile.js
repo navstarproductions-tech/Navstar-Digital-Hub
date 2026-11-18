@@ -17,7 +17,7 @@ export async function onRequestGet({ request, env }) {
     FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE u.id = ?
   `).bind(access.user.id).first();
   if (!profile) return error('Profile not found.', 404);
-  const settingsRow = await env.DB.prepare(\"SELECT value FROM system_state WHERE key = 'site-settings'\").first();
+  const settingsRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'site-settings'").first();
   let settings = {};
   try { settings = settingsRow?.value ? JSON.parse(settingsRow.value) : {}; } catch { settings = {}; }
   return json({ profile, geographyOptions: { locations: Array.isArray(settings.locationOptions) ? settings.locationOptions : [], subLocations: Array.isArray(settings.subLocationOptions) ? settings.subLocationOptions : [] } });
