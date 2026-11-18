@@ -9,10 +9,11 @@ import { readApiResponse } from '@/lib/api';
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
 import { formatEATDateTime } from '@/lib/datetime';
+import { GeographyPicker } from '@/components/GeographyPicker';
 
 type Section = 'overview' | 'courses' | 'learning' | 'school' | 'services' | 'enrollments' | 'finance' | 'receipts' | 'gallery' | 'downloads' | 'orders' | 'users' | 'settings';
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
-type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string; nationalId?: string; phone?: string; citizenship?: string; county?: string; subCounty?: string; department?: string; jobTitle?: string };
+type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string; nationalId?: string; phone?: string; citizenship?: string; county?: string; subCounty?: string; ward?: string; department?: string; jobTitle?: string };
 type LearningSubmission = { id: string; learner_name: string; response_text: string; attachment_url?: string | null; status: string; points_awarded?: number | null; feedback?: string | null; submitted_at: string };
 type LearningAssignment = { id: string; title: string; instructions: string; due_at?: string | null; max_points: number; status: string; submissions?: LearningSubmission[] };
 type LearningModule = { id: string; title: string; description: string; status: string; lessons: { id: string; title: string; content: string; status: string; estimated_minutes: number }[] };
@@ -90,12 +91,17 @@ export function AdminPage() {
   const [newUserPhone, setNewUserPhone] = useState('');
   const [newUserNationalId, setNewUserNationalId] = useState('');
   const [editingPortalUser, setEditingPortalUser] = useState<PortalUser | null>(null);
+  const [editingGeo, setEditingGeo] = useState({ county: '', subCounty: '', ward: '' });
   const [newUserCitizenship, setNewUserCitizenship] = useState('Kenyan');
   const [newUserCounty, setNewUserCounty] = useState('');
   const [newUserSubCounty, setNewUserSubCounty] = useState('');
+  const [newUserWard, setNewUserWard] = useState('');
   const [newUserDepartment, setNewUserDepartment] = useState('');
   const [newUserJobTitle, setNewUserJobTitle] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [adminProfile, setAdminProfile] = useState<Record<string, string>>({ name: '', nationalId: '', phone: '', dateOfBirth: '', gender: '', citizenship: '', country: 'Kenya', province: '', county: '', subCounty: '', constituency: '', ward: '', location: '', subLocation: '', department: '', jobTitle: '', employmentType: '', joinedOn: '' });
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [adminStaffId, setAdminStaffId] = useState('');
   const [applications, setApplications] = useState<Record<string, unknown>[]>([]);
   const [cashoutRequests, setCashoutRequests] = useState<Record<string, unknown>[]>([]);
   const [metrics, setMetrics] = useState<Record<string, unknown>>({});
@@ -245,6 +251,26 @@ export function AdminPage() {
       .then((result) => { if (result?.orders) setCustomerOrders(result.orders); })
       .catch(() => undefined);
   }, [user, backendReady]);
+
+  useEffect(() => {
+    if (!backendReady || user?.role !== 'admin' || profileLoaded) return;
+    fetch('/api/account/profile').then(async response => {
+      const result = await response.json() as { profile?: Record<string, unknown> };
+      if (!response.ok || !result.profile) return;
+      const next: Record<string, string> = {};
+      Object.keys(adminProfile).forEach(key => { next[key] = String(result.profile?.[key] ?? ''); });
+      setAdminProfile(next);
+      setProfileLoaded(true);
+    }).catch(() => undefined);
+  }, [backendReady, user, profileLoaded]);
+
+  const saveAdminProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const response = await fetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminProfile) });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) { setNotice(result.error || 'Profile could not be saved.'); return; }
+    setNotice('Your Admin profile has been saved inside this workspace.');
+  };
 
   const submitLearningAction = async (payload: Record<string, unknown>, success: string) => {
     try {
@@ -469,7 +495,7 @@ export function AdminPage() {
         body: JSON.stringify({
           name: newUserName, email: newUserEmail, role: newUserRole, password: newUserPassword,
           confirmPassword: newUserConfirmPassword, phone: newUserPhone, nationalId: newUserNationalId, citizenship: newUserCitizenship,
-          country: 'Kenya', county: newUserCounty, subCounty: newUserSubCounty,
+          country: 'Kenya', county: newUserCounty, subCounty: newUserSubCounty, ward: newUserWard,
           department: newUserDepartment, jobTitle: newUserJobTitle
         }),
       });
@@ -477,7 +503,7 @@ export function AdminPage() {
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Account could not be created.');
       setPortalUsers((current) => [result.user!, ...current]);
       setNewUserName(''); setNewUserEmail(''); setNewUserPassword(''); setNewUserConfirmPassword('');
-      setNewUserPhone(''); setNewUserNationalId(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserDepartment(''); setNewUserJobTitle('');
+      setNewUserPhone(''); setNewUserNationalId(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserWard(''); setNewUserDepartment(''); setNewUserJobTitle('');
       setNotice(`Account created successfully. Staff ID: ${result.user.staffId || 'assigned'}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Account could not be created.');
@@ -554,8 +580,8 @@ export function AdminPage() {
     const payload = {
       name: String(form.get('name') ?? ''), role: String(form.get('role') ?? ''),
       nationalId: String(form.get('nationalId') ?? ''), phone: String(form.get('phone') ?? ''),
-      citizenship: String(form.get('citizenship') ?? ''), country: String(form.get('country') ?? 'Kenya'),
-      county: String(form.get('county') ?? ''), subCounty: String(form.get('subCounty') ?? ''),
+      citizenship: String(form.get('citizenship') ?? ''), country: 'Kenya',
+      county: editingGeo.county, subCounty: editingGeo.subCounty, constituency: editingGeo.subCounty, ward: editingGeo.ward,
       department: String(form.get('department') ?? ''), jobTitle: String(form.get('jobTitle') ?? ''),
       employmentType: String(form.get('employmentType') ?? ''), joinedOn: String(form.get('joinedOn') ?? ''),
     };
@@ -608,7 +634,7 @@ export function AdminPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link to="/portals/notifications" className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Bell className="h-4 w-4"/>Notifications</Link>
-              <Link to="/my-account" className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserRound className="h-4 w-4"/>My account</Link>
+              <button type="button" onClick={() => { setActive('settings'); setNotice('My Profile is available below in Settings.'); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserRound className="h-4 w-4"/>Settings · My Profile</button>
               <button type="button" onClick={() => void signOut()} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"><LogOut className="h-4 w-4"/>Log out</button>
             </div>
           </header>
@@ -692,8 +718,7 @@ export function AdminPage() {
               <div className="space-y-2"><Label htmlFor="portal-user-phone">Phone number</Label><Input id="portal-user-phone" value={newUserPhone} onChange={(event) => setNewUserPhone(event.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="portal-user-national-id">National ID / identity reference</Label><Input id="portal-user-national-id" value={newUserNationalId} onChange={(event) => setNewUserNationalId(event.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="portal-user-citizenship">Citizenship</Label><select id="portal-user-citizenship" value={newUserCitizenship} onChange={(event) => setNewUserCitizenship(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Kenyan</option><option>Ugandan</option><option>Tanzanian</option><option>Other</option></select></div>
-              <div className="space-y-2"><Label htmlFor="portal-user-county">County</Label><select id="portal-user-county" value={newUserCounty} onChange={(event) => setNewUserCounty(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option value="">Select county</option>{['Baringo','Bomet','Bungoma','Busia','Elgeyo-Marakwet','Embu','Garissa','Homa Bay','Isiolo','Kajiado','Kakamega','Kericho','Kiambu','Kilifi','Kirinyaga','Kisii','Kisumu','Kitui','Kwale','Laikipia','Lamu','Machakos','Makueni','Mandera','Marsabit','Meru','Migori','Mombasa','Murang’a','Nairobi','Nakuru','Nandi','Narok','Nyamira','Nyandarua','Nyeri','Samburu','Siaya','Taita-Taveta','Tana River','Tharaka-Nithi','Trans Nzoia','Turkana','Uasin Gishu','Vihiga','Wajir','West Pokot'].map((county) => <option key={county}>{county}</option>)}</select></div>
-              <div className="space-y-2"><Label htmlFor="portal-user-subcounty">Sub-county</Label><Input id="portal-user-subcounty" value={newUserSubCounty} onChange={(event) => setNewUserSubCounty(event.target.value)} /></div>
+               <div className="sm:col-span-2"><GeographyPicker county={newUserCounty} subCounty={newUserSubCounty} ward={newUserWard} onChange={(value) => { setNewUserCounty(value.county); setNewUserSubCounty(value.subCounty); setNewUserWard(value.ward); }} /></div>
               <div className="space-y-2"><Label htmlFor="portal-user-department">Department</Label><Input id="portal-user-department" value={newUserDepartment} onChange={(event) => setNewUserDepartment(event.target.value)} placeholder="e.g. Finance, ICT, Academics" /></div>
               <div className="space-y-2"><Label htmlFor="portal-user-title">Job title</Label><Input id="portal-user-title" value={newUserJobTitle} onChange={(event) => setNewUserJobTitle(event.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="portal-user-password">Password *</Label><Input id="portal-user-password" type="password" minLength={6} maxLength={12} value={newUserPassword} onChange={(event) => setNewUserPassword(event.target.value)} autoComplete="new-password" required /><p className="text-xs leading-5 text-slate-600">6–12 characters. Meet at least 3: capital letter, small letter, number, special character (! @ #).</p><p className={isPasswordStrong(newUserPassword)?'text-xs font-semibold text-emerald-700':'text-xs text-slate-500'}>{newUserPassword ? (isPasswordStrong(newUserPassword)?'Strong password ✓':'Password does not meet the strength rule yet.') : 'Password strength will be checked as you type.'}</p></div>
@@ -701,8 +726,8 @@ export function AdminPage() {
             </div>
             <Button type="submit" disabled={!backendReady || user?.role !== 'admin' || !isPasswordStrong(newUserPassword) || newUserPassword !== newUserConfirmPassword} className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Create account and generate ID</Button>
           </form>
-          <div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.staffId || 'ID pending'} · {portalUser.email} · {portalUser.role}</p><p className="mt-1 text-xs text-slate-500">{portalUser.nationalId ? 'National ID recorded' : 'National ID not yet provided'}</p></div><div className="flex items-center gap-3"><span className="border px-2 py-1 text-xs">{portalUser.status}</span><Button type="button" size="sm" variant="outline" onClick={() => setEditingPortalUser(portalUser)}><Pencil className="mr-1 h-3 w-3"/>Edit profile</Button></div></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div>
-          {editingPortalUser && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4"><form onSubmit={savePortalUserEdit} className="my-6 w-full max-w-3xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between gap-3"><div><h3 className="text-xl font-black text-slate-950">Edit account profile</h3><p className="mt-1 text-sm text-slate-600">{editingPortalUser.staffId} · {editingPortalUser.email}</p></div><button type="button" onClick={() => setEditingPortalUser(null)} className="rounded-lg border px-3 py-1 text-sm">Close</button></div><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label>Full name</Label><Input name="name" defaultValue={editingPortalUser.name} required/></div><div className="space-y-1"><Label>Portal role</Label><select name="role" defaultValue={editingPortalUser.role} className="h-10 w-full rounded-md border bg-white px-3 text-sm">{['admin','principal','finance','admissions','tutor','student'].map(role=><option key={role} value={role}>{role}</option>)}</select></div><div className="space-y-1"><Label>National ID</Label><Input name="nationalId" defaultValue={editingPortalUser.nationalId || ''}/></div><div className="space-y-1"><Label>Phone</Label><Input name="phone" defaultValue={editingPortalUser.phone || ''}/></div><div className="space-y-1"><Label>Citizenship</Label><Input name="citizenship" defaultValue={editingPortalUser.citizenship || ''}/></div><div className="space-y-1"><Label>County</Label><Input name="county" defaultValue={editingPortalUser.county || ''}/></div><div className="space-y-1"><Label>Sub-county</Label><Input name="subCounty" defaultValue={editingPortalUser.subCounty || ''}/></div><div className="space-y-1"><Label>Department</Label><Input name="department" defaultValue={editingPortalUser.department || ''}/></div><div className="space-y-1"><Label>Job title</Label><Input name="jobTitle" defaultValue={editingPortalUser.jobTitle || ''}/></div><div className="space-y-1"><Label>Employment type</Label><Input name="employmentType" defaultValue=""/></div><div className="space-y-1"><Label>Country</Label><Input name="country" defaultValue="Kenya"/></div><div className="space-y-1"><Label>Date joined</Label><Input name="joinedOn" type="date"/></div></div><p className="text-xs text-slate-500">The system-generated Navstar ID is permanent and cannot be edited.</p><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditingPortalUser(null)}>Cancel</Button><Button type="submit"><Save className="mr-2 h-4 w-4"/>Save changes</Button></div></form></div>}
+          <div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.staffId || 'ID pending'} · {portalUser.email} · {portalUser.role}</p><p className="mt-1 text-xs text-slate-500">{portalUser.nationalId ? 'National ID recorded' : 'National ID not yet provided'}</p></div><div className="flex items-center gap-3"><span className="border px-2 py-1 text-xs">{portalUser.status}</span><Button type="button" size="sm" variant="outline" onClick={() => { setEditingPortalUser(portalUser); setEditingGeo({ county: portalUser.county || '', subCounty: portalUser.subCounty || '', ward: portalUser.ward || '' }); }}><Pencil className="mr-1 h-3 w-3"/>Edit profile</Button></div></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div>
+          {editingPortalUser && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4"><form onSubmit={savePortalUserEdit} className="my-6 w-full max-w-3xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between gap-3"><div><h3 className="text-xl font-black text-slate-950">Edit account profile</h3><p className="mt-1 text-sm text-slate-600">{editingPortalUser.staffId} · {editingPortalUser.email}</p></div><button type="button" onClick={() => setEditingPortalUser(null)} className="rounded-lg border px-3 py-1 text-sm">Close</button></div><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label>Full name</Label><Input name="name" defaultValue={editingPortalUser.name} required/></div><div className="space-y-1"><Label>Portal role</Label><select name="role" defaultValue={editingPortalUser.role} className="h-10 w-full rounded-md border bg-white px-3 text-sm">{['admin','principal','finance','admissions','tutor','student'].map(role=><option key={role} value={role}>{role}</option>)}</select></div><div className="space-y-1"><Label>National ID</Label><Input name="nationalId" defaultValue={editingPortalUser.nationalId || ''}/></div><div className="space-y-1"><Label>Phone</Label><Input name="phone" defaultValue={editingPortalUser.phone || ''}/></div><div className="space-y-1"><Label>Citizenship</Label><Input name="citizenship" defaultValue={editingPortalUser.citizenship || ''}/></div><div className="sm:col-span-2"><GeographyPicker county={editingGeo.county} subCounty={editingGeo.subCounty} ward={editingGeo.ward} onChange={setEditingGeo}/></div><div className="space-y-1"><Label>Department</Label><Input name="department" defaultValue={editingPortalUser.department || ''}/></div><div className="space-y-1"><Label>Job title</Label><Input name="jobTitle" defaultValue={editingPortalUser.jobTitle || ''}/></div><div className="space-y-1"><Label>Employment type</Label><Input name="employmentType" defaultValue=""/></div><div className="space-y-1"><Label>Date joined</Label><Input name="joinedOn" type="date"/></div></div><p className="text-xs text-slate-500">The system-generated Navstar ID is permanent and cannot be edited.</p><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditingPortalUser(null)}>Cancel</Button><Button type="submit"><Save className="mr-2 h-4 w-4"/>Save changes</Button></div></form></div>}
           </div>}
           {active === 'receipts' && <section className="rounded-2xl border bg-white p-6"><div className="flex items-center gap-3"><ReceiptText className="h-6 w-6 text-blue-800"/><div><h3 className="font-bold text-slate-950">Confirmed payment receipts</h3><p className="mt-1 text-sm text-slate-600">View confirmed payments and print or save official Navstar receipts as PDF.</p></div></div><Link to="/admin/receipts" className="mt-5 inline-flex items-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900">Open payment receipt register</Link></section>}
 
@@ -737,6 +762,16 @@ export function AdminPage() {
             ['newApplication', 'New student application'], ['paymentUpdate', 'Payment status update'], ['donation', 'Donation received'],
           ].map(([key, label]) => <label key={key} className="flex items-center justify-between gap-4 border-b py-3 last:border-0"><span className="flex items-center gap-2 text-sm font-medium"><Bell className="h-4 w-4 text-emerald-800" />{label}</span><input type="checkbox" checked={notifications[key as keyof typeof notifications]} onChange={(event) => setNotifications((current) => ({ ...current, [key]: event.target.checked }))} className="h-4 w-4 accent-emerald-800" /></label>)}<p className="text-xs leading-5 text-slate-500">Browser push and SMS notifications require user permission and a notification backend.</p></section></div>}
 
+          {active === 'settings' && <form onSubmit={saveAdminProfile} className="mt-6 space-y-4 rounded-2xl border bg-white p-5">
+            <div><h3 className="font-bold text-slate-950">My Profile</h3><p className="mt-1 text-sm text-slate-600">Edit your own personal and professional details here without leaving the Admin workspace. Your login email, role and system-generated staff ID remain protected.</p><p className="mt-2 text-sm font-bold text-amber-700">Staff ID: {adminStaffId || user?.staffId || 'Not yet assigned'}</p></div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ['name','Full legal name'],['nationalId','National ID'],['phone','Phone number'],['dateOfBirth','Date of birth'],['gender','Gender'],['citizenship','Citizenship'],['department','Department'],['jobTitle','Job title'],['employmentType','Employment type'],['joinedOn','Date joined']
+              ].map(([key,label]) => <div key={key} className="space-y-1"><Label htmlFor={'admin-profile-'+key}>{label}</Label><Input id={'admin-profile-'+key} type={key === 'dateOfBirth' || key === 'joinedOn' ? 'date' : 'text'} value={adminProfile[key] || ''} onChange={event => setAdminProfile(current => ({ ...current, [key]: event.target.value }))} required={key === 'name'} /></div>)}
+              <div className="sm:col-span-2 lg:col-span-3"><GeographyPicker county={adminProfile.county || ''} subCounty={adminProfile.subCounty || ''} ward={adminProfile.ward || ''} onChange={geo => setAdminProfile(current => ({ ...current, country: 'Kenya', county: geo.county, subCounty: geo.subCounty, ward: geo.ward, constituency: geo.subCounty, province: '', location: '', subLocation: '' }))} /></div>
+            </div>
+            <div className="flex justify-end"><Button type="submit" disabled={!backendReady || user?.role !== 'admin'}><Save className="mr-2 h-4 w-4"/>Save My Profile</Button></div>
+          </form>}
           <footer className="mt-8 flex flex-col gap-2 border-t pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Daraja secrets stay server-side. User accounts, student records, uploads, and finance operations require authenticated role access.</span><span className="font-semibold text-blue-800">Powered by Navstar Digital Hub</span></footer>
         </section>
       </div>
