@@ -12,12 +12,15 @@ export async function onRequestGet({ request, env }) {
       p.staff_id AS staffId, p.national_id AS nationalId, p.phone, p.date_of_birth AS dateOfBirth,
       p.gender, p.citizenship, p.country, p.province, p.county, p.sub_county AS subCounty,
       p.constituency, p.ward, p.location, p.sub_location AS subLocation, p.department,
-      p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn,
+      p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn, p.address,
       p.profile_photo_url AS profilePhotoUrl
     FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE u.id = ?
   `).bind(access.user.id).first();
   if (!profile) return error('Profile not found.', 404);
-  return json({ profile });
+  const settingsRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'site-settings'").first();
+  let settings = {};
+  try { settings = settingsRow?.value ? JSON.parse(settingsRow.value) : {}; } catch { settings = {}; }
+  return json({ profile, geographyOptions: { locations: Array.isArray(settings.locationOptions) ? settings.locationOptions : [], subLocations: Array.isArray(settings.subLocationOptions) ? settings.subLocationOptions : [] } });
 }
 
 export async function onRequestPatch({ request, env }) {
@@ -27,6 +30,7 @@ export async function onRequestPatch({ request, env }) {
   if (access.response) return access.response;
   let body;
   try { body = await readJson(request, 8192); } catch { return error('Invalid profile details.'); }
+
   const name = safeString(body.name, 120);
   const nationalId = safeString(body.nationalId, 32);
   const phone = safeString(body.phone, 32);
@@ -45,19 +49,35 @@ export async function onRequestPatch({ request, env }) {
   const jobTitle = safeString(body.jobTitle, 120);
   const employmentType = safeString(body.employmentType, 40);
   const joinedOn = safeString(body.joinedOn, 10);
+  const address = safeString(body.address, 240);
+  const requestedStaffId = safeString(body.staffId, 16).toUpperCase();
+
   if (name.length < 2) return error('Enter your full name.');
   if (dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return error('Enter a valid date of birth.');
+  if (joinedOn && !/^\d{4}-\d{2}-\d{2}$/.test(joinedOn)) return error('Enter a valid date joined.');
   if (nationalId && !/^[A-Za-z0-9/-]{4,32}$/.test(nationalId)) return error('Enter a valid National ID or identity reference.');
+
+  if (requestedStaffId) {
+    if (access.user.role !== 'admin') return error('Only the Admin can change the primary Admin staff ID from this profile.', 403);
+    if (!/^AD[0-9]{5}$/.test(requestedStaffId)) return error('Admin staff ID must be AD followed by five digits, for example AD12345.');
+    const duplicate = await env.DB.prepare('SELECT user_id FROM user_profiles WHERE staff_id = ? AND user_id <> ?')
+      .bind(requestedStaffId, access.user.id).first();
+    if (duplicate) return error('That staff ID is already assigned to another account.', 409);
+  }
+
   await env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, access.user.id).run();
   await env.DB.prepare(`
-    UPDATE user_profiles SET national_id = ?, phone = ?, date_of_birth = ?, gender = ?, citizenship = ?,
+    UPDATE user_profiles SET staff_id = COALESCE(?, staff_id), national_id = ?, phone = ?, date_of_birth = ?, gender = ?, citizenship = ?,
       country = ?, province = ?, county = ?, sub_county = ?, constituency = ?, ward = ?, location = ?,
-      sub_location = ?, department = ?, job_title = ?, employment_type = ?, joined_on = ?,
+      sub_location = ?, department = ?, job_title = ?, employment_type = ?, joined_on = ?, address = ?,
       updated_at = CURRENT_TIMESTAMP WHERE user_id = ?
-  `).bind(nationalId || null, phone || null, dateOfBirth || null, gender || null, citizenship || null,
+  `).bind(requestedStaffId || null, nationalId || null, phone || null, dateOfBirth || null, gender || null, citizenship || null,
     country, province || null, county || null, subCounty || null, constituency || null, ward || null,
     location || null, subLocation || null, department || null, jobTitle || null, employmentType || null,
-    joinedOn || null, access.user.id).run();
-  await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), access.user.id, 'profile_updated', 'user', access.user.id).run().catch(() => {});
+    joinedOn || null, address || null, access.user.id).run();
+
+  await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
+    .bind(uuid(), access.user.id, requestedStaffId ? 'admin_staff_id_and_profile_updated' : 'profile_updated', 'user', access.user.id)
+    .run().catch(() => {});
   return onRequestGet({ request, env });
 }

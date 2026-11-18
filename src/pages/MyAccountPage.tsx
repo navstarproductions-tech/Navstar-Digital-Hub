@@ -6,13 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { readApiResponse } from '@/lib/api';
 import { GeographyPicker } from '@/components/GeographyPicker';
+import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
 type Profile = {
   id: string; name: string; email: string; role: string; staffId?: string; nationalId?: string | null;
   phone?: string | null; dateOfBirth?: string | null; gender?: string | null; citizenship?: string | null;
   country?: string | null; province?: string | null; county?: string | null; subCounty?: string | null;
   constituency?: string | null; ward?: string | null; location?: string | null; subLocation?: string | null;
-  department?: string | null; jobTitle?: string | null; employmentType?: string | null; joinedOn?: string | null;
+  department?: string | null; jobTitle?: string | null; employmentType?: string | null; joinedOn?: string | null; address?: string | null;
 };
 
 const fields: { key: keyof Profile; label: string; type?: string }[] = [
@@ -23,7 +24,7 @@ const fields: { key: keyof Profile; label: string; type?: string }[] = [
   { key: 'constituency', label: 'Constituency' }, { key: 'ward', label: 'Ward' }, { key: 'location', label: 'Location' },
   { key: 'subLocation', label: 'Sub-location' }, { key: 'department', label: 'Department' },
   { key: 'jobTitle', label: 'Job title / designation' }, { key: 'employmentType', label: 'Employment type' },
-  { key: 'joinedOn', label: 'Date joined', type: 'date' },
+  { key: 'joinedOn', label: 'Date joined', type: 'date' }, { key: 'address', label: 'Full physical / postal address' },
 ];
 
 export function MyAccountPage() {
@@ -33,14 +34,18 @@ export function MyAccountPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [subLocationOptions, setSubLocationOptions] = useState<string[]>([]);
 
   useEffect(() => {
     let active = true;
     fetch('/api/account/profile').then(async response => {
-      const result = await readApiResponse<{ profile?: Profile; error?: string }>(response);
+      const result = await readApiResponse<{ profile?: Profile; geographyOptions?: { locations?: string[]; subLocations?: string[] }; error?: string }>(response);
       if (!response.ok || !result.profile) throw new Error(result.error || 'Your profile could not be loaded.');
       if (active) {
         setProfile(result.profile);
+        setLocationOptions(result.geographyOptions?.locations || []);
+        setSubLocationOptions(result.geographyOptions?.subLocations || []);
         const next: Record<string, string> = {};
         fields.forEach(field => { next[field.key] = String(result.profile?.[field.key] ?? ''); });
         setValues(next);
@@ -81,8 +86,13 @@ export function MyAccountPage() {
       <form onSubmit={save} className="mt-6 rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
         <div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-1 h-5 w-5 text-emerald-700"/><div><h2 className="font-bold text-slate-950">Profile information</h2><p className="mt-1 text-sm text-slate-600">Your email, portal role and generated staff ID are managed by the system and cannot be changed here. Your National ID is visible only to authorized administrators and you.</p></div></div>
         {loading ? <p className="py-8 text-sm text-slate-500">Loading profile…</p> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {fields.filter(field => !['country','province','county','subCounty','constituency','ward','location','subLocation'].includes(field.key)).map(field => <div key={field.key} className="space-y-2"><Label htmlFor={`profile-${field.key}`}>{field.label}</Label><Input id={`profile-${field.key}`} type={field.type || 'text'} value={values[field.key] || ''} onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))} required={field.key === 'name'} /></div>)}
-          <div className="sm:col-span-2 lg:col-span-3"><GeographyPicker county={values.county || ''} subCounty={values.subCounty || ''} ward={values.ward || ''} onChange={geo => setValues(current => ({ ...current, country: 'Kenya', county: geo.county, subCounty: geo.subCounty, ward: geo.ward, province: '', constituency: geo.subCounty, location: '', subLocation: '' }))} /></div>
+          {fields.filter(field => !['gender','citizenship','department','jobTitle','employmentType','country','province','county','subCounty','constituency','ward','location','subLocation'].includes(field.key)).map(field => <div key={field.key} className="space-y-2"><Label htmlFor={`profile-${field.key}`}>{field.label}</Label><Input id={`profile-${field.key}`} type={field.type || 'text'} value={values[field.key] || ''} onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))} required={field.key === 'name'} /></div>)}
+          <ProfileDropdown id="profile-gender" label="Gender" value={values.gender || ''} options={GENDER_OPTIONS} onChange={value=>setValues(current=>({...current,gender:value}))}/>
+          <ProfileDropdown id="profile-citizenship" label="Citizenship" value={values.citizenship || ''} options={CITIZENSHIP_OPTIONS} onChange={value=>setValues(current=>({...current,citizenship:value}))}/>
+          <ProfileDropdown id="profile-department" label="Department" value={values.department || ''} options={DEPARTMENT_OPTIONS} onChange={value=>setValues(current=>({...current,department:value}))}/>
+          <ProfileDropdown id="profile-jobTitle" label="Job title" value={values.jobTitle || ''} options={JOB_TITLE_OPTIONS} onChange={value=>setValues(current=>({...current,jobTitle:value}))}/>
+          <ProfileDropdown id="profile-employmentType" label="Employment type" value={values.employmentType || ''} options={EMPLOYMENT_TYPE_OPTIONS} onChange={value=>setValues(current=>({...current,employmentType:value}))}/>
+          <div className="sm:col-span-2 lg:col-span-3"><GeographyPicker county={values.county || ''} subCounty={values.subCounty || ''} ward={values.ward || ''} location={values.location || ''} subLocation={values.subLocation || ''} locations={locationOptions} subLocations={subLocationOptions} onChange={geo => setValues(current => ({ ...current, country: 'Kenya', county: geo.county, subCounty: geo.subCounty, ward: geo.ward, province: '', constituency: geo.subCounty, location: geo.location, subLocation: geo.subLocation }))} /></div>
         </div>}
         {status && <p role="status" className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">{status}</p>}
         <div className="mt-6 flex flex-wrap justify-end"><Button type="submit" disabled={loading || saving}><Save className="mr-2 h-4 w-4"/>{saving ? 'Saving…' : 'Save profile'}</Button></div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound } from 'lucide-react';
@@ -10,10 +10,11 @@ import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
 import { formatEATDateTime } from '@/lib/datetime';
 import { GeographyPicker } from '@/components/GeographyPicker';
+import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
 type Section = 'overview' | 'courses' | 'learning' | 'school' | 'services' | 'enrollments' | 'finance' | 'receipts' | 'gallery' | 'downloads' | 'orders' | 'users' | 'settings';
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
-type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string; nationalId?: string; phone?: string; citizenship?: string; county?: string; subCounty?: string; ward?: string; department?: string; jobTitle?: string };
+type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string; nationalId?: string; phone?: string; dateOfBirth?: string; gender?: string; citizenship?: string; county?: string; subCounty?: string; ward?: string; location?: string; subLocation?: string; address?: string; department?: string; jobTitle?: string; employmentType?: string; joinedOn?: string };
 type LearningSubmission = { id: string; learner_name: string; response_text: string; attachment_url?: string | null; status: string; points_awarded?: number | null; feedback?: string | null; submitted_at: string };
 type LearningAssignment = { id: string; title: string; instructions: string; due_at?: string | null; max_points: number; status: string; submissions?: LearningSubmission[] };
 type LearningModule = { id: string; title: string; description: string; status: string; lessons: { id: string; title: string; content: string; status: string; estimated_minutes: number }[] };
@@ -54,6 +55,8 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
 export function AdminPage() {
   const navigate = useNavigate();
   const [active, setActive] = useState<Section>('overview');
+  const [settingsTab, setSettingsTab] = useState<'site' | 'notifications' | 'my-profile' | 'geography' | 'staff-ids'>('site');
+  const contentRef = useRef<HTMLElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [services, setServices] = useState(initialServices);
@@ -80,6 +83,10 @@ export function AdminPage() {
   const [contactPhone, setContactPhone] = useState('');
   const [schoolAddress, setSchoolAddress] = useState('');
   const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState('480');
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [subLocationOptions, setSubLocationOptions] = useState<string[]>([]);
+  const [newLocationOption, setNewLocationOption] = useState('');
+  const [newSubLocationOption, setNewSubLocationOption] = useState('');
   const [backendReady, setBackendReady] = useState(false);
   const [user, setUser] = useState<PortalUser | null>(null);
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
@@ -91,15 +98,21 @@ export function AdminPage() {
   const [newUserPhone, setNewUserPhone] = useState('');
   const [newUserNationalId, setNewUserNationalId] = useState('');
   const [editingPortalUser, setEditingPortalUser] = useState<PortalUser | null>(null);
-  const [editingGeo, setEditingGeo] = useState({ county: '', subCounty: '', ward: '' });
+  const [editingGeo, setEditingGeo] = useState({ county: '', subCounty: '', ward: '', location: '', subLocation: '' });
   const [newUserCitizenship, setNewUserCitizenship] = useState('Kenyan');
+  const [newUserGender, setNewUserGender] = useState('');
+  const [newUserDateOfBirth, setNewUserDateOfBirth] = useState('');
+  const [newUserEmploymentType, setNewUserEmploymentType] = useState('');
+  const [newUserAddress, setNewUserAddress] = useState('');
   const [newUserCounty, setNewUserCounty] = useState('');
   const [newUserSubCounty, setNewUserSubCounty] = useState('');
   const [newUserWard, setNewUserWard] = useState('');
+  const [newUserLocation, setNewUserLocation] = useState('');
+  const [newUserSubLocation, setNewUserSubLocation] = useState('');
   const [newUserDepartment, setNewUserDepartment] = useState('');
   const [newUserJobTitle, setNewUserJobTitle] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
-  const [adminProfile, setAdminProfile] = useState<Record<string, string>>({ name: '', nationalId: '', phone: '', dateOfBirth: '', gender: '', citizenship: '', country: 'Kenya', province: '', county: '', subCounty: '', constituency: '', ward: '', location: '', subLocation: '', department: '', jobTitle: '', employmentType: '', joinedOn: '' });
+  const [adminProfile, setAdminProfile] = useState<Record<string, string>>({ name: '', nationalId: '', phone: '', dateOfBirth: '', gender: '', citizenship: '', country: 'Kenya', province: '', county: '', subCounty: '', constituency: '', ward: '', location: '', subLocation: '', department: '', jobTitle: '', employmentType: '', joinedOn: '', address: '' });
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [adminStaffId, setAdminStaffId] = useState('');
   const [applications, setApplications] = useState<Record<string, unknown>[]>([]);
@@ -200,13 +213,15 @@ export function AdminPage() {
           if (result.requests) setCashoutRequests(result.requests);
         }
         if (settingsResponse.ok) {
-          const result = await settingsResponse.json() as { settings?: { schoolName?: string; contactEmail?: string; contactPhone?: string; address?: string; logoAssetId?: string; sessionTimeoutMinutes?: number } };
+          const result = await settingsResponse.json() as { settings?: { schoolName?: string; contactEmail?: string; contactPhone?: string; address?: string; logoAssetId?: string; sessionTimeoutMinutes?: number; locationOptions?: string[]; subLocationOptions?: string[] } };
           if (result.settings) {
             setSchoolName(result.settings.schoolName ?? 'NAVSTAR DIGITAL HUB');
             setContactEmail(result.settings.contactEmail ?? '');
             setContactPhone(result.settings.contactPhone ?? '');
             setSchoolAddress(result.settings.address ?? '');
             setSessionTimeoutMinutes(String(result.settings.sessionTimeoutMinutes ?? 480));
+            setLocationOptions(Array.isArray(result.settings.locationOptions) ? result.settings.locationOptions : []);
+            setSubLocationOptions(Array.isArray(result.settings.subLocationOptions) ? result.settings.subLocationOptions : []);
             setLogoAssetId(result.settings.logoAssetId ?? '');
             if (result.settings.logoAssetId) setLogoPreview(`/api/media/${result.settings.logoAssetId}`);
           }
@@ -257,6 +272,7 @@ export function AdminPage() {
     fetch('/api/account/profile').then(async response => {
       const result = await response.json() as { profile?: Record<string, unknown> };
       if (!response.ok || !result.profile) return;
+      setAdminStaffId(String(result.profile.staffId ?? ''));
       const next: Record<string, string> = {};
       Object.keys(adminProfile).forEach(key => { next[key] = String(result.profile?.[key] ?? ''); });
       setAdminProfile(next);
@@ -266,10 +282,15 @@ export function AdminPage() {
 
   const saveAdminProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const response = await fetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminProfile) });
-    const result = await response.json() as { error?: string };
-    if (!response.ok) { setNotice(result.error || 'Profile could not be saved.'); return; }
-    setNotice('Your Admin profile has been saved inside this workspace.');
+    const response = await fetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...adminProfile, staffId: adminStaffId }) });
+    const result = await response.json() as { error?: string; profile?: Record<string, unknown> };
+    if (!response.ok || !result.profile) { setNotice(result.error || 'Profile could not be saved.'); return; }
+    const saved = result.profile;
+    if (saved.staffId) {
+      setAdminStaffId(String(saved.staffId));
+      setUser(current => current ? { ...current, staffId: String(saved.staffId) } : current);
+    }
+    setNotice('Your Admin profile and staff ID have been saved successfully.');
   };
 
   const submitLearningAction = async (payload: Record<string, unknown>, success: string) => {
@@ -495,15 +516,16 @@ export function AdminPage() {
         body: JSON.stringify({
           name: newUserName, email: newUserEmail, role: newUserRole, password: newUserPassword,
           confirmPassword: newUserConfirmPassword, phone: newUserPhone, nationalId: newUserNationalId, citizenship: newUserCitizenship,
+          gender: newUserGender, dateOfBirth: newUserDateOfBirth, employmentType: newUserEmploymentType, address: newUserAddress,
           country: 'Kenya', county: newUserCounty, subCounty: newUserSubCounty, ward: newUserWard,
-          department: newUserDepartment, jobTitle: newUserJobTitle
+          location: newUserLocation, subLocation: newUserSubLocation, department: newUserDepartment, jobTitle: newUserJobTitle
         }),
       });
       const result = await readApiResponse<{ user?: PortalUser; error?: string }>(response);
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Account could not be created.');
       setPortalUsers((current) => [result.user!, ...current]);
       setNewUserName(''); setNewUserEmail(''); setNewUserPassword(''); setNewUserConfirmPassword('');
-      setNewUserPhone(''); setNewUserNationalId(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserWard(''); setNewUserDepartment(''); setNewUserJobTitle('');
+      setNewUserPhone(''); setNewUserNationalId(''); setNewUserGender(''); setNewUserDateOfBirth(''); setNewUserEmploymentType(''); setNewUserAddress(''); setNewUserCounty(''); setNewUserSubCounty(''); setNewUserWard(''); setNewUserLocation(''); setNewUserSubLocation(''); setNewUserDepartment(''); setNewUserJobTitle('');
       setNotice(`Account created successfully. Staff ID: ${result.user.staffId || 'assigned'}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Account could not be created.');
@@ -563,11 +585,11 @@ export function AdminPage() {
       const response = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schoolName, contactEmail, contactPhone, address: schoolAddress, logoAssetId, sessionTimeoutMinutes: Number(sessionTimeoutMinutes) }),
+        body: JSON.stringify({ schoolName, contactEmail, contactPhone, address: schoolAddress, logoAssetId, sessionTimeoutMinutes: Number(sessionTimeoutMinutes), locationOptions, subLocationOptions }),
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error ?? 'Settings could not be saved.');
-      setNotice('Site settings saved.');
+      setNotice('Settings and dropdown directories saved successfully.');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Settings could not be saved.');
     }
@@ -580,9 +602,9 @@ export function AdminPage() {
     const payload = {
       name: String(form.get('name') ?? ''), role: String(form.get('role') ?? ''),
       nationalId: String(form.get('nationalId') ?? ''), phone: String(form.get('phone') ?? ''),
-      citizenship: String(form.get('citizenship') ?? ''), country: 'Kenya',
-      county: editingGeo.county, subCounty: editingGeo.subCounty, constituency: editingGeo.subCounty, ward: editingGeo.ward,
-      department: String(form.get('department') ?? ''), jobTitle: String(form.get('jobTitle') ?? ''),
+      citizenship: String(form.get('citizenship') ?? ''), gender: String(form.get('gender') ?? ''), dateOfBirth: String(form.get('dateOfBirth') ?? ''), country: 'Kenya',
+      county: editingGeo.county, subCounty: editingGeo.subCounty, constituency: editingGeo.subCounty, ward: editingGeo.ward, location: editingGeo.location, subLocation: editingGeo.subLocation,
+      address: String(form.get('address') ?? ''), department: String(form.get('department') ?? ''), jobTitle: String(form.get('jobTitle') ?? ''),
       employmentType: String(form.get('employmentType') ?? ''), joinedOn: String(form.get('joinedOn') ?? ''),
     };
     const response = await fetch(`/api/admin/users/${encodeURIComponent(editingPortalUser.id)}`, {
@@ -602,6 +624,8 @@ export function AdminPage() {
 
   const title = sections.find((section) => section.id === active)?.label ?? 'Overview';
 
+  useEffect(() => { if (contentRef.current) contentRef.current.scrollTop = 0; }, [active, settingsTab]);
+
   if (!user || user.role !== 'admin') {
     return (
       <main className="flex min-h-[70vh] items-center justify-center bg-slate-950 px-4 py-12">
@@ -616,7 +640,7 @@ export function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
+    <main className="h-screen overflow-hidden bg-slate-100">
       <div className={'mx-auto grid h-screen max-w-[1800px] grid-cols-1 grid-rows-[4rem_minmax(0,1fr)] overflow-hidden md:grid-rows-1 ' + (sidebarCollapsed ? 'md:grid-cols-[76px_minmax(0,1fr)]' : 'md:grid-cols-[260px_minmax(0,1fr)]')}>
         <aside className="sticky top-0 z-40 flex h-16 min-w-0 flex-row border-b bg-slate-950 text-white md:h-screen md:flex-col md:border-b-0 md:border-r">
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-3 md:px-5 md:py-5"><div className={sidebarCollapsed ? "md:hidden" : ""}><p className="text-[11px] font-bold uppercase text-emerald-300">NAVSTAR DIGITAL HUB</p><h1 className="mt-1 text-lg font-bold">Administration</h1></div><button type="button" onClick={() => setSidebarCollapsed((value) => !value)} className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-slate-200 transition hover:bg-white/10 hover:text-white md:inline-flex" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</button></div>
@@ -626,7 +650,7 @@ export function AdminPage() {
           <div className="hidden border-t border-white/10 p-4 text-xs leading-5 text-slate-400 md:block">Preview dashboard. Live records and actions require authenticated server access.</div>
         </aside>
 
-        <section className="h-full min-h-0 min-w-0 overflow-y-auto px-4 py-6 sm:px-6 lg:px-9">
+        <section ref={contentRef} className="h-full min-h-0 min-w-0 overflow-y-auto px-4 py-6 sm:px-6 lg:px-9">
           <header className="mb-6 flex flex-col gap-4 border-b pb-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div><p className="text-xs font-semibold uppercase text-slate-500">Admin workspace / {title}</p><h2 className="mt-1 text-2xl font-bold text-slate-950">{title}</h2></div>
@@ -634,7 +658,7 @@ export function AdminPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link to="/portals/notifications" className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Bell className="h-4 w-4"/>Notifications</Link>
-              <button type="button" onClick={() => { setActive('settings'); setNotice('My Profile is available below in Settings.'); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserRound className="h-4 w-4"/>Settings · My Profile</button>
+              <button type="button" onClick={() => { setSettingsTab('my-profile'); setActive('settings'); setNotice(''); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><UserRound className="h-4 w-4"/>Settings · My Profile</button>
               <button type="button" onClick={() => void signOut()} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"><LogOut className="h-4 w-4"/>Log out</button>
             </div>
           </header>
@@ -717,17 +741,17 @@ export function AdminPage() {
               <div className="space-y-2"><Label htmlFor="portal-user-role">Portal role *</Label><select id="portal-user-role" value={newUserRole} onChange={(event) => setNewUserRole(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm">{['admin','principal','finance','admissions','tutor','student'].map((role) => <option key={role} value={role}>{role[0].toUpperCase() + role.slice(1)}</option>)}</select></div>
               <div className="space-y-2"><Label htmlFor="portal-user-phone">Phone number</Label><Input id="portal-user-phone" value={newUserPhone} onChange={(event) => setNewUserPhone(event.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="portal-user-national-id">National ID / identity reference</Label><Input id="portal-user-national-id" value={newUserNationalId} onChange={(event) => setNewUserNationalId(event.target.value)} /></div>
-              <div className="space-y-2"><Label htmlFor="portal-user-citizenship">Citizenship</Label><select id="portal-user-citizenship" value={newUserCitizenship} onChange={(event) => setNewUserCitizenship(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Kenyan</option><option>Ugandan</option><option>Tanzanian</option><option>Other</option></select></div>
-               <div className="sm:col-span-2"><GeographyPicker county={newUserCounty} subCounty={newUserSubCounty} ward={newUserWard} onChange={(value) => { setNewUserCounty(value.county); setNewUserSubCounty(value.subCounty); setNewUserWard(value.ward); }} /></div>
-              <div className="space-y-2"><Label htmlFor="portal-user-department">Department</Label><Input id="portal-user-department" value={newUserDepartment} onChange={(event) => setNewUserDepartment(event.target.value)} placeholder="e.g. Finance, ICT, Academics" /></div>
-              <div className="space-y-2"><Label htmlFor="portal-user-title">Job title</Label><Input id="portal-user-title" value={newUserJobTitle} onChange={(event) => setNewUserJobTitle(event.target.value)} /></div>
+              <ProfileDropdown id="portal-user-citizenship" label="Citizenship" value={newUserCitizenship} options={CITIZENSHIP_OPTIONS} onChange={setNewUserCitizenship}/><ProfileDropdown id="portal-user-gender" label="Gender" value={newUserGender} options={GENDER_OPTIONS} onChange={setNewUserGender}/><div className="space-y-2"><Label htmlFor="portal-user-dob">Date of birth</Label><Input id="portal-user-dob" type="date" value={newUserDateOfBirth} onChange={event=>setNewUserDateOfBirth(event.target.value)}/></div>
+               <div className="sm:col-span-2 xl:col-span-3"><GeographyPicker county={newUserCounty} subCounty={newUserSubCounty} ward={newUserWard} location={newUserLocation} subLocation={newUserSubLocation} locations={locationOptions} subLocations={subLocationOptions} onChange={(value) => { setNewUserCounty(value.county); setNewUserSubCounty(value.subCounty); setNewUserWard(value.ward); setNewUserLocation(value.location); setNewUserSubLocation(value.subLocation); }} /></div>
+              <ProfileDropdown id="portal-user-department" label="Department" value={newUserDepartment} options={DEPARTMENT_OPTIONS} onChange={setNewUserDepartment}/><ProfileDropdown id="portal-user-title" label="Job title" value={newUserJobTitle} options={JOB_TITLE_OPTIONS} onChange={setNewUserJobTitle}/><ProfileDropdown id="portal-user-employment" label="Employment type" value={newUserEmploymentType} options={EMPLOYMENT_TYPE_OPTIONS} onChange={setNewUserEmploymentType}/><div className="space-y-2 sm:col-span-2 xl:col-span-3"><Label htmlFor="portal-user-address">Full physical / postal address</Label><Input id="portal-user-address" value={newUserAddress} onChange={event=>setNewUserAddress(event.target.value)} placeholder="Building, street, estate or village, town"/></div>
+              
               <div className="space-y-2"><Label htmlFor="portal-user-password">Password *</Label><Input id="portal-user-password" type="password" minLength={6} maxLength={12} value={newUserPassword} onChange={(event) => setNewUserPassword(event.target.value)} autoComplete="new-password" required /><p className="text-xs leading-5 text-slate-600">6–12 characters. Meet at least 3: capital letter, small letter, number, special character (! @ #).</p><p className={isPasswordStrong(newUserPassword)?'text-xs font-semibold text-emerald-700':'text-xs text-slate-500'}>{newUserPassword ? (isPasswordStrong(newUserPassword)?'Strong password ✓':'Password does not meet the strength rule yet.') : 'Password strength will be checked as you type.'}</p></div>
               <div className="space-y-2"><Label htmlFor="portal-user-confirm">Confirm password *</Label><Input id="portal-user-confirm" type="password" minLength={6} maxLength={12} value={newUserConfirmPassword} onChange={(event) => setNewUserConfirmPassword(event.target.value)} autoComplete="new-password" required />{newUserConfirmPassword && <p className={newUserPassword === newUserConfirmPassword ? 'text-xs text-emerald-700' : 'text-xs text-red-600'}>{newUserPassword === newUserConfirmPassword ? 'Passwords match ✓' : 'Passwords do not match.'}</p>}</div>
             </div>
             <Button type="submit" disabled={!backendReady || user?.role !== 'admin' || !isPasswordStrong(newUserPassword) || newUserPassword !== newUserConfirmPassword} className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Create account and generate ID</Button>
           </form>
-          <div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.staffId || 'ID pending'} · {portalUser.email} · {portalUser.role}</p><p className="mt-1 text-xs text-slate-500">{portalUser.nationalId ? 'National ID recorded' : 'National ID not yet provided'}</p></div><div className="flex items-center gap-3"><span className="border px-2 py-1 text-xs">{portalUser.status}</span><Button type="button" size="sm" variant="outline" onClick={() => { setEditingPortalUser(portalUser); setEditingGeo({ county: portalUser.county || '', subCounty: portalUser.subCounty || '', ward: portalUser.ward || '' }); }}><Pencil className="mr-1 h-3 w-3"/>Edit profile</Button></div></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div>
-          {editingPortalUser && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4"><form onSubmit={savePortalUserEdit} className="my-6 w-full max-w-3xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between gap-3"><div><h3 className="text-xl font-black text-slate-950">Edit account profile</h3><p className="mt-1 text-sm text-slate-600">{editingPortalUser.staffId} · {editingPortalUser.email}</p></div><button type="button" onClick={() => setEditingPortalUser(null)} className="rounded-lg border px-3 py-1 text-sm">Close</button></div><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label>Full name</Label><Input name="name" defaultValue={editingPortalUser.name} required/></div><div className="space-y-1"><Label>Portal role</Label><select name="role" defaultValue={editingPortalUser.role} className="h-10 w-full rounded-md border bg-white px-3 text-sm">{['admin','principal','finance','admissions','tutor','student'].map(role=><option key={role} value={role}>{role}</option>)}</select></div><div className="space-y-1"><Label>National ID</Label><Input name="nationalId" defaultValue={editingPortalUser.nationalId || ''}/></div><div className="space-y-1"><Label>Phone</Label><Input name="phone" defaultValue={editingPortalUser.phone || ''}/></div><div className="space-y-1"><Label>Citizenship</Label><Input name="citizenship" defaultValue={editingPortalUser.citizenship || ''}/></div><div className="sm:col-span-2"><GeographyPicker county={editingGeo.county} subCounty={editingGeo.subCounty} ward={editingGeo.ward} onChange={setEditingGeo}/></div><div className="space-y-1"><Label>Department</Label><Input name="department" defaultValue={editingPortalUser.department || ''}/></div><div className="space-y-1"><Label>Job title</Label><Input name="jobTitle" defaultValue={editingPortalUser.jobTitle || ''}/></div><div className="space-y-1"><Label>Employment type</Label><Input name="employmentType" defaultValue=""/></div><div className="space-y-1"><Label>Date joined</Label><Input name="joinedOn" type="date"/></div></div><p className="text-xs text-slate-500">The system-generated Navstar ID is permanent and cannot be edited.</p><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditingPortalUser(null)}>Cancel</Button><Button type="submit"><Save className="mr-2 h-4 w-4"/>Save changes</Button></div></form></div>}
+          <div className="divide-y border bg-white">{portalUsers.map((portalUser) => <div key={portalUser.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold">{portalUser.name}</p><p className="mt-1 text-xs text-slate-500">{portalUser.staffId || 'ID pending'} · {portalUser.email} · {portalUser.role}</p><p className="mt-1 text-xs text-slate-500">{portalUser.nationalId ? 'National ID recorded' : 'National ID not yet provided'}</p></div><div className="flex items-center gap-3"><span className="border px-2 py-1 text-xs">{portalUser.status}</span><Button type="button" size="sm" variant="outline" onClick={() => { setEditingPortalUser(portalUser); setEditingGeo({ county: portalUser.county || '', subCounty: portalUser.subCounty || '', ward: portalUser.ward || '', location: portalUser.location || '', subLocation: portalUser.subLocation || '' }); }}><Pencil className="mr-1 h-3 w-3"/>Edit profile</Button></div></div>)}{portalUsers.length === 0 && <p className="p-5 text-sm text-slate-500">{backendReady ? 'No accounts found.' : 'Connect Cloudflare Pages Functions and sign in as Admin to manage accounts.'}</p>}</div>
+          {editingPortalUser && <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4"><form onSubmit={savePortalUserEdit} className="my-6 w-full max-w-3xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between gap-3"><div><h3 className="text-xl font-black text-slate-950">Edit account profile</h3><p className="mt-1 text-sm text-slate-600">{editingPortalUser.staffId} · {editingPortalUser.email}</p></div><button type="button" onClick={() => setEditingPortalUser(null)} className="rounded-lg border px-3 py-1 text-sm">Close</button></div><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label>Full name</Label><Input name="name" defaultValue={editingPortalUser.name} required/></div><div className="space-y-1"><Label>Portal role</Label><select name="role" defaultValue={editingPortalUser.role} className="h-10 w-full rounded-md border bg-white px-3 text-sm">{['admin','principal','finance','admissions','tutor','student'].map(role=><option key={role} value={role}>{role}</option>)}</select></div><div className="space-y-1"><Label>National ID</Label><Input name="nationalId" defaultValue={editingPortalUser.nationalId || ''}/></div><div className="space-y-1"><Label>Phone</Label><Input name="phone" defaultValue={editingPortalUser.phone || ''}/></div><div className="space-y-1"><Label>Gender</Label><select name="gender" defaultValue={editingPortalUser.gender || ''} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select gender</option>{GENDER_OPTIONS.map(value=><option key={value}>{value}</option>)}</select></div><div className="space-y-1"><Label>Citizenship</Label><select name="citizenship" defaultValue={editingPortalUser.citizenship || ''} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select citizenship</option>{CITIZENSHIP_OPTIONS.map(value=><option key={value}>{value}</option>)}</select></div><div className="space-y-1"><Label>Date of birth</Label><Input name="dateOfBirth" type="date" defaultValue={editingPortalUser.dateOfBirth || ''}/></div><div className="sm:col-span-2"><GeographyPicker county={editingGeo.county} subCounty={editingGeo.subCounty} ward={editingGeo.ward} location={editingGeo.location} subLocation={editingGeo.subLocation} locations={locationOptions} subLocations={subLocationOptions} onChange={setEditingGeo}/></div><div className="space-y-1"><Label>Department</Label><select name="department" defaultValue={editingPortalUser.department || ''} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select department</option>{DEPARTMENT_OPTIONS.map(value=><option key={value}>{value}</option>)}</select></div><div className="space-y-1"><Label>Job title</Label><select name="jobTitle" defaultValue={editingPortalUser.jobTitle || ''} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select job title</option>{JOB_TITLE_OPTIONS.map(value=><option key={value}>{value}</option>)}</select></div><div className="space-y-1"><Label>Employment type</Label><select name="employmentType" defaultValue={editingPortalUser.employmentType || ''} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select employment type</option>{EMPLOYMENT_TYPE_OPTIONS.map(value=><option key={value}>{value}</option>)}</select></div><div className="space-y-1"><Label>Date joined</Label><Input name="joinedOn" type="date" defaultValue={editingPortalUser.joinedOn || ''}/></div><div className="sm:col-span-2"><Label>Full physical / postal address</Label><Input name="address" defaultValue={editingPortalUser.address || ''} placeholder="Building, street, estate or village, town"/></div></div><p className="text-xs text-slate-500">The system-generated Navstar ID is assigned by the system. The primary Admin can set their own ID under Settings → My Profile.</p><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditingPortalUser(null)}>Cancel</Button><Button type="submit"><Save className="mr-2 h-4 w-4"/>Save changes</Button></div></form></div>}
           </div>}
           {active === 'receipts' && <section className="rounded-2xl border bg-white p-6"><div className="flex items-center gap-3"><ReceiptText className="h-6 w-6 text-blue-800"/><div><h3 className="font-bold text-slate-950">Confirmed payment receipts</h3><p className="mt-1 text-sm text-slate-600">View confirmed payments and print or save official Navstar receipts as PDF.</p></div></div><Link to="/admin/receipts" className="mt-5 inline-flex items-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900">Open payment receipt register</Link></section>}
 
@@ -757,21 +781,70 @@ export function AdminPage() {
 
           {active === 'gallery' && <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]"><section className="space-y-4 border bg-white p-5"><h3 className="font-bold text-slate-950">Logo and site identity</h3><p className="text-sm leading-6 text-slate-600">Choose a local logo preview. It will not be published until secure media storage is connected.</p><Label htmlFor="brand-name">Display name</Label><Input id="brand-name" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} /><Label htmlFor="logo-upload">Logo image</Label><Input id="logo-upload" type="file" accept="image/*" onChange={(event) => setImage(event, 'logo')} />{logoPreview && <img src={logoPreview} alt="Selected NAVSTAR logo preview" className="h-24 w-24 border object-contain p-2" />}<p className="text-xs text-slate-500">Recommended: transparent PNG or SVG, square format.</p></section><section className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Gallery</h3><p className="mt-1 text-sm text-slate-600">Preview up to eight images at a time. Storage is not configured.</p></div><Label htmlFor="gallery-upload">Add gallery images</Label><Input id="gallery-upload" type="file" accept="image/*" multiple onChange={(event) => setImage(event, 'gallery')} /><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{galleryPreview.map((url, index) => <img key={url} src={url} alt={`Gallery preview ${index + 1}`} className="aspect-square w-full border object-cover" />)}</div></section></div>}
 
-          {active === 'settings' && <div className="grid gap-6 xl:grid-cols-2"><form onSubmit={saveSettings} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Site settings</h3><p className="mt-1 text-sm text-slate-600">Updates are saved to NAVSTAR when the backend is connected.</p></div><div className="space-y-2"><Label htmlFor="site-name">Site name</Label><Input id="site-name" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="contact-email">Admissions email</Label><Input id="contact-email" type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="admissions@example.org" /></div><div className="space-y-2"><Label htmlFor="contact-phone">Contact phone</Label><Input id="contact-phone" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+254 7xx xxx xxx" /></div><div className="space-y-2"><Label htmlFor="school-address">Address</Label><Input id="school-address" value={schoolAddress} onChange={(event) => setSchoolAddress(event.target.value)} placeholder="Town, county" /></div>
-            <div className="space-y-2"><Label htmlFor="session-timeout">Automatic session timeout</Label><select id="session-timeout" value={sessionTimeoutMinutes} onChange={(event) => setSessionTimeoutMinutes(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option><option value="480">8 hours</option></select><p className="text-xs text-slate-500">Applies to new sign-ins immediately and is enforced by the server. Maximum is 8 hours.</p></div><Button type="submit" variant="outline" disabled={!backendReady || user?.role !== 'admin'}><Save className="mr-2 h-4 w-4" />Save site settings</Button></form><section className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Notification preferences</h3><p className="mt-1 text-sm text-slate-600">Configure which events the connected admin service should notify.</p></div>{[
-            ['newApplication', 'New student application'], ['paymentUpdate', 'Payment status update'], ['donation', 'Donation received'],
-          ].map(([key, label]) => <label key={key} className="flex items-center justify-between gap-4 border-b py-3 last:border-0"><span className="flex items-center gap-2 text-sm font-medium"><Bell className="h-4 w-4 text-emerald-800" />{label}</span><input type="checkbox" checked={notifications[key as keyof typeof notifications]} onChange={(event) => setNotifications((current) => ({ ...current, [key]: event.target.checked }))} className="h-4 w-4 accent-emerald-800" /></label>)}<p className="text-xs leading-5 text-slate-500">Browser push and SMS notifications require user permission and a notification backend.</p></section></div>}
-
-          {active === 'settings' && <form onSubmit={saveAdminProfile} className="mt-6 space-y-4 rounded-2xl border bg-white p-5">
-            <div><h3 className="font-bold text-slate-950">My Profile</h3><p className="mt-1 text-sm text-slate-600">Edit your own personal and professional details here without leaving the Admin workspace. Your login email, role and system-generated staff ID remain protected.</p><p className="mt-2 text-sm font-bold text-amber-700">Staff ID: {adminStaffId || user?.staffId || 'Not yet assigned'}</p></div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {active === 'settings' && <div className="space-y-5">
+            <div className="flex flex-wrap gap-2 border-b pb-3" role="tablist" aria-label="Settings sections">
               {[
-                ['name','Full legal name'],['nationalId','National ID'],['phone','Phone number'],['dateOfBirth','Date of birth'],['gender','Gender'],['citizenship','Citizenship'],['department','Department'],['jobTitle','Job title'],['employmentType','Employment type'],['joinedOn','Date joined']
-              ].map(([key,label]) => <div key={key} className="space-y-1"><Label htmlFor={'admin-profile-'+key}>{label}</Label><Input id={'admin-profile-'+key} type={key === 'dateOfBirth' || key === 'joinedOn' ? 'date' : 'text'} value={adminProfile[key] || ''} onChange={event => setAdminProfile(current => ({ ...current, [key]: event.target.value }))} required={key === 'name'} /></div>)}
-              <div className="sm:col-span-2 lg:col-span-3"><GeographyPicker county={adminProfile.county || ''} subCounty={adminProfile.subCounty || ''} ward={adminProfile.ward || ''} onChange={geo => setAdminProfile(current => ({ ...current, country: 'Kenya', county: geo.county, subCounty: geo.subCounty, ward: geo.ward, constituency: geo.subCounty, province: '', location: '', subLocation: '' }))} /></div>
+                ['site','Site settings'],['notifications','Notifications'],['my-profile','My Profile'],['geography','Geography directories'],['staff-ids','Staff ID formats']
+              ].map(([id,label]) => <button key={id} type="button" role="tab" aria-selected={settingsTab === id} onClick={() => setSettingsTab(id as typeof settingsTab)} className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition ${settingsTab === id ? 'bg-emerald-800 text-white shadow' : 'border bg-white text-slate-700 hover:bg-slate-50'}`}>{label}</button>)}
             </div>
-            <div className="flex justify-end"><Button type="submit" disabled={!backendReady || user?.role !== 'admin'}><Save className="mr-2 h-4 w-4"/>Save My Profile</Button></div>
-          </form>}
+
+            {settingsTab === 'site' && <form onSubmit={saveSettings} className="max-w-3xl space-y-4 rounded-2xl border bg-white p-5">
+              <div><h3 className="font-bold text-slate-950">Site settings</h3><p className="mt-1 text-sm text-slate-600">Configure the official Navstar site and session policy.</p></div>
+              <div className="space-y-2"><Label htmlFor="site-name">Site name</Label><Input id="site-name" value={schoolName} onChange={(event) => setSchoolName(event.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor="contact-email">Admissions email</Label><Input id="contact-email" type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="admissions@example.org" /></div>
+              <div className="space-y-2"><Label htmlFor="contact-phone">Contact phone</Label><Input id="contact-phone" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+254 7xx xxx xxx" /></div>
+              <div className="space-y-2"><Label htmlFor="school-address">Business address</Label><Input id="school-address" value={schoolAddress} onChange={(event) => setSchoolAddress(event.target.value)} placeholder="Town, county" /></div>
+              <div className="space-y-2"><Label htmlFor="session-timeout">Automatic inactivity logout</Label><select id="session-timeout" value={sessionTimeoutMinutes} onChange={(event) => setSessionTimeoutMinutes(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option><option value="480">8 hours</option></select><p className="text-xs text-slate-500">The user is signed out after this period without activity.</p></div>
+              <Button type="submit" disabled={!backendReady || user?.role !== 'admin'}><Save className="mr-2 h-4 w-4"/>Save site settings</Button>
+            </form>}
+
+            {settingsTab === 'notifications' && <section className="max-w-3xl space-y-4 rounded-2xl border bg-white p-5">
+              <div><h3 className="font-bold text-slate-950">Notification preferences</h3><p className="mt-1 text-sm text-slate-600">Choose which events the connected Admin service should notify.</p></div>
+              {[
+                ['newApplication', 'New student application'], ['paymentUpdate', 'Payment status update'], ['donation', 'Donation received'],
+              ].map(([key, label]) => <label key={key} className="flex items-center justify-between gap-4 border-b py-3 last:border-0"><span className="flex items-center gap-2 text-sm font-medium"><Bell className="h-4 w-4 text-emerald-800"/>{label}</span><input type="checkbox" checked={notifications[key as keyof typeof notifications]} onChange={(event) => setNotifications((current) => ({ ...current, [key]: event.target.checked }))} className="h-4 w-4 accent-emerald-800"/></label>)}
+              <p className="text-xs leading-5 text-slate-500">Browser push and SMS notifications require user permission and a notification backend.</p>
+            </section>}
+
+            {settingsTab === 'my-profile' && <form onSubmit={saveAdminProfile} className="space-y-5 rounded-2xl border bg-white p-5">
+              <div><h3 className="font-bold text-slate-950">My Admin Profile</h3><p className="mt-1 text-sm text-slate-600">Update your existing Admin account. This does not create a new account or change your login email.</p></div>
+              <div className="grid gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:grid-cols-[1fr_2fr] sm:items-end">
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Your Admin staff ID</p><p className="mt-1 text-xs text-amber-800">Choose an unused AD + five-digit ID.</p></div>
+                <div className="space-y-2"><Label htmlFor="admin-profile-staffId">Staff ID</Label><Input id="admin-profile-staffId" value={adminStaffId} onChange={event => setAdminStaffId(event.target.value.toUpperCase())} placeholder="AD12345" pattern="AD[0-9]{5}" maxLength={7} required/><p className="text-xs text-slate-500">Current saved ID: {user?.staffId || adminStaffId || 'Not loaded'} · Example: AD12345</p></div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2"><Label htmlFor="admin-profile-name">Full legal name</Label><Input id="admin-profile-name" value={adminProfile.name || ''} onChange={event => setAdminProfile(current => ({...current,name:event.target.value}))} required/></div>
+                <div className="space-y-2"><Label htmlFor="admin-profile-nationalId">National ID</Label><Input id="admin-profile-nationalId" value={adminProfile.nationalId || ''} onChange={event => setAdminProfile(current => ({...current,nationalId:event.target.value}))}/></div>
+                <div className="space-y-2"><Label htmlFor="admin-profile-phone">Phone number</Label><Input id="admin-profile-phone" value={adminProfile.phone || ''} onChange={event => setAdminProfile(current => ({...current,phone:event.target.value}))}/></div>
+                <div className="space-y-2"><Label htmlFor="admin-profile-dateOfBirth">Date of birth</Label><Input id="admin-profile-dateOfBirth" type="date" value={adminProfile.dateOfBirth || ''} onChange={event => setAdminProfile(current => ({...current,dateOfBirth:event.target.value}))}/></div>
+                <ProfileDropdown id="admin-profile-gender" label="Gender" value={adminProfile.gender || ''} options={GENDER_OPTIONS} onChange={value => setAdminProfile(current => ({...current,gender:value}))}/>
+                <ProfileDropdown id="admin-profile-citizenship" label="Citizenship" value={adminProfile.citizenship || ''} options={CITIZENSHIP_OPTIONS} onChange={value => setAdminProfile(current => ({...current,citizenship:value}))}/>
+                <ProfileDropdown id="admin-profile-department" label="Department" value={adminProfile.department || ''} options={DEPARTMENT_OPTIONS} onChange={value => setAdminProfile(current => ({...current,department:value}))}/>
+                <ProfileDropdown id="admin-profile-jobTitle" label="Job title" value={adminProfile.jobTitle || ''} options={JOB_TITLE_OPTIONS} onChange={value => setAdminProfile(current => ({...current,jobTitle:value}))}/>
+                <ProfileDropdown id="admin-profile-employmentType" label="Employment type" value={adminProfile.employmentType || ''} options={EMPLOYMENT_TYPE_OPTIONS} onChange={value => setAdminProfile(current => ({...current,employmentType:value}))}/>
+                <div className="space-y-2"><Label htmlFor="admin-profile-joinedOn">Date joined</Label><Input id="admin-profile-joinedOn" type="date" value={adminProfile.joinedOn || ''} onChange={event => setAdminProfile(current => ({...current,joinedOn:event.target.value}))}/></div>
+                <div className="space-y-2 sm:col-span-2 lg:col-span-3"><Label htmlFor="admin-profile-address">Full physical / postal address</Label><Input id="admin-profile-address" value={adminProfile.address || ''} onChange={event => setAdminProfile(current => ({...current,address:event.target.value}))} placeholder="Building, street, estate or village, town"/></div>
+                <div className="sm:col-span-2 lg:col-span-3"><GeographyPicker county={adminProfile.county || ''} subCounty={adminProfile.subCounty || ''} ward={adminProfile.ward || ''} location={adminProfile.location || ''} subLocation={adminProfile.subLocation || ''} locations={locationOptions} subLocations={subLocationOptions} onChange={geo => setAdminProfile(current => ({...current,country:'Kenya',county:geo.county,subCounty:geo.subCounty,ward:geo.ward,location:geo.location,subLocation:geo.subLocation,constituency:geo.subCounty,province:''}))}/></div>
+              </div>
+              <div className="flex justify-end"><Button type="submit" disabled={!backendReady || user?.role !== 'admin' || !/^AD[0-9]{5}$/.test(adminStaffId)}><Save className="mr-2 h-4 w-4"/>Save My Profile and Staff ID</Button></div>
+            </form>}
+
+            {settingsTab === 'geography' && <form onSubmit={saveSettings} className="max-w-4xl space-y-5 rounded-2xl border bg-white p-5">
+              <div><h3 className="font-bold text-slate-950">Geography directories</h3><p className="mt-1 text-sm text-slate-600">County, sub-county and ward come from the Kenya administrative divisions directory. Add your local locations and sub-locations once here; they will then appear as dropdown choices in account profiles.</p></div>
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="space-y-3"><Label>Locations available in the system</Label><div className="flex gap-2"><Input value={newLocationOption} onChange={event=>setNewLocationOption(event.target.value)} placeholder="Add location name"/><Button type="button" variant="outline" disabled={!newLocationOption.trim()} onClick={()=>{setLocationOptions(current=>Array.from(new Set([...current,newLocationOption.trim()])).sort());setNewLocationOption('');}}>Add</Button></div><div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-3">{locationOptions.map(value=><div key={value} className="flex items-center justify-between gap-2 text-sm"><span>{value}</span><button type="button" onClick={()=>setLocationOptions(current=>current.filter(item=>item!==value))} className="text-xs font-semibold text-rose-700">Remove</button></div>)}{locationOptions.length===0&&<p className="text-xs text-slate-500">No local locations have been configured yet.</p>}</div></div>
+                <div className="space-y-3"><Label>Sub-locations available in the system</Label><div className="flex gap-2"><Input value={newSubLocationOption} onChange={event=>setNewSubLocationOption(event.target.value)} placeholder="Add sub-location name"/><Button type="button" variant="outline" disabled={!newSubLocationOption.trim()} onClick={()=>{setSubLocationOptions(current=>Array.from(new Set([...current,newSubLocationOption.trim()])).sort());setNewSubLocationOption('');}}>Add</Button></div><div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-3">{subLocationOptions.map(value=><div key={value} className="flex items-center justify-between gap-2 text-sm"><span>{value}</span><button type="button" onClick={()=>setSubLocationOptions(current=>current.filter(item=>item!==value))} className="text-xs font-semibold text-rose-700">Remove</button></div>)}{subLocationOptions.length===0&&<p className="text-xs text-slate-500">No sub-locations have been configured yet.</p>}</div></div>
+              </div>
+              <Button type="submit" disabled={!backendReady || user?.role !== 'admin'}><Save className="mr-2 h-4 w-4"/>Save geography directories</Button>
+            </form>}
+
+            {settingsTab === 'staff-ids' && <section className="max-w-3xl space-y-4 rounded-2xl border bg-white p-5">
+              <div><h3 className="font-bold text-slate-950">Staff ID formats available in Navstar</h3><p className="mt-1 text-sm text-slate-600">The system generates a unique five-digit number after each role prefix. IDs are checked for duplicates before saving.</p></div>
+              <div className="overflow-hidden rounded-xl border"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Portal role</th><th className="p-3">Prefix</th><th className="p-3">Example format</th></tr></thead><tbody>{[['Administrator','AD','AD12345'],['Principal','PR','PR12345'],['Finance','FN','FN12345'],['Admissions','AM','AM12345'],['Tutor / Staff','TU','TU12345'],['Student','ST','ST12345']].map(([role,prefix,example])=><tr key={prefix} className="border-t"><td className="p-3 font-medium">{role}</td><td className="p-3 font-mono font-bold">{prefix}</td><td className="p-3 font-mono">{example}</td></tr>)}</tbody></table></div>
+              <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">Existing account IDs are preserved. The logged-in Admin can set the primary Admin ID from Settings → My Profile. New accounts receive their IDs automatically.</p>
+            </section>}
+          </div>}
+
           <footer className="mt-8 flex flex-col gap-2 border-t pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Daraja secrets stay server-side. User accounts, student records, uploads, and finance operations require authenticated role access.</span><span className="font-semibold text-blue-800">Powered by Navstar Digital Hub</span></footer>
         </section>
       </div>

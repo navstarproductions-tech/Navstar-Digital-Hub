@@ -24,7 +24,7 @@ export async function onRequestGet({ request, env }) {
     SELECT u.id, u.name, u.email, COALESCE(p.portal_role,u.role) AS role, u.status, u.created_at,
       p.staff_id AS staffId, p.national_id AS nationalId, p.phone, p.citizenship, p.country, p.province, p.county,
       p.sub_county AS subCounty, p.constituency, p.ward, p.location, p.sub_location AS subLocation,
-      p.department, p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn
+      p.date_of_birth AS dateOfBirth, p.gender, p.department, p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn, p.address
     FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
     ORDER BY u.created_at DESC LIMIT 300
   `).all();
@@ -58,8 +58,8 @@ export async function onRequestPost({ request, env }) {
       INSERT INTO user_profiles (
         user_id, staff_id, portal_role, national_id, phone, date_of_birth, gender, citizenship, country,
         province, county, sub_county, constituency, ward, location, sub_location,
-        department, job_title, employment_type, joined_on
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        department, job_title, employment_type, joined_on, address
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id, staffId, role, safeString(body.nationalId, 32) || null, safeString(body.phone, 32) || null, safeString(body.dateOfBirth, 10) || null,
       safeString(body.gender, 30) || null, safeString(body.citizenship, 80) || null,
@@ -68,7 +68,8 @@ export async function onRequestPost({ request, env }) {
       safeString(body.constituency, 100) || null, safeString(body.ward, 100) || null,
       safeString(body.location, 100) || null, safeString(body.subLocation, 100) || null,
       safeString(body.department, 100) || null, safeString(body.jobTitle, 120) || null,
-      safeString(body.employmentType, 40) || null, safeString(body.joinedOn, 10) || null
+      safeString(body.employmentType, 40) || null, safeString(body.joinedOn, 10) || null,
+      safeString(body.address, 240) || null
     ).run();
   } catch (cause) {
     await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run().catch(() => {});
