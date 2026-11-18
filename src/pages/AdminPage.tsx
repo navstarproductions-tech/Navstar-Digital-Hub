@@ -59,6 +59,7 @@ export function AdminPage() {
   const [profileSubTab, setProfileSubTab] = useState<'account' | 'personal' | 'employment' | 'location'>('account');
   const [profileSystemDetails, setProfileSystemDetails] = useState<Record<string, unknown>>({});
   const [profileLoadError, setProfileLoadError] = useState('');
+  const [profileReload, setProfileReload] = useState(0);
   const contentRef = useRef<HTMLElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
@@ -283,7 +284,7 @@ export function AdminPage() {
       setAdminProfile(next);
       setProfileLoaded(true);
     }).catch(() => setProfileLoadError('The profile service could not be reached. Your account has not been changed.'));
-  }, [backendReady, user, profileLoaded]);
+  }, [backendReady, user, profileLoaded, profileReload]);
 
   const saveAdminProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -291,6 +292,9 @@ export function AdminPage() {
     const result = await response.json() as { error?: string; profile?: Record<string, unknown> };
     if (!response.ok || !result.profile) { setNotice(result.error || 'Profile could not be saved.'); return; }
     const saved = result.profile;
+    setProfileSystemDetails(saved);
+    setAdminProfile(current => ({ ...current, ...Object.fromEntries(Object.keys(current).map(key => [key, String(saved[key] ?? current[key] ?? '')])) }));
+    setProfileLoaded(true);
     if (saved.staffId) {
       setAdminStaffId(String(saved.staffId));
       setUser(current => current ? { ...current, staffId: String(saved.staffId) } : current);
@@ -815,7 +819,7 @@ export function AdminPage() {
               <div><h3 className="font-bold text-slate-950">My Admin Profile</h3><p className="mt-1 text-sm text-slate-600">Live details for the account currently signed in. Update the existing account; no new account is created.</p></div>
               <section id="profile-account-summary" className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="font-bold text-slate-950">System account information</h4><p className="mt-1 text-xs text-slate-600">Read directly from your active Navstar session and profile record.</p></div><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Signed in · {user?.role || 'Admin'}</span></div>
-                {profileLoadError && <div role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{profileLoadError}<button type="button" onClick={() => { setProfileLoaded(false); setProfileLoadError(''); }} className="ml-2 font-bold underline">Retry loading</button></div>}
+                {profileLoadError && <div role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{profileLoadError}<button type="button" onClick={() => { setProfileLoaded(false); setProfileLoadError(''); setProfileReload(value => value + 1); }} className="ml-2 font-bold underline">Retry loading</button></div>}
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="rounded-lg border bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Account name</p><p className="mt-1 font-semibold text-slate-900">{String(profileSystemDetails.name || user?.name || 'Not available')}</p></div>
                   <div className="rounded-lg border bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Login email</p><p className="mt-1 break-all font-semibold text-slate-900">{String(profileSystemDetails.email || user?.email || 'Not available')}</p></div>
