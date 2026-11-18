@@ -72,8 +72,16 @@ export async function sendCustomerNotice(env, { email, phone, subject, message }
   }
   if (phone && env.TEXTSMS_API_KEY && env.TEXTSMS_PARTNER_ID) {
     tasks.push(sendTextSms(env, phone, message));
+  } else if (phone) {
+    console.error('TextSMS notification not sent: TEXTSMS_API_KEY or TEXTSMS_PARTNER_ID is not configured.');
   }
-  return Promise.allSettled(tasks);
+  const results = await Promise.allSettled(tasks);
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error('Customer notification delivery failure:', String(result.reason?.message || result.reason));
+    }
+  }
+  return results;
 }
 
 /**
