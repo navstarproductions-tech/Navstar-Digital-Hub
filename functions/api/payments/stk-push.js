@@ -26,7 +26,7 @@ export async function onRequestPost({ request, env }) {
     const session = await getSession(request, env);
     if (!session && await rateLimited(env.DB, request, 'public-enrollment-payment', { maximum: 3, minutes: 15 })) return error('Too many payment prompts. Please wait before trying again.', 429);
     const enrollment = await env.DB.prepare(`
-      SELECT enrollments.id, enrollments.display_ref, enrollments.email, enrollments.phone, enrollments.payment_status, enrollments.status, courses.price
+      SELECT enrollments.id, enrollments.display_ref, enrollments.email, enrollments.phone, enrollments.payment_status, enrollments.status, enrollments.approved_initial_payment, courses.price
       FROM enrollments JOIN courses ON courses.id = enrollments.course_id WHERE enrollments.id = ?
     `).bind(reference).first();
     if (!enrollment || enrollment.phone !== phone || enrollment.payment_status === 'paid') return error('Enrollment payment is not available.', 404);
@@ -37,7 +37,7 @@ export async function onRequestPost({ request, env }) {
     let config = {}; try { config = JSON.parse(configRow?.value || '{}'); } catch {}
     const minimum = Number(config['enrollment-settings']?.minimumEnrollmentPayment || 0);
     if (enrollment.status === 'under_review') {
-      amount = minimum > 0 ? minimum : enrollment.price;
+      amount = Number(enrollment.approved_initial_payment ?? (minimum > 0 ? minimum : enrollment.price));
     } else {
       const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
       amount = Math.max(0, Number(enrollment.price) - Number(paidRow?.paid_total || 0));
