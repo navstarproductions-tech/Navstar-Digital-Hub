@@ -36,11 +36,12 @@ export async function onRequestPost({ request, env }) {
     const configRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
     let config = {}; try { config = JSON.parse(configRow?.value || '{}'); } catch {}
     const minimum = Number(config['enrollment-settings']?.minimumEnrollmentPayment || 0);
-    if (enrollment.status === 'under_review') {
+    const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
+    const paidTotal = Number(paidRow?.paid_total || 0);
+    if (enrollment.status === 'under_review' && paidTotal === 0) {
       amount = Number(enrollment.approved_initial_payment ?? (minimum > 0 ? minimum : enrollment.price));
     } else {
-      const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
-      amount = Math.max(0, Number(enrollment.price) - Number(paidRow?.paid_total || 0));
+      amount = Math.max(0, Number(enrollment.price) - paidTotal);
     }
     if (!Number.isSafeInteger(amount) || amount < 1 || amount > enrollment.price) return error('There is no outstanding enrollment balance or the minimum payment is not configured correctly.', 409);
     displayReference = enrollment.display_ref;
