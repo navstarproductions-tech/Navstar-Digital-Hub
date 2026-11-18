@@ -816,6 +816,32 @@ export function AdminPage() {
     }
   };
 
+  const createStudentRegistration = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = Object.fromEntries(new FormData(form).entries());
+    const password = String(values.password || '');
+    const confirmPassword = String(values.confirmPassword || '');
+    if (!isPasswordStrong(password)) { setNotice('Use a 6–12 character password with at least three character types: uppercase, lowercase, number or symbol.'); return; }
+    if (password !== confirmPassword) { setNotice('The student passwords do not match.'); return; }
+    try {
+      setNotice('Saving student account and course enrollment…');
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...values, name: values.fullName, role: 'student', nationalId: values.identityNumber, citizenship: values.nationality || 'Kenyan' }),
+      });
+      const result = await readApiResponse<{ user?: PortalUser; enrollment?: Record<string, unknown> | null; error?: string }>(response);
+      if (!response.ok || !result.user || !result.enrollment) throw new Error(result.error || 'Student registration could not be saved.');
+      setPortalUsers(current => [result.user!, ...current]);
+      setApplications(current => [result.enrollment!, ...current]);
+      form.reset();
+      setNotice(`Student registered successfully. Student ID: ${result.user.staffId || 'assigned'} · Application reference: ${String(result.enrollment.reference || result.enrollment.id || '')}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Student registration could not be saved.');
+    }
+  };
+
   const createPortalUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setTemporaryPassword('');
