@@ -1026,7 +1026,7 @@ export function AdminPage() {
     if (file.size > 3 * 1024 * 1024) { setNotice('Profile photo must be 3 MB or smaller.'); return; }
     setAdminPhotoUploading(true); setNotice('');
     try {
-      const body = new FormData(); body.append('photo', file);
+      const body = new FormData(); body.append('file', file);
       const response = await fetch('/api/account/profile-photo', { method: 'POST', body });
       const result = await readApiResponse<{ profilePhotoUrl?: string; error?: string }>(response);
       if (!response.ok || !result.profilePhotoUrl) throw new Error(result.error || 'Profile photo could not be saved.');
