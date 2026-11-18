@@ -213,7 +213,7 @@ export function AdminPage() {
           if (result.requests) setCashoutRequests(result.requests);
         }
         if (settingsResponse.ok) {
-          const result = await settingsResponse.json() as { settings?: { schoolName?: string; contactEmail?: string; contactPhone?: string; address?: string; logoAssetId?: string; sessionTimeoutMinutes?: number } };
+          const result = await settingsResponse.json() as { settings?: { schoolName?: string; contactEmail?: string; contactPhone?: string; address?: string; logoAssetId?: string; sessionTimeoutMinutes?: number; locationOptions?: string[]; subLocationOptions?: string[] } };
           if (result.settings) {
             setSchoolName(result.settings.schoolName ?? 'NAVSTAR DIGITAL HUB');
             setContactEmail(result.settings.contactEmail ?? '');
@@ -283,10 +283,13 @@ export function AdminPage() {
   const saveAdminProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const response = await fetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...adminProfile, staffId: adminStaffId }) });
-    const result = await response.json() as { error?: string };
-    if (!response.ok) { setNotice(result.error || 'Profile could not be saved.'); return; }
-    const saved = result.profile as Record<string, unknown> | undefined;
-    if (saved?.staffId) setAdminStaffId(String(saved.staffId));
+    const result = await response.json() as { error?: string; profile?: Record<string, unknown> };
+    if (!response.ok || !result.profile) { setNotice(result.error || 'Profile could not be saved.'); return; }
+    const saved = result.profile;
+    if (saved.staffId) {
+      setAdminStaffId(String(saved.staffId));
+      setUser(current => current ? { ...current, staffId: String(saved.staffId) } : current);
+    }
     setNotice('Your Admin profile and staff ID have been saved successfully.');
   };
 
