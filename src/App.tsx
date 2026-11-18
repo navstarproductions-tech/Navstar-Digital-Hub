@@ -7,6 +7,7 @@ import { HomePage } from '@/pages/HomePage';
 import { CoursesPage } from '@/pages/CoursesPage';
 import { LearningPage } from '@/pages/LearningPage';
 import { EnrollmentPage } from '@/pages/EnrollmentPage';
+import { StudentPasswordSetupPage } from '@/pages/StudentPasswordSetupPage';
 import { AdminPage } from '@/pages/AdminPage';
 import { ServicesPage } from '@/pages/ServicesPage';
 import { DonationsPage } from '@/pages/DonationsPage';
@@ -39,7 +40,8 @@ function IdleSessionGuard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const protectedPath = pathname.startsWith('/admin') || pathname.startsWith('/portals/') || pathname === '/my-account' || pathname === '/change-password';
+    const protectedPath = pathname.startsWith('/admin') || pathname.startsWith('/portals/') || pathname === '/my-account' || pathname === '/change-password'
+    || pathname === '/set-password';
     if (!protectedPath) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let timeoutMs = 8 * 60 * 60 * 1000;
@@ -122,6 +124,7 @@ function AppShell() {
             <Route path="/forum" element={<ForumPage />} />
             <Route path="/music" element={<MusicPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
+            <Route path="/set-password" element={<StudentPasswordSetupPage />} />
             <Route path="/setup" element={<FirstAdminSetupPage />} />
             <Route path="/admin-reset" element={<AdminResetPage />} />
             <Route path="/enroll/:id" element={<EnrollmentPage />} />
@@ -133,7 +136,7 @@ function AppShell() {
         </div>
         {!standalone && <Footer />}
       </div>
-      <AIChatWidget />
+      {pathname !== '/set-password' && <AIChatWidget />}
       <Toaster position="top-center" />
     </>
   );
