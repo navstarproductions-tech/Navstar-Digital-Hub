@@ -19,6 +19,7 @@ export function EnrollmentPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState('');
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [geography, setGeography] = useState({ county: '', subCounty: '', ward: '', location: '', subLocation: '' });
 
   useEffect(() => {
@@ -71,7 +72,6 @@ export function EnrollmentPage() {
       });
       const result = await response.json() as { id?: string; reference?: string; amountDueNow?: number; error?: string };
       if (!response.ok || !result.id) throw new Error(result.error ?? 'The application could not be submitted. Please contact admissions.');
-      setRegistrationId(result.id); setRegistrationReference(result.reference ?? result.id);
       setPaymentMessage(`Minimum payment required now: KSh ${Number(result.amountDueNow || 0).toLocaleString('en-KE')}. Approve the M-Pesa prompt on your phone to complete submission.`);
       const paymentResponse = await fetch('/api/payments/stk-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'enrollment', reference: result.id, phone: normalizedPhone }) });
       const paymentResult = await paymentResponse.json() as { id?: string; message?: string; error?: string };
@@ -87,7 +87,7 @@ export function EnrollmentPage() {
         if (checkData.payment?.status === 'failed') throw new Error('M-Pesa did not confirm the payment. Please try again.');
       }
       if (!confirmed) { setStatus('Payment prompt sent. We are still waiting for M-Pesa confirmation. Do not submit again; refresh or contact Admissions if the prompt expired.'); }
-      else { setStatus(`Payment confirmed. Your application ${result.reference ?? result.id} has been submitted successfully. A confirmation will be sent to your email.`); form.reset(); }
+      else { setRegistrationId(result.id); setRegistrationReference(result.reference ?? result.id); setPaymentConfirmed(true); setStatus(`Payment confirmed. Your application ${result.reference ?? result.id} has been submitted successfully. A confirmation will be sent to your email.`); form.reset(); }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'The application could not be submitted.');
     } finally {
@@ -158,7 +158,7 @@ export function EnrollmentPage() {
             <label className="flex items-start gap-3 border bg-white p-4 text-sm leading-6 text-slate-700"><input type="checkbox" name="consent" required className="mt-1 accent-emerald-800" /><span>I agree that admissions may contact me about this application and confirm that the information provided is accurate.</span></label>
             <Button className="w-full bg-emerald-800 hover:bg-emerald-900 sm:w-auto" type="submit" disabled={loading}>{loading ? 'Submitting…' : 'Submit application'}</Button>
             {status && <p role="status" className="border bg-white p-4 text-sm text-slate-700">{status}</p>}{paymentMessage && <p role="status" className="border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-900">{paymentMessage}</p>}
-            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle>Application received successfully</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent className="space-y-3"><p className="text-sm text-slate-600">No payment has been collected on this application form. Once Admissions activates your student account, sign in to the Student Portal to view your fee balance and request an M-Pesa prompt securely.</p><Link to="/login?role=student" className="inline-flex items-center rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900">Go to Student Portal</Link></CardContent></Card>}
+            {registrationId && paymentConfirmed && <Card className="border-emerald-200"><CardHeader><CardTitle>Application received successfully</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent className="space-y-3"><p className="text-sm text-slate-600">No payment has been collected on this application form. Once Admissions activates your student account, sign in to the Student Portal to view your fee balance and request an M-Pesa prompt securely.</p><Link to="/login?role=student" className="inline-flex items-center rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900">Go to Student Portal</Link></CardContent></Card>}
           </form>
 
           <aside className="order-first min-w-0 w-full space-y-4 lg:order-last lg:sticky lg:top-24">
