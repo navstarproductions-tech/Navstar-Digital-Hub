@@ -53,6 +53,7 @@ export function EnrollmentPage() {
       return;
     }
     if (!course) return;
+    if (!formData.get('identityType') || !String(formData.get('identityNumber') || '').trim()) { setStatus('Select the identity document type and enter its number.'); return; }
     setLoading(true);
     setStatus('');
     try {
@@ -68,6 +69,7 @@ export function EnrollmentPage() {
       });
       const result = await response.json() as { id?: string; reference?: string; amountDueNow?: number; error?: string };
       if (!response.ok || !result.id) throw new Error(result.error ?? 'The application could not be submitted. Please contact admissions.');
+      setRegistrationId(result.id); setRegistrationReference(result.reference ?? result.id);
       setPaymentMessage(`Minimum payment required now: KSh ${Number(result.amountDueNow || 0).toLocaleString('en-KE')}. Approve the M-Pesa prompt on your phone to complete submission.`);
       const paymentResponse = await fetch('/api/payments/stk-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'enrollment', reference: result.id, phone: normalizedPhone }) });
       const paymentResult = await paymentResponse.json() as { id?: string; message?: string; error?: string };
@@ -115,7 +117,7 @@ export function EnrollmentPage() {
                 <div className="space-y-2 sm:col-span-2"><Label htmlFor="full-name">Full legal name *</Label><Input id="full-name" name="fullName" autoComplete="name" required /></div>
                 <div className="space-y-2"><Label htmlFor="email">Email address *</Label><Input id="email" name="email" type="email" autoComplete="email" required /></div>
                 <div className="space-y-2"><Label htmlFor="phone">M-Pesa phone number *</Label><Input id="phone" name="phone" inputMode="tel" autoComplete="tel" placeholder="07xx xxx xxx" required /></div>
-                <div className="space-y-2"><Label htmlFor="birth-date">Date of birth *</Label><Input id="birth-date" name="dateOfBirth" type="date" required /></div>
+                <div className="space-y-2"><Label htmlFor="birth-date">Date of birth *</Label><Input id="birth-date" name="dateOfBirth" type="date" max={new Date().toISOString().slice(0,10)} required /></div>
                 <div className="space-y-2"><Label htmlFor="identity-type">Identity document *</Label><select id="identity-type" name="identityType" required className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option value="">Select document</option><option value="national-id">National ID</option><option value="maisha-card">Maisha Card</option><option value="birth-certificate">Birth Certificate</option><option value="passport">Passport</option></select></div><div className="space-y-2"><Label htmlFor="national-id">Document number *</Label><Input id="national-id" name="identityNumber" autoComplete="off" required /></div>
                 <div className="space-y-2"><Label htmlFor="gender">Gender</Label><select id="gender" name="gender" className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option value="">Prefer not to say</option><option>Female</option><option>Male</option><option>Another identity</option></select></div>
                 <div className="space-y-2"><Label htmlFor="nationality">Nationality</Label><Input id="nationality" name="nationality" autoComplete="country-name" /></div>
