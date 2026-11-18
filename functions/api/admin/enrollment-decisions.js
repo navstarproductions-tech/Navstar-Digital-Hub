@@ -1,6 +1,7 @@
 import { hashPassword, requireRole } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 import { queueCustomerNotice } from '../../_shared/notifications.js';
+import { nextReference } from '../../_shared/references.js';
 
 const digest = async value => {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -88,6 +89,19 @@ export async function onRequestPost(context) {
     await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
   }
 
+  const profile = await env.DB.prepare('SELECT user_id FROM user_profiles WHERE user_id = ?').bind(user.id).first();
+  if (!profile) {
+    const studentId = await nextReference(env.DB, 'ST');
+    await env.DB.prepare(`INSERT INTO user_profiles (
+      user_id,staff_id,portal_role,national_id,phone,date_of_birth,gender,citizenship,country,
+      county,sub_county,ward,location,sub_location,address
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(
+      user.id, studentId, 'student', enrollment.identity_number || null, enrollment.phone || null,
+      enrollment.date_of_birth || null, enrollment.gender || null, enrollment.nationality || null,
+      'Kenya', enrollment.county || null, enrollment.sub_county || null, enrollment.ward || null,
+      enrollment.location || null, enrollment.sub_location || null, enrollment.address || null
+    ).run();
+  }
   let setupUrl = new URL('/login?role=student', new URL(request.url).origin).toString();
   let passwordSetupSent = false;
   if (needsPasswordSetup) {
