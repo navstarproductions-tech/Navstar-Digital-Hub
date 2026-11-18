@@ -85,7 +85,7 @@ export function PortalsPage() {
 
   if (!selectedPortal) {
     return (
-      <main className="min-h-screen bg-slate-50">
+      <main className="navstar-portal min-h-screen bg-slate-50">
         <section className="relative isolate overflow-hidden bg-[#061127] text-white">
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_20%,rgba(37,99,235,.45),transparent_40%),radial-gradient(ellipse_at_90%_80%,rgba(6,182,212,.25),transparent_38%)]" />
           <div className="container mx-auto px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
@@ -134,7 +134,7 @@ export function PortalsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="navstar-portal min-h-screen bg-slate-50">
       <section className="bg-[#061127] text-white">
         <div className="container mx-auto flex flex-col justify-between gap-4 px-4 py-10 sm:flex-row sm:items-end sm:px-6 lg:px-8">
           <div><p className="text-xs font-bold uppercase tracking-[.25em] text-cyan-300">NAVSTAR DIGITAL HUB / {selectedPortal.id}</p><h1 className="mt-2 text-3xl font-black">{selectedPortal.title}</h1><div className="mt-2 flex items-center gap-3 text-slate-300">{user?.profilePhotoUrl && <img src={user.profilePhotoUrl} alt="Profile photo" className="h-10 w-10 rounded-full border border-white/30 object-cover"/>}<p>{user ? `Welcome, ${user.name}` : status}</p></div></div>
