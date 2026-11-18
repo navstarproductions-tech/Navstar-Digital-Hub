@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, CheckCircle2, ShieldCheck, Smartphone } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
-import { formatEATDateTime } from '@/lib/datetime';
 
 export function EnrollmentPage() {
   const { id } = useParams();
@@ -16,11 +15,8 @@ export function EnrollmentPage() {
   const [course, setCourse] = useState<Course | null>(null);
   const [registrationId, setRegistrationId] = useState('');
   const [registrationReference, setRegistrationReference] = useState('');
-  const [receipt, setReceipt] = useState<{ code: string; amount: number; phone: string; date?: string } | null>(null);
-  const [phone, setPhone] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
-  const [checkingPayment, setCheckingPayment] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -56,7 +52,6 @@ export function EnrollmentPage() {
       return;
     }
     if (!course) return;
-    setPhone(normalizedPhone);
     setLoading(true);
     setStatus('');
     try {
@@ -74,7 +69,7 @@ export function EnrollmentPage() {
       if (!response.ok || !result.id) throw new Error(result.error ?? 'The application could not be submitted. Please contact admissions.');
       setRegistrationId(result.id);
       setRegistrationReference(result.reference ?? result.id);
-      setStatus(`Application submitted securely as ${result.reference ?? result.id}. You can now request an M-Pesa payment prompt.`);
+      setStatus(`Application submitted successfully as ${result.reference ?? result.id}. Admissions will review your application. Payment is handled separately through the Student Portal when your student account is ready.`);
       form.reset();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'The application could not be submitted.');
@@ -83,45 +78,6 @@ export function EnrollmentPage() {
     }
   };
 
-  const requestPayment = async () => {
-    if (!registrationId || !course) return;
-    setLoading(true);
-    setStatus('Connecting securely to M-Pesa…');
-    setReceipt(null);
-    try {
-      const response = await fetch('/api/payments/stk-push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, amount: course.price, purpose: 'enrollment', reference: registrationId }),
-      });
-      const result = await response.json() as { id?: string; reference?: string; message?: string; error?: string };
-      if (!response.ok) throw new Error(result.error ?? 'The payment prompt could not be requested. Please contact the school.');
-      setStatus(`M-Pesa has accepted the prompt request for ${result.reference || registrationReference}. Check your phone and enter your PIN only on the official Safaricom prompt. We are now waiting for confirmation.`);
-      setLoading(false);
-      if (result.id) {
-        setCheckingPayment(true);
-        for (let attempt = 0; attempt < 24; attempt += 1) {
-          await new Promise((resolve) => window.setTimeout(resolve, attempt < 4 ? 3000 : 5000));
-          const check = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(result.id)}`, { headers: { Accept: 'application/json' } });
-          if (!check.ok) continue;
-          const data = await check.json() as { payment?: { status?: string; receipt_number?: string; result_description?: string; amount?: number; callback_phone?: string; transaction_date?: string } };
-          const payment = data.payment;
-          if (payment?.status === 'paid' && payment.receipt_number) {
-            setReceipt({ code: payment.receipt_number, amount: payment.amount || course.price, phone: payment.callback_phone || phone, date: payment.transaction_date });
-            setStatus('Payment confirmed successfully by M-Pesa. Your receipt is below.');
-            break;
-          }
-          if (payment?.status === 'failed') { setStatus(`Payment not completed: ${payment.result_description || 'M-Pesa did not confirm this payment.'}`); break; }
-          if (attempt === 23) setStatus(`Payment is still awaiting confirmation. Keep your reference ${registrationReference} and check again shortly.`);
-        }
-      }
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'The payment prompt could not be requested.');
-    } finally {
-      setLoading(false);
-      setCheckingPayment(false);
-    }
-  };
 
   if (!course) return null;
 
@@ -180,12 +136,12 @@ export function EnrollmentPage() {
             <label className="flex items-start gap-3 border bg-white p-4 text-sm leading-6 text-slate-700"><input type="checkbox" name="consent" required className="mt-1 accent-emerald-800" /><span>I agree that admissions may contact me about this application and confirm that the information provided is accurate.</span></label>
             <Button className="w-full bg-emerald-800 hover:bg-emerald-900 sm:w-auto" type="submit" disabled={loading}>{loading ? 'Submitting…' : 'Submit application'}</Button>
             {status && <p role="status" className="border bg-white p-4 text-sm text-slate-700">{status}</p>}
-            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" />Application received</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent><Button type="button" className="bg-emerald-800 hover:bg-emerald-900" onClick={requestPayment} disabled={loading || checkingPayment}>{loading ? 'Sending M-Pesa prompt…' : checkingPayment ? 'Waiting for M-Pesa confirmation…' : 'Request M-Pesa prompt'}</Button>{receipt && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">M-Pesa receipt confirmed</p><p className="mt-2">Account: <strong>{registrationReference}</strong></p><p>M-Pesa code: <strong className="tracking-wide">{receipt.code}</strong></p><p>Amount: <strong>KSh {receipt.amount.toLocaleString()}</strong></p><p>Phone: {receipt.phone}</p>{receipt.date && <p>Transaction date: {formatEATDateTime(receipt.date)}</p>}</div>}</CardContent></Card>}
+            {registrationId && <Card className="border-emerald-200"><CardHeader><CardTitle>Application received successfully</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent className="space-y-3"><p className="text-sm text-slate-600">No payment has been collected on this application form. Once Admissions activates your student account, sign in to the Student Portal to view your fee balance and request an M-Pesa prompt securely.</p><Link to="/login?role=student" className="inline-flex items-center rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900">Go to Student Portal</Link></CardContent></Card>}
           </form>
 
           <aside className="order-first min-w-0 w-full space-y-4 lg:order-last lg:sticky lg:top-24">
-            <Card><CardHeader><CardTitle className="text-lg">Application summary</CardTitle></CardHeader><CardContent className="space-y-4"><div className="aspect-video overflow-hidden bg-slate-100"><img src={course.image} alt={course.title} className="h-full w-full object-cover" /></div><div><h2 className="font-bold text-slate-950">{course.title}</h2><p className="mt-1 text-sm text-slate-500">{course.duration} · {course.category}</p></div><div className="flex justify-between border-t pt-4 text-sm"><span className="text-slate-600">Course fee</span><strong>KSh {course.price.toLocaleString()}</strong></div><p className="text-xs leading-5 text-slate-500">Fees are shown for planning. Payment is not marked received until the provider confirms it.</p></CardContent></Card>
-            <div className="border-l-2 border-emerald-700 bg-white p-4 text-sm text-slate-700"><div className="flex items-center gap-2 font-semibold"><Smartphone className="h-4 w-4 text-emerald-800" />M-Pesa safety</div><p className="mt-2 leading-5">A prompt can only be sent by a configured secure backend. Enter your PIN only on the official prompt on your phone.</p></div>
+            <Card><CardHeader><CardTitle className="text-lg">Application summary</CardTitle></CardHeader><CardContent className="space-y-4"><div className="aspect-video overflow-hidden bg-slate-100"><img src={course.image} alt={course.title} className="h-full w-full object-cover" /></div><div><h2 className="font-bold text-slate-950">{course.title}</h2><p className="mt-1 text-sm text-slate-500">{course.duration} · {course.category}</p></div><div className="flex justify-between border-t pt-4 text-sm"><span className="text-slate-600">Course fee (for reference)</span><strong>KSh {course.price.toLocaleString()}</strong></div><p className="text-xs leading-5 text-slate-500">This is a fee guide only. Applications are submitted without payment; approved students pay through the Student Portal.</p></CardContent></Card>
+            <div className="border-l-2 border-emerald-700 bg-white p-4 text-sm text-slate-700"><p className="font-semibold">Student Portal payments</p><p className="mt-2 leading-5">After your student account is activated, you can view your balance and request a secure M-Pesa prompt from your Student Portal.</p></div>
             <div className="flex items-start gap-2 text-xs leading-5 text-slate-500"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />Application data is sent to the configured NAVSTAR admissions backend.</div>
             <div className="flex items-start gap-2 text-xs text-slate-500"><ShieldCheck className="h-4 w-4 shrink-0" />Student information must be stored server-side with access controls.</div>
           </aside>
