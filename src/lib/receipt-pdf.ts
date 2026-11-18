@@ -51,7 +51,7 @@ export async function downloadReceiptHtmlPdf(html: string, filename: string) {
   const html2pdf = await loadHtml2Pdf();
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
-  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;visibility:hidden;';
+  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;';
   document.body.appendChild(frame);
   try {
     const doc = frame.contentDocument;
