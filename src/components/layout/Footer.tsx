@@ -19,12 +19,7 @@ const exploreLinks = [
   ['Fee Structures', '/fees'],
 ];
 
-const portalLinks = [
-  ['Student Portal', '/portals/student'],
-  ['Tutor Portal', '/portals/tutor'],
-  ['Principal Portal', '/portals/principal'],
-  ['Admin Portal', '/portals/admin'],
-];
+
 
 export function Footer() {
   const [downloads, setDownloads] = useState<DownloadDocument[]>([]);
@@ -46,7 +41,7 @@ export function Footer() {
     <footer className="relative overflow-hidden border-t-4 border-green-500 bg-blue-950 text-slate-200">
       <div className="h-1 w-full bg-gradient-to-r from-green-500 via-amber-400 to-green-500" />
       <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_0.8fr_0.9fr_1fr] lg:gap-10">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_0.8fr_1fr] lg:gap-10">
           <div>
             <Link to="/" className="inline-flex items-center gap-3 text-white">
               <img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub logo" className="h-16 w-24 rounded-lg object-contain" />
@@ -80,17 +75,6 @@ export function Footer() {
               {exploreLinks.map(([label, path]) => (
                 <li key={label}>
                   <Link className="transition hover:text-amber-300" to={path} onClick={() => window.scrollTo(0, 0)}>{label}</Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-
-          <nav aria-label="Portals">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-white">Portals</h3>
-            <ul className="mt-4 space-y-3 text-sm">
-              {portalLinks.map(([label, path]) => (
-                <li key={label}>
-                  <Link className="transition hover:text-green-300" to={path} onClick={() => window.scrollTo(0, 0)}>{label}</Link>
                 </li>
               ))}
             </ul>
