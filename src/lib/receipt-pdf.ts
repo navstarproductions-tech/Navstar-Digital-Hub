@@ -71,12 +71,37 @@ function waitForImages(root: ParentNode, timeoutMs = 7000): Promise<void> {
   }))).then(() => undefined);
 }
 
+
+/**
+ * html2canvas cannot parse oklch() CSS colors. Resolve styles in the browser,
+ * inline them on the export clone, and remove stylesheets from its isolated
+ * document so the renderer only sees resolved computed values.
+ */
+function inlineComputedStyles(source: HTMLElement, clone: HTMLElement) {
+  const sourceNodes = [source, ...Array.from(source.querySelectorAll<HTMLElement>('*'))];
+  const cloneNodes = [clone, ...Array.from(clone.querySelectorAll<HTMLElement>('*'))];
+  sourceNodes.forEach((node, index) => {
+    const target = cloneNodes[index];
+    if (!target) return;
+    const computed = window.getComputedStyle(node);
+    for (let i = 0; i < computed.length; i += 1) {
+      const property = computed.item(i);
+      const value = computed.getPropertyValue(property);
+      if (value) target.style.setProperty(property, value, computed.getPropertyPriority(property));
+    }
+  });
+}
+
+function removeExternalStylesheets(doc: Document) {
+  doc.querySelectorAll('style, link[rel="stylesheet"]').forEach(node => node.remove());
+}
+
 function pdfOptions(filename: string) {
   return {
     margin: 0,
     filename,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false, scrollX: 0, scrollY: 0 },
+    html2canvas: { scale: 2, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false, scrollX: 0, scrollY: 0, onclone: (doc: Document) => removeExternalStylesheets(doc) },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     pagebreak: { mode: ['css', 'legacy'] },
   };
@@ -85,6 +110,7 @@ function pdfOptions(filename: string) {
 export async function downloadReceiptElementPdf(element: HTMLElement, filename: string) {
   const html2pdf = await loadHtml2Pdf();
   const clone = element.cloneNode(true) as HTMLElement;
+  inlineComputedStyles(element, clone);
   clone.style.width = '794px';
   clone.style.maxWidth = 'none';
   clone.style.margin = '0';
@@ -125,6 +151,8 @@ export async function downloadReceiptHtmlPdf(html: string, filename: string) {
     await waitForImages(doc, 7000);
     const content = doc.querySelector('body');
     if (!content) throw new Error('Receipt content could not be prepared for PDF download.');
-    await html2pdf().set(pdfOptions(filename)).from(content as unknown as HTMLElement).save();
+    const exportClone = content.cloneNode(true) as HTMLElement;
+    inlineComputedStyles(content as HTMLElement, exportClone);
+    await html2pdf().set(pdfOptions(filename)).from(exportClone).save();
   } finally { frame.remove(); }
 }
