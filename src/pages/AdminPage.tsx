@@ -14,7 +14,9 @@ type Section = 'overview' | 'courses' | 'services' | 'enrollments' | 'finance' |
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
 type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string };
 
-const isPasswordStrong = (value: string) => value.length >= 6 && value.length <= 12 && [/[A-Z]/.test(value), /[a-z]/.test(value), /[0-9]/.test(value), /[^A-Za-z0-9]/.test(value)].filter(Boolean).length >= 3;\n\nconst initialServices: ServiceItem[] = [
+const isPasswordStrong = (value: string) => value.length >= 6 && value.length <= 12 && [/[A-Z]/.test(value), /[a-z]/.test(value), /[0-9]/.test(value), /[^A-Za-z0-9]/.test(value)].filter(Boolean).length >= 3;
+
+const initialServices: ServiceItem[] = [
   { id: 's1', name: 'Computer access', category: 'Cyber cafe', price: 'KSh 50 / hour', status: 'Active' },
   { id: 's2', name: 'Printing and scanning', category: 'Document desk', price: 'From KSh 10', status: 'Active' },
   { id: 's3', name: 'Online application support', category: 'Digital support', price: 'From KSh 100', status: 'Active' },
