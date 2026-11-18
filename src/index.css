@@ -206,3 +206,27 @@ body::-webkit-scrollbar,
   height: 0;
   display: none;
 }
+
+
+/* Navstar Admin Portal visual system — dark navy, electric blue and gold. */
+.navstar-admin { background: #080d19; color: #e7eefc; }
+.navstar-admin-sidebar { background: linear-gradient(180deg,#0b2348 0%,#071a38 100%); border-color: rgba(148,163,184,.16); }
+.navstar-admin-sidebar nav button { border-radius: 11px; min-height: 42px; transition: background .18s ease, color .18s ease; }
+.navstar-admin-sidebar nav button[aria-current="page"] { background: linear-gradient(90deg,#0755b8,#073a79); color: white; box-shadow: inset 3px 0 #f5c542; }
+.navstar-admin-sidebar nav button:not([aria-current="page"]):hover { background: rgba(255,255,255,.08); }
+.navstar-admin-content { background: radial-gradient(ellipse at 80% 0%,rgba(20,76,145,.12),transparent 42%),#080d19; }
+.navstar-admin-topbar { border-color: rgba(148,163,184,.18); }
+.navstar-admin-hero { position:relative; isolation:isolate; background:linear-gradient(105deg,#06265c 0%,#0a3e91 50%,#071b40 100%); }
+.navstar-admin-hero:after { content:""; position:absolute; inset:0 0 0 42%; z-index:-1; opacity:.55; background:radial-gradient(circle at 70% 35%,rgba(31,157,255,.55),transparent 34%),linear-gradient(135deg,transparent 45%,rgba(245,197,66,.28) 46%,transparent 48%); }
+.navstar-admin-stat { box-shadow:0 12px 30px rgba(0,0,0,.18); }
+.navstar-admin-panel { box-shadow:0 12px 30px rgba(0,0,0,.16); }
+.navstar-admin-content .text-slate-950 { color:#f8fafc !important; }
+.navstar-admin-content .text-slate-700 { color:#d8e3f6 !important; }
+.navstar-admin-content .text-slate-600,.navstar-admin-content .text-slate-500 { color:#9aabc5 !important; }
+.navstar-admin-content .bg-white { background:#171d2b !important; }
+.navstar-admin-content .border-slate-200,.navstar-admin-content .border { border-color:rgba(148,163,184,.18); }
+.navstar-admin-content input,.navstar-admin-content select,.navstar-admin-content textarea { background:#0d1627; color:#eef5ff; border-color:rgba(148,163,184,.28); }
+.navstar-admin-content label { color:#c8d5e8; }
+.navstar-admin-content table th { color:#94a8c4; border-color:rgba(148,163,184,.18); }
+.navstar-admin-content table td { color:#dbe7f8; border-color:rgba(148,163,184,.14); }
+@media (max-width:767px) { .navstar-admin-content { padding:14px; } .navstar-admin-hero { min-height:120px; } }
