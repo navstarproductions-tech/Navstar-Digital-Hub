@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, LogOut, Save, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, Camera, LogOut, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { GeographyPicker } from '@/components/GeographyPicker';
 import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
 type Profile = {
-  id: string; name: string; email: string; role: string; staffId?: string; nationalId?: string | null;
+  id: string; name: string; email: string; role: string; staffId?: string; profilePhotoUrl?: string | null; nationalId?: string | null;
   phone?: string | null; dateOfBirth?: string | null; gender?: string | null; citizenship?: string | null;
   country?: string | null; province?: string | null; county?: string | null; subCounty?: string | null;
   constituency?: string | null; ward?: string | null; location?: string | null; subLocation?: string | null;
@@ -34,6 +34,7 @@ export function MyAccountPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
   const [subLocationOptions, setSubLocationOptions] = useState<string[]>([]);
 
@@ -54,6 +55,21 @@ export function MyAccountPage() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
+
+  const uploadPhoto = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true); setStatus('Uploading profile photo…');
+    try {
+      const form = new FormData(); form.append('file', file);
+      const response = await fetch('/api/account/profile-photo', { method: 'POST', body: form });
+      const result = await readApiResponse<{ profilePhotoUrl?: string; error?: string }>(response);
+      if (!result.profilePhotoUrl) throw new Error(result.error || 'Profile photo was not saved.');
+      setProfile(current => current ? { ...current, profilePhotoUrl: result.profilePhotoUrl } : current);
+      setStatus('Your profile photo has been saved successfully.');
+    } catch (error) { setStatus(error instanceof Error ? error.message : 'Profile photo could not be saved.'); }
+    finally { setPhotoUploading(false); event.target.value = ''; }
+  };
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -80,9 +96,10 @@ export function MyAccountPage() {
         <div className="flex gap-2"><Link to="/portals/notifications" className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700">Notifications</Link><Button type="button" variant="outline" onClick={() => void signOut()}><LogOut className="mr-2 h-4 w-4"/>Log out</Button></div>
       </div>
       <header className="mt-6 rounded-2xl bg-[#071a38] p-6 text-white sm:p-8">
-        <div className="flex items-center gap-4"><span className="rounded-2xl bg-white/10 p-3"><UserRound className="h-8 w-8 text-cyan-200"/></span><div><p className="text-xs font-bold uppercase tracking-[.2em] text-cyan-200">NAVSTAR DIGITAL HUB · MY ACCOUNT</p><h1 className="mt-1 text-2xl font-black">Personal profile</h1><p className="mt-1 text-sm text-slate-300">Maintain your personal, contact and work details.</p></div></div>
+        <div className="flex items-center gap-4"><span className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-white/10">{profile?.profilePhotoUrl ? <img src={profile.profilePhotoUrl} alt="Your profile" className="h-full w-full object-cover"/> : <UserRound className="h-8 w-8 text-cyan-200"/>}</span><div><p className="text-xs font-bold uppercase tracking-[.2em] text-cyan-200">NAVSTAR DIGITAL HUB · MY ACCOUNT</p><h1 className="mt-1 text-2xl font-black">Personal profile</h1><p className="mt-1 text-sm text-slate-300">Maintain your personal, contact and work details.</p></div></div>
         {profile && <div className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-white/15 bg-white/5 p-3"><p className="text-xs text-slate-300">System-generated ID</p><p className="mt-1 text-lg font-black tracking-wide text-amber-300">{profile.staffId || 'Not assigned'}</p></div><div className="rounded-xl border border-white/15 bg-white/5 p-3"><p className="text-xs text-slate-300">Portal role</p><p className="mt-1 font-bold capitalize">{profile.role}</p></div><div className="rounded-xl border border-white/15 bg-white/5 p-3"><p className="text-xs text-slate-300">Login email</p><p className="mt-1 break-all font-semibold">{profile.email}</p></div></div>}
       </header>
+      <section className="mt-6 flex flex-wrap items-center gap-4 rounded-2xl border bg-white p-5 shadow-sm"><div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border bg-slate-100">{profile?.profilePhotoUrl ? <img src={profile.profilePhotoUrl} alt="Profile photo" className="h-full w-full object-cover"/> : <UserRound className="h-8 w-8 text-slate-400"/>}</div><div className="min-w-0 flex-1"><h2 className="font-bold text-slate-950">Profile picture</h2><p className="mt-1 text-xs text-slate-500">Upload a clear JPEG, PNG, WebP or AVIF photo (maximum 3 MB). Visible on your account and supported portal profile views.</p><label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-800 px-3 py-2 text-xs font-bold text-white hover:bg-blue-900"><Camera className="h-4 w-4"/>{photoUploading ? "Uploading…" : "Choose profile photo"}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" disabled={photoUploading} onChange={uploadPhoto}/></label></div></section>
       <form onSubmit={save} className="mt-6 rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
         <div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-1 h-5 w-5 text-emerald-700"/><div><h2 className="font-bold text-slate-950">Profile information</h2><p className="mt-1 text-sm text-slate-600">Your email, portal role and generated staff ID are managed by the system and cannot be changed here. Your National ID is visible only to authorized administrators and you.</p></div></div>
         {loading ? <p className="py-8 text-sm text-slate-500">Loading profile…</p> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
