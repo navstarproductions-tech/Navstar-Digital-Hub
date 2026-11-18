@@ -6,7 +6,7 @@ const digest = async value => {
 };
 const makeToken = () => {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+  return btoa(String.fromCharCode(...bytes)).split('+').join('-').split('/').join('_').replace(/=+$/, '');
 };
 
 export async function onRequestPost({ request, env }) {
