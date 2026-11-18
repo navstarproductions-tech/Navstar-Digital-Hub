@@ -9,6 +9,7 @@ const portals = [
   { id: 'tutor', title: 'Tutor portal', icon: BookOpen, summary: 'Manage class lists, learning resources, attendance and student progress.', accent: 'from-violet-600 to-indigo-500', tint: 'bg-violet-500/10 text-violet-700' },
   { id: 'admissions', title: 'Admissions portal', icon: UserRound, summary: 'Review applications, applicant documents, enquiries and admission follow-up.', accent: 'from-cyan-600 to-blue-500', tint: 'bg-cyan-500/10 text-cyan-700' },
   { id: 'principal', title: 'Principal portal', icon: BriefcaseBusiness, summary: 'View academic activity, approvals, staff operations and institutional reports.', accent: 'from-amber-500 to-orange-500', tint: 'bg-amber-500/10 text-amber-700' },
+  { id: 'finance', title: 'Finance portal', icon: BriefcaseBusiness, summary: 'Access finance-related portal tools assigned by Navstar administration.', accent: 'from-emerald-600 to-teal-500', tint: 'bg-emerald-500/10 text-emerald-700' },
   { id: 'admin', title: 'Administrator portal', icon: ShieldCheck, summary: 'Manage courses, services, users, payments, notifications, downloadable documents and website settings.', accent: 'from-slate-800 to-blue-700', tint: 'bg-slate-800/10 text-slate-800' },
   { id: 'customer', title: 'Customer service desk', icon: BriefcaseBusiness, summary: 'Browse Navstar services, request assistance, place service orders and pay securely. No student or staff account is required.', accent: 'from-emerald-600 to-teal-500', tint: 'bg-emerald-500/10 text-emerald-700' },
 ];
@@ -33,6 +34,15 @@ export function PortalsPage() {
       try {
         const sessionResponse = await fetch('/api/auth/me');
         const session = await sessionResponse.json() as { user?: SessionUser; error?: string };
+        if (selectedPortal.id === 'admin') {
+          if (!sessionResponse.ok || !session.user || session.user.role !== 'admin') {
+            navigate('/login?role=admin', { replace: true });
+            return;
+          }
+          if (session.user.mustChangePassword) { navigate('/change-password', { replace: true }); return; }
+          navigate('/admin', { replace: true });
+          return;
+        }
         if (!sessionResponse.ok || !session.user) {
           if (active) setStatus(session.error ?? 'Sign in to open this portal.');
           return;
@@ -141,6 +151,9 @@ export function PortalsPage() {
             ['Institution overview', 'Monitor academic activity, applications and operational performance.', '/portals/principal', 'View overview'],
             ['Staff coordination', 'Review role assignments and coordinate operational follow-up.', '/portals', 'Portal directory'],
             ['Reports and records', 'Access institutional information and review progress.', '/courses', 'Academic programmes'],
+          ] : user.role === 'finance' ? [
+            ['Finance access', 'Your account is signed in with the Finance role. Finance tools will appear here as they are assigned.', '/services', 'Open service desk'],
+            ['Payment support', 'Contact Navstar for help with payment records and account permissions.', '/services', 'Contact support'],
           ] : [
             ['Website management', 'Manage courses, services, users, settings and public website content.', '/admin', 'Open admin workspace'],
             ['Learning management', 'Create course modules and lessons, publish assignments and review learner submissions.', '/learning', 'Manage learning content'],
