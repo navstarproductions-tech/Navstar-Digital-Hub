@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, LockKeyhole, ShieldCheck, Eye, EyeOff, GraduationCap, UserRoundCheck, Fingerprint, LoaderCircle, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,19 @@ export function LoginPage() {
   const [staffId, setStaffId] = useState('');
   const [nationalId, setNationalId] = useState('');
   const [staffPreview, setStaffPreview] = useState<StaffPreview | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/auth/me').then(async response => {
+      if (!response.ok) return;
+      const result = await response.json() as { user?: { role?: string; mustChangePassword?: boolean } };
+      const signedInRole = result.user?.role;
+      if (!active || !signedInRole || !allowedRoles.includes(signedInRole)) return;
+      const destination = result.user?.mustChangePassword ? '/change-password' : signedInRole === 'admin' ? '/admin' : `/portals/${signedInRole}`;
+      navigate(destination, { replace: true });
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [navigate]);
 
   const signInStudent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
