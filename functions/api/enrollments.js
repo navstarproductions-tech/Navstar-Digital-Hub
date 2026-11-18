@@ -122,7 +122,9 @@ export async function onRequestGet({ request, env }) {
         e.payment_status, e.created_at,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id AND p.status = 'paid'), 0) AS amount_paid,
         (SELECT p.receipt_number FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id
-          AND p.status = 'paid' AND p.receipt_number IS NOT NULL ORDER BY p.updated_at DESC LIMIT 1) AS latest_receipt
+          AND p.status = 'paid' AND p.receipt_number IS NOT NULL ORDER BY p.updated_at DESC LIMIT 1) AS latest_receipt,
+        (SELECT p.id FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id
+          AND p.status = 'paid' ORDER BY p.updated_at DESC LIMIT 1) AS latest_payment_id
       FROM enrollments e JOIN courses c ON c.id = e.course_id
       WHERE e.email = ? COLLATE NOCASE ORDER BY e.created_at DESC
     `).bind(user.email);
