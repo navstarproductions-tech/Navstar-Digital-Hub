@@ -101,6 +101,7 @@ export function AdminPage() {
   const [temporaryPassword, setTemporaryPassword] = useState('');
   const [adminProfile, setAdminProfile] = useState<Record<string, string>>({ name: '', nationalId: '', phone: '', dateOfBirth: '', gender: '', citizenship: '', country: 'Kenya', province: '', county: '', subCounty: '', constituency: '', ward: '', location: '', subLocation: '', department: '', jobTitle: '', employmentType: '', joinedOn: '' });
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [adminStaffId, setAdminStaffId] = useState('');
   const [applications, setApplications] = useState<Record<string, unknown>[]>([]);
   const [cashoutRequests, setCashoutRequests] = useState<Record<string, unknown>[]>([]);
   const [metrics, setMetrics] = useState<Record<string, unknown>>({});
@@ -762,7 +763,7 @@ export function AdminPage() {
           ].map(([key, label]) => <label key={key} className="flex items-center justify-between gap-4 border-b py-3 last:border-0"><span className="flex items-center gap-2 text-sm font-medium"><Bell className="h-4 w-4 text-emerald-800" />{label}</span><input type="checkbox" checked={notifications[key as keyof typeof notifications]} onChange={(event) => setNotifications((current) => ({ ...current, [key]: event.target.checked }))} className="h-4 w-4 accent-emerald-800" /></label>)}<p className="text-xs leading-5 text-slate-500">Browser push and SMS notifications require user permission and a notification backend.</p></section></div>}
 
           {active === 'settings' && <form onSubmit={saveAdminProfile} className="mt-6 space-y-4 rounded-2xl border bg-white p-5">
-            <div><h3 className="font-bold text-slate-950">My Profile</h3><p className="mt-1 text-sm text-slate-600">Edit your own personal and professional details here without leaving the Admin workspace. Your login email, role and system-generated staff ID remain protected.</p><p className="mt-2 text-sm font-bold text-amber-700">Staff ID: {user?.staffId || 'Assigned by the system'}</p></div>
+            <div><h3 className="font-bold text-slate-950">My Profile</h3><p className="mt-1 text-sm text-slate-600">Edit your own personal and professional details here without leaving the Admin workspace. Your login email, role and system-generated staff ID remain protected.</p><p className="mt-2 text-sm font-bold text-amber-700">Staff ID: {adminStaffId || user?.staffId || 'Not yet assigned'}</p></div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[
                 ['name','Full legal name'],['nationalId','National ID'],['phone','Phone number'],['dateOfBirth','Date of birth'],['gender','Gender'],['citizenship','Citizenship'],['department','Department'],['jobTitle','Job title'],['employmentType','Employment type'],['joinedOn','Date joined']
