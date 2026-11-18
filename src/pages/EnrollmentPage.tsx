@@ -30,7 +30,6 @@ export function EnrollmentPage() {
   const [otpOpen, setOtpOpen] = useState(false);
   const [emailOtp, setEmailOtp] = useState('');
   const [smsOtp, setSmsOtp] = useState('');
-  const [verificationToken, setVerificationToken] = useState('');
   const [paymentMessage, setPaymentMessage] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [registrationId, setRegistrationId] = useState('');
@@ -141,7 +140,6 @@ export function EnrollmentPage() {
       });
       const result = await response.json() as {verified?:boolean;verificationToken?:string;error?:string};
       if (!response.ok || !result.verified || !result.verificationToken) throw new Error(result.error || 'The code could not be verified.');
-      setVerificationToken(result.verificationToken);
       setOtpOpen(false);
       await submitVerifiedApplication(result.verificationToken);
     } catch (cause) {
