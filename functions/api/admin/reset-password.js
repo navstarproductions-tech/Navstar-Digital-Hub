@@ -1,6 +1,7 @@
 import { hashPassword } from '../../_shared/auth.js';
 import { constantTimeEqual, error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 import { rateLimited } from '../../_shared/rate-limit.js';
+import { passwordPolicyError } from '../../_shared/password-policy.js';
 
 export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
@@ -15,10 +16,11 @@ export async function onRequestPost({ request, env }) {
   const requestedName = safeString(body.name, 120);
   const email = safeString(body.email, 254).toLowerCase();
   const password = String(body.password ?? '');
-  const confirmPassword = String(body.confirmPassword ?? password);
+  const confirmPassword = String(body.confirmPassword ?? '');
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error('Enter a valid administrator email address.');
-  if (password.length < 6 || password.length > 12) return error('Choose a password containing 6 to 12 characters.');
+  const passwordError = passwordPolicyError(password);
+  if (passwordError) return error(passwordError);
   if (password !== confirmPassword) return error('The passwords do not match.');
 
   // Never convert a student, tutor, customer, or staff account into an Admin.

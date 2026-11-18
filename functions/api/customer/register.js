@@ -1,6 +1,7 @@
 import { registerCustomer,loginCustomer,setCustomerSession } from '../../_shared/customer-auth.js';
 import { error,isSameOrigin,json,readJson,safeString,normalizePhone } from '../../_shared/http.js';
 import { rateLimited } from '../../_shared/rate-limit.js';
+import { passwordPolicyError } from '../../_shared/password-policy.js';
 
 const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export async function onRequestPost({request,env}) {
@@ -11,7 +12,10 @@ export async function onRequestPost({request,env}) {
   const fullName=safeString(body.fullName,120), email=safeString(body.email,254).toLowerCase();
   const phone=body.phone ? normalizePhone(body.phone) : '';
   const password=String(body.password||'');
-  if(fullName.length<2||!emailPattern.test(email)||(body.phone&&!phone)||password.length<6||password.length>12) return error('Enter your name, a valid email, a valid phone number if supplied, and a password between 6 and 12 characters.');
+  if(fullName.length<2||!emailPattern.test(email)||(body.phone&&!phone)) return error('Enter your full name, a valid email address, and a valid phone number if supplied.');
+  const passwordError = passwordPolicyError(password);
+  if (passwordError) return error(passwordError);
+  if (password !== String(body.confirmPassword || '')) return error('The passwords do not match.');
   try {
     let customer;
     let created = true;

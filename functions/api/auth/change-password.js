@@ -1,5 +1,6 @@
 import { getSession, hashPassword, verifyPassword } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson } from '../../_shared/http.js';
+import { passwordPolicyError } from '../../_shared/password-policy.js';
 
 export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
@@ -10,7 +11,9 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
   const currentPassword = String(body.currentPassword ?? '');
   const newPassword = String(body.newPassword ?? '');
-  if (newPassword.length < 6 || newPassword.length > 12) return error('New password must contain 6 to 12 characters.');
+  const passwordError = passwordPolicyError(newPassword);
+  if (passwordError) return error(passwordError);
+  if (newPassword !== String(body.confirmPassword ?? '')) return error('The new passwords do not match.');
   const record = await env.DB.prepare('SELECT password_hash, password_salt FROM users WHERE id = ?').bind(user.id).first();
   if (!record || !await verifyPassword(currentPassword, record.password_salt, record.password_hash)) return error('Current password is incorrect.', 401);
   const password = await hashPassword(newPassword);
