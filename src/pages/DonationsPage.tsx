@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatEATDateTime } from '@/lib/datetime';
+import { downloadNavstarReceipt } from '@/lib/receipt-pdf';
 
 const amounts = [1, 10, 20, 30, 40, 50, 100, 200, 500, 1000];
 
@@ -21,20 +22,6 @@ async function readApiResponse<T>(response: Response, serviceName: string): Prom
   }
   try { return await response.json() as T; }
   catch { throw new Error(`${serviceName} returned an invalid JSON response (HTTP ${response.status}).`); }
-}
-
-function printDonationPageReceipt(receipt: Receipt, money: (value: number) => string) {
-  const escape = (value: string) => value.replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character] || character));
-  const serial=escape(receipt.serial), code=escape(receipt.code), ref=escape(receipt.reference), phone=escape(receipt.phone), amount=escape(money(receipt.amount));
-  const received=escape(formatEATDateTime(receipt.date || new Date().toISOString()));
-  const generated=escape(formatEATDateTime(new Date().toISOString()));
-  const qr='https://api.qrserver.com/v1/create-qr-code/?size=190x190&margin=8&data='+encodeURIComponent(['NAVSTAR DIGITAL HUB','DONATION RECEIPT','Serial: '+receipt.serial,'M-Pesa: '+receipt.code,'Amount: KES '+receipt.amount,'Status: PAID'].join(' | '));
-  const win=window.open('','_blank');
-  if(!win){window.alert('Please allow pop-ups to print or save your Navstar receipt.');return;}
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Navstar-Donation-Receipt-${serial}</title><style>
-  *{box-sizing:border-box}body{margin:0;padding:25px;background:#eef3fa;font-family:Arial,sans-serif;color:#152a43;-webkit-print-color-adjust:exact;print-color-adjust:exact}.paper{max-width:780px;margin:auto;background:white;box-shadow:0 10px 35px #10294b22}.head{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:25px;background:linear-gradient(120deg,#061b3b,#0b4387 65%,#087b83);border-bottom:5px solid #e5b84b;color:white}.brand{display:flex;gap:15px;align-items:center}.logo{width:100px;height:80px;background:white;border-radius:10px;padding:6px;object-fit:contain}.head h1{font-size:20px;margin:0}.motto{font-size:10px;color:#ffdf83;font-weight:bold;letter-spacing:3px;margin:7px 0}.contacts{font-size:10px;line-height:1.7;color:#e5efff}.serial{text-align:right;color:#b91c1c;background:#fff1f2;border:2px solid #fecaca;padding:8px;border-radius:8px;font-weight:900;font-size:14px}.gen{font-size:10px;color:#e0edff;margin-top:9px}.body{padding:28px}.status{background:#dcfce7;color:#166534;padding:8px 12px;border-radius:30px;font-weight:bold;font-size:10px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:22px}.box{border:1px solid #dbe5ef;border-radius:12px;padding:16px;font-size:12px;line-height:1.7}.label{font-size:10px;letter-spacing:2px;color:#60758e;font-weight:bold}.amount{margin-top:22px;padding:22px;background:linear-gradient(100deg,#eaf3ff,#e9fbf5);border:1px solid #b9d7f5;border-radius:14px;display:flex;justify-content:space-between;align-items:center}.amount strong{font-size:30px;color:#075b49}.qr{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #dbe5ef;margin-top:22px;padding-top:18px;font-size:11px;line-height:1.7;color:#536a83}.qr img{width:115px;height:115px}.foot{border-top:2px solid #0b4387;margin-top:20px;padding-top:14px;font-size:10px;color:#60758e;display:flex;justify-content:space-between}@page{size:A4;margin:12mm}@media print{body{padding:0;background:white}.paper{box-shadow:none}}@media(max-width:620px){.head{display:block}.serial{display:inline-block;margin-top:12px}.grid{grid-template-columns:1fr}.amount{display:block}.amount strong{display:block;margin-top:10px}}
-  </style></head><body><main class="paper"><header class="head"><div class="brand"><img class="logo" src="/Navstar_Official_Logo.jpg" alt="Navstar logo"><div><h1>NAVSTAR DIGITAL HUB</h1><p class="motto">HOME OF TECHNOCRATS</p><div class="contacts">Raphael Estates, Room 3 · Opposite Shaban Medical Clinic<br>Off Agorom–Busia Road · 200 m from ACK Nambale Hostels<br>0797 688 576 · 0706 637 485<br>navstardigitalhub@gmail.com · P.O. Box 546-50200, Bungoma, Kenya</div></div></div><div><div class="serial">SERIAL: ${serial}</div><p class="gen">Generated: ${generated}</p></div></header><div class="body"><span class="status">✓ PAYMENT RECEIVED · SAFARICOM CONFIRMED</span><div class="grid"><div class="box"><div class="label">RECEIVED FROM</div><strong>Valued Supporter</strong><br>M-Pesa phone: ${phone}</div><div class="box"><div class="label">PAYMENT DETAILS</div>Safaricom M-Pesa<br>Received: ${received}<br>Donation reference: ${ref}<br>M-Pesa code: <strong>${code}</strong></div></div><div class="amount"><div><div class="label">AMOUNT RECEIVED</div><small>Confirmed donation · Kenya Shillings</small></div><strong>${amount}</strong></div><div class="qr"><div><strong>Digital receipt QR code</strong><br>Scan to read the serial, transaction code, amount and confirmed status.<br><strong>NAVSTAR DIGITAL HUB · HOME OF TECHNOCRATS</strong></div><img src="${qr}" alt="Receipt QR code"></div><div class="foot"><div><strong>Thank you for your support.</strong><br>Electronically generated by Navstar Digital Hub.</div><div style="text-align:right">Official receipt · No signature required<br>East Africa Time (EAT)</div></div></div></main><script>window.addEventListener('load',function(){setTimeout(function(){window.print()},300)});</script></body></html>`);
-  win.document.close();
 }
 
 export function DonationsPage() {
