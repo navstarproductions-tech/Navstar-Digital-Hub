@@ -28,7 +28,8 @@ export function EnrollmentPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [otpOpen, setOtpOpen] = useState(false);
-  const [otp, setOtp] = useState('');
+  const [emailOtp, setEmailOtp] = useState('');
+  const [smsOtp, setSmsOtp] = useState('');
   const [verificationToken, setVerificationToken] = useState('');
   const [paymentMessage, setPaymentMessage] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
@@ -136,7 +137,7 @@ export function EnrollmentPage() {
     try {
       const response = await fetch('/api/enrollments/otp/verify', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ email:String(data.get('email') || ''), phone:String(data.get('phone') || ''), otp })
+        body:JSON.stringify({ email:String(data.get('email') || ''), phone:String(data.get('phone') || ''), emailOtp, smsOtp })
       });
       const result = await response.json() as {verified?:boolean;verificationToken?:string;error?:string};
       if (!response.ok || !result.verified || !result.verificationToken) throw new Error(result.error || 'The code could not be verified.');
@@ -235,7 +236,7 @@ export function EnrollmentPage() {
           </aside>
         </div>
       </div>
-      {otpOpen&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-800"><ShieldCheck className="h-6 w-6"/></div><h2 className="text-xl font-bold text-slate-950">Verify your contacts</h2><p className="mt-2 text-sm leading-6 text-slate-600">Enter the six-digit code sent to your email and phone. The same code verifies both contact channels.</p><Label htmlFor="application-otp" className="mt-5 block">One-time verification code</Label><Input id="application-otp" value={otp} onChange={event=>setOtp(event.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" className="mt-2 h-12 text-center text-xl tracking-[.4em]" maxLength={6}/><div className="mt-5 flex gap-2"><Button variant="outline" className="flex-1" disabled={loading} onClick={()=>setOtpOpen(false)}>Cancel</Button><Button className="flex-1 bg-blue-800" disabled={loading||otp.length!==6} onClick={()=>void verifyOtpAndPay()}>{loading?'Verifying…':'Verify and pay'}</Button></div><p className="mt-3 text-xs text-slate-500">Codes expire after 10 minutes. Do not share your code with anyone.</p></div></div>}
+      {otpOpen&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-800"><ShieldCheck className="h-6 w-6"/></div><h2 className="text-xl font-bold text-slate-950">Verify your contacts</h2><p className="mt-2 text-sm leading-6 text-slate-600">Enter the separate six-digit codes sent to your email and mobile phone.</p><div className="mt-5 space-y-3"><div><Label htmlFor="application-email-otp">Code sent to your email</Label><Input id="application-email-otp" value={emailOtp} onChange={event=>setEmailOtp(event.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="Email code" className="mt-1 h-12 text-center text-xl tracking-[.4em]" maxLength={6}/></div><div><Label htmlFor="application-sms-otp">Code sent by SMS to your phone</Label><Input id="application-sms-otp" value={smsOtp} onChange={event=>setSmsOtp(event.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="SMS code" className="mt-1 h-12 text-center text-xl tracking-[.4em]" maxLength={6}/></div></div><div className="mt-5 flex gap-2"><Button variant="outline" className="flex-1" disabled={loading} onClick={()=>setOtpOpen(false)}>Cancel</Button><Button className="flex-1 bg-blue-800" disabled={loading||emailOtp.length!==6||smsOtp.length!==6} onClick={()=>void verifyOtpAndPay()}>{loading?'Verifying…':'Verify and pay'}</Button></div><p className="mt-3 text-xs text-slate-500">Codes expire after 10 minutes. Do not share your code with anyone.</p></div></div>}
     </main>
   );
 }
