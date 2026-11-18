@@ -50,7 +50,7 @@ export async function onRequestPost({ request, env }) {
   if (payment.purpose === 'enrollment') {
     const balance = await env.DB.prepare("SELECT courses.price AS course_fee, COALESCE(SUM(CASE WHEN payments.status = 'paid' THEN payments.amount ELSE 0 END), 0) AS paid_total FROM enrollments JOIN courses ON courses.id = enrollments.course_id LEFT JOIN payments ON payments.reference_id = enrollments.id AND payments.purpose = 'enrollment' WHERE enrollments.id = ? GROUP BY enrollments.id, courses.price").bind(payment.reference_id).first();
     const fullyPaid = Number(balance?.paid_total || 0) >= Number(balance?.course_fee || 0);
-    await env.DB.prepare('UPDATE enrollments SET payment_status = ?, status = CASE WHEN ? = 1 AND status NOT IN ('accepted','rejected','withdrawn') THEN 'submitted' ELSE status END WHERE id = ?')
+    await env.DB.prepare(`UPDATE enrollments SET payment_status = ?, status = CASE WHEN ? = 1 AND status NOT IN ('accepted','rejected','withdrawn') THEN 'submitted' ELSE status END WHERE id = ?`)
       .bind(paid ? (fullyPaid ? 'paid' : 'pending') : 'failed', paid ? 1 : 0, payment.reference_id).run();
   } else if (payment.purpose === 'donation') {
     await env.DB.prepare('UPDATE donations SET status = ? WHERE id = ?')
