@@ -50,7 +50,7 @@ export async function onRequestPost({ request, env }) {
   if (payment.purpose === 'enrollment') {
     const balance = await env.DB.prepare("SELECT courses.price AS course_fee, COALESCE(SUM(CASE WHEN payments.status = 'paid' THEN payments.amount ELSE 0 END), 0) AS paid_total FROM enrollments JOIN courses ON courses.id = enrollments.course_id LEFT JOIN payments ON payments.reference_id = enrollments.id AND payments.purpose = 'enrollment' WHERE enrollments.id = ? GROUP BY enrollments.id, courses.price").bind(payment.reference_id).first();
     const fullyPaid = Number(balance?.paid_total || 0) >= Number(balance?.course_fee || 0);
-    await env.DB.prepare('UPDATE enrollments SET payment_status = ?, status = CASE WHEN ? = 1 THEN \'submitted\' ELSE status END WHERE id = ?')
+    await env.DB.prepare('UPDATE enrollments SET payment_status = ?, status = CASE WHEN ? = 1 AND status NOT IN ('accepted','rejected','withdrawn') THEN 'submitted' ELSE status END WHERE id = ?')
       .bind(paid ? (fullyPaid ? 'paid' : 'pending') : 'failed', paid ? 1 : 0, payment.reference_id).run();
   } else if (payment.purpose === 'donation') {
     await env.DB.prepare('UPDATE donations SET status = ? WHERE id = ?')
@@ -61,9 +61,17 @@ export async function onRequestPost({ request, env }) {
   }
 
   let customer = { email: '', phone: payment.phone, name: 'Customer' };
+  let enrollmentDetails = '';
   if (payment.purpose === 'enrollment') {
-    const row = await env.DB.prepare('SELECT full_name AS name, email, phone FROM enrollments WHERE id = ?').bind(payment.reference_id).first();
-    if (row) customer = row;
+    const row = await env.DB.prepare(`SELECT e.full_name AS name,e.email,e.phone,e.display_ref,e.preferred_intake,e.status,c.title AS course_title,c.price AS course_fee
+      FROM enrollments e JOIN courses c ON c.id=e.course_id WHERE e.id=?`).bind(payment.reference_id).first();
+    if (row) {
+      customer = row;
+      const totals = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS paid_total FROM payments WHERE purpose='enrollment' AND reference_id=? AND status='paid'").bind(payment.reference_id).first();
+      const paidTotal = Number(totals?.paid_total || 0);
+      const balanceDue = Math.max(0, Number(row.course_fee || 0) - paidTotal);
+      enrollmentDetails = `\n\nAPPLICATION DETAILS\nApplicant: ${row.name}\nApplication reference: ${row.display_ref}\nCourse: ${row.course_title}\nIntake: ${row.preferred_intake || 'As confirmed by Admissions'}\nPublished course fee: KSh ${Number(row.course_fee).toLocaleString('en-KE')}\nTotal confirmed payments: KSh ${paidTotal.toLocaleString('en-KE')}\nOutstanding course balance: KSh ${balanceDue.toLocaleString('en-KE')}\nAdmissions status: ${row.status}`;
+    }
   } else if (payment.purpose === 'service') {
     const row = await env.DB.prepare('SELECT customer_name AS name, email, phone FROM service_requests WHERE id = ?').bind(payment.reference_id).first();
     if (row) customer = row;
@@ -72,9 +80,12 @@ export async function onRequestPost({ request, env }) {
     if (row) customer = { ...customer, phone: row.phone };
   }
   const customerMessage = paid
-    ? `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment of KSh ${payment.amount} is confirmed. Navstar receipt: ${internalReceipt}. M-Pesa receipt: ${receipt}. Reference: ${payment.display_reference || payment.reference_id}. Thank you.`
+    ? `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment of KSh ${payment.amount} is confirmed.${enrollmentDetails} Navstar receipt: ${internalReceipt}. M-Pesa receipt: ${receipt}. Reference: ${payment.display_reference || payment.reference_id}. Thank you.`
     : `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment was not completed. Reason: ${resultDescription}. Reference: ${payment.display_reference || payment.reference_id}. Please try again or contact Navstar support.`;
-  await sendCustomerNotice(env, { email: customer.email, phone: customer.phone, subject: paid ? 'Navstar payment confirmed' : 'Navstar payment not completed', message: customerMessage });
+  await sendCustomerNotice(env, { email: customer.email, phone: '', subject: paid ? 'Navstar payment and application confirmation' : 'Navstar payment not completed', message: customerMessage });
+  if (customer.phone) await sendCustomerNotice(env, { email: '', phone: customer.phone, subject: paid ? 'Navstar payment confirmed' : 'Navstar payment not completed', message: paid
+    ? `Navstar Digital Hub: KSh ${payment.amount} payment confirmed. Receipt ${internalReceipt}; M-Pesa ${receipt}; reference ${payment.display_reference || payment.reference_id}. Check your email for your detailed course and fee statement.`
+    : `Navstar Digital Hub: payment for reference ${payment.display_reference || payment.reference_id} was not completed. ${resultDescription}. Please retry or contact support.` });
 
   const staff = await env.DB.prepare("SELECT id FROM users WHERE role IN ('admin', 'admissions', 'principal', 'finance') AND status = 'active'").all();
   if (staff.results?.length) {
