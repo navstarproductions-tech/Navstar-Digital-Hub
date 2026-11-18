@@ -261,3 +261,96 @@ body::-webkit-scrollbar,
 .navstar-portal :is(input,select,textarea) { color:#10213c; }
 .navstar-portal :is(input,select,textarea)::placeholder { color:#64748b; opacity:1; }
 .navstar-portal :is(h1,h2,h3) { text-wrap:balance; }
+
+
+/* Compact, consistent Navstar subtab treatment across every role portal. */
+.navstar-subtab {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  border: 1px solid rgba(148,163,184,.24);
+  border-radius: .65rem;
+  padding: .42rem .78rem;
+  font-size: .75rem;
+  line-height: 1.15rem;
+  font-weight: 700;
+  letter-spacing: .005em;
+  white-space: nowrap;
+  transition: background .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.navstar-subtab:not([aria-current="page"]):not([aria-pressed="true"]):not([aria-selected="true"]) {
+  background: rgba(255,255,255,.045);
+  color: #b9c8dc;
+}
+.navstar-subtab:not([aria-current="page"]):not([aria-pressed="true"]):not([aria-selected="true"]):hover {
+  background: rgba(14,165,233,.12);
+  border-color: rgba(56,189,248,.48);
+  color: #f8fbff;
+}
+.navstar-subtab[aria-current="page"],
+.navstar-subtab[aria-pressed="true"],
+.navstar-subtab[aria-selected="true"] {
+  background: linear-gradient(105deg,#0755b8,#0787a9) !important;
+  color: #fff !important;
+  border-color: rgba(125,211,252,.8) !important;
+  box-shadow: inset 0 -2px 0 #f5c542, 0 3px 12px rgba(2,132,199,.22);
+}
+.navstar-portal .navstar-subtab:not([aria-current="page"]):not([aria-pressed="true"]):not([aria-selected="true"]) {
+  background: #fff;
+  color: #475569;
+}
+.navstar-portal .navstar-subtab:not([aria-current="page"]):not([aria-pressed="true"]):not([aria-selected="true"]):hover {
+  background: #eff6ff;
+  color: #0755b8;
+}
+.navstar-portal .navstar-subtab[aria-current="page"],
+.navstar-portal .navstar-subtab[aria-pressed="true"],
+.navstar-portal .navstar-subtab[aria-selected="true"] { color:#fff !important; }
+
+/* Animated light, rising bubbles and orbiting geometric flower details around login cards. */
+.navstar-login-orbit { isolation:isolate; padding: 10px; }
+.navstar-login-orbit::before {
+  content:""; position:absolute; inset:0; border-radius:2rem; pointer-events:none;
+  background:conic-gradient(from 0deg,transparent 0 10%,rgba(56,189,248,.85) 13%,transparent 18% 42%,rgba(245,197,66,.9) 47%,transparent 52% 76%,rgba(129,140,248,.75) 81%,transparent 86%);
+  filter:blur(13px); opacity:.52; animation:navstar-orbit-glow 8s linear infinite;
+}
+.navstar-login-orbit::after {
+  content:""; position:absolute; inset:2px; border:1px solid rgba(125,211,252,.38); border-radius:1.35rem;
+  pointer-events:none; animation:navstar-card-pulse 3.4s ease-in-out infinite;
+}
+.navstar-login-card { box-shadow:0 20px 65px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06),0 0 28px rgba(14,165,233,.18); }
+.navstar-login-bubble {
+  position:absolute; z-index:2; bottom:5%; width:9px; height:9px; border-radius:999px;
+  border:1px solid rgba(186,230,253,.85); background:radial-gradient(circle at 35% 30%,#fff,rgba(56,189,248,.25) 60%,transparent 75%);
+  box-shadow:0 0 12px rgba(56,189,248,.55); pointer-events:none;
+  animation:navstar-bubble-rise 7s ease-in infinite;
+}
+.navstar-bubble-one { left:8%; animation-delay:-1s; }
+.navstar-bubble-two { left:47%; width:6px;height:6px;animation-delay:-4s;animation-duration:9s; }
+.navstar-bubble-three { right:8%;width:12px;height:12px;animation-delay:-2.5s;animation-duration:8s; }
+.navstar-login-star {
+  position:absolute; z-index:3; color:#f9d66b; font-size:24px; line-height:1;
+  text-shadow:0 0 9px rgba(250,204,21,.8),0 0 20px rgba(56,189,248,.55);
+  pointer-events:none; animation:navstar-star-orbit 7s linear infinite;
+}
+.navstar-star-one { top:-3px;left:16%; }
+.navstar-star-two { right:12%;top:22%;font-size:30px;animation-duration:9s;animation-direction:reverse; }
+.navstar-star-three { bottom:0;left:75%;font-size:18px;animation-duration:6s; }
+.navstar-login-triangle {
+  position:absolute; z-index:2; width:22px;height:22px; pointer-events:none;
+  border:1px solid rgba(250,204,21,.85); background:linear-gradient(135deg,rgba(56,189,248,.22),rgba(245,197,66,.12));
+  clip-path:polygon(50% 0,100% 100%,0 100%);
+  filter:drop-shadow(0 0 7px rgba(56,189,248,.65)); animation:navstar-triangle-turn 10s linear infinite;
+}
+.navstar-triangle-one { left:-3px;top:34%; }
+.navstar-triangle-two { right:-3px;bottom:20%;width:28px;height:28px;animation-direction:reverse; }
+@keyframes navstar-orbit-glow { to { transform:rotate(360deg); } }
+@keyframes navstar-card-pulse { 0%,100% { opacity:.35;box-shadow:0 0 7px rgba(56,189,248,.12); } 50% { opacity:.95;box-shadow:0 0 22px rgba(56,189,248,.38),0 0 30px rgba(245,197,66,.12); } }
+@keyframes navstar-bubble-rise { 0% { transform:translateY(0) scale(.65);opacity:0; } 12% { opacity:.85; } 85% { opacity:.55; } 100% { transform:translateY(-420px) translateX(24px) scale(1.35);opacity:0; } }
+@keyframes navstar-star-orbit { 0% { transform:rotate(0deg) translateX(13px) rotate(0deg) scale(.85); } 50% { transform:rotate(180deg) translateX(13px) rotate(-180deg) scale(1.15); } 100% { transform:rotate(360deg) translateX(13px) rotate(-360deg) scale(.85); } }
+@keyframes navstar-triangle-turn { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .navstar-login-orbit::before,.navstar-login-orbit::after,.navstar-login-bubble,.navstar-login-star,.navstar-login-triangle { animation:none !important; }
+}
