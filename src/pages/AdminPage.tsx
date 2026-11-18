@@ -820,7 +820,7 @@ export function AdminPage() {
 
             {settingsTab === 'my-profile' && <form onSubmit={saveAdminProfile} className="space-y-5 rounded-2xl border bg-white p-5">
               <div><h3 className="font-bold text-slate-950">My Admin Profile</h3><p className="mt-1 text-sm text-slate-600">Live details for the account currently signed in. Update the existing account; no new account is created.</p></div>
-              <section id="profile-account-summary" className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
+              {profileSubTab === 'account' && <section id="profile-account-summary" className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="font-bold text-slate-950">System account information</h4><p className="mt-1 text-xs text-slate-600">Read directly from your active Navstar session and profile record.</p></div><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Signed in · {user?.role || 'Admin'}</span></div>
                 {profileLoadWarning && <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{profileLoadWarning}</div>}
                 {profileLoadError && <div role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{profileLoadError}<button type="button" onClick={() => { setProfileLoaded(false); setProfileLoadError(''); setProfileReload(value => value + 1); }} className="ml-2 font-bold underline">Retry loading</button></div>}
@@ -832,29 +832,35 @@ export function AdminPage() {
                   <div className="rounded-lg border bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Staff ID</p><p className="mt-1 font-mono font-bold text-slate-900">{adminStaffId || 'Not assigned yet'}</p></div>
                   <div className="rounded-lg border bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Account created</p><p className="mt-1 font-semibold text-slate-900">{profileSystemDetails.created_at ? formatEATDateTime(String(profileSystemDetails.created_at)) : 'Not available'}</p></div>
                 </div>
-              </section>
+              </section>}
               <div className="flex flex-wrap gap-2 border-b pb-3" role="tablist" aria-label="My profile subtabs">
-                {([['account','Account overview'],['personal','Personal & identity'],['employment','Employment'],['location','Location & address']] as const).map(([id,label]) => <button key={id} type="button" role="tab" aria-selected={profileSubTab === id} onClick={() => { setProfileSubTab(id); const target = id === 'personal' ? 'admin-profile-name' : id === 'employment' ? 'admin-profile-department' : id === 'location' ? 'admin-profile-address' : 'profile-account-summary'; document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${profileSubTab === id ? 'bg-blue-800 text-white' : 'border bg-white text-slate-700 hover:bg-slate-50'}`}>{label}</button>)}
+                {([['account','Account overview'],['personal','Personal & identity'],['employment','Employment'],['location','Location & address']] as const).map(([id,label]) => <button key={id} type="button" role="tab" aria-selected={profileSubTab === id} onClick={() => setProfileSubTab(id)} className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${profileSubTab === id ? 'bg-blue-800 text-white' : 'border bg-white text-slate-700 hover:bg-slate-50'}`}>{label}</button>)}
               </div>
-              <p className="text-xs text-slate-500">Use the subtabs to jump to each section below. Existing information is preloaded from your signed-in account; blank fields are optional unless marked required.</p>
+              <p className="text-xs text-slate-500">Choose a section above. Only that section is displayed, so you can work without scrolling through one long form. Existing details are loaded from your signed-in account.</p>
+              {profileSubTab === 'account' && <>
               <div className="grid gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:grid-cols-[1fr_2fr] sm:items-end">
                 <div><p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Your Admin staff ID</p><p className="mt-1 text-xs text-amber-800">Choose an unused AD + five-digit ID.</p></div>
                 <div className="space-y-2"><Label htmlFor="admin-profile-staffId">Staff ID</Label><Input id="admin-profile-staffId" value={adminStaffId} onChange={event => setAdminStaffId(event.target.value.toUpperCase())} placeholder="AD12345" pattern="AD[0-9]{5}" maxLength={7} required/><p className="text-xs text-slate-500">Current saved ID: {user?.staffId || adminStaffId || 'Not loaded'} · Example: AD12345</p></div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-2"><Label htmlFor="admin-profile-name">Full legal name</Label><Input id="admin-profile-name" value={adminProfile.name || ''} onChange={event => setAdminProfile(current => ({...current,name:event.target.value}))} required/></div>
+              </>}
+              {profileSubTab === 'personal' && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+<div className="space-y-2"><Label htmlFor="admin-profile-name">Full legal name</Label><Input id="admin-profile-name" value={adminProfile.name || ''} onChange={event => setAdminProfile(current => ({...current,name:event.target.value}))} required/></div>
                 <div className="space-y-2"><Label htmlFor="admin-profile-nationalId">National ID</Label><Input id="admin-profile-nationalId" value={adminProfile.nationalId || ''} onChange={event => setAdminProfile(current => ({...current,nationalId:event.target.value}))}/></div>
                 <div className="space-y-2"><Label htmlFor="admin-profile-phone">Phone number</Label><Input id="admin-profile-phone" value={adminProfile.phone || ''} onChange={event => setAdminProfile(current => ({...current,phone:event.target.value}))}/></div>
                 <div className="space-y-2"><Label htmlFor="admin-profile-dateOfBirth">Date of birth</Label><Input id="admin-profile-dateOfBirth" type="date" value={adminProfile.dateOfBirth || ''} onChange={event => setAdminProfile(current => ({...current,dateOfBirth:event.target.value}))}/></div>
                 <ProfileDropdown id="admin-profile-gender" label="Gender" value={adminProfile.gender || ''} options={GENDER_OPTIONS} onChange={value => setAdminProfile(current => ({...current,gender:value}))}/>
                 <ProfileDropdown id="admin-profile-citizenship" label="Citizenship" value={adminProfile.citizenship || ''} options={CITIZENSHIP_OPTIONS} onChange={value => setAdminProfile(current => ({...current,citizenship:value}))}/>
-                <ProfileDropdown id="admin-profile-department" label="Department" value={adminProfile.department || ''} options={DEPARTMENT_OPTIONS} onChange={value => setAdminProfile(current => ({...current,department:value}))}/>
+              </div>}
+              {profileSubTab === 'employment' && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+<ProfileDropdown id="admin-profile-department" label="Department" value={adminProfile.department || ''} options={DEPARTMENT_OPTIONS} onChange={value => setAdminProfile(current => ({...current,department:value}))}/>
                 <ProfileDropdown id="admin-profile-jobTitle" label="Job title" value={adminProfile.jobTitle || ''} options={JOB_TITLE_OPTIONS} onChange={value => setAdminProfile(current => ({...current,jobTitle:value}))}/>
                 <ProfileDropdown id="admin-profile-employmentType" label="Employment type" value={adminProfile.employmentType || ''} options={EMPLOYMENT_TYPE_OPTIONS} onChange={value => setAdminProfile(current => ({...current,employmentType:value}))}/>
                 <div className="space-y-2"><Label htmlFor="admin-profile-joinedOn">Date joined</Label><Input id="admin-profile-joinedOn" type="date" value={adminProfile.joinedOn || ''} onChange={event => setAdminProfile(current => ({...current,joinedOn:event.target.value}))}/></div>
-                <div className="space-y-2 sm:col-span-2 lg:col-span-3"><Label htmlFor="admin-profile-address">Full physical / postal address</Label><Input id="admin-profile-address" value={adminProfile.address || ''} onChange={event => setAdminProfile(current => ({...current,address:event.target.value}))} placeholder="Building, street, estate or village, town"/></div>
+              </div>}
+              {profileSubTab === 'location' && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+<div className="space-y-2 sm:col-span-2 lg:col-span-3"><Label htmlFor="admin-profile-address">Full physical / postal address</Label><Input id="admin-profile-address" value={adminProfile.address || ''} onChange={event => setAdminProfile(current => ({...current,address:event.target.value}))} placeholder="Building, street, estate or village, town"/></div>
                 <div className="sm:col-span-2 lg:col-span-3"><GeographyPicker county={adminProfile.county || ''} subCounty={adminProfile.subCounty || ''} ward={adminProfile.ward || ''} location={adminProfile.location || ''} subLocation={adminProfile.subLocation || ''} locations={locationOptions} subLocations={subLocationOptions} onChange={geo => setAdminProfile(current => ({...current,country:'Kenya',county:geo.county,subCounty:geo.subCounty,ward:geo.ward,location:geo.location,subLocation:geo.subLocation,constituency:geo.subCounty,province:''}))}/></div>
-              </div>
+              </div>}
               <div className="flex justify-end"><Button type="submit" disabled={!backendReady || user?.role !== 'admin' || !/^AD[0-9]{5}$/.test(adminStaffId)}><Save className="mr-2 h-4 w-4"/>Save My Profile and Staff ID</Button></div>
             </form>}
 
