@@ -82,7 +82,10 @@ export async function onRequestPost({ request, env }) {
   const customerMessage = paid
     ? `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment of KSh ${payment.amount} is confirmed.${enrollmentDetails} Navstar receipt: ${internalReceipt}. M-Pesa receipt: ${receipt}. Reference: ${payment.display_reference || payment.reference_id}. Thank you.`
     : `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment was not completed. Reason: ${resultDescription}. Reference: ${payment.display_reference || payment.reference_id}. Please try again or contact Navstar support.`;
-  await sendCustomerNotice(env, { email: customer.email, phone: customer.phone, subject: paid ? 'Navstar payment confirmed' : 'Navstar payment not completed', message: customerMessage });
+  await sendCustomerNotice(env, { email: customer.email, phone: '', subject: paid ? 'Navstar payment and application confirmation' : 'Navstar payment not completed', message: customerMessage });
+  if (customer.phone) await sendCustomerNotice(env, { email: '', phone: customer.phone, subject: paid ? 'Navstar payment confirmed' : 'Navstar payment not completed', message: paid
+    ? `Navstar Digital Hub: KSh ${payment.amount} payment confirmed. Receipt ${internalReceipt}; M-Pesa ${receipt}; reference ${payment.display_reference || payment.reference_id}. Check your email for your detailed course and fee statement.`
+    : `Navstar Digital Hub: payment for reference ${payment.display_reference || payment.reference_id} was not completed. ${resultDescription}. Please retry or contact support.` });
 
   const staff = await env.DB.prepare("SELECT id FROM users WHERE role IN ('admin', 'admissions', 'principal', 'finance') AND status = 'active'").all();
   if (staff.results?.length) {
