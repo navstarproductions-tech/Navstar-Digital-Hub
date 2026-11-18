@@ -13,6 +13,11 @@ import { formatEATDateTime } from '@/lib/datetime';
 type Section = 'overview' | 'courses' | 'services' | 'enrollments' | 'finance' | 'receipts' | 'gallery' | 'downloads' | 'orders' | 'users' | 'settings';
 type ServiceItem = { id: string; name: string; category: string; price: string; priceAmount?: number | null; status: 'Active' | 'Paused' };
 type PortalUser = { id: string; name: string; email: string; role: string; status: string; staffId?: string };
+type LearningSubmission = { id: string; learner_name: string; response_text: string; attachment_url?: string | null; status: string; points_awarded?: number | null; feedback?: string | null; submitted_at: string };
+type LearningAssignment = { id: string; title: string; instructions: string; due_at?: string | null; max_points: number; status: string; submissions?: LearningSubmission[] };
+type LearningModule = { id: string; title: string; description: string; status: string; lessons: { id: string; title: string; content: string; status: string; estimated_minutes: number }[] };
+type LearningCourse = { id: string; title: string; modules: LearningModule[]; assignments: LearningAssignment[] };
+
 
 const isPasswordStrong = (value: string) => value.length >= 6 && value.length <= 12 && [/[A-Z]/.test(value), /[a-z]/.test(value), /[0-9]/.test(value), /[^A-Za-z0-9]/.test(value)].filter(Boolean).length >= 3;
 
@@ -24,7 +29,8 @@ const initialServices: ServiceItem[] = [
 
 const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'courses', label: 'Courses', icon: BookOpen },
+  { id: 'courses', label: 'Courses & programmes', icon: BookOpen },
+  { id: 'learning', label: 'Learning management', icon: BookOpen },
   { id: 'services', label: 'Services', icon: BriefcaseBusiness },
   { id: 'enrollments', label: 'Students & admissions', icon: Users },
   { id: 'finance', label: 'Donations & cashout', icon: CircleDollarSign },
@@ -86,6 +92,23 @@ export function AdminPage() {
   const [documentDescription, setDocumentDescription] = useState('');
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [customerOrders, setCustomerOrders] = useState<{ id: string; reference: string; customerName: string; email: string; phone: string; amount: number; notes: string; status: string; createdAt: string; serviceName: string }[]>([]);
+  const [learningCourses, setLearningCourses] = useState<LearningCourse[]>([]);
+  const [learningTutors, setLearningTutors] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [learningCourseId, setLearningCourseId] = useState('');
+  const [learningModuleId, setLearningModuleId] = useState('');
+  const [learningModuleTitle, setLearningModuleTitle] = useState('');
+  const [learningModuleDescription, setLearningModuleDescription] = useState('');
+  const [learningLessonTitle, setLearningLessonTitle] = useState('');
+  const [learningLessonContent, setLearningLessonContent] = useState('');
+  const [learningLessonMinutes, setLearningLessonMinutes] = useState('15');
+  const [learningAssignmentTitle, setLearningAssignmentTitle] = useState('');
+  const [learningAssignmentInstructions, setLearningAssignmentInstructions] = useState('');
+  const [learningAssignmentDue, setLearningAssignmentDue] = useState('');
+  const [learningAssignmentMax, setLearningAssignmentMax] = useState('100');
+  const [learningTutorId, setLearningTutorId] = useState('');
+  const [learningGradePoints, setLearningGradePoints] = useState<Record<string, string>>({});
+  const [learningFeedback, setLearningFeedback] = useState<Record<string, string>>({});
+
 
   useEffect(() => {
     let active = true;
@@ -139,6 +162,13 @@ export function AdminPage() {
             if (result.settings.logoAssetId) setLogoPreview(`/api/media/${result.settings.logoAssetId}`);
           }
         }
+        const learningResponse = await fetch('/api/learning');
+        if (learningResponse.ok) {
+          const result = await learningResponse.json() as { courses?: LearningCourse[]; tutors?: { id: string; name: string; email: string }[] };
+          if (result.courses) setLearningCourses(result.courses);
+          if (result.tutors) setLearningTutors(result.tutors);
+          if (result.courses?.length) setLearningCourseId(result.courses[0].id);
+        }
         if (mediaResponse.ok) {
           const result = await mediaResponse.json() as { media?: { id: string; url: string; altText: string }[] };
           if (result.media) setGalleryPreview(result.media.map((asset) => asset.url));
@@ -161,6 +191,25 @@ export function AdminPage() {
       .then((result) => { if (result?.orders) setCustomerOrders(result.orders); })
       .catch(() => undefined);
   }, [user, backendReady]);
+
+  const submitLearningAction = async (payload: Record<string, unknown>, success: string) => {
+    try {
+      const response = await fetch('/api/learning', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'Learning management action failed.');
+      const refresh = await fetch('/api/learning');
+      if (refresh.ok) {
+        const data = await refresh.json() as { courses?: LearningCourse[]; tutors?: { id: string; name: string; email: string }[] };
+        if (data.courses) setLearningCourses(data.courses);
+        if (data.tutors) setLearningTutors(data.tutors);
+      }
+      setNotice(success);
+      return true;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Learning management action failed.');
+      return false;
+    }
+  };
 
   const uploadDocument = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -455,6 +504,48 @@ export function AdminPage() {
           ].map(([label, value, caption]) => <div key={label} className="bg-white p-5"><p className="text-sm text-slate-500">{label}</p><p className="mt-3 text-xl font-bold text-slate-950">{value}</p><p className="mt-1 text-xs text-slate-500">{caption}</p></div>)}</div><div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]"><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Workspace summary</h3><p className="mt-2 text-sm leading-6 text-slate-600">Use these sections to draft courses and services, preview gallery images, and configure notification preferences. Changes are local previews until server storage and role-based access are connected.</p><div className="mt-5 grid gap-2 sm:grid-cols-2">{sections.slice(1).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActive(id)} className="flex items-center justify-between border p-3 text-left text-sm font-medium hover:bg-slate-50"><span className="flex items-center gap-2"><Icon className="h-4 w-4 text-emerald-800" />{label}</span><span aria-hidden="true">›</span></button>)}</div></section><section className="border bg-white p-5"><h3 className="font-bold text-slate-950">Important setup</h3><ul className="mt-3 space-y-3 text-sm leading-6 text-slate-600"><li className="border-l-2 border-amber-500 pl-3">Rotate the Daraja production credentials shared in chat.</li><li className="border-l-2 border-emerald-700 pl-3">Keep all Daraja secrets in server environment variables only.</li><li className="border-l-2 border-emerald-700 pl-3">Protect admin actions with verified staff roles and audit logs.</li></ul></section></div></div>}
 
           {active === 'courses' && <div className="space-y-5"><form onSubmit={editingCourseId ? saveCourse : addCourse} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-3"><div className="space-y-2 sm:col-span-2 xl:col-span-3"><h3 className="font-bold text-slate-950">{editingCourseId ? 'Edit course details' : 'Add a new course'}</h3><p className="text-xs text-slate-500">All fees are whole Kenyan shillings for M-Pesa payment compatibility.</p></div><div className="space-y-2"><Label htmlFor="new-course">Course title</Label><Input id="new-course" value={courseName} onChange={(event) => setCourseName(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="new-course-price">Fee (KSh)</Label><Input id="new-course-price" type="number" min="0" step="1" value={coursePrice} onChange={(event) => setCoursePrice(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-duration">Duration</Label><Input id="course-duration" value={courseDuration} onChange={(event) => setCourseDuration(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-category">Category</Label><select id="course-category" value={courseCategory} onChange={(event) => setCourseCategory(event.target.value as Course['category'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Professional</option><option>Computer School</option><option>Cyber Services</option></select></div><div className="space-y-2"><Label htmlFor="course-image">Course image URL</Label><Input id="course-image" value={courseImage} onChange={(event) => setCourseImage(event.target.value)} placeholder="https://..." /></div><div className="space-y-2"><Label htmlFor="course-level">Course level</Label><select id="course-level" value={courseLevel} onChange={(event) => setCourseLevel(event.target.value as Course['level'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></div><div className="space-y-2 sm:col-span-2 xl:col-span-3"><Label htmlFor="course-description">Course description</Label><textarea id="course-description" value={courseDescription} onChange={(event) => setCourseDescription(event.target.value)} rows={3} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" /></div><div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><Button type="submit" className="bg-emerald-800 hover:bg-emerald-900">{editingCourseId ? <><Save className="mr-2 h-4 w-4" />Save course</> : <><Plus className="mr-2 h-4 w-4" />Add course</>}</Button>{editingCourseId && <Button type="button" variant="outline" onClick={cancelCourseEdit}>Cancel edit</Button>}</div></form><div className="overflow-x-auto border bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Course</th><th className="p-3">Category</th><th className="p-3">Duration</th><th className="p-3">Fee</th><th className="p-3">Actions</th></tr></thead><tbody>{courses.map((course) => <tr key={course.id} className="border-b last:border-0"><td className="p-3 font-semibold text-slate-900">{course.title}<p className="mt-1 max-w-md text-xs font-normal text-slate-500">{course.description}</p></td><td className="p-3">{course.category}</td><td className="p-3">{course.duration}</td><td className="p-3">KSh {course.price.toLocaleString()}</td><td className="p-3"><div className="flex items-center gap-3"><button aria-label={`Edit ${course.title}`} className="text-blue-700 hover:text-blue-900" onClick={() => editCourse(course)}><Pencil className="h-4 w-4" /></button><button aria-label={`Archive ${course.title}`} className="text-slate-500 hover:text-red-700" onClick={() => void removeCourse(course.id)}><Trash2 className="h-4 w-4" /></button></div></td></tr>)}</tbody></table></div></div>}
+
+          {active === 'learning' && <div className="space-y-6">
+            <section className="rounded-2xl border bg-white p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-950">Learning Management System</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Build course content, publish modules and lessons, set assignments, allocate tutors and assess learner submissions. Published content becomes visible in the authorised Learning Workspace.</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{learningCourses.length} active courses</span></div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Modules</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.modules.length,0)}</p></div><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Lessons</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.modules.reduce((m,x)=>m+x.lessons.length,0),0)}</p></div><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Assignments</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.assignments.length,0)}</p></div></div>
+            </section>
+            <div className="grid gap-5 xl:grid-cols-2">
+              <form onSubmit={async (event)=>{event.preventDefault();if(!learningCourseId)return;const ok=await submitLearningAction({action:'create_module',courseId:learningCourseId,title:learningModuleTitle,description:learningModuleDescription,status:'published'},'Module created and published.');if(ok){setLearningModuleTitle('');setLearningModuleDescription('');}}} className="space-y-4 rounded-2xl border bg-white p-5">
+                <div><h3 className="font-bold text-slate-950">1. Create course module</h3><p className="mt-1 text-xs text-slate-500">Organise a course into topics or units.</p></div>
+                <div className="space-y-2"><Label>Course</Label><select value={learningCourseId} onChange={e=>setLearningCourseId(e.target.value)} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select course</option>{courses.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></div>
+                <div className="space-y-2"><Label>Module title</Label><Input value={learningModuleTitle} onChange={e=>setLearningModuleTitle(e.target.value)} placeholder="e.g. Introduction to Python" required /></div>
+                <div className="space-y-2"><Label>Module description</Label><textarea value={learningModuleDescription} onChange={e=>setLearningModuleDescription(e.target.value)} rows={3} className="w-full rounded-md border border-slate-300 p-3 text-sm" placeholder="Learning objectives and topics covered" /></div>
+                <Button type="submit" disabled={!backendReady||!learningCourseId||!learningModuleTitle.trim()} className="bg-blue-800 hover:bg-blue-900"><Plus className="mr-2 h-4 w-4"/>Create module</Button>
+              </form>
+              <form onSubmit={async (event)=>{event.preventDefault();if(!learningModuleId)return;const ok=await submitLearningAction({action:'create_lesson',moduleId:learningModuleId,title:learningLessonTitle,content:learningLessonContent,estimatedMinutes:Number(learningLessonMinutes),status:'published'},'Lesson created and published.');if(ok){setLearningLessonTitle('');setLearningLessonContent('');}}} className="space-y-4 rounded-2xl border bg-white p-5">
+                <div><h3 className="font-bold text-slate-950">2. Add lesson or learning material</h3><p className="mt-1 text-xs text-slate-500">Lessons support text content and the existing LMS video/resource links.</p></div>
+                <div className="space-y-2"><Label>Module</Label><select value={learningModuleId} onChange={e=>setLearningModuleId(e.target.value)} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select module</option>{learningCourses.flatMap(c=>c.modules.map(m=><option key={m.id} value={m.id}>{c.title} — {m.title}</option>))}</select></div>
+                <div className="space-y-2"><Label>Lesson title</Label><Input value={learningLessonTitle} onChange={e=>setLearningLessonTitle(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>Lesson content / notes</Label><textarea value={learningLessonContent} onChange={e=>setLearningLessonContent(e.target.value)} rows={4} className="w-full rounded-md border border-slate-300 p-3 text-sm" placeholder="Write the lesson notes or instructions..." /></div>
+                <div className="space-y-2"><Label>Estimated time (minutes)</Label><Input type="number" min="1" max="1440" value={learningLessonMinutes} onChange={e=>setLearningLessonMinutes(e.target.value)} /></div>
+                <Button type="submit" disabled={!backendReady||!learningModuleId||!learningLessonTitle.trim()} className="bg-blue-800 hover:bg-blue-900"><Plus className="mr-2 h-4 w-4"/>Publish lesson</Button>
+              </form>
+              <form onSubmit={async(event)=>{event.preventDefault();if(!learningCourseId)return;const ok=await submitLearningAction({action:'create_assignment',courseId:learningCourseId,moduleId:learningModuleId||null,title:learningAssignmentTitle,instructions:learningAssignmentInstructions,dueAt:learningAssignmentDue?new Date(learningAssignmentDue).toISOString():null,maxPoints:Number(learningAssignmentMax),status:'published'},'Assignment published to the selected course.');if(ok){setLearningAssignmentTitle('');setLearningAssignmentInstructions('');setLearningAssignmentDue('');}}} className="space-y-4 rounded-2xl border bg-white p-5">
+                <div><h3 className="font-bold text-slate-950">3. Create assignment or CAT</h3><p className="mt-1 text-xs text-slate-500">Set instructions, due date and maximum marks.</p></div>
+                <div className="space-y-2"><Label>Course</Label><select value={learningCourseId} onChange={e=>setLearningCourseId(e.target.value)} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select course</option>{courses.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></div>
+                <div className="space-y-2"><Label>Related module (optional)</Label><select value={learningModuleId} onChange={e=>setLearningModuleId(e.target.value)} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">No specific module</option>{learningCourses.flatMap(c=>c.modules.filter(m=>c.id===learningCourseId).map(m=><option key={m.id} value={m.id}>{m.title}</option>))}</select></div>
+                <div className="space-y-2"><Label>Assignment title</Label><Input value={learningAssignmentTitle} onChange={e=>setLearningAssignmentTitle(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>Instructions</Label><textarea value={learningAssignmentInstructions} onChange={e=>setLearningAssignmentInstructions(e.target.value)} rows={3} className="w-full rounded-md border border-slate-300 p-3 text-sm" /></div>
+                <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label>Deadline (East Africa time)</Label><Input type="datetime-local" value={learningAssignmentDue} onChange={e=>setLearningAssignmentDue(e.target.value)} /></div><div className="space-y-2"><Label>Maximum marks</Label><Input type="number" min="1" max="10000" value={learningAssignmentMax} onChange={e=>setLearningAssignmentMax(e.target.value)} /></div></div>
+                <Button type="submit" disabled={!backendReady||!learningCourseId||!learningAssignmentTitle.trim()} className="bg-blue-800 hover:bg-blue-900"><Plus className="mr-2 h-4 w-4"/>Publish assignment</Button>
+              </form>
+              <form onSubmit={async(event)=>{event.preventDefault();if(!learningCourseId||!learningTutorId)return;await submitLearningAction({action:'assign_tutor',courseId:learningCourseId,tutorUserId:learningTutorId},'Tutor assigned to the selected course.');}} className="space-y-4 rounded-2xl border bg-white p-5">
+                <div><h3 className="font-bold text-slate-950">4. Allocate course tutor</h3><p className="mt-1 text-xs text-slate-500">Tutors see only courses assigned to them.</p></div>
+                <div className="space-y-2"><Label>Course</Label><select value={learningCourseId} onChange={e=>setLearningCourseId(e.target.value)} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select course</option>{courses.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></div>
+                <div className="space-y-2"><Label>Tutor account</Label><select value={learningTutorId} onChange={e=>setLearningTutorId(e.target.value)} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Select tutor</option>{learningTutors.map(t=><option key={t.id} value={t.id}>{t.name} · {t.email}</option>)}</select></div>
+                <Button type="submit" disabled={!backendReady||!learningCourseId||!learningTutorId} className="bg-blue-800 hover:bg-blue-900"><Users className="mr-2 h-4 w-4"/>Assign tutor</Button>
+              </form>
+            </div>
+            <section className="overflow-hidden rounded-2xl border bg-white"><div className="border-b p-5"><h3 className="font-bold text-slate-950">Course content and learner submissions</h3><p className="mt-1 text-sm text-slate-600">Review published modules, lessons, assignments and submitted work.</p></div><div className="divide-y">{learningCourses.map(course=><article key={course.id} className="p-5"><h4 className="font-bold text-slate-950">{course.title}</h4><div className="mt-3 space-y-3">{course.modules.map(module=><div key={module.id} className="rounded-xl bg-slate-50 p-4"><div className="flex flex-wrap justify-between gap-2"><p className="font-semibold">{module.title}</p><span className="text-xs font-bold uppercase text-emerald-700">{module.status}</span></div>{module.lessons.map(lesson=><div key={lesson.id} className="ml-3 mt-2 border-l-2 border-blue-200 pl-3 text-sm"><p>{lesson.title} <span className="text-xs text-slate-500">· {lesson.estimated_minutes} min · {lesson.status}</span></p></div>)}</div>)}
+                {course.assignments.map(assignment=><div key={assignment.id} className="rounded-xl border p-4"><div className="flex flex-wrap justify-between gap-2"><p className="font-semibold">{assignment.title}</p><span className="text-xs text-slate-500">{assignment.status} · Max {assignment.max_points}</span></div><p className="mt-1 text-xs text-slate-500">{assignment.due_at ? formatEATDateTime(assignment.due_at) : 'No deadline'} · {(assignment.submissions||[]).length} submissions</p>{(assignment.submissions||[]).map(sub=><div key={sub.id} className="mt-3 grid gap-2 rounded-lg bg-slate-50 p-3 md:grid-cols-[1fr_120px_1fr_auto] md:items-end"><div><p className="text-sm font-semibold">{sub.learner_name}</p><p className="mt-1 whitespace-pre-wrap text-xs text-slate-600">{sub.response_text || 'No written response'}</p>{sub.attachment_url&&<a href={sub.attachment_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-700">Open attachment</a>}</div><div className="space-y-1"><Label>Score</Label><Input type="number" min="0" max={assignment.max_points} value={learningGradePoints[sub.id] ?? String(sub.points_awarded ?? '')} onChange={e=>setLearningGradePoints(v=>({...v,[sub.id]:e.target.value}))}/></div><div className="space-y-1"><Label>Feedback</Label><Input value={learningFeedback[sub.id] ?? sub.feedback ?? ''} onChange={e=>setLearningFeedback(v=>({...v,[sub.id]:e.target.value}))}/></div><Button type="button" size="sm" disabled={!backendReady||learningGradePoints[sub.id]===undefined&&sub.points_awarded==null} onClick={()=>void submitLearningAction({action:'grade_submission',submissionId:sub.id,pointsAwarded:Number(learningGradePoints[sub.id] ?? sub.points_awarded),feedback:learningFeedback[sub.id] ?? sub.feedback ?? ''},'Submission graded and feedback saved.')}>Save grade</Button></div>)}</div>)}
+                {course.modules.length===0&&course.assignments.length===0&&<p className="text-sm text-slate-500">No modules or assignments have been created for this course.</p>}</div></article>)}{learningCourses.length===0&&<p className="p-6 text-sm text-slate-500">{backendReady?'Create a course first, then add modules and lessons.':'Connect the live database to manage learning content.'}</p>}</div></section>
+          </div>}
 
           {active === 'services' && <div className="space-y-5"><form onSubmit={addService} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-[1fr_180px_180px_auto] xl:items-end"><div className="space-y-2"><Label htmlFor="service-name">Service name</Label><Input id="service-name" value={serviceName} onChange={(event) => setServiceName(event.target.value)} placeholder="e.g. Scanning" required /></div><div className="space-y-2"><Label htmlFor="service-category">Category</Label><select id="service-category" value={serviceCategory} onChange={(event) => setServiceCategory(event.target.value)} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Cyber cafe</option><option>Document desk</option><option>Digital support</option><option>Training</option><option>Technical help</option></select></div><div className="space-y-2"><Label htmlFor="service-price">Display price</Label><Input id="service-price" value={servicePrice} onChange={(event) => setServicePrice(event.target.value)} placeholder="From KSh 100" /></div><div className="space-y-2"><Label htmlFor="service-price-amount">Fixed online payment (KSh)</Label><Input id="service-price-amount" type="number" min="1" max="150000" value={servicePriceAmount} onChange={(event) => setServicePriceAmount(event.target.value)} placeholder="Optional — e.g. 500" /></div><Button type="submit" className="bg-emerald-800 hover:bg-emerald-900"><Plus className="mr-2 h-4 w-4" />Add service</Button></form><div className="divide-y border bg-white">{services.map((service) => <div key={service.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-semibold text-slate-950">{service.name}</p><p className="mt-1 text-xs text-slate-500">{service.category} · {service.price}{service.priceAmount ? ` · Online: KSh ${service.priceAmount.toLocaleString()}` : ''}</p></div><div className="flex items-center gap-4"><span className="text-xs font-semibold text-emerald-800">{service.status}</span><button aria-label={`Pause ${service.name}`} onClick={() => void removeService(service.id)} className="text-slate-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>)}</div></div>}
 
