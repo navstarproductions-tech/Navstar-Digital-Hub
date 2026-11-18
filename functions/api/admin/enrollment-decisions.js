@@ -78,6 +78,14 @@ export async function onRequestPost(context) {
   }
 
   if (!env.RESEND_API_KEY || !env.MAIL_FROM) return error('Admissions email is not configured. Configure RESEND_API_KEY and MAIL_FROM before accepting applications.', 503);
+  if (enrollment.status === 'accepted') return error('This application has already been accepted.', 409);
+  if (['rejected','withdrawn'].includes(String(enrollment.status))) return error('A rejected or withdrawn application cannot be accepted. Review the record before making a new application.', 409);
+  if (enrollment.payment_exception === 'reduced-initial-payment') {
+    const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS paid_total FROM payments WHERE purpose='enrollment' AND reference_id=? AND status='paid'").bind(enrollmentId).first();
+    if (Number(paidRow?.paid_total || 0) < Number(enrollment.approved_initial_payment || 0)) {
+      return error('The Admin-approved reduced initial payment must be confirmed by M-Pesa before this application can be accepted.', 409);
+    }
+  }
   if (!['paid','deferred'].includes(String(enrollment.payment_status)) && !Number(enrollment.special_enrollment)) {
     return error('The application must have its required payment confirmed or an authorised payment exception recorded before acceptance.', 409);
   }
