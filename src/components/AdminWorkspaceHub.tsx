@@ -144,6 +144,11 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
   if(subtab==='Resolved Tickets')return ['resolved','closed','completed'].includes(status);
   if(subtab==='Fee Defaulters')return payment!=='paid';
   if(subtab==='Payment Receipts'||subtab==='Receipts'||subtab==='Verified Receipts'||subtab==='Sales History')return payment==='paid'||status==='paid'||Boolean(row.receipt_number||row.mpesa_receipt);
+  if(section==='analytics-reports'&&subtab==='Student Trends')return /student|application|enrollment/i.test(String(row.metric||''));
+  if(section==='analytics-reports'&&subtab==='Service Performance')return /service|order/i.test(String(row.metric||''));
+  if(section==='analytics-reports'&&subtab==='Financial Performance')return /payment|donation|revenue|cash/i.test(String(row.metric||''));
+  if(section==='ai-intake-advisor'&&subtab==='Review Recommendations')return ['submitted','under_review'].includes(status);
+  if(section==='ai-intake-advisor'&&subtab==='Intake Forecasts')return Boolean(row.preferred_intake);
   if(subtab==='Payment Approvals')return ['initiating','pending','pending_approval'].includes(status);
   if(subtab==='Packing & Delivery')return !['completed','delivered','cancelled'].includes(status);
   if(section==='downloads'&&subtab==='Published Documents')return row.isPublic===true||row.isPublic===1;
