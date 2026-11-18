@@ -466,11 +466,11 @@ export function AdminPage() {
 
   const exportMarks = (format: 'excel' | 'word' | 'pdf') => {
     const rows = learningCourses.flatMap(course => course.assignments.flatMap(assignment => (assignment.submissions || []).map(submission => ({
-      Course: course.title, Assessment: assignment.title, Learner: submission.learner_name,
+      'Submission ID': submission.id, Course: course.title, Assessment: assignment.title, Learner: submission.learner_name,
       Score: submission.points_awarded ?? '', 'Maximum score': assignment.max_points,
       Status: submission.status, Feedback: submission.feedback || '',
     }))));
-    try { exportBrandedData(format, 'Assessment and Marks Register', ['Course', 'Assessment', 'Learner', 'Score', 'Maximum score', 'Status', 'Feedback'], rows); }
+    try { exportBrandedData(format, 'Assessment and Marks Register', ['Submission ID', 'Course', 'Assessment', 'Learner', 'Score', 'Maximum score', 'Status', 'Feedback'], rows); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Export could not be created.'); }
   };
 
