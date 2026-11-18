@@ -63,14 +63,14 @@ export async function onRequestPost({ request, env }) {
   let customer = { email: '', phone: payment.phone, name: 'Customer' };
   let enrollmentDetails = '';
   if (payment.purpose === 'enrollment') {
-    const row = await env.DB.prepare(`SELECT e.full_name AS name,e.email,e.phone,e.display_ref,e.preferred_intake,c.title AS course_title,c.price AS course_fee
+    const row = await env.DB.prepare(`SELECT e.full_name AS name,e.email,e.phone,e.display_ref,e.preferred_intake,e.status,c.title AS course_title,c.price AS course_fee
       FROM enrollments e JOIN courses c ON c.id=e.course_id WHERE e.id=?`).bind(payment.reference_id).first();
     if (row) {
       customer = row;
       const totals = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS paid_total FROM payments WHERE purpose='enrollment' AND reference_id=? AND status='paid'").bind(payment.reference_id).first();
       const paidTotal = Number(totals?.paid_total || 0);
       const balanceDue = Math.max(0, Number(row.course_fee || 0) - paidTotal);
-      enrollmentDetails = `\n\nAPPLICATION DETAILS\nApplicant: ${row.name}\nApplication reference: ${row.display_ref}\nCourse: ${row.course_title}\nIntake: ${row.preferred_intake || 'As confirmed by Admissions'}\nPublished course fee: KSh ${Number(row.course_fee).toLocaleString('en-KE')}\nTotal confirmed payments: KSh ${paidTotal.toLocaleString('en-KE')}\nOutstanding course balance: KSh ${balanceDue.toLocaleString('en-KE')}\nAdmissions status: Awaiting Admissions review`;
+      enrollmentDetails = `\n\nAPPLICATION DETAILS\nApplicant: ${row.name}\nApplication reference: ${row.display_ref}\nCourse: ${row.course_title}\nIntake: ${row.preferred_intake || 'As confirmed by Admissions'}\nPublished course fee: KSh ${Number(row.course_fee).toLocaleString('en-KE')}\nTotal confirmed payments: KSh ${paidTotal.toLocaleString('en-KE')}\nOutstanding course balance: KSh ${balanceDue.toLocaleString('en-KE')}\nAdmissions status: ${row.status}`;
     }
   } else if (payment.purpose === 'service') {
     const row = await env.DB.prepare('SELECT customer_name AS name, email, phone FROM service_requests WHERE id = ?').bind(payment.reference_id).first();
