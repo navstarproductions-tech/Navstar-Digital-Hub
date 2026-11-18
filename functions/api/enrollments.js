@@ -88,25 +88,22 @@ export async function onRequestPost(context) {
   const displayRef = await nextReference(env.DB, 'ENR');
   await env.DB.prepare(`
     INSERT INTO enrollments (
-      id, display_ref, course_id, full_name, email, phone, date_of_birth, identity_number, gender, nationality,
+      id, display_ref, course_id, full_name, email, phone, date_of_birth, identity_type, identity_number, gender, nationality,
       study_mode, education_level, preferred_intake, experience, county, town, address,
       emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, support_needs, consent
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      , status, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'under_review', 'pending')
   `).bind(
-    id, displayRef, course.id, fullName, email, phone, dateOfBirth, identityNumber || null,
+    id, displayRef, course.id, fullName, email, phone, dateOfBirth, identityType, identityNumber || null,
     safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null, studyMode, educationLevel,
     safeString(body.preferredIntake, 20) || null, safeString(body.experience, 2000) || null, county, town,
     safeString(body.address, 250) || null, emergencyContactName, emergencyContactPhone,
     safeString(body.emergencyContactRelationship, 80) || null, safeString(body.supportNeeds, 2000) || null,
   ).run();
 
-  const staff = await env.DB.prepare("SELECT id FROM users WHERE role IN ('admin', 'admissions') AND status = 'active'").all();
-  if (staff.results?.length) {
-    await env.DB.batch(staff.results.map((user) => env.DB.prepare('INSERT INTO notifications (id, user_id, title, message) VALUES (?, ?, ?, ?)')
-      .bind(uuid(), user.id, 'New application', `An application was received for ${course.title}.`)));
-  }
-  queueCustomerNotice(context, env, { email, phone, subject: 'Navstar application received', message: `Hello ${fullName}, your application for ${course.title} has been received. Reference: ${displayRef}. Navstar Digital Hub — HOME OF TECHNOCRATS.` });
-  return json({ id, reference: displayRef, status: 'submitted', course: { id: course.id, title: course.title, amount: course.price } }, 201);
+  const configuredMinimum = Number(rules.minimumEnrollmentPayment || 0);
+  const amountDueNow = configuredMinimum > 0 ? configuredMinimum : Number(course.price);
+  if (!Number.isSafeInteger(amountDueNow) || amountDueNow < 1 || amountDueNow > Number(course.price)) return error('The minimum enrolment payment in Admin Settings must be at least KSh 1 and cannot exceed the published course fee.', 409);
+  return json({ id, reference: displayRef, status: 'awaiting_payment', paymentRequired: true, amountDueNow, course: { id: course.id, title: course.title, amount: course.price } }, 201);
 }
 
 export async function onRequestGet({ request, env }) {
