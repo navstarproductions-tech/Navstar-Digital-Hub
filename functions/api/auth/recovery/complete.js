@@ -10,7 +10,7 @@ const digest = async value => {
 export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
   if (!env.DB) return error('Recovery service is not configured.', 503);
-  const resetToken = request.headers.get('Authorization')?.replace(/^Bearer\\s+/i, '') || '';
+  const resetToken = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || '';
   if (resetToken.length < 32) return error('Verify your email before resetting the password.', 403);
   let body;
   try { body = await readJson(request, 4096); } catch { return error('Invalid password details.'); }
