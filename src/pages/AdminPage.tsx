@@ -109,10 +109,10 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   'ai-intake-advisor': makeTabs(['AI Intake Advisor','Review Recommendations','Intake Forecasts'],'ai-intake-advisor'),
   'enrollment-summary': makeTabs(['Intake Summary','Enrollment by Course','Enrollment by Year','Enrollment Status'],'enrollments'),
   services: makeTabs(['Manage Services','Customer Carts','Service Orders'],'services'),
-  pos: makeTabs(['Dashboards','New Sale','Packing & Delivery','Payment Approvals','Sales History','Scan & Sells','Print Barcode Labels','Generate Missing Barcodes'],'pos'),
+  pos: [{label:'Dashboards',target:'overview'},{label:'New Sale',target:'pos'},{label:'Packing & Delivery',target:'orders'},{label:'Payment Approvals',target:'finance'},{label:'Sales History',target:'receipts'},{label:'Scan & Sells',target:'pos'},{label:'Print Barcode Labels',target:'pos-tools'},{label:'Generate Missing Barcodes',target:'pos-tools'}],
   finance: makeTabs(['Accounts Overview','Transactions','Payment Receipts','Cashouts','Financial Reports'],'finance'),
   fees: makeTabs(['Collect Fees','Receipts','Fee Statements','Fee Defaulters','Enrollment Fee Offers'],'finance'),
-  'marks-tests': makeTabs(['Marks Hub — Practical · CAT · Final · Assignments','Exam Management (AI)','Export Exam as PDF','Exam Room (Live Monitor)','Exam Settings','Results Moderation','Results Visibility','Approve Changes'],'learning'),
+  'marks-tests': makeTabs(['Marks Hub — Practical · CAT · Final · Assignments','Exam Management (AI)','Export Exam as PDF','Exam Room (Live Monitor)','Exam Settings','Results Moderation','Results Visibility','Approve Changes'],'marks-tests'),
   'student-projects': makeTabs(['All Projects','Submit Project','Review & Approve Projects','Project Showcase'],'student-projects'),
   scholarships: makeTabs(['Scholarship Register','Discount Applications','Approve Discounts','Award History'],'finance'),
   certificates: makeTabs(['Dashboard','Merit List — Promote to Complete','Graduation List — Complete → Graduate','Graduate Serial Processing','Certificate Management','Document Access Control','Certificate Templates','Academic Documents','Student Records','Examination Records','QR Auth Center','Digital Signatures','Reports & Analytics','Audit Logs','Certificate Settings'],'certificates'),
@@ -154,7 +154,31 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   'customer-accounts': makeTabs(['Customer Accounts','Account Balances','Payment History'],'users'),
   maintenance: makeTabs(['Maintenance Status','Enable / Disable Maintenance','Maintenance Notices'],'maintenance'),
   'ict-portal': makeTabs(['ICT Service Requests','ICT Services & Pricing','Student Gateway','Tutor Portal','Finance Portal','Principal Portal','Deputy Principal'],'portal-links'),
-  settings: makeTabs(['Institute Profile','Fee Structures (PDFs)','Enrollment Settings','Academic Intakes','Institution & Campuses','Rules & Regulations','Marks & Grading','Institutional Branding','Home Page Content','Trusted Platforms','News & Announcements','Documents & Downloads','Report Card Layout','ID Card Design Studio','ID Card Format','ID Cards (Bulk Print)','Rubber Stamp Designer','Payment Methods','Results & Attendance Criteria','Completion Criteria','System Activity Monitor','Audit Logs','Theme & Language'],'settings'),
+  settings: [
+    {label:'Institute Profile',target:'settings',settingsTab:'site'},
+    {label:'Fee Structures (PDFs)',target:'finance'},
+    {label:'Enrollment Settings',target:'enrollments'},
+    {label:'Academic Intakes',target:'school'},
+    {label:'Institution & Campuses',target:'school'},
+    {label:'Rules & Regulations',target:'settings',settingsTab:'site'},
+    {label:'Marks & Grading',target:'marks-tests'},
+    {label:'Institutional Branding',target:'gallery'},
+    {label:'Home Page Content',target:'gallery'},
+    {label:'Trusted Platforms',target:'settings',settingsTab:'site'},
+    {label:'News & Announcements',target:'downloads'},
+    {label:'Documents & Downloads',target:'downloads'},
+    {label:'Report Card Layout',target:'report-cards'},
+    {label:'ID Card Design Studio',target:'certificates'},
+    {label:'ID Card Format',target:'certificates'},
+    {label:'ID Cards (Bulk Print)',target:'certificates'},
+    {label:'Rubber Stamp Designer',target:'certificates'},
+    {label:'Payment Methods',target:'finance'},
+    {label:'Results & Attendance Criteria',target:'marks-tests'},
+    {label:'Completion Criteria',target:'certificates'},
+    {label:'System Activity Monitor',target:'settings',settingsTab:'notifications'},
+    {label:'Audit Logs',target:'settings',settingsTab:'notifications'},
+    {label:'Theme & Language',target:'settings',settingsTab:'site'},
+  ],
   orders: makeTabs(['Service Orders','Customer Carts','Order Status'],'orders'),
   receipts: makeTabs(['Payment Receipts','Verified Receipts','Receipt Search'],'receipts'),
 };
@@ -1324,7 +1348,7 @@ export function AdminPage() {
             </section>}
           </div>}
 
-          {![ 'overview','navstar-analytics','analytics-reports','reports','courses','learning','marks-tests','school','services','pos','finance','fees','enrollments','staff-applications','applications','enrollment-summary','users','employees','student-directory','customer-accounts','downloads','documents','gallery','settings','profile','orders','receipts','portal-links' ].includes(active) && <section className="rounded-2xl border border-white/10 bg-[#151d2b] p-6 sm:p-8"><p className="text-xs font-extrabold uppercase tracking-[.22em] text-cyan-300">NAVSTAR DIGITAL HUB · WORKSPACE</p><h3 className="mt-2 text-2xl font-black text-white">{sections.find(item=>item.id===active)?.label || 'Workspace'}</h3><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">This main workspace has been added to the Admin navigation. Its dedicated registers, forms and subtabs can now be configured here without mixing its records with other sections. Existing Navstar records and other portal modules remain separate.</p></section>}
+          {![ 'overview','navstar-analytics','analytics-reports','reports','courses','learning','marks-tests','school','services','pos','finance','fees','enrollments','staff-applications','applications','enrollment-summary','users','employees','student-directory','customer-accounts','downloads','documents','gallery','settings','profile','orders','receipts','portal-links','pos-tools' ].includes(active) && <section className="rounded-2xl border border-white/10 bg-[#151d2b] p-6 sm:p-8"><p className="text-xs font-extrabold uppercase tracking-[.22em] text-cyan-300">NAVSTAR DIGITAL HUB · WORKSPACE</p><h3 className="mt-2 text-2xl font-black text-white">{sections.find(item=>item.id===active)?.label || 'Workspace'}</h3><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">This main workspace has been added to the Admin navigation. Its dedicated registers, forms and subtabs can now be configured here without mixing its records with other sections. Existing Navstar records and other portal modules remain separate.</p></section>}
 
           <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Secure Navstar administration · User accounts, student records, uploads and finance operations are protected.</span><span className="font-semibold text-cyan-300">Powered by Navstar Digital Hub</span></footer>
           </div>
