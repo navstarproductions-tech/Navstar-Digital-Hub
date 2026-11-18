@@ -136,7 +136,7 @@ function AppShell() {
         </div>
         {!standalone && <Footer />}
       </div>
-      <AIChatWidget />
+      {pathname !== '/set-password' && <AIChatWidget />}
       <Toaster position="top-center" />
     </>
   );
