@@ -131,7 +131,7 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 16384); } catch { return error('Invalid request body.'); }
   const action = safeString(body.action, 40);
 
-  if (['create_module', 'create_lesson', 'create_assignment', 'grade_submission', 'assign_tutor', 'remove_tutor'].includes(action)) {
+  if (['create_module', 'bulk_create_modules', 'create_lesson', 'create_assignment', 'grade_submission', 'assign_tutor', 'remove_tutor'].includes(action)) {
     const access = await requireRole(request, env, ['admin']);
     if (access.response) return access.response;
   }
@@ -150,6 +150,36 @@ export async function onRequestPost({ request, env }) {
     await env.DB.prepare('DELETE FROM course_tutor_assignments WHERE course_id = ? AND tutor_user_id = ?').bind(courseId, tutorUserId).run();
     await writeAudit(env.DB, user.id, 'lms_tutor_unassigned', 'course', courseId);
     return json({ courseId, tutorUserId, assigned: false });
+  }
+
+  if (action === 'bulk_create_modules') {
+    const courseId = safeString(body.courseId, 80);
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    if (!courseId || rows.length < 1 || rows.length > 100) return error('Choose a course and upload between 1 and 100 module rows.');
+    const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
+    if (!course) return error('The selected course is not active or no longer exists.', 404);
+    const normalized = rows.map((row, index) => ({
+      title: safeString(row?.title, 160),
+      description: safeString(row?.description, 4000),
+      status: row?.status === 'published' ? 'published' : 'draft',
+      sortOrder: Number.isSafeInteger(Number(row?.sortOrder)) ? Math.max(0, Math.min(10000, Number(row.sortOrder))) : index + 1,
+    }));
+    const invalid = normalized.findIndex(row => row.title.length < 2);
+    if (invalid >= 0) return error(`Module row ${invalid + 1} needs a title of at least 2 characters. Nothing was imported.`);
+    const ids = normalized.map(() => uuid());
+    const statements = normalized.flatMap((row, index) => [
+      env.DB.prepare('INSERT INTO course_modules (id, course_id, title, description, sort_order, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(ids[index], courseId, row.title, row.description, row.sortOrder, row.status, user.id),
+      env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
+        .bind(uuid(), user.id, 'lms_module_created', 'course_module', ids[index]),
+    ]);
+    try {
+      await env.DB.batch(statements);
+    } catch (cause) {
+      console.error('Navstar bulk module import failed:', String(cause?.stack || cause));
+      return error('The module import could not be saved. No existing modules were changed. Check for duplicate or invalid rows and try again.', 500);
+    }
+    return json({ imported: ids.length, ids, message: `${ids.length} modules saved successfully.` }, 201);
   }
 
   if (action === 'create_module') {
