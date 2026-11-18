@@ -34,6 +34,20 @@ export async function onRequestPost({ request, env }) {
   const existing = collision || await env.DB.prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, created_at ASC LIMIT 1").first();
   const passwordRecord = await hashPassword(password);
   const adminId = existing?.id || uuid();
+  const currentProfile = existing ? await env.DB.prepare('SELECT staff_id FROM user_profiles WHERE user_id = ?').bind(adminId).first().catch(() => null) : null;
+  let staffId = safeString(body.staffId, 16).toUpperCase();
+  if (staffId && !/^AD\\d{5}$/.test(staffId)) return error('Admin staff ID must use the AD prefix followed by five digits, for example AD12345.');
+  if (!staffId) staffId = currentProfile?.staff_id || '';
+  if (!staffId) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const candidate = 'AD' + String(crypto.getRandomValues(new Uint32Array(1))[0] % 100000).padStart(5, '0');
+      const duplicate = await env.DB.prepare('SELECT user_id FROM user_profiles WHERE staff_id = ?').bind(candidate).first();
+      if (!duplicate) { staffId = candidate; break; }
+    }
+  }
+  if (!staffId) return error('A unique Admin staff ID could not be generated. Please try again.', 503);
+  const staffIdOwner = await env.DB.prepare('SELECT user_id FROM user_profiles WHERE staff_id = ?').bind(staffId).first();
+  if (staffIdOwner && staffIdOwner.user_id !== adminId) return error('That Admin staff ID is already assigned. Choose another ID.', 409);
 
   let accountSaved = false;
   try {
@@ -57,5 +71,16 @@ export async function onRequestPost({ request, env }) {
     if (accountSaved) return json({ created: true, message: 'Your Admin credentials were saved. You can now sign in.' }, 201);
     return error('Admin account could not be saved. Please check the setup key and try again. Existing records have been retained.', 500);
   }
-  return json({ created: true, message: 'Your new Admin login is ready. You can now sign in.' }, 201);
+  try {
+    await env.DB.prepare(`INSERT INTO user_profiles (user_id, staff_id, portal_role)
+      VALUES (?, ?, 'admin')
+      ON CONFLICT(user_id) DO UPDATE SET
+        staff_id = CASE WHEN user_profiles.staff_id IS NULL OR user_profiles.staff_id = '' THEN excluded.staff_id ELSE user_profiles.staff_id END,
+        portal_role = 'admin',
+        updated_at = CURRENT_TIMESTAMP`).bind(adminId, staffId).run();
+  } catch (cause) {
+    console.error('Admin staff profile could not be saved:', String(cause));
+    return error('Admin login was created, but the staff profile could not be saved. Contact Navstar support before using the account.', 500);
+  }
+  return json({ created: true, staffId, message: 'Your Admin login is ready. Your staff ID is ' + staffId + '. You can now sign in.' }, 201);
 }
