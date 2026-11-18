@@ -56,6 +56,9 @@ export function AdminPage() {
   const navigate = useNavigate();
   const [active, setActive] = useState<Section>('overview');
   const [settingsTab, setSettingsTab] = useState<'site' | 'notifications' | 'my-profile' | 'geography' | 'staff-ids'>('site');
+  const [profileSubTab, setProfileSubTab] = useState<'account' | 'personal' | 'employment' | 'location'>('account');
+  const [profileSystemDetails, setProfileSystemDetails] = useState<Record<string, unknown>>({});
+  const [profileLoadError, setProfileLoadError] = useState('');
   const contentRef = useRef<HTMLElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
@@ -270,14 +273,16 @@ export function AdminPage() {
   useEffect(() => {
     if (!backendReady || user?.role !== 'admin' || profileLoaded) return;
     fetch('/api/account/profile').then(async response => {
-      const result = await response.json() as { profile?: Record<string, unknown> };
-      if (!response.ok || !result.profile) return;
+      const result = await response.json() as { profile?: Record<string, unknown>; error?: string };
+      if (!response.ok || !result.profile) { setProfileLoadError(result.error || 'Your existing profile details could not be loaded. Please retry or contact Navstar support.'); return; }
+      setProfileSystemDetails(result.profile);
+      setProfileLoadError('');
       setAdminStaffId(String(result.profile.staffId ?? ''));
       const next: Record<string, string> = {};
       Object.keys(adminProfile).forEach(key => { next[key] = String(result.profile?.[key] ?? ''); });
       setAdminProfile(next);
       setProfileLoaded(true);
-    }).catch(() => undefined);
+    }).catch(() => setProfileLoadError('The profile service could not be reached. Your account has not been changed.'));
   }, [backendReady, user, profileLoaded]);
 
   const saveAdminProfile = async (event: FormEvent<HTMLFormElement>) => {
@@ -807,7 +812,23 @@ export function AdminPage() {
             </section>}
 
             {settingsTab === 'my-profile' && <form onSubmit={saveAdminProfile} className="space-y-5 rounded-2xl border bg-white p-5">
-              <div><h3 className="font-bold text-slate-950">My Admin Profile</h3><p className="mt-1 text-sm text-slate-600">Update your existing Admin account. This does not create a new account or change your login email.</p></div>
+              <div><h3 className="font-bold text-slate-950">My Admin Profile</h3><p className="mt-1 text-sm text-slate-600">Live details for the account currently signed in. Update the existing account; no new account is created.</p></div>
+              <section id="profile-account-summary" className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2"><div><h4 className="font-bold text-slate-950">System account information</h4><p className="mt-1 text-xs text-slate-600">Read directly from your active Navstar session and profile record.</p></div><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Signed in · {user?.role || 'Admin'}</span></div>
+                {profileLoadError && <div role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{profileLoadError}<button type="button" onClick={() => { setProfileLoaded(false); setProfileLoadError(''); }} className="ml-2 font-bold underline">Retry loading</button></div>}
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="rounded-lg border bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Account name</p><p className="mt-1 font-semibold text-slate-900">{String(profileSystemDetails.name || user?.name || 'Not available')}</p></div>
+                  <div className="rounded-lg border bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Login email</p><p className="mt-1 break-all font-semibold text-slate-900">{String(profileSystemDetails.email || user?.email || 'Not available')}</p></div>
+                  <div className="rounded-lg border bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">System user ID</p><p className="mt-1 break-all font-mono text-sm font-semibold text-slate-900">{String(profileSystemDetails.id || user?.id || 'Not available')}</p></div>
+                  <div className="rounded-lg border bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Portal role</p><p className="mt-1 font-semibold capitalize text-slate-900">{String(profileSystemDetails.role || user?.role || 'Admin')}</p></div>
+                  <div className="rounded-lg border bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Staff ID</p><p className="mt-1 font-mono font-bold text-slate-900">{adminStaffId || 'Not assigned yet'}</p></div>
+                  <div className="rounded-lg border bg-white p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Account created</p><p className="mt-1 font-semibold text-slate-900">{profileSystemDetails.created_at ? formatEATDateTime(String(profileSystemDetails.created_at)) : 'Not available'}</p></div>
+                </div>
+              </section>
+              <div className="flex flex-wrap gap-2 border-b pb-3" role="tablist" aria-label="My profile subtabs">
+                {([['account','Account overview'],['personal','Personal & identity'],['employment','Employment'],['location','Location & address']] as const).map(([id,label]) => <button key={id} type="button" role="tab" aria-selected={profileSubTab === id} onClick={() => { setProfileSubTab(id); const target = id === 'personal' ? 'admin-profile-name' : id === 'employment' ? 'admin-profile-department' : id === 'location' ? 'admin-profile-address' : 'profile-account-summary'; document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${profileSubTab === id ? 'bg-blue-800 text-white' : 'border bg-white text-slate-700 hover:bg-slate-50'}`}>{label}</button>)}
+              </div>
+              <p className="text-xs text-slate-500">Use the subtabs to jump to each section below. Existing information is preloaded from your signed-in account; blank fields are optional unless marked required.</p>
               <div className="grid gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:grid-cols-[1fr_2fr] sm:items-end">
                 <div><p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Your Admin staff ID</p><p className="mt-1 text-xs text-amber-800">Choose an unused AD + five-digit ID.</p></div>
                 <div className="space-y-2"><Label htmlFor="admin-profile-staffId">Staff ID</Label><Input id="admin-profile-staffId" value={adminStaffId} onChange={event => setAdminStaffId(event.target.value.toUpperCase())} placeholder="AD12345" pattern="AD[0-9]{5}" maxLength={7} required/><p className="text-xs text-slate-500">Current saved ID: {user?.staffId || adminStaffId || 'Not loaded'} · Example: AD12345</p></div>
