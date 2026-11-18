@@ -17,6 +17,9 @@ export async function onRequestPost({ request, env }) {
     return error('Choose a JPEG, PNG, WebP or AVIF profile photo up to 3 MB.');
   }
 
+  const existing = await env.DB.prepare('SELECT user_id FROM user_profiles WHERE user_id = ?').bind(access.user.id).first();
+  if (!existing) return error('Your account profile is not yet initialized. Please contact Navstar support.', 409);
+
   const id = uuid();
   const objectKey = `profile-photos/${access.user.id}/${id}`;
   try {
@@ -29,7 +32,7 @@ export async function onRequestPost({ request, env }) {
         .bind(`/api/media/${mediaId}`, access.user.id),
     ]);
     const profile = await env.DB.prepare('SELECT profile_photo_url AS profilePhotoUrl FROM user_profiles WHERE user_id = ?').bind(access.user.id).first();
-    if (!profile?.profilePhotoUrl) return error('Your account profile is not yet initialized. Please contact Navstar support.', 409);
+    if (!profile?.profilePhotoUrl) throw new Error('Profile photo update was not confirmed by the database.');
     return json({ profilePhotoUrl: profile.profilePhotoUrl }, 201);
   } catch (cause) {
     console.error('Navstar profile photo upload failed:', String(cause?.stack || cause));
