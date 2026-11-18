@@ -1,5 +1,6 @@
 import { hashPassword, requireRole } from '../../_shared/auth.js';
-import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
+import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../../_shared/http.js';
+import { nextReference } from '../../_shared/references.js';
 import { passwordPolicyError } from '../../_shared/password-policy.js';
 
 const roles = ['student', 'tutor', 'admissions', 'principal', 'admin', 'finance'];
@@ -43,6 +44,25 @@ export async function onRequestPost({ request, env }) {
   const role = safeString(body.role, 24);
   const password = String(body.password ?? '');
   const confirmPassword = String(body.confirmPassword ?? '');
+  let enrollment = null;
+  if (role === 'student') {
+    const courseId = safeString(body.courseId, 80);
+    const course = await env.DB.prepare('SELECT id, title, price FROM courses WHERE id = ? AND status = ?').bind(courseId, 'active').first();
+    const phone = normalizePhone(body.phone);
+    const emergencyPhone = normalizePhone(body.emergencyContactPhone);
+    const dateOfBirth = safeString(body.dateOfBirth, 10);
+    const studyMode = safeString(body.studyMode, 40);
+    const educationLevel = safeString(body.educationLevel, 40);
+    const county = safeString(body.county, 80);
+    const town = safeString(body.town, 80);
+    const emergencyName = safeString(body.emergencyContactName, 120);
+    const consent = body.consent === true || body.consent === 'on';
+    if (!course) return error('Select an available course from the Navstar course catalogue.', 404);
+    if (!phone || !emergencyPhone || !/^\\d{4}-\\d{2}-\\d{2}$/.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyName || !consent) {
+      return error('Complete all required student-enrollment fields with valid details.');
+    }
+    enrollment = { id: uuid(), displayRef: await nextReference(env.DB, 'ENR'), course, phone, emergencyPhone, dateOfBirth, studyMode, educationLevel, county, town, emergencyName, consent };
+  }
   if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !roles.includes(role)) return error('Enter a valid full name, email and portal role.');
   const passwordError = passwordPolicyError(password);
   if (passwordError) return error(passwordError);
@@ -71,6 +91,22 @@ export async function onRequestPost({ request, env }) {
       safeString(body.employmentType, 40) || null, safeString(body.joinedOn, 10) || null,
       safeString(body.address, 240) || null
     ).run();
+    if (enrollment) {
+      await env.DB.prepare(`
+        INSERT INTO enrollments (
+          id, display_ref, course_id, full_name, email, phone, date_of_birth, identity_number, gender, nationality,
+          study_mode, education_level, preferred_intake, experience, county, town, address,
+          emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, support_needs, consent
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `).bind(
+        enrollment.id, enrollment.displayRef, enrollment.course.id, name, email, enrollment.phone, enrollment.dateOfBirth,
+        safeString(body.identityNumber, 80) || null, safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null,
+        enrollment.studyMode, enrollment.educationLevel, safeString(body.preferredIntake, 20) || null,
+        safeString(body.experience, 2000) || null, enrollment.county, enrollment.town, safeString(body.address, 250) || null,
+        enrollment.emergencyName, enrollment.emergencyPhone, safeString(body.emergencyContactRelationship, 80) || null,
+        safeString(body.supportNeeds, 2000) || null
+      ).run();
+    }
   } catch (cause) {
     await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run().catch(() => {});
     if (String(cause?.message || '').toLowerCase().includes('unique')) return error('An account with this email or staff ID already exists.', 409);
@@ -79,5 +115,5 @@ export async function onRequestPost({ request, env }) {
   }
   try { await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), access.user.id, 'user_created', 'user', id).run(); }
   catch (cause) { console.error('Account audit write failed:', String(cause)); }
-  return json({ user: { id, name, email, role, status: 'active', staffId }, staffId }, 201);
+  return json({ user: { id, name, email, role, status: 'active', staffId }, staffId, enrollment: enrollment ? { id: enrollment.id, reference: enrollment.displayRef, course_id: enrollment.course.id, full_name: name, email, status: 'submitted', payment_status: 'unpaid', created_at: new Date().toISOString() } : null }, 201);
 }
