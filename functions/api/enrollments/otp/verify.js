@@ -18,13 +18,14 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 2048); } catch { return error('Enter your email, phone and verification code.'); }
   const email = safeString(body.email, 254).trim().toLowerCase();
   const phone = normalizePhone(body.phone);
-  const otp = safeString(body.otp, 6);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(otp)) return error('The verification code is invalid.');
-  const record = await env.DB.prepare(`SELECT id, otp_hash, attempts, expires_at FROM enrollment_application_otps
+  const emailOtp = safeString(body.emailOtp, 6);
+  const smsOtp = safeString(body.smsOtp, 6);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || (!/^\d{6}$/.test(emailOtp) || !/^\d{6}$/.test(smsOtp))) return error('The verification code is invalid.');
+  const record = await env.DB.prepare(`SELECT id, otp_hash, sms_otp_hash, attempts, expires_at FROM enrollment_application_otps
     WHERE email = ? AND phone = ? AND consumed_at IS NULL AND verified_at IS NULL
     ORDER BY created_at DESC LIMIT 1`).bind(email, phone).first();
   if (!record || Number(record.attempts) >= 5 || Date.parse(record.expires_at) <= Date.now()) return error('The code has expired or is invalid. Request a new code.', 400);
-  if (await digest(otp) !== record.otp_hash) {
+  if (await digest(emailOtp) !== record.otp_hash || await digest(smsOtp) !== record.sms_otp_hash) {
     await env.DB.prepare('UPDATE enrollment_application_otps SET attempts = attempts + 1 WHERE id = ?').bind(record.id).run();
     return error('The verification code is incorrect. Check it and try again.', 400);
   }
