@@ -160,8 +160,8 @@ export function PortalsPage() {
   }
 
   return (
-    <main className="navstar-portal min-h-screen bg-slate-50">
-      <section className="bg-[#061127] text-white">
+    <main className={"navstar-portal min-h-screen " + (selectedStyle?.page || "bg-slate-50")}> 
+      <section className={(selectedStyle?.hero || "bg-[#061127]") + " text-white"}>
         <div className="container mx-auto flex flex-col justify-between gap-4 px-4 py-10 sm:flex-row sm:items-end sm:px-6 lg:px-8">
           <div><p className={"text-xs font-bold uppercase tracking-[.25em] " + (selectedStyle?.eyebrow || "text-cyan-300")}>NAVSTAR DIGITAL HUB / {selectedPortal.id}</p><h1 className="mt-2 text-3xl font-black">{selectedPortal.title}</h1><div className="mt-2 flex items-center gap-3 text-slate-300">{user?.profilePhotoUrl && <img src={user.profilePhotoUrl} alt="Profile photo" className="h-10 w-10 rounded-full border border-white/30 object-cover"/>}<p className="font-semibold text-white">{user ? `Welcome back, ${user.name} · ${selectedPortal.title}` : status}</p></div></div>
           {!user && <Button asChild className="w-fit rounded-full bg-blue-600 hover:bg-blue-500"><Link to={`/login?role=${selectedPortal.id}`}>Sign in securely <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>}
