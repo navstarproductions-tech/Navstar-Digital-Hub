@@ -8,7 +8,7 @@ type Props = {
   subtab: string;
   courses: Array<{id:string;title:string;category?:string;price?:number;duration?:string}>;
   users: Array<{id:string;name:string;email:string;role:string;status:string}>;
-  applications: Array<{id:string;full_name:string;email:string;course_id:string;status:string;payment_status:string;created_at:string}>;
+  applications: Array<Record<string, unknown>>;
   services: Array<{id:string;name:string;category:string;price_label?:string;status:string}>;
 };
 
@@ -111,7 +111,7 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
   if(section==='courses')return courses as unknown as Row[];
   if(section==='school'||section==='student-status')return users.filter(item=>item.role==='student') as unknown as Row[];
   if(section==='employees'||section==='staff-applications'||section==='admin-access')return users.filter(item=>item.role!=='student') as unknown as Row[];
-  if(section==='applications'||section==='enrollment-summary'||section==='ai-intake-advisor')return applications as unknown as Row[];
+  if(section==='applications'||section==='enrollment-summary'||section==='ai-intake-advisor')return applications;
   if(section==='services'||section==='ict-portal')return services as unknown as Row[];
   return records;
  },[section,courses,users,applications,services,records]);
