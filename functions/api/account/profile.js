@@ -12,7 +12,7 @@ export async function onRequestGet({ request, env }) {
       p.staff_id AS staffId, p.national_id AS nationalId, p.phone, p.date_of_birth AS dateOfBirth,
       p.gender, p.citizenship, p.country, p.province, p.county, p.sub_county AS subCounty,
       p.constituency, p.ward, p.location, p.sub_location AS subLocation, p.department,
-      p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn,
+      p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn, p.address,
       p.profile_photo_url AS profilePhotoUrl
     FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE u.id = ?
   `).bind(access.user.id).first();
@@ -49,6 +49,7 @@ export async function onRequestPatch({ request, env }) {
   const jobTitle = safeString(body.jobTitle, 120);
   const employmentType = safeString(body.employmentType, 40);
   const joinedOn = safeString(body.joinedOn, 10);
+  const address = safeString(body.address, 240);
   const requestedStaffId = safeString(body.staffId, 16).toUpperCase();
 
   if (name.length < 2) return error('Enter your full name.');
@@ -68,12 +69,12 @@ export async function onRequestPatch({ request, env }) {
   await env.DB.prepare(`
     UPDATE user_profiles SET staff_id = COALESCE(?, staff_id), national_id = ?, phone = ?, date_of_birth = ?, gender = ?, citizenship = ?,
       country = ?, province = ?, county = ?, sub_county = ?, constituency = ?, ward = ?, location = ?,
-      sub_location = ?, department = ?, job_title = ?, employment_type = ?, joined_on = ?,
+      sub_location = ?, department = ?, job_title = ?, employment_type = ?, joined_on = ?, address = ?,
       updated_at = CURRENT_TIMESTAMP WHERE user_id = ?
   `).bind(requestedStaffId || null, nationalId || null, phone || null, dateOfBirth || null, gender || null, citizenship || null,
     country, province || null, county || null, subCounty || null, constituency || null, ward || null,
     location || null, subLocation || null, department || null, jobTitle || null, employmentType || null,
-    joinedOn || null, access.user.id).run();
+    joinedOn || null, address || null, access.user.id).run();
 
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
     .bind(uuid(), access.user.id, requestedStaffId ? 'admin_staff_id_and_profile_updated' : 'profile_updated', 'user', access.user.id)
