@@ -58,7 +58,7 @@ export async function onRequestPost({ request, env }) {
     const emergencyName = safeString(body.emergencyContactName, 120);
     const consent = body.consent === true || body.consent === 'on';
     if (!course) return error('Select an available course from the Navstar course catalogue.', 404);
-    if (!phone || !emergencyPhone || !/^\\d{4}-\\d{2}-\\d{2}$/.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyName || !consent) {
+    if (!phone || !emergencyPhone || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyName || !consent) {
       return error('Complete all required student-enrollment fields with valid details.');
     }
     enrollment = { id: uuid(), displayRef: await nextReference(env.DB, 'ENR'), course, phone, emergencyPhone, dateOfBirth, studyMode, educationLevel, county, town, emergencyName, consent };
