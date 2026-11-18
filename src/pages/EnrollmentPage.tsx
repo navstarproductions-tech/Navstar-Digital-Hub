@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,16 +10,31 @@ import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
 import { GeographyPicker } from '@/components/GeographyPicker';
 
+const steps = [
+  { title: 'Personal profile', description: 'Your legal identity and personal details.' },
+  { title: 'Contact information', description: 'How Navstar Admissions can reach you.' },
+  { title: 'Identity document', description: 'Provide the document used for identity verification.' },
+  { title: 'Course and education', description: 'Confirm the course and your learning background.' },
+  { title: 'Location and address', description: 'Your county, sub-county, ward and local address.' },
+  { title: 'Emergency and support', description: 'A trusted emergency contact and any learning support needs.' },
+  { title: 'Declaration and verification', description: 'Review your details and verify your email and phone.' }
+];
+
 export function EnrollmentPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
-  const [registrationId, setRegistrationId] = useState('');
-  const [registrationReference, setRegistrationReference] = useState('');
+  const [step, setStep] = useState(0);
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [emailOtp, setEmailOtp] = useState('');
+  const [smsOtp, setSmsOtp] = useState('');
   const [paymentMessage, setPaymentMessage] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [registrationId, setRegistrationId] = useState('');
+  const [registrationReference, setRegistrationReference] = useState('');
+  const [installments, setInstallments] = useState<Array<{label:string;amount:number;dueDate:string}>>([]);
   const [geography, setGeography] = useState({ county: '', subCounty: '', ward: '', location: '', subLocation: '' });
 
   useEffect(() => {
@@ -29,150 +44,197 @@ export function EnrollmentPage() {
         const response = await fetch('/api/courses');
         if (response.ok) {
           const result = await response.json() as { courses?: Course[] };
-          const found = result.courses?.find((item) => item.id === id);
-          if (found) {
-            if (active) setCourse(found);
-            return;
-          }
+          const found = result.courses?.find(item => item.id === id);
+          if (found) { if (active) setCourse(found); return; }
         }
-      } catch {
-        // Fall back to the bundled catalog while the backend is unavailable.
-      }
-      const sampleCourse = INITIAL_COURSES.find((item) => item.id === id);
-      if (sampleCourse && active) setCourse(sampleCourse);
+      } catch { /* The server remains the authority when the applicant submits. */ }
+      const bundled = INITIAL_COURSES.find(item => item.id === id);
+      if (bundled && active) setCourse(bundled);
       else if (active) navigate('/courses', { replace: true });
     };
     void loadCourse();
     return () => { active = false; };
   }, [id, navigate]);
 
-  const submitApplication = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const normalizedPhone = String(formData.get('phone') ?? '').replace(/[\s-]/g, '');
-    const dob = String(formData.get('dateOfBirth') || '');
-    const parsedDob = new Date(`${dob}T00:00:00`);
-    const age = dob && !Number.isNaN(parsedDob.getTime()) ? Math.floor((Date.now() - parsedDob.getTime()) / 31557600000) : -1;
-    if (age < 18) { setStatus('Applicants must be at least 18 years old. Check the date of birth and enter it again.'); return; }
-    if (!/^(?:\+?254|0)?[17]\d{8}$/.test(normalizedPhone)) {
-      setStatus('Enter a valid Kenyan mobile number to continue.');
-      return;
+  const validateStep = () => {
+    const panel = document.querySelector<HTMLElement>(`[data-wizard-step="${step}"]`);
+    if (!panel) return false;
+    const fields = Array.from(panel.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input,select,textarea'));
+    for (const field of fields) {
+      if (field.disabled || field.type === 'hidden') continue;
+      if (!field.checkValidity()) { field.reportValidity(); return false; }
     }
-    if (!course) return;
-    if (!formData.get('identityType') || !String(formData.get('identityNumber') || '').trim()) { setStatus('Select the identity document type and enter its number.'); return; }
-    setLoading(true);
+    if (step === 4 && (!geography.county || !geography.subCounty || !geography.ward || !geography.location || !geography.subLocation)) {
+      setStatus('Complete the county, sub-county, ward, location and sub-location selections before continuing.');
+      return false;
+    }
     setStatus('');
-    try {
-      const response = await fetch('/api/enrollments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...Object.fromEntries(formData.entries()),
-          phone: normalizedPhone,
-          courseId: course.id,
-          courseTitle: course.title,
-        }),
-      });
-      const result = await response.json() as { id?: string; reference?: string; amountDueNow?: number; error?: string };
-      if (!response.ok || !result.id) throw new Error(result.error ?? 'The application could not be submitted. Please contact admissions.');
-      setPaymentMessage(`Minimum payment required now: KSh ${Number(result.amountDueNow || 0).toLocaleString('en-KE')}. Approve the M-Pesa prompt on your phone to complete submission.`);
-      const paymentResponse = await fetch('/api/payments/stk-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'enrollment', reference: result.id, phone: normalizedPhone }) });
-      const paymentResult = await paymentResponse.json() as { id?: string; message?: string; error?: string };
-      if (!paymentResponse.ok || !paymentResult.id) throw new Error(paymentResult.error || 'The M-Pesa prompt could not be started. Your application is saved as awaiting payment; retry payment or contact Admissions.');
-      setRegistrationId(result.id); setRegistrationReference(result.reference ?? result.id);
-      setStatus(paymentResult.message || 'M-Pesa prompt sent. Complete payment on your phone.');
-      let confirmed = false;
-      for (let attempt = 0; attempt < 30; attempt += 1) {
-        await new Promise(resolve => window.setTimeout(resolve, 3000));
-        const check = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(paymentResult.id)}`);
-        const checkData = await check.json() as { payment?: { status?: string } };
-        if (checkData.payment?.status === 'paid') { confirmed = true; break; }
-        if (checkData.payment?.status === 'failed') throw new Error('M-Pesa did not confirm the payment. Please try again.');
-      }
-      if (!confirmed) { setStatus('Payment prompt sent. We are still waiting for M-Pesa confirmation. Do not submit again; refresh or contact Admissions if the prompt expired.'); }
-      else { setRegistrationId(result.id); setRegistrationReference(result.reference ?? result.id); setPaymentConfirmed(true); setStatus(`Payment confirmed. Your application ${result.reference ?? result.id} has been submitted successfully. A confirmation will be sent to your email.`); form.reset(); }
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'The application could not be submitted.');
-    } finally {
-      setLoading(false);
+    return true;
+  };
+
+  const requestOtp = async (formData: FormData) => {
+    const response = await fetch('/api/enrollments/otp/request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: String(formData.get('email') || ''), phone: String(formData.get('phone') || '') })
+    });
+    const result = await response.json() as { sent?:boolean; message?:string; error?:string };
+    if (!response.ok || !result.sent) throw new Error(result.error || 'Could not send your verification code.');
+    setOtpOpen(true);
+    setStatus(result.message || 'Verification code sent.');
+  };
+
+  const submitVerifiedApplication = async (token: string) => {
+    const form = document.getElementById('navstar-application-form') as HTMLFormElement | null;
+    if (!form || !course) return;
+    const formData = new FormData(form);
+    const phone = String(formData.get('phone') || '').replace(/[\s-]/g, '');
+    const response = await fetch('/api/enrollments', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...Object.fromEntries(formData.entries()),
+        phone, courseId: course.id, courseTitle: course.title,
+        county: geography.county, subCounty: geography.subCounty, ward: geography.ward,
+        location: geography.location, subLocation: geography.subLocation,
+        town: geography.location || geography.ward || geography.subCounty || geography.county,
+        verificationToken: token
+      })
+    });
+    const result = await response.json() as { id?:string; reference?:string; amountDueNow?:number; installments?:Array<{label:string;amount:number;dueDate:string}>; error?:string };
+    if (!response.ok || !result.id) throw new Error(result.error || 'Your application could not be saved.');
+    setRegistrationId(result.id);
+    setRegistrationReference(result.reference || result.id);
+    setInstallments(result.installments || []);
+    setPaymentMessage(`Initial payment required: KSh ${Number(result.amountDueNow || 0).toLocaleString('en-KE')}. Approve the M-Pesa prompt on your phone. Your application remains pending until the payment provider confirms the transaction.`);
+    const paymentResponse = await fetch('/api/payments/stk-push', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ purpose:'enrollment', reference:result.id, phone })
+    });
+    const payment = await paymentResponse.json() as {id?:string;message?:string;error?:string};
+    if (!paymentResponse.ok || !payment.id) throw new Error(payment.error || 'Your application is saved, but the M-Pesa prompt could not start. You can retry the payment from Admissions.');
+    setStatus(payment.message || 'M-Pesa prompt sent. Complete payment on your phone.');
+    let confirmed = false;
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise(resolve => window.setTimeout(resolve, 3000));
+      const check = await fetch(`/api/payments/stk-push?reference=${encodeURIComponent(payment.id)}`);
+      const checkData = await check.json() as {payment?:{status?:string}};
+      if (checkData.payment?.status === 'paid') { confirmed = true; break; }
+      if (checkData.payment?.status === 'failed') throw new Error('M-Pesa did not confirm this payment. You can request another prompt.');
+    }
+    if (confirmed) {
+      setPaymentConfirmed(true);
+      setStatus(`Payment confirmed. Your application ${result.reference || result.id} has been received. Admissions will review it and send the decision to your verified contacts.`);
+    } else {
+      setStatus('The M-Pesa prompt was sent. We are still waiting for confirmation. Do not submit another application; check your phone or contact Navstar Admissions.');
     }
   };
 
+  const verifyOtpAndPay = async () => {
+    const form = document.getElementById('navstar-application-form') as HTMLFormElement | null;
+    if (!form) return;
+    const data = new FormData(form);
+    setLoading(true); setStatus('');
+    try {
+      const response = await fetch('/api/enrollments/otp/verify', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ email:String(data.get('email') || ''), phone:String(data.get('phone') || ''), emailOtp, smsOtp })
+      });
+      const result = await response.json() as {verified?:boolean;verificationToken?:string;error?:string};
+      if (!response.ok || !result.verified || !result.verificationToken) throw new Error(result.error || 'The code could not be verified.');
+      setOtpOpen(false);
+      await submitVerifiedApplication(result.verificationToken);
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : 'Application verification failed.');
+    } finally { setLoading(false); }
+  };
+
+  const handleFinalSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!validateStep()) return;
+    if (!course) return;
+    const formData = new FormData(event.currentTarget);
+    setLoading(true); setStatus('');
+    try { await requestOtp(formData); }
+    catch (cause) { setStatus(cause instanceof Error ? cause.message : 'Could not start verification.'); }
+    finally { setLoading(false); }
+  };
 
   if (!course) return null;
+  const fieldClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900';
+  const textAreaClass = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900';
+  const currentStep = steps[step];
 
   return (
     <main className="min-h-screen bg-slate-50 py-8 sm:py-12">
       <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <Link to="/courses" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-950"><ArrowLeft className="h-4 w-4" /> Courses</Link>
-        <div className="mb-8 mt-5 flex flex-col justify-between gap-4 border-b pb-6 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-xs font-bold uppercase text-emerald-800">NAVSTAR DIGITAL HUB / ADMISSIONS</p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-950">Student application</h1>
-            <p className="mt-2 text-slate-600">Complete the details for {course.title}. Required fields are marked.</p>
-          </div>
-          <span className="w-fit border bg-white px-3 py-2 text-sm font-semibold text-slate-700">Application · 01</span>
+        <Link to="/courses" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-950"><ArrowLeft className="h-4 w-4"/> Courses</Link>
+        <div className="mb-7 mt-5 border-b pb-6">
+          <p className="text-xs font-bold uppercase tracking-widest text-blue-800">NAVSTAR DIGITAL HUB / ADMISSIONS</p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-950">Student application</h1>
+          <p className="mt-2 text-slate-600">Complete all seven sections for <strong>{course.title}</strong>. Each section unlocks after the current section is complete.</p>
         </div>
-
-        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] lg:gap-8">
-          <form onSubmit={submitApplication} className="space-y-6">
+        <div className="mb-6 grid grid-cols-7 gap-1.5" aria-label="Application progress">
+          {steps.map((item,index)=><div key={item.title} className="min-w-0"><div className={`h-2 rounded-full ${index<=step?'bg-blue-800':'bg-slate-200'}`}/><p className={`mt-2 hidden truncate text-[10px] font-semibold sm:block ${index===step?'text-blue-900':'text-slate-500'}`}>{index+1}. {item.title}</p></div>)}
+        </div>
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]">
+          <form id="navstar-application-form" noValidate onSubmit={handleFinalSubmit} className="min-w-0 space-y-5">
             <Card>
-              <CardHeader><CardTitle>Personal details</CardTitle><CardDescription>Use the contact details you want admissions to use.</CardDescription></CardHeader>
+              <CardHeader><CardTitle>Section {step+1} of 7 · {currentStep.title}</CardTitle><CardDescription>{currentStep.description}</CardDescription></CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2 sm:col-span-2"><Label htmlFor="full-name">Full legal name *</Label><Input id="full-name" name="fullName" autoComplete="name" required /></div>
-                <div className="space-y-2"><Label htmlFor="email">Email address *</Label><Input id="email" name="email" type="email" autoComplete="email" required /></div>
-                <div className="space-y-2"><Label htmlFor="phone">M-Pesa phone number *</Label><Input id="phone" name="phone" inputMode="tel" autoComplete="tel" placeholder="07xx xxx xxx" required /></div>
-                <div className="space-y-2"><Label htmlFor="birth-date">Date of birth *</Label><Input id="birth-date" name="dateOfBirth" type="date" max={new Date().toISOString().slice(0,10)} required /></div>
-                <div className="space-y-2"><Label htmlFor="identity-type">Identity document *</Label><select id="identity-type" name="identityType" required className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option value="">Select document</option><option value="national-id">National ID</option><option value="maisha-card">Maisha Card</option><option value="birth-certificate">Birth Certificate</option><option value="passport">Passport</option></select></div><div className="space-y-2"><Label htmlFor="national-id">Document number *</Label><Input id="national-id" name="identityNumber" autoComplete="off" required /></div>
-                <div className="space-y-2"><Label htmlFor="gender">Gender</Label><select id="gender" name="gender" className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option value="">Prefer not to say</option><option>Female</option><option>Male</option><option>Another identity</option></select></div>
-                <div className="space-y-2"><Label htmlFor="nationality">Nationality</Label><Input id="nationality" name="nationality" autoComplete="country-name" /></div>
+                <div data-wizard-step={0} className={step===0?'grid gap-4 sm:grid-cols-2':'hidden'}>
+                  <div className="space-y-2 sm:col-span-2"><Label htmlFor="full-name">Full legal name *</Label><Input id="full-name" name="fullName" autoComplete="name" required placeholder="As shown on your identity document"/></div>
+                  <div className="space-y-2"><Label htmlFor="birth-date">Date of birth *</Label><Input id="birth-date" name="dateOfBirth" type="date" max={new Date().toISOString().slice(0,10)} required/></div>
+                  <div className="space-y-2"><Label htmlFor="gender">Gender</Label><select id="gender" name="gender" className={fieldClass}><option value="">Prefer not to say</option><option>Female</option><option>Male</option><option>Another identity</option></select></div>
+                  <div className="space-y-2"><Label htmlFor="nationality">Nationality</Label><Input id="nationality" name="nationality" autoComplete="country-name" defaultValue="Kenyan"/></div>
+                </div>
+                <div data-wizard-step={1} className={step===1?'grid gap-4 sm:grid-cols-2':'hidden'}>
+                  <div className="space-y-2"><Label htmlFor="email">Email address *</Label><Input id="email" name="email" type="email" autoComplete="email" required placeholder="you@example.com"/></div>
+                  <div className="space-y-2"><Label htmlFor="phone">M-Pesa / mobile number *</Label><Input id="phone" name="phone" inputMode="tel" autoComplete="tel" required placeholder="07xx xxx xxx"/></div>
+                  <div className="space-y-2 sm:col-span-2"><Label htmlFor="address">Postal or physical address</Label><Input id="address" name="address" autoComplete="street-address" placeholder="Estate, street or postal address"/></div>
+                </div>
+                <div data-wizard-step={2} className={step===2?'grid gap-4 sm:grid-cols-2':'hidden'}>
+                  <div className="space-y-2"><Label htmlFor="identity-type">Identity document *</Label><select id="identity-type" name="identityType" required className={fieldClass}><option value="">Select document</option><option value="national-id">National ID</option><option value="maisha-card">Maisha Card</option><option value="birth-certificate">Birth Certificate</option><option value="passport">Passport</option></select></div>
+                  <div className="space-y-2"><Label htmlFor="identity-number">Document number *</Label><Input id="identity-number" name="identityNumber" autoComplete="off" required/></div>
+                  <p className="text-xs leading-5 text-slate-500 sm:col-span-2">Your identity details are used only for admissions checks and are not displayed in public course listings.</p>
+                </div>
+                <div data-wizard-step={3} className={step===3?'grid gap-4 sm:grid-cols-2':'hidden'}>
+                  <div className="space-y-2"><Label>Selected course</Label><Input value={course.title} readOnly/></div>
+                  <div className="space-y-2"><Label htmlFor="study-mode">Study mode *</Label><select id="study-mode" name="studyMode" required className={fieldClass}><option value="">Select mode</option><option>On campus</option><option>Online</option><option>Hybrid</option></select></div>
+                  <div className="space-y-2"><Label htmlFor="education-level">Highest education level *</Label><select id="education-level" name="educationLevel" required className={fieldClass}><option value="">Select level</option><option>Primary</option><option>Secondary</option><option>Certificate</option><option>Diploma</option><option>Degree or higher</option></select></div>
+                  <div className="space-y-2"><Label htmlFor="preferred-intake">Preferred intake</Label><Input id="preferred-intake" name="preferredIntake" type="month"/></div>
+                  <div className="space-y-2 sm:col-span-2"><Label htmlFor="experience">Relevant experience or learning goals</Label><textarea id="experience" name="experience" rows={4} className={textAreaClass} placeholder="Tell us about your experience and what you hope to learn."/></div>
+                </div>
+                <div data-wizard-step={4} className={step===4?'grid gap-4 sm:grid-cols-2':'hidden'}>
+                  <div className="sm:col-span-2"><GeographyPicker {...geography} onChange={setGeography}/></div>
+                  <p className="text-xs text-slate-500 sm:col-span-2">Choose each level in order. Location and sub-location options are maintained by Navstar Admin.</p>
+                </div>
+                <div data-wizard-step={5} className={step===5?'grid gap-4 sm:grid-cols-2':'hidden'}>
+                  <div className="space-y-2"><Label htmlFor="emergency-name">Emergency contact full name *</Label><Input id="emergency-name" name="emergencyContactName" required/></div>
+                  <div className="space-y-2"><Label htmlFor="emergency-phone">Emergency contact phone *</Label><Input id="emergency-phone" name="emergencyContactPhone" inputMode="tel" required/></div>
+                  <div className="space-y-2"><Label htmlFor="relationship">Relationship to applicant</Label><Input id="relationship" name="emergencyContactRelationship" placeholder="Parent, guardian, spouse, friend…"/></div>
+                  <div className="space-y-2 sm:col-span-2"><Label htmlFor="support-needs">Accessibility or learning support needs</Label><textarea id="support-needs" name="supportNeeds" rows={4} className={textAreaClass} placeholder="Optional"/></div>
+                </div>
+                <div data-wizard-step={6} className={step===6?'grid gap-4 sm:grid-cols-2':'hidden'}>
+                  <div className="rounded-xl border bg-slate-50 p-4 text-sm leading-6 text-slate-700 sm:col-span-2"><p className="font-bold text-slate-950">Application review</p><p>Course: {course.title}</p><p>Published course fee: KSh {Number(course.price).toLocaleString('en-KE')}</p><p>Required initial payment is calculated by Navstar from the published course fee and the approved minimum payment setting.</p><p className="mt-2">After you submit this section, a one-time code will be sent to both your email and mobile phone. You must verify both contact channels before the application is saved and the M-Pesa payment prompt is requested.</p></div>
+                  <label className="flex items-start gap-3 rounded-xl border bg-white p-4 text-sm leading-6 text-slate-700 sm:col-span-2"><input type="checkbox" name="consent" required className="mt-1 h-4 w-4 accent-blue-800"/><span>I confirm that the information supplied is accurate and consent to Navstar Digital Hub using it for admissions, student administration and official communication. *</span></label>
+                </div>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Course and education</CardTitle><CardDescription>Tell admissions how you plan to study.</CardDescription></CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2"><Label htmlFor="course-title">Selected course</Label><Input id="course-title" value={course.title} readOnly /></div>
-                <div className="space-y-2"><Label htmlFor="study-mode">Study mode *</Label><select id="study-mode" name="studyMode" required className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option value="">Select mode</option><option>On campus</option><option>Online</option><option>Hybrid</option></select></div>
-                <div className="space-y-2"><Label htmlFor="education-level">Highest education level *</Label><select id="education-level" name="educationLevel" required className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option value="">Select level</option><option>Primary</option><option>Secondary</option><option>Certificate</option><option>Diploma</option><option>Degree or higher</option></select></div>
-                <div className="space-y-2"><Label htmlFor="intake">Preferred intake</Label><Input id="intake" name="preferredIntake" type="month" /></div>
-                <div className="space-y-2 sm:col-span-2"><Label htmlFor="experience">Relevant experience or learning goals</Label><textarea id="experience" name="experience" rows={3} className="w-full border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Share anything that will help us support your learning." /></div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Address and emergency contact</CardTitle><CardDescription>Use a trusted contact who can be reached if needed.</CardDescription></CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2"><GeographyPicker {...geography} onChange={setGeography} /></div>
-                <input type="hidden" name="county" value={geography.county} />
-                <input type="hidden" name="subCounty" value={geography.subCounty} />
-                <input type="hidden" name="ward" value={geography.ward} />
-                <input type="hidden" name="location" value={geography.location} />
-                <input type="hidden" name="subLocation" value={geography.subLocation} />
-                <input type="hidden" name="town" value={geography.location || geography.ward || geography.subCounty || geography.county} />
-                <div className="space-y-2"><Label htmlFor="address">Postal or physical address</Label><Input id="address" name="address" autoComplete="street-address" /></div>
-                <div className="space-y-2"><Label htmlFor="emergency-name">Emergency contact name *</Label><Input id="emergency-name" name="emergencyContactName" required /></div>
-                <div className="space-y-2"><Label htmlFor="emergency-phone">Emergency contact phone *</Label><Input id="emergency-phone" name="emergencyContactPhone" inputMode="tel" required /></div>
-                <div className="space-y-2"><Label htmlFor="relationship">Relationship</Label><Input id="relationship" name="emergencyContactRelationship" /></div>
-                <div className="space-y-2 sm:col-span-2"><Label htmlFor="support-needs">Accessibility or learning support needs</Label><textarea id="support-needs" name="supportNeeds" rows={3} className="w-full border border-slate-300 bg-white px-3 py-2 text-sm" /></div>
-              </CardContent>
-            </Card>
-
-            <label className="flex items-start gap-3 border bg-white p-4 text-sm leading-6 text-slate-700"><input type="checkbox" name="consent" required className="mt-1 accent-emerald-800" /><span>I agree that admissions may contact me about this application and confirm that the information provided is accurate.</span></label>
-            <Button className="w-full bg-emerald-800 hover:bg-emerald-900 sm:w-auto" type="submit" disabled={loading}>{loading ? 'Submitting…' : 'Submit application'}</Button>
-            {status && <p role="status" className="border bg-white p-4 text-sm text-slate-700">{status}</p>}{paymentMessage && <p role="status" className="border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-900">{paymentMessage}</p>}
-            {registrationId && paymentConfirmed && <Card className="border-emerald-200"><CardHeader><CardTitle>Application received successfully</CardTitle><CardDescription>Reference: {registrationReference || registrationId}</CardDescription></CardHeader><CardContent className="space-y-3"><p className="text-sm text-slate-600">No payment has been collected on this application form. Once Admissions activates your student account, sign in to the Student Portal to view your fee balance and request an M-Pesa prompt securely.</p><Link to="/login?role=student" className="inline-flex items-center rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-900">Go to Student Portal</Link></CardContent></Card>}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Button type="button" variant="outline" disabled={step===0||loading} onClick={()=>{setStep(value=>Math.max(0,value-1));setStatus('');}}><ChevronLeft className="mr-1 h-4 w-4"/>Back</Button>
+              {step<6?<Button type="button" disabled={loading} onClick={()=>{if(validateStep())setStep(value=>Math.min(6,value+1));}} className="bg-blue-800 hover:bg-blue-900">Continue <ChevronRight className="ml-1 h-4 w-4"/></Button>:<Button type="submit" disabled={loading} className="bg-blue-800 hover:bg-blue-900">{loading?'Processing…':'Verify contacts and continue'}</Button>}
+            </div>
+            {status&&<p role="status" className="rounded-xl border bg-white p-4 text-sm text-slate-700">{status}</p>}
+            {paymentMessage&&<p role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-900">{paymentMessage}</p>}
+            {registrationId&&<Card className="border-emerald-200"><CardHeader><CardTitle className="flex items-center gap-2">{paymentConfirmed?<CheckCircle2 className="h-5 w-5 text-emerald-700"/>:<AlertCircle className="h-5 w-5 text-amber-700"/>}Application {paymentConfirmed?'received':'saved'}</CardTitle><CardDescription>Reference: {registrationReference}</CardDescription></CardHeader><CardContent className="space-y-3 text-sm text-slate-700"><p>{paymentConfirmed?'Your payment is confirmed. Admissions will review your application and send a decision.':'Your application is saved while payment confirmation is pending. Do not submit another application.'}</p>{installments.length>0&&<div className="rounded-lg border p-3"><p className="font-bold">Published course fee instalments</p>{installments.map((item,index)=><p key={index} className="mt-1">{item.label}: KSh {item.amount.toLocaleString('en-KE')} {item.dueDate?'· Due '+item.dueDate:''}</p>)}</div>}<Link to="/login?role=student" className="inline-flex rounded-lg bg-blue-800 px-4 py-2.5 font-bold text-white">Student Portal</Link></CardContent></Card>}
           </form>
-
-          <aside className="order-first min-w-0 w-full space-y-4 lg:order-last lg:sticky lg:top-24">
-            <Card><CardHeader><CardTitle className="text-lg">Application summary</CardTitle></CardHeader><CardContent className="space-y-4"><div className="aspect-video overflow-hidden bg-slate-100"><img src={course.image} alt={course.title} className="h-full w-full object-cover" /></div><div><h2 className="font-bold text-slate-950">{course.title}</h2><p className="mt-1 text-sm text-slate-500">{course.duration} · {course.category}</p></div><div className="flex justify-between border-t pt-4 text-sm"><span className="text-slate-600">Course fee (for reference)</span><strong>KSh {course.price.toLocaleString()}</strong></div><p className="text-xs leading-5 text-slate-500">An initial payment is required before your application can be submitted. The minimum amount is configured by Navstar Admin.</p></CardContent></Card>
-            <div className="border-l-2 border-emerald-700 bg-white p-4 text-sm text-slate-700"><p className="font-semibold">Student Portal payments</p><p className="mt-2 leading-5">After your student account is activated, you can view your balance and request a secure M-Pesa prompt from your Student Portal.</p></div>
-            <div className="flex items-start gap-2 text-xs leading-5 text-slate-500"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />Application data is sent to the configured NAVSTAR admissions backend.</div>
-            <div className="flex items-start gap-2 text-xs text-slate-500"><ShieldCheck className="h-4 w-4 shrink-0" />Student information must be stored server-side with access controls.</div>
+          <aside className="space-y-4 lg:sticky lg:top-24">
+            <Card><CardHeader><CardTitle className="text-lg">Application summary</CardTitle><CardDescription>Official published course details</CardDescription></CardHeader><CardContent className="space-y-4"><div className="aspect-video overflow-hidden rounded-lg bg-slate-100"><img src={course.image} alt={course.title} className="h-full w-full object-cover"/></div><div><h2 className="font-bold text-slate-950">{course.title}</h2><p className="mt-1 text-sm text-slate-500">{course.duration} · {course.category}</p></div><div className="flex justify-between border-t pt-4 text-sm"><span className="text-slate-600">Published course fee</span><strong>KSh {Number(course.price).toLocaleString('en-KE')}</strong></div></CardContent></Card>
+            <div className="rounded-xl border-l-2 border-blue-800 bg-white p-4 text-sm text-slate-700"><p className="font-bold">Secure admissions</p><p className="mt-2 leading-5">Email and mobile OTP verification is required. Payment is only marked successful after Safaricom confirms it.</p></div>
+            <div className="flex items-start gap-2 text-xs leading-5 text-slate-500"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0"/>Applicant records are stored in the protected Navstar admissions register.</div>
           </aside>
         </div>
       </div>
+      {otpOpen&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-800"><ShieldCheck className="h-6 w-6"/></div><h2 className="text-xl font-bold text-slate-950">Verify your contacts</h2><p className="mt-2 text-sm leading-6 text-slate-600">Enter the separate six-digit codes sent to your email and mobile phone.</p><div className="mt-5 space-y-3"><div><Label htmlFor="application-email-otp">Code sent to your email</Label><Input id="application-email-otp" value={emailOtp} onChange={event=>setEmailOtp(event.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="Email code" className="mt-1 h-12 text-center text-xl tracking-[.4em]" maxLength={6}/></div><div><Label htmlFor="application-sms-otp">Code sent by SMS to your phone</Label><Input id="application-sms-otp" value={smsOtp} onChange={event=>setSmsOtp(event.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="SMS code" className="mt-1 h-12 text-center text-xl tracking-[.4em]" maxLength={6}/></div></div><div className="mt-5 flex gap-2"><Button variant="outline" className="flex-1" disabled={loading} onClick={()=>setOtpOpen(false)}>Cancel</Button><Button className="flex-1 bg-blue-800" disabled={loading||emailOtp.length!==6||smsOtp.length!==6} onClick={()=>void verifyOtpAndPay()}>{loading?'Verifying…':'Verify and pay'}</Button></div><p className="mt-3 text-xs text-slate-500">Codes expire after 10 minutes. Do not share your code with anyone.</p></div></div>}
     </main>
   );
 }
