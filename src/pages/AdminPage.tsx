@@ -551,13 +551,20 @@ export function AdminPage() {
     event.preventDefault();
     if (!editingPortalUser) return;
     const form = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(form.entries());
+    const payload = {
+      name: String(form.get('name') ?? ''), role: String(form.get('role') ?? ''),
+      nationalId: String(form.get('nationalId') ?? ''), phone: String(form.get('phone') ?? ''),
+      citizenship: String(form.get('citizenship') ?? ''), country: String(form.get('country') ?? 'Kenya'),
+      county: String(form.get('county') ?? ''), subCounty: String(form.get('subCounty') ?? ''),
+      department: String(form.get('department') ?? ''), jobTitle: String(form.get('jobTitle') ?? ''),
+      employmentType: String(form.get('employmentType') ?? ''), joinedOn: String(form.get('joinedOn') ?? ''),
+    };
     const response = await fetch(`/api/admin/users/${encodeURIComponent(editingPortalUser.id)}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
     const result = await response.json() as { error?: string };
     if (!response.ok) { setNotice(result.error || 'User profile could not be updated.'); return; }
-    setPortalUsers(current => current.map(item => item.id === editingPortalUser.id ? { ...item, ...payload, role: String(payload.role) } : item));
+    setPortalUsers(current => current.map(item => item.id === editingPortalUser.id ? { ...item, ...payload } : item));
     setEditingPortalUser(null);
     setNotice('User profile updated successfully.');
   };
