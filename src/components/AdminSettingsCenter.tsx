@@ -90,7 +90,8 @@ export function AdminSettingsCenter() {
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
  const [message,setMessage]=useState('');
- const [error,setError]=useState('');\n const [uploadingKey,setUploadingKey]=useState('');
+ const [error,setError]=useState('');
+ const [uploadingKey,setUploadingKey]=useState('');
  const active=sections.find(s=>s.id===activeId) || sections[0];
  const fields=useMemo(()=>active.groups.flatMap(g=>g.fields),[active]);
  useEffect(()=>{let live=true;(async()=>{try{const response=await fetch('/api/admin/configuration');const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load settings.');if(live)setValues(data.settings||{});}catch(e){if(live)setError(e instanceof Error?e.message:'Could not load settings.');}finally{if(live)setLoading(false);}})();return()=>{live=false};},[]);
