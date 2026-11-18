@@ -37,7 +37,7 @@ export async function onRequestPost({ request, env }) {
   const [subject, intro] = templates[type];
   const configRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
   let configuration = {}; try { configuration = JSON.parse(configRow?.value || '{}'); } catch {}
-  const installmentLines = String(configuration['enrollment-settings']?.installmentPlans || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0] === record.course_id);
+  const installmentLines = String(configuration['enrollment-settings']?.installmentPlans || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && (parts[0] === record.course_id || parts[0].toLowerCase() === String(record.course_title).toLowerCase()));
   const installmentSchedule = installmentLines.length
     ? installmentLines.map((parts,index) => `${index+1}. ${parts[1]} — KSh ${Number(parts[2]).toLocaleString('en-KE')}${parts[3] ? ' · Due '+parts[3] : ''}`).join('\n')
     : 'Contact Admissions / Finance for the approved instalment dates.';
