@@ -13,7 +13,7 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await readJson(request, 2048); } catch { return error('Enter your registered student email address.'); }
   const email = safeString(body.email, 254).toLowerCase();
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return error('Enter a valid email address.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error('Enter a valid email address.');
 
   const recent = await env.DB.prepare("SELECT COUNT(*) AS count FROM student_recovery_codes WHERE email = ? AND julianday(created_at) > julianday('now', '-1 hour')").bind(email).first();
   if (Number(recent?.count || 0) >= 3) return error('Too many recovery requests. Please wait before requesting another code.', 429);
