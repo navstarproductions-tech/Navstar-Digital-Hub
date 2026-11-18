@@ -37,7 +37,7 @@ export async function onRequestPost({ request, env }) {
   const currentProfile = existing ? await env.DB.prepare('SELECT staff_id FROM user_profiles WHERE user_id = ?').bind(adminId).first().catch(() => null) : null;
   let staffId = safeString(body.staffId, 16).toUpperCase();
   if (staffId && !/^AD\\d{5}$/.test(staffId)) return error('Admin staff ID must use the AD prefix followed by five digits, for example AD12345.');
-  if (!staffId) staffId = currentProfile?.staff_id || '';
+  if (currentProfile?.staff_id) staffId = currentProfile.staff_id;
   if (!staffId) {
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const candidate = 'AD' + String(crypto.getRandomValues(new Uint32Array(1))[0] % 100000).padStart(5, '0');
