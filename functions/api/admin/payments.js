@@ -3,7 +3,7 @@ import { error, json } from '../../_shared/http.js';
 
 export async function onRequestGet({ request, env }) {
   if (!env.DB) return error('Payment records are not configured.',503);
-  const access = await requireRole(request,env,['admin','principal','admissions']);
+  const access = await requireRole(request,env,['admin','principal','admissions','finance']);
   if (access.response) return access.response;
   const result = await env.DB.prepare(`
     SELECT p.id,p.purpose,p.display_reference,p.internal_receipt_number AS receipt_number,
