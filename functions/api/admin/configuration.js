@@ -54,6 +54,22 @@ export async function onRequestPut({ request, env }) {
   if (!body || typeof body.section !== 'string' || !/^[a-z][a-z0-9-]{1,79}$/.test(body.section) || !body.values || typeof body.values !== 'object' || Array.isArray(body.values)) return error('Choose a valid settings section and values.');
   let values;
   try { values = clean(body.values); } catch (e) { return error(e instanceof Error ? e.message : 'Invalid settings values.'); }
+  if (body.section === 'enrollment-settings' && typeof values.installmentPlans === 'string' && values.installmentPlans.trim()) {
+    const lines = values.installmentPlans.split(/\\r?\\n/).map(line => line.trim()).filter(Boolean);
+    const totals = new Map();
+    for (const line of lines) {
+      const parts = line.split('|').map(part => part.trim());
+      if (parts.length < 3 || !parts[0] || !parts[1] || !/^\\d+$/.test(parts[2])) return error('Installment lines must use: course ID | instalment name | amount in KSh | due date (YYYY-MM-DD, optional).');
+      const amount = Number(parts[2]);
+      if (!Number.isSafeInteger(amount) || amount < 1 || (parts[3] && !/^\\d{4}-\\d{2}-\\d{2}$/.test(parts[3]))) return error('Each instalment must have a positive whole-shilling amount and a valid optional due date.');
+      totals.set(parts[0], (totals.get(parts[0]) || 0) + amount);
+    }
+    for (const [courseId, total] of totals) {
+      const course = await env.DB.prepare("SELECT title, price FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
+      if (!course) return error('An instalment plan references an unavailable course. Check the course ID.');
+      if (total !== Number(course.price)) return error(`The instalments for ${course.title} total KSh ${total.toLocaleString('en-KE')}, but the published course fee is KSh ${Number(course.price).toLocaleString('en-KE')}. The totals must match exactly.`);
+    }
+  }
   const all = await readSettings(env.DB);
   all[body.section] = values;
   const serialized = JSON.stringify(all);
