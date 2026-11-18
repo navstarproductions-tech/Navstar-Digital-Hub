@@ -446,7 +446,7 @@ export function AdminPage() {
   const exportLearningModules = (format: 'excel' | 'word' | 'pdf') => {
     const rows = learningCourses.flatMap(course => course.modules.map(module => ({
       Course: course.title, Title: module.title, Description: module.description, Status: module.status,
-      Lessons: module.lessons.length, 'Sort order': module.sort_order,
+      Lessons: module.lessons.length,
     })));
     try { exportBrandedData(format, 'Learning Modules Register', ['Course', 'Title', 'Description', 'Status', 'Lessons', 'Sort order'], rows); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Export could not be created.'); }
