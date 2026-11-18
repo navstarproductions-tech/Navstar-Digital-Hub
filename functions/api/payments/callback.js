@@ -74,7 +74,7 @@ export async function onRequestPost({ request, env }) {
     : `Hello ${customer.name || 'Customer'}, your Navstar ${payment.purpose} payment was not completed. Reason: ${resultDescription}. Reference: ${payment.display_reference || payment.reference_id}. Please try again or contact Navstar support.`;
   await sendCustomerNotice(env, { email: customer.email, phone: customer.phone, subject: paid ? 'Navstar payment confirmed' : 'Navstar payment not completed', message: customerMessage });
 
-  const staff = await env.DB.prepare("SELECT id FROM users WHERE role IN ('admin', 'admissions', 'principal') AND status = 'active'").all();
+  const staff = await env.DB.prepare("SELECT id FROM users WHERE role IN ('admin', 'admissions', 'principal', 'finance') AND status = 'active'").all();
   if (staff.results?.length) {
     const message = paid ? `${payment.purpose} payment ${payment.display_reference || ''} of KSh ${payment.amount} was confirmed. Navstar receipt: ${internalReceipt}. M-Pesa receipt: ${receipt}.` : `${payment.purpose} payment ${payment.display_reference || ''} could not be completed: ${resultDescription}`;
     await env.DB.batch(staff.results.map((user) => env.DB.prepare('INSERT INTO notifications (id, user_id, title, message) VALUES (?, ?, ?, ?)')
