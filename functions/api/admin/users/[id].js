@@ -23,14 +23,14 @@ export async function onRequestPatch({ request, env, params }) {
   await env.DB.prepare('UPDATE users SET name = ?, role = ? WHERE id = ?').bind(name, role === 'finance' ? 'admissions' : role, id).run();
   await env.DB.prepare(`
     UPDATE user_profiles SET portal_role = ?, national_id = ?, phone = ?, citizenship = ?, country = ?,
-      county = ?, sub_county = ?, constituency = ?, ward = ?, department = ?, job_title = ?, employment_type = ?, joined_on = ?,
+      county = ?, sub_county = ?, constituency = ?, ward = ?, department = ?, job_title = ?, employment_type = ?, joined_on = ?, address = ?,
       updated_at = CURRENT_TIMESTAMP WHERE user_id = ?
   `).bind(role, nationalId || null, safeString(body.phone, 32) || null, safeString(body.citizenship, 80) || null,
     safeString(body.country, 80) || 'Kenya', safeString(body.county, 100) || null,
     safeString(body.subCounty, 100) || null, safeString(body.constituency, 100) || safeString(body.subCounty, 100) || null,
     safeString(body.ward, 100) || null, safeString(body.department, 100) || null,
     safeString(body.jobTitle, 120) || null, safeString(body.employmentType, 40) || null,
-    safeString(body.joinedOn, 10) || null, id).run();
+    safeString(body.joinedOn, 10) || null, safeString(body.address, 240) || null, id).run();
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)').bind(uuid(), access.user.id, 'user_profile_admin_updated', 'user', id).run().catch(() => {});
   return json({ updated: true, id });
 }
