@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, BookOpen, BriefcaseBusiness, GraduationCap, ShieldCheck, UserRound, UsersRound, Sparkles, LockKeyhole, Bell, UserRound, LogOut } from 'lucide-react';
+import { ArrowRight, BookOpen, BriefcaseBusiness, GraduationCap, ShieldCheck, UserRound, UsersRound, Sparkles, LockKeyhole, Bell, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatEATDate } from '@/lib/datetime';
 
