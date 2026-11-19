@@ -47,7 +47,8 @@ export async function onRequestPost({ request, env }) {
     // Preserve their saved total while using the active required Admission fee as the first-payment minimum.
     const snapshotAdmissionFee = Number(feeSnapshot?.admission_fee || 0);
     const admissionFee = snapshotAdmissionFee > 0 ? snapshotAdmissionFee : Number(legacyAdmission?.total || 0);
-    if (admissionFee < 1) return error('Admission fee is not configured for this course. Please contact Navstar Admissions before making a payment.', 409);
+    const isNewAdmission = ['submitted', 'under_review'].includes(enrollment.status);
+    if (isNewAdmission && admissionFee < 100) return error('The course Admission fee must be configured at KSh 100 or more before a new student can enrol.', 409);
     const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
     const paidTotal = Number(paidRow?.paid_total || 0);
     if (enrollment.status === 'under_review' && paidTotal === 0) {
@@ -58,8 +59,8 @@ export async function onRequestPost({ request, env }) {
     const outstanding = Math.max(0, totalFee - paidTotal);
     if (requestedAmount !== null) amount = requestedAmount;
     if (!Number.isSafeInteger(amount) || amount < 1 || amount > outstanding) return error('Enter an amount greater than zero and no more than your outstanding balance.', 409);
-    const firstPaymentMinimum = admissionFee;
-    if (paidTotal === 0 && amount < firstPaymentMinimum) return error('Your first payment must cover the configured Admission fee of at least KSh ' + firstPaymentMinimum.toLocaleString('en-KE') + '.', 409);
+    const firstPaymentMinimum = isNewAdmission && paidTotal === 0 ? Math.max(100, admissionFee) : 1;
+    if (paidTotal === 0 && amount < firstPaymentMinimum) return error('A new enrolment requires an initial payment of at least KSh ' + firstPaymentMinimum.toLocaleString('en-KE') + ' (the Admission fee). Existing enrolled students may pay any amount from KSh 1.', 409);
     displayReference = enrollment.display_ref;
   } else {
     const service = await env.DB.prepare("SELECT id, display_ref, phone, amount, status FROM service_requests WHERE id = ?").bind(reference).first();
