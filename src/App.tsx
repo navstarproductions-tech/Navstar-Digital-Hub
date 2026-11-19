@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { HomePage } from '@/pages/HomePage';
+import { GalleryPage } from '@/pages/GalleryPage';
+import { PublicEnrollmentPage } from '@/pages/PublicEnrollmentPage';
 import { CoursesPage } from '@/pages/CoursesPage';
 import { LearningPage } from '@/pages/LearningPage';
 import { EnrollmentPage } from '@/pages/EnrollmentPage';
@@ -111,6 +113,8 @@ function AppShell() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/courses" element={<CoursesPage />} />
+            <Route path="/gallery" element={<GalleryPage />} />
+            <Route path="/enrollment" element={<PublicEnrollmentPage />} />
             <Route path="/learning" element={<LearningPage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/pay" element={<PayPage />} />
