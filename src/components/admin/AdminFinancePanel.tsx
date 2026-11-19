@@ -78,7 +78,7 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
         </p>  : ledger === 'business' ? <p className="mt-2 text-sm text-amber-700">No live balance response received yet.</p> : null}
       </div>
       <div className="flex gap-2"><Button type="button" variant="outline" onClick={() => void refresh()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh register'}</Button>
-        <Button type="button" onClick={() => void requestBalance()} disabled={balanceLoading || role !== 'admin'}>{balanceLoading ? 'Requesting…' : 'Request live balance'}</Button></div>
+        {ledger === 'business' && <Button type="button" onClick={() => void requestBalance()} disabled={balanceLoading || role !== 'admin'}>{balanceLoading ? 'Requesting…' : 'Request live balance'}</Button>}</div>
     </section>
     <section className="overflow-hidden rounded-xl border bg-white">
       <div className="border-b p-5"><h3 className="font-bold text-slate-950">{ledger === 'fees' ? 'Student fee payment ledger' : 'Business sales and contribution ledger'}</h3>
