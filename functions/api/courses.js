@@ -27,6 +27,7 @@ export async function onRequestPost({ request, env }) {
   const id = uuid();
   await env.DB.prepare("INSERT INTO courses (id, title, description, duration, image_url, category, price, status, level, course_code) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)")
     .bind(id, title, description, duration, image, category, price, level, courseCode || null).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?,'Admission fee',0,'enrollment',1,1,1)").bind('admission-'+id,id).run();
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
     .bind(uuid(), access.user.id, 'course_created', 'course', id).run();
   return json({ id, title, description, duration, image, category, price, level, course_code: courseCode || null, status: 'active' }, 201);
