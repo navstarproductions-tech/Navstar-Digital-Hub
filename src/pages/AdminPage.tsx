@@ -534,10 +534,8 @@ export function AdminPage() {
   const importModules = async () => {
     if (!moduleImportRows.length) { setNotice('Choose a completed module CSV first.'); return; }
     const rows = [...moduleImportRows].sort((a,b) => a.courseId.localeCompare(b.courseId) || a.sortOrder-b.sortOrder);
-    const saved = await submitLearningAction({ action: 'bulk_create_modules', rows }, 'Modules imported and routed to their selected courses successfully.');
-    if (!saved) return;
-    setModuleImportRows([]); setModuleImportName('');
-    setNotice('All module rows have been imported into their matching courses in module order.');
+    const saved = await submitLearningAction({ action: 'bulk_create_modules_multi', rows }, 'All module rows imported and routed to their selected courses.');
+    if (saved) { setModuleImportRows([]); setModuleImportName(''); setNotice('All module rows were imported atomically into their matching courses in module order.'); }
   };
 
   const readServiceImport = async (event: ChangeEvent<HTMLInputElement>) => {
