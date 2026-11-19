@@ -15,7 +15,7 @@ export async function onRequestPost({ request, env }) {
   if (access.response) return access.response;
   const targetUserId = requestedUserId || access.user.id;
   if (requestedUserId) {
-    const target = await env.DB.prepare(\"SELECT id, role FROM users WHERE id = ?\").bind(targetUserId).first();
+    const target = await env.DB.prepare("SELECT id, role FROM users WHERE id = ?").bind(targetUserId).first();
     if (!target || target.role !== 'student') return error('The selected student account was not found.', 404);
   }
     const file = form.get('file');
