@@ -21,7 +21,7 @@ export async function onRequestPut({request,env}) {
   const courseId=safeString(body.courseId,80);
   const items=Array.isArray(body.items)?body.items:[];
   if(!courseId||!items.length||items.length>40)return error('Choose a course and provide between 1 and 40 fee items.');
-  const course=await env.DB.prepare('SELECT id FROM courses WHERE id=?').bind(courseId).first();
+  const course=await env.DB.prepare('SELECT id,price FROM courses WHERE id=?').bind(courseId).first();
   if(!course)return error('Course not found.',404);
   const names=new Set();
   const normalized=[];
@@ -34,6 +34,10 @@ export async function onRequestPut({request,env}) {
     names.add(itemName.toLowerCase());
     normalized.push({id:safeString(item.id,80)||uuid(),itemName,amount,dueStage,required:item.required===false?0:1,sortOrder:Number.isSafeInteger(Number(item.sortOrder))?Number(item.sortOrder):normalized.length+1,active:item.active===false?0:1});
   }
+  const admission=normalized.find(item=>item.itemName.toLowerCase()==='admission fee'&&item.active===1);
+  if(!admission||admission.amount<1||admission.required!==1||admission.dueStage!=='enrollment')return error('Keep an active, required Admission fee item with a positive amount due at enrolment.');
+  const total=normalized.filter(item=>item.active===1).reduce((sum,item)=>sum+item.amount,0);
+  if(total!==Number(course.price))return error('Active fee items must total the published course fee of KSh '+Number(course.price).toLocaleString('en-KE')+'. Adjust the fee items or update the course fee first.');
   const statements=normalized.map(item=>env.DB.prepare(`
     INSERT INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active)
     VALUES(?,?,?,?,?,?,?,?)
