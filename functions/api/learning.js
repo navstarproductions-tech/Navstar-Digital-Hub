@@ -33,15 +33,15 @@ export async function onRequestGet({ request, env }) {
   let courses;
   if (user.role === 'student') {
     courses = await env.DB.prepare(`
-      SELECT DISTINCT c.id, c.title, c.description, c.duration, c.image_url AS image, c.category, c.level
+      SELECT DISTINCT c.id, c.title, c.description, c.duration, c.image_url AS image, c.category, c.level, c.course_code
       FROM courses c JOIN enrollments e ON e.course_id = c.id
       WHERE c.status = 'active' AND e.email = ? COLLATE NOCASE AND e.status = 'accepted'
       ORDER BY c.title
     `).bind(user.email).all();
   } else if (user.role === 'tutor') {
-    courses = await env.DB.prepare("SELECT c.id, c.title, c.description, c.duration, c.image_url AS image, c.category, c.level FROM courses c JOIN course_tutor_assignments a ON a.course_id = c.id WHERE c.status = 'active' AND a.tutor_user_id = ? ORDER BY c.title").bind(user.id).all();
+    courses = await env.DB.prepare("SELECT c.id, c.title, c.description, c.duration, c.image_url AS image, c.category, c.level, c.course_code FROM courses c JOIN course_tutor_assignments a ON a.course_id = c.id WHERE c.status = 'active' AND a.tutor_user_id = ? ORDER BY c.title").bind(user.id).all();
   } else {
-    courses = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, level FROM courses WHERE status = 'active' ORDER BY title").all();
+    courses = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, level, course_code FROM courses WHERE status = 'active' ORDER BY title").all();
   }
   const courseRows = courses.results ?? [];
   const courseIds = courseRows.map((course) => course.id);
