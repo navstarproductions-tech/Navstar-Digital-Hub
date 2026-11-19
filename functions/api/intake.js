@@ -22,8 +22,10 @@ export async function onRequestGet({ env }) {
   const upcoming = entries.filter(item => item.enrollmentOpen && item.enrollmentOpen > today)[0];
   const intake = open ? { ...open, status: 'open' } : upcoming ? { ...upcoming, status: 'upcoming' } : entries.length ? { ...entries.slice().sort((a,b) => b.enrollmentClose.localeCompare(a.enrollmentClose))[0], status: 'closed' } : { status: 'not-configured' };
   const formatDate = value => value ? new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Nairobi',day:'numeric',month:'long',year:'numeric'}).format(new Date(value+'T12:00:00+03:00')) : '';
-  const defaultNotice = intake.status === 'closed' && intake.enrollmentOpen && intake.enrollmentClose
-    ? `${intake.name} Closed — enrollment ran ${formatDate(intake.enrollmentOpen)} to ${formatDate(intake.enrollmentClose)}.` : '';
-  const notice = section.showEnrollmentStatus === false ? '' : (intake.status === 'closed' ? (String(section.intakeStatusMessage || '').trim() || defaultNotice) : '');
+  const lastClosed = entries.filter(item => item.enrollmentClose && item.enrollmentClose < today).sort((a,b) => b.enrollmentClose.localeCompare(a.enrollmentClose))[0];
+  const noticeEntry = lastClosed || (intake.status === 'closed' ? intake : null);
+  const defaultNotice = noticeEntry?.enrollmentOpen && noticeEntry?.enrollmentClose
+    ? `${noticeEntry.name} Closed — enrollment ran ${formatDate(noticeEntry.enrollmentOpen)} to ${formatDate(noticeEntry.enrollmentClose)}.` : '';
+  const notice = section.showEnrollmentStatus === false ? '' : (String(section.intakeStatusMessage || '').trim() || defaultNotice);
   return json({ intake: { ...intake, notice }, serverDate: today, timezone: 'Africa/Nairobi' });
 }
