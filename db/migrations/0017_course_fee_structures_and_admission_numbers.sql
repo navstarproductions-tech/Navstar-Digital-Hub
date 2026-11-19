@@ -45,3 +45,5 @@ CREATE TABLE IF NOT EXISTS admission_number_sequences (
 -- Each course begins with an editable Admission fee line. The admin sets its actual amount.
 INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
 SELECT 'admission-' || id,id,'Admission fee',0,'enrollment',1,1,1 FROM courses;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_courses_course_code ON courses(course_code) WHERE course_code IS NOT NULL AND course_code <> '';
