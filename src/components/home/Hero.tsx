@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Code2, Cpu, GraduationCap, Monitor, ShieldCheck, Sparkles, Wifi, LogIn } from 'lucide-react';
+import { ArrowRight, BookOpen, Code2, Cpu, GraduationCap, Monitor, ShieldCheck, Sparkles, LogIn } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const highlights = [
@@ -99,10 +99,6 @@ export function Hero() {
               {[{ icon: BookOpen, text: 'Learn' }, { icon: Code2, text: 'Build' }, { icon: ShieldCheck, text: 'Connect' }].map(({ icon: Icon, text }) => (
                 <div key={text} className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[.04] py-3 text-xs font-semibold text-slate-200"><Icon className="h-4 w-4 text-sky-300" />{text}</div>
               ))}
-            </div>
-            <div className="mt-4 flex items-center gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[.07] p-3">
-              <Wifi className="h-5 w-5 shrink-0 text-amber-300" />
-              <p className="text-xs leading-5 text-slate-200">Practical learning and accessible digital services, built around real needs.</p>
             </div>
           </div>
           <div className="absolute -right-3 -top-5 rounded-2xl border border-sky-300/30 bg-blue-500/30 px-4 py-3 shadow-xl backdrop-blur-md sm:-right-7">

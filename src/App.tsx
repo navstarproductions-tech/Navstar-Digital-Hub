@@ -28,6 +28,7 @@ import { MusicPage } from '@/pages/MusicPage';
 import { PortalNotificationsPage } from '@/pages/PortalNotificationsPage';
 import { MyAccountPage } from '@/pages/MyAccountPage';
 import { AIChatWidget } from '@/components/AIChatWidget';
+import { PortalMaintenanceGate } from '@/components/PortalMaintenanceGate';
 import { Toaster } from '@/components/ui/sonner';
 
 function ScrollToTop() {
@@ -121,7 +122,7 @@ function AppShell() {
             <Route path="/donations" element={<DonationsPage />} />
             <Route path="/portals" element={<PortalsPage />} />
             <Route path="/portals/student" element={<Navigate to="/student-portal" replace />} />
-            <Route path="/student-portal" element={<StudentPortalPage />} />
+            <Route path="/student-portal" element={<PortalMaintenanceGate role="student"><StudentPortalPage /></PortalMaintenanceGate>} />
             <Route path="/portals/:role" element={<PortalsPage />} />
             <Route path="/portals/notifications" element={<PortalNotificationsPage />} />
             <Route path="/login" element={<LoginPage />} />
@@ -138,8 +139,8 @@ function AppShell() {
             <Route path="/setup" element={<FirstAdminSetupPage />} />
             <Route path="/admin-reset" element={<Navigate to="/student-recovery" replace />} />
             <Route path="/enroll/:id" element={<EnrollmentPage />} />
-            <Route path="/admin" element={<AdminPage />} />
-            <Route path="/admin/receipts" element={<PaymentReceiptsPage />} />
+            <Route path="/admin" element={<PortalMaintenanceGate role="admin"><AdminPage /></PortalMaintenanceGate>} />
+            <Route path="/admin/receipts" element={<PortalMaintenanceGate role="admin"><PaymentReceiptsPage /></PortalMaintenanceGate>} />
             <Route path="/payment-receipt/:id" element={<PaymentReceiptsPage />} />
             <Route path="*" element={<HomePage />} />
           </Routes>

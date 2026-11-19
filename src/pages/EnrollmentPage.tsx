@@ -33,6 +33,15 @@ export function EnrollmentPage() {
   const [registrationId, setRegistrationId] = useState('');
   const [registrationReference, setRegistrationReference] = useState('');
   const [installments, setInstallments] = useState<Array<{label:string;amount:number;dueDate:string}>>([]);
+  const [preferredIntake, setPreferredIntake] = useState('');
+
+  useEffect(() => {
+    let live = true;
+    fetch('/api/intake', { cache: 'no-store' }).then(response => response.ok ? response.json() : null).then(result => {
+      if (live && result?.intake?.name && ['open','upcoming'].includes(result.intake.status)) setPreferredIntake(String(result.intake.name));
+    }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -189,7 +198,7 @@ export function EnrollmentPage() {
                   <div className="space-y-2"><Label>Selected course</Label><Input value={course.title} readOnly/></div>
                   <div className="space-y-2"><Label htmlFor="study-mode">Study mode *</Label><select id="study-mode" name="studyMode" required className={fieldClass}><option value="">Select mode</option><option>On campus</option><option>Online</option><option>Hybrid</option></select></div>
                   <div className="space-y-2"><Label htmlFor="education-level">Highest education level *</Label><select id="education-level" name="educationLevel" required className={fieldClass}><option value="">Select level</option><option>Primary</option><option>Secondary</option><option>Certificate</option><option>Diploma</option><option>Degree or higher</option></select></div>
-                  <div className="space-y-2"><Label htmlFor="preferred-intake">Preferred intake</Label><Input id="preferred-intake" name="preferredIntake" type="month"/></div>
+                  <div className="space-y-2"><Label htmlFor="preferred-intake">Preferred intake</Label><Input id="preferred-intake" name="preferredIntake" value={preferredIntake} onChange={event=>setPreferredIntake(event.target.value)} readOnly={Boolean(preferredIntake)} placeholder="Assigned automatically from the current intake calendar"/></div>
                   <div className="space-y-2 sm:col-span-2"><Label htmlFor="experience">Relevant experience or learning goals</Label><textarea id="experience" name="experience" rows={4} className={textAreaClass} placeholder="Tell us about your experience and what you hope to learn."/></div>
                 </div>
                 <div data-wizard-step={4} className={step===4?'grid gap-4 sm:grid-cols-2':'hidden'}>

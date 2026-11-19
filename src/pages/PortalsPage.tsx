@@ -37,6 +37,7 @@ export function PortalsPage() {
   const selectedPortal = portals.find((portal) => portal.id === role);
   const selectedStyle = selectedPortal ? portalStyles[selectedPortal.id] : null;
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [maintenance, setMaintenance] = useState<{active:boolean;portals:string[];message:string;startsAt:string;returnAt:string;backgroundUrl:string}|null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [financePayments, setFinancePayments] = useState<FinancePayment[]>([]);
@@ -45,6 +46,18 @@ export function PortalsPage() {
   const [paymentNotice, setPaymentNotice] = useState('');
   const [status, setStatus] = useState('Checking your secure session…');
   const signOut = async () => { await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined); setUser(null); navigate('/login', { replace: true }); };
+  useEffect(() => {
+    if (!selectedPortal) return;
+    let live = true;
+    const check = () => fetch('/api/maintenance-status', { cache: 'no-store' }).then(async response => {
+      const result = await response.json() as {active?:boolean;portals?:string[];message?:string;startsAt?:string;returnAt?:string;backgroundUrl?:string};
+      if (live && response.ok && result.active && (result.portals||[]).includes(selectedPortal.id)) setMaintenance({active:true,portals:result.portals||[],message:result.message||'Navstar Digital Hub is undergoing scheduled maintenance.',startsAt:result.startsAt||'',returnAt:result.returnAt||'',backgroundUrl:result.backgroundUrl||''});
+      else if (live) setMaintenance(null);
+    }).catch(()=>{if(live)setMaintenance(null);});
+    void check();
+    const interval = window.setInterval(check, 30000);
+    return () => { live = false; window.clearInterval(interval); };
+  }, [selectedPortal]);
   const requestStudentPayment = async (item: Enrollment) => {
     if (!item.phone) { setPaymentNotice('No registered payment phone is available. Please update your phone number in My Account or contact Finance.'); return; }
     setPaymentBusyId(item.id); setPaymentNotice('');
@@ -159,6 +172,27 @@ export function PortalsPage() {
     );
   }
 
+  if (maintenance?.active && selectedPortal) {
+    return <main className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#061127] px-4 py-12 text-white">
+      {maintenance.backgroundUrl && <div className="absolute inset-0 -z-20 bg-cover bg-center opacity-35" style={{backgroundImage:`url("${maintenance.backgroundUrl}")`}}/>}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-[#041126]/95 via-blue-950/90 to-[#071329]/95"/>
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[.07]"><img src="/Navstar_Official_Logo.jpg" alt="" className="w-[min(75vw,620px)] object-contain"/></div>
+      <section className="w-full max-w-2xl rounded-3xl border border-white/15 bg-white/[.08] p-7 text-center shadow-2xl backdrop-blur-xl sm:p-10">
+        <img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub" className="mx-auto mb-7 h-20 w-40 object-contain"/>
+        <p className="text-xs font-black uppercase tracking-[.28em] text-amber-300">HOME OF TECHNOCRATS</p>
+        <div className="mx-auto mt-7 grid h-16 w-16 place-items-center rounded-2xl border border-cyan-200/30 bg-cyan-300/10 text-3xl">⚙</div>
+        <h1 className="mt-6 text-3xl font-black sm:text-4xl">Portal under maintenance</h1>
+        <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-blue-100">{maintenance.message}</p>
+        <div className="mt-7 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 text-left sm:grid-cols-2">
+          <div><p className="text-[10px] font-bold uppercase tracking-wider text-cyan-200">Maintenance starts</p><p className="mt-1 font-bold">{maintenance.startsAt} EAT</p></div>
+          <div><p className="text-[10px] font-bold uppercase tracking-wider text-cyan-200">Expected return</p><p className="mt-1 font-bold">{maintenance.returnAt} EAT</p></div>
+        </div>
+        <p className="mt-6 text-xs text-slate-300">We are improving your {selectedPortal.title}. Please return after the scheduled time.</p>
+        <p className="mt-5 text-[10px] font-bold uppercase tracking-[.2em] text-slate-400">NAVSTAR DIGITAL HUB · navstardigitalhub.co.ke</p>
+      </section>
+    </main>;
+  }
+
   return (
     <main className={"navstar-portal min-h-screen " + (selectedStyle?.page || "bg-slate-50")}> 
       <section className={(selectedStyle?.hero || "bg-[#061127]") + " text-white"}>
@@ -169,7 +203,7 @@ export function PortalsPage() {
         </div>
       </section>
       <section className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        {user ? <PortalWorkspaceTabs
+        {user && user.role === 'student' && !user.profilePhotoUrl ? <section className="mx-auto max-w-2xl rounded-2xl border border-amber-200 bg-white p-7 text-center shadow-xl"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-amber-50 text-amber-700"><UserRound className="h-8 w-8"/></div><p className="mt-5 text-xs font-black uppercase tracking-[.2em] text-blue-800">NAVSTAR DIGITAL HUB · STUDENT IDENTITY</p><h2 className="mt-2 text-2xl font-black text-slate-950">Passport photo required</h2><p className="mt-3 text-sm leading-7 text-slate-600">To complete your student profile and access learning services, upload a clear passport photograph. You can upload it yourself or ask the Navstar administrator to add it to your account.</p><Button asChild className="mt-5 rounded-xl bg-blue-800"><Link to="/my-account">Upload my passport photo</Link></Button></section> : user ? <PortalWorkspaceTabs
           role={user.role as 'student'|'tutor'|'admissions'|'principal'|'finance'|'admin'}
           name={user.name}
           enrollments={enrollments}
