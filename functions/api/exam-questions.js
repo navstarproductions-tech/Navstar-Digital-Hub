@@ -36,6 +36,22 @@ export async function onRequestPost({request,env}){
  const action=safeString(body.action,32),assessmentId=safeString(body.assessmentId,80);
  const assessment=await env.DB.prepare('SELECT id,course_id,status,starts_at,due_at,duration_minutes,max_attempts FROM course_assessments WHERE id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not found or access denied.',404);
+ if(action==='generate_ai'){
+  const access=await requireRole(request,env,staff);if(access.response)return access.response;
+  const topic=safeString(body.topic,500),count=Math.max(1,Math.min(20,Number(body.count)||5)),level=safeString(body.level,40)||'intermediate';
+  if(!topic)return error('Enter a topic or learning outcome for question generation.');
+  if(!env.AI||typeof env.AI.run!=='function')return error('AI question generation is not connected yet. Bind a Cloudflare Workers AI service to this Pages project before using this feature.',503);
+  const prompt='Create '+count+' original '+level+' assessment questions about: '+topic+'. Return ONLY valid JSON array. Each object: questionText, questionType (single_choice, multiple_choice, true_false, short_answer, essay), options (array of strings), correctAnswer (string or array), points (integer), explanation. Include answer keys. Use objective types where suitable and include at least one short answer if count permits. No markdown.';
+  let generated;
+  try{
+   const result=await env.AI.run('@cf/meta/llama-3.1-8b-instruct',{messages:[{role:'system',content:'You are an educational assessment author. Output valid JSON only.'},{role:'user',content:prompt}]});
+   const raw=String(result?.response||result?.output||'').replace(/^\s*```(?:json)?/i,'').replace(/```\s*$/,'').trim();
+   generated=JSON.parse(raw);
+  }catch(e){console.error('Workers AI question generation failed',String(e));return error('The AI provider did not return valid questions. Try again or edit the prompt.',502);}
+  if(!Array.isArray(generated)||!generated.length)return error('The AI provider returned no questions.',502);
+  const result=await importQuestions(env.DB,user,assessmentId,generated.slice(0,count));
+  return result;
+ }
  if(action==='save_question'||action==='import_questions'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
   const items=action==='save_question'?[body.question||body]:Array.isArray(body.questions)?body.questions:[];
