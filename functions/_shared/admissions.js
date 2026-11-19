@@ -8,9 +8,9 @@ function initials(title){
 }
 function intakeCode(value){
   const text=String(value||'').trim();
-  const iso=text.match(/^(20\\d{2})-(0[1-9]|1[0-2])$/);
+  const iso=text.match(/^(20\d{2})-(0[1-9]|1[0-2])$/);
   if(iso)return iso[2]+iso[1].slice(-2);
-  const monthYear=text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})/i);
+  const monthYear=text.match(/(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(20\d{2})/i);
   if(monthYear){
     const months=['january','february','march','april','may','june','july','august','september','october','november','december'];
     const monthIndex=months.findIndex(month=>month.startsWith(monthYear[1].slice(0,3).toLowerCase()));
