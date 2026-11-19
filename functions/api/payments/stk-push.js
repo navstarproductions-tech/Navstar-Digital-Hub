@@ -15,8 +15,6 @@ export async function onRequestPost({ request, env }) {
   const phone = normalizePhone(body.phone);
   const requestedAmount = body.amount === undefined || body.amount === null || body.amount === '' ? null : Number(body.amount);
   if (requestedAmount !== null && (!Number.isSafeInteger(requestedAmount) || requestedAmount < 1 || requestedAmount > 150000)) return error('Enter a valid payment amount in whole Kenya shillings.');
-  const requestedAmount = body.amount === undefined || body.amount === null || body.amount === '' ? null : Number(body.amount);
-  if (requestedAmount !== null && (!Number.isSafeInteger(requestedAmount) || requestedAmount < 1 || requestedAmount > 150000)) return error('Enter a valid payment amount in whole Kenya shillings.');
   if (!reference || !phone || !['enrollment', 'donation', 'service'].includes(purpose)) return error('Invalid payment request.');
 
   let amount;
