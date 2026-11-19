@@ -53,7 +53,7 @@ SELECT 'tuition-' || id,id,'Tuition fee',price,'before_term',1,2,1 FROM courses;
 -- Snapshot the current fee schedule for every existing enrolment. Later course edits
 -- therefore do not silently rewrite an existing learner's agreed fee account.
 INSERT INTO enrollment_fee_items (id,enrollment_id,fee_item_id,item_name,amount,due_stage)
-SELECT lower(hex(randomblob(16)), e.id, f.id, f.item_name, f.amount, f.due_stage
+SELECT lower(hex(randomblob(16))), e.id, f.id, f.item_name, f.amount, f.due_stage
 FROM enrollments e
 JOIN course_fee_items f ON f.course_id=e.course_id
 WHERE f.active=1;
