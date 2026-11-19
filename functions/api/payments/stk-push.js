@@ -43,7 +43,10 @@ export async function onRequestPost({ request, env }) {
     `).bind(reference).first();
     const legacyAdmission = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id=(SELECT course_id FROM enrollments WHERE id=?) AND lower(item_name)='admission fee' AND active=1 AND due_stage='enrollment' AND required=1").bind(reference).first();
     const totalFee = Number(feeSnapshot?.item_count || 0) > 0 ? Number(feeSnapshot.total_fee) : Number(enrollment.price);
-    const admissionFee = Number(feeSnapshot?.item_count || 0) > 0 ? Number(feeSnapshot.admission_fee) : Number(legacyAdmission?.total || 0);
+    // Legacy enrolments may have a fee snapshot created before the Admission fee was configured.
+    // Preserve their saved total while using the active required Admission fee as the first-payment minimum.
+    const snapshotAdmissionFee = Number(feeSnapshot?.admission_fee || 0);
+    const admissionFee = snapshotAdmissionFee > 0 ? snapshotAdmissionFee : Number(legacyAdmission?.total || 0);
     if (admissionFee < 1) return error('Admission fee is not configured for this course. Please contact Navstar Admissions before making a payment.', 409);
     const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
     const paidTotal = Number(paidRow?.paid_total || 0);
