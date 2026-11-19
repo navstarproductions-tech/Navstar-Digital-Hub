@@ -158,5 +158,18 @@ export async function onRequestGet({ request, env }) {
     return error('Tutor access must be assigned to specific classes before student records are visible.', 403);
   }
   const result = await query.all();
-  return json({ enrollments: result.results ?? [] });
+  const enrollments = result.results ?? [];
+  const ids = enrollments.map(item => item.id);
+  let feeItems = [];
+  if (ids.length) {
+    const rows = await env.DB.prepare(`SELECT enrollment_id,item_name,amount,due_stage FROM enrollment_fee_items WHERE enrollment_id IN (${ids.map(() => '?').join(',')}) ORDER BY due_stage,item_name`).bind(...ids).all();
+    feeItems = rows.results ?? [];
+  }
+  const byEnrollment = new Map();
+  for (const item of feeItems) {
+    const list = byEnrollment.get(item.enrollment_id) || [];
+    list.push({ item_name:item.item_name, amount:Number(item.amount), due_stage:item.due_stage });
+    byEnrollment.set(item.enrollment_id,list);
+  }
+  return json({ enrollments: enrollments.map(item => ({...item,fee_items:byEnrollment.get(item.id)||[]})) });
 }
