@@ -5,7 +5,7 @@ const allowed = new Set([
   'student-projects','scholarships','certificates','alumni','report-cards','auto-reports','attendance','class-rating',
   'online-forms','reports','songs-music','news-updates','events','demo-previews','cv-builder','timetable',
   'online-classes','eclass-meetings','student-chat','support-tickets','broadcast-social','sms-alerts','birthday-center',
-  'about-us','campus-history','device-management','ict-portal','customer-carts'
+  'about-us','campus-history','device-management','ict-portal','customer-carts','maintenance'
 ]);
 const id = () => crypto.randomUUID();
 
