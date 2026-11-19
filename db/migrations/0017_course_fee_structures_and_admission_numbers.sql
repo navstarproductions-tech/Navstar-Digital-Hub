@@ -42,39 +42,9 @@ CREATE TABLE IF NOT EXISTS admission_number_sequences (
   PRIMARY KEY(course_id,intake_code)
 );
 
--- Each course begins with an editable Admission fee line. The admin sets its actual amount.
+-- Every course starts with editable fee lines. The administrator configures their amounts.
 INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
 SELECT 'admission-' || id,id,'Admission fee',0,'enrollment',1,1,1 FROM courses;
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_courses_course_code ON courses(course_code) WHERE course_code IS NOT NULL AND course_code <> '';
-
-
--- Preserve the fee schedule applicable to every existing and future enrolment.
-INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage)
-SELECT 'snapshot-' || e.id || '-' || f.id,e.id,f.id,f.item_name,f.amount,f.due_stage
-FROM enrollments e JOIN course_fee_items f ON f.course_id=e.course_id AND f.active=1;
-
-CREATE TRIGGER IF NOT EXISTS trg_snapshot_course_fees_after_enrollment
-AFTER INSERT ON enrollments
-BEGIN
-  INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage)
-  SELECT 'snapshot-' || NEW.id || '-' || f.id,NEW.id,f.id,f.item_name,f.amount,f.due_stage
-  FROM course_fee_items f WHERE f.course_id=NEW.course_id AND f.active=1;
-END;
-
--- Preserve the fee schedule applicable to every existing and future enrolment.
-INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage)
-SELECT 'snapshot-' || e.id || '-' || f.id,e.id,f.id,f.item_name,f.amount,f.due_stage
-FROM enrollments e JOIN course_fee_items f ON f.course_id=e.course_id AND f.active=1;
-
-CREATE TRIGGER IF NOT EXISTS trg_snapshot_course_fees_after_enrollment
-AFTER INSERT ON enrollments
-BEGIN
-  INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage)
-  SELECT 'snapshot-' || NEW.id || '-' || f.id,NEW.id,f.id,f.item_name,f.amount,f.due_stage
-  FROM course_fee_items f WHERE f.course_id=NEW.course_id AND f.active=1;
-END;
-
 INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
 SELECT 'tuition-' || id,id,'Tuition fee',0,'before_term',1,2,1 FROM courses;
 INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
@@ -83,3 +53,19 @@ INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,
 SELECT 'examination-' || id,id,'Examination fee',0,'before_term',0,4,1 FROM courses;
 INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
 SELECT 'materials-' || id,id,'Learning materials',0,'anytime',0,5,1 FROM courses;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_courses_course_code ON courses(course_code) WHERE course_code IS NOT NULL AND course_code <> '';
+
+-- Snapshot the current fee schedule for existing enrolments.
+INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage)
+SELECT 'snapshot-' || e.id || '-' || f.id,e.id,f.id,f.item_name,f.amount,f.due_stage
+FROM enrollments e JOIN course_fee_items f ON f.course_id=e.course_id AND f.active=1;
+
+-- New enrolments keep the fee schedule that was active when they were created.
+CREATE TRIGGER IF NOT EXISTS trg_snapshot_course_fees_after_enrollment
+AFTER INSERT ON enrollments
+BEGIN
+  INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage)
+  SELECT 'snapshot-' || NEW.id || '-' || f.id,NEW.id,f.id,f.item_name,f.amount,f.due_stage
+  FROM course_fee_items f WHERE f.course_id=NEW.course_id AND f.active=1;
+END;
