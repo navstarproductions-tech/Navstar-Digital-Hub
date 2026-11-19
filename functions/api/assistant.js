@@ -28,10 +28,14 @@ function providerError(status, result) {
 }
 
 export async function onRequestPost({ request, env }) {
-  const requestId = crypto.randomUUID();
+  // Keep request-ID creation inside the protected block so a runtime crypto
+  // failure can never escape the Pages Function and become a Cloudflare 502.
+  let requestId = 'navstar-' + Date.now().toString(36);
   const startedAt = Date.now();
   let stage = 'request_received';
   try {
+    try { requestId = crypto.randomUUID(); } catch { /* retain fallback ID */ }
+    logAI('request_started', { requestId, method: request.method, path: new URL(request.url).pathname });
     const origin = request.headers.get('Origin');
     if (origin) {
       try {
@@ -82,16 +86,25 @@ export async function onRequestPost({ request, env }) {
         ? [{ text: message.content }, ...mediaParts]
         : [{ text: message.content }]
     }));
-    const providerResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents,
-        generationConfig: { maxOutputTokens: 1200, temperature: 0.4 }
-      }),
-      signal: AbortSignal.timeout(45000)
-    });
+    // Use an explicit controller instead of AbortSignal.timeout so this
+    // endpoint also works on older Workers compatibility runtimes.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort('Gemini request timed out'), 30000);
+    let providerResponse;
+    try {
+      providerResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents,
+          generationConfig: { maxOutputTokens: 1200, temperature: 0.4 }
+        }),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
     const result = await providerResponse.json().catch(() => ({}));
     if (!providerResponse.ok) {
       const status = providerResponse.status;
@@ -104,8 +117,20 @@ export async function onRequestPost({ request, env }) {
     logAI('request_succeeded', { requestId, model, attachments: attachments.length, totalDurationMs: Date.now() - startedAt });
     return json({ answer, requestId }, 200, requestId);
   } catch (error) {
-    logAI('request_failed', { requestId, stage, errorName: clean(error?.name, 80) || 'UnknownError', totalDurationMs: Date.now() - startedAt });
-    return json({ error: clean(error?.message, 260) || 'Navstar AI encountered a server error. Please try again shortly.', code: 'AI_INTERNAL_ERROR', requestId }, 500, requestId);
+    logAI('request_failed', {
+      requestId, stage,
+      errorName: clean(error?.name, 80) || 'UnknownError',
+      errorMessage: clean(error?.message, 240),
+      totalDurationMs: Date.now() - startedAt
+    });
+    const timedOut = error?.name === 'AbortError' || /timed out/i.test(String(error?.message || ''));
+    return json({
+      error: timedOut
+        ? 'Google Gemini took too long to respond. Please try again.'
+        : clean(error?.message, 260) || 'Navstar AI encountered a server error. Please try again shortly.',
+      code: timedOut ? 'AI_UPSTREAM_TIMEOUT' : 'AI_INTERNAL_ERROR',
+      requestId
+    }, timedOut ? 504 : 500, requestId);
   }
 }
 
