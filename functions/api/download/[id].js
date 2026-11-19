@@ -14,7 +14,8 @@ export async function onRequestGet({ env, params }) {
     object.writeHttpMetadata(headers);
     headers.set('Content-Type', row.mime_type || 'application/octet-stream');
     headers.set('Content-Length', String(object.size));
-    headers.set('Content-Disposition', `attachment; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(safeName)}`);
+    const viewInline = new URL(request.url).searchParams.get('view') === '1';
+    headers.set('Content-Disposition', `${viewInline ? 'inline' : 'attachment'}; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(safeName)}`);
     headers.set('X-Content-Type-Options', 'nosniff');
     headers.set('Cache-Control', 'private, no-store');
     return new Response(object.body, { status: 200, headers });

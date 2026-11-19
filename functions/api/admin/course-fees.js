@@ -16,7 +16,7 @@ export async function onRequestGet({request,env}) {
       AND NOT EXISTS (
         SELECT 1 FROM course_fee_items f
         WHERE f.course_id=e.course_id AND lower(f.item_name)='admission fee'
-          AND f.active=1 AND f.required=1 AND f.due_stage='enrollment' AND f.amount>0
+          AND f.active=1 AND f.required=1 AND f.due_stage='enrollment' AND f.amount>=100
       )
   `).bind(courseId).first();
   return json({course,items:rows.results||[],studentsWithoutAdmissionFee:Number(legacy?.total||0)});
@@ -44,7 +44,7 @@ export async function onRequestPut({request,env}) {
     normalized.push({id:safeString(item.id,80)||uuid(),itemName,amount,dueStage,required:item.required===false?0:1,sortOrder:Number.isSafeInteger(Number(item.sortOrder))?Number(item.sortOrder):normalized.length+1,active:item.active===false?0:1});
   }
   const admission=normalized.find(item=>item.itemName.toLowerCase()==='admission fee'&&item.active===1);
-  if(!admission||admission.amount<1||admission.required!==1||admission.dueStage!=='enrollment')return error('Keep an active, required Admission fee item with a positive amount due at enrolment.');
+  if(!admission||admission.amount<100||admission.required!==1||admission.dueStage!=='enrollment')return error('Keep an active, required Admission fee of at least KSh 100, due at enrolment. It must be included in the published course fee total.');
   const total=normalized.filter(item=>item.active===1).reduce((sum,item)=>sum+item.amount,0);
   if(total!==Number(course.price))return error('Active fee items must total the published course fee of KSh '+Number(course.price).toLocaleString('en-KE')+'. Adjust the fee items or update the course fee first.');
   const statements=[env.DB.prepare('UPDATE course_fee_items SET active=0,updated_at=CURRENT_TIMESTAMP WHERE course_id=?').bind(courseId),...normalized.map(item=>env.DB.prepare(`
