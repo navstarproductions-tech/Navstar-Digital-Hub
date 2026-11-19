@@ -12,7 +12,8 @@ async function currentIntake(DB) {
   let config = {}; try { config = JSON.parse(row?.value || '{}'); } catch {}
   const section = config['academic-intakes'] || {};
   const today = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const entries = String(section.intakes || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0]);
+  const entries = String(section.intakes || '').split(/\r?
+/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0]);
   const mapped = entries.map(parts => ({ name: parts[0], enrollmentOpen: parts[1], enrollmentClose: parts[2], trainingStart: parts[3] || '', trainingEnd: parts[4] || '', graduationDate: parts[5] || '' }));
   if (!mapped.length && section.currentIntake) mapped.push({ name: section.currentIntake, enrollmentOpen: section.enrollmentOpen || '', enrollmentClose: section.enrollmentClose || '', trainingStart: section.trainingStart || '', trainingEnd: section.trainingEnd || '', graduationDate: section.graduationDate || '' });
   const open = mapped.find(item => item.enrollmentOpen && item.enrollmentClose && today >= item.enrollmentOpen && today <= item.enrollmentClose);
@@ -122,7 +123,8 @@ export async function onRequestPost(context) {
     env.DB.prepare("UPDATE enrollment_application_otps SET consumed_at = datetime('now') WHERE id = ? AND consumed_at IS NULL")
       .bind(verification.id)
   ]);
-  const installmentLines = String(rules.installmentPlans || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && (parts[0] === course.id || parts[0].toLowerCase() === String(course.title).toLowerCase()));
+  const installmentLines = String(rules.installmentPlans || '').split(/\r?
+/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && (parts[0] === course.id || parts[0].toLowerCase() === String(course.title).toLowerCase()));
   const installments = installmentLines.map(parts => ({ label: parts[1], amount: Number(parts[2]), dueDate: parts[3] || '' }));
   return json({ id, reference: displayRef, status: 'awaiting_payment', paymentRequired: true, amountDueNow, installments, course: { id: course.id, title: course.title, amount: course.price } }, 201);
 }
@@ -139,7 +141,8 @@ export async function onRequestGet({ request, env }) {
       SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, c.price AS course_fee,
         e.full_name, e.email, e.phone, e.date_of_birth, e.gender, e.nationality, e.study_mode,
         e.education_level, e.preferred_intake, e.county, e.town, e.address, e.status,
-        e.payment_status, e.payment_due_date, e.created_at,\n        COALESCE((SELECT SUM(f.amount) FROM course_fee_items f WHERE f.course_id=e.course_id AND lower(f.item_name)='admission fee' AND f.active=1 AND f.due_stage='enrollment' AND f.required=1),0) AS admission_fee,
+        e.payment_status, e.payment_due_date, e.created_at,
+        COALESCE((SELECT SUM(f.amount) FROM course_fee_items f WHERE f.course_id=e.course_id AND lower(f.item_name)='admission fee' AND f.active=1 AND f.due_stage='enrollment' AND f.required=1),0) AS admission_fee,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id AND p.status = 'paid'), 0) AS amount_paid,
         (SELECT p.internal_receipt_number FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id
           AND p.status = 'paid' AND p.internal_receipt_number IS NOT NULL ORDER BY p.updated_at DESC LIMIT 1) AS latest_receipt,
