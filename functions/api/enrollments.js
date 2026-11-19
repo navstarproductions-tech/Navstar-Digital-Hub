@@ -159,7 +159,6 @@ export async function onRequestGet({ request, env }) {
   const result = await query.all();
   const enrollments = result.results ?? [];
   const enrollmentIds = enrollments.map(item => item.id);
-  const courseIds = [...new Set(enrollments.map(item => item.course_id))];
   const byEnrollment = new Map();
   if (enrollmentIds.length) {
     const rows = await env.DB.prepare(`SELECT enrollment_id,item_name,amount,due_stage FROM enrollment_fee_items WHERE enrollment_id IN (${enrollmentIds.map(() => '?').join(',')}) ORDER BY created_at,item_name`).bind(...enrollmentIds).all();
