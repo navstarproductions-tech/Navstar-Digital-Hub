@@ -3,7 +3,7 @@ import { error, isSameOrigin, json, readJson, safeString, uuid } from '../_share
 
 const staffRoles=['admin','principal','tutor'];
 const adminRoles=['admin','principal'];
-const dateTimePattern=/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}/;
+const dateTimePattern=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
 async function courseAccess(db,user,courseId){
   if(adminRoles.includes(user.role))return true;
@@ -88,7 +88,7 @@ export async function onRequestPost({request,env}){
     if(!assessment||assessment.status!=='published'||!(await courseAccess(env.DB,user,assessment.course_id)))return error('This assessment is not available to your account.',403);
     if(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())return error('The submission deadline has passed.',409);
     if(!responseText&&!attachmentUrl)return error('Provide your answer or attach a secure HTTPS document.');
-    if(attachmentUrl&&!/^https:\\/\\//i.test(attachmentUrl))return error('Assessment attachments must use HTTPS.');
+    if(attachmentUrl&&!/^https:\/\//i.test(attachmentUrl))return error('Assessment attachments must use HTTPS.');
     const existing=await env.DB.prepare('SELECT status FROM course_assessment_attempts WHERE assessment_id=? AND user_id=?').bind(assessmentId,user.id).first();
     if(existing?.status==='graded')return error('This assessment has already been graded. Contact your tutor if a correction is needed.',409);
     await env.DB.prepare("INSERT INTO course_assessment_attempts(id,assessment_id,user_id,response_text,attachment_url,status) VALUES(?,?,?,?,?,'submitted') ON CONFLICT(assessment_id,user_id) DO UPDATE SET response_text=excluded.response_text,attachment_url=excluded.attachment_url,status='submitted',submitted_at=CURRENT_TIMESTAMP").bind(uuid(),assessmentId,user.id,responseText,attachmentUrl||null).run();
