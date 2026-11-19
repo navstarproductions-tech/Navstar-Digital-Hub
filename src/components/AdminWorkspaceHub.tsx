@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Search, ExternalLink, ShieldCheck, Database, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { EnrollmentAdminActions } from '@/components/EnrollmentAdminActions';
+import { AdminWorkspaceRecords } from '@/components/AdminWorkspaceRecords';
 
 type Row = Record<string, unknown>;
 type Props = {
@@ -28,7 +29,7 @@ const definitions: Record<string,{purpose:string;source:string;endpoint?:string;
  finance:{purpose:'Review verified payment transactions, cashout activity and financial reporting data.',source:'Verified Navstar payment register',endpoint:'/api/admin/payments',links:[['Cashouts','/admin'],['Finance settings','/admin']],columns:['payer_name','purpose','receipt_number','amount','status','updated_at']},
  fees:{purpose:'Review fee collection, receipts, fee statements and outstanding student balances.',source:'Student enrolment and payment register',endpoint:'/api/enrollments',links:[['Student accounts','/admin'],['Payment register','/admin']],columns:['full_name','course_id','payment_status','status','created_at']},
  'ai-intake-advisor':{purpose:'Review intake demand, course interest and the next recommended recruitment actions.',source:'Admissions and course records',endpoint:'/api/enrollments',links:[['Applications','/admin'],['Course catalogue','/courses']],columns:['full_name','course_id','status','created_at']},
- 'staff-applications':{purpose:'Review separate staff recruitment applications, supporting documents, interview progress and hiring decisions. This is not the student course-enrolment register.',source:'Staff recruitment register',links:[['Employee directory','/admin'],['Staff roles','/admin']],columns:['Applicant','Position applied for','Submitted date','Recruitment status']},
+ 'staff-applications':{purpose:'Review separate staff recruitment applications, supporting documents, interview progress and hiring decisions. This is not the student course-enrolment register.',source:'Staff recruitment register',endpoint:'/api/admin/staff-applications',links:[['Employee directory','/admin'],['Staff roles','/admin']],columns:['Applicant','Position applied for','Submitted date','Recruitment status']},
  'student-projects':{purpose:'Track project proposals, submissions, review decisions and showcase-ready work.',source:'Student project register',links:[],columns:['Project title','Student','Course','Review status']},
  'scholarships':{purpose:'Review scholarship and discount requests, award decisions and award history.',source:'Scholarship and discount register',links:[['Student directory','/admin'],['Fee settings','/admin']],columns:['Applicant','Course','Requested support','Decision']},
  'certificates':{purpose:'Manage completion eligibility, certificate templates, serials and verification records.',source:'Academic completion and certificate register',links:[['Student directory','/admin']],columns:['Student','Course','Completion status','Certificate serial']},
@@ -167,6 +168,7 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
  const source=definition?.source||'Dedicated register for this section';
  const columns=section==='student-status'?['name','email','staffId','status']:section==='pos'&&subtab==='Packing & Delivery'?['reference','customerName','serviceName','status','createdAt']:section==='finance'&&subtab==='Cashouts'?['reference','amount','status','created_at','requested_by']:section==='users'&&subtab==='Staff IDs & Roles'?['name','staffId','role','department','status']:definition?.columns||['Record','Category','Status','Updated'];
  const rows=filtered.slice(0,30);
+ if(section==='customer-accounts'||(!endpoint&&!['navstar-analytics','fingerprint'].includes(section)))return <AdminWorkspaceRecords section={section} subtab={subtab}/>;
  const isConnected=Boolean(endpoint)||['courses','school','student-status','employees','applications','enrollment-summary','services'].includes(section);
  return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
   <div className="flex flex-wrap items-start justify-between gap-3">

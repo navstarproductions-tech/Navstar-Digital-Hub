@@ -4,6 +4,8 @@ import { ArrowRight, Clock3, GraduationCap, Search, ShieldCheck, CalendarDays, S
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
 
+function formatIntakeDate(value?:string) { return value ? new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Nairobi',day:'numeric',month:'long',year:'numeric'}).format(new Date(value+'T12:00:00+03:00')) : '—'; }
+
 function useCountdown(target: number, closes: number) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -24,7 +26,7 @@ function useCountdown(target: number, closes: number) {
 export function CoursesPage() {
   const [search, setSearch] = useState('');
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
-  const [intake, setIntake] = useState<{name:string; enrollmentOpen:string; enrollmentClose:string; trainingStart?:string; trainingEnd?:string; graduationDate?:string; status:'open'|'upcoming'|'closed'|'not-configured'} | null>(null);
+  const [intake, setIntake] = useState<{name:string; enrollmentOpen:string; enrollmentClose:string; trainingStart?:string; trainingEnd?:string; graduationDate?:string; notice?:string; status:'open'|'upcoming'|'closed'|'not-configured'} | null>(null);
   const [now, setNow] = useState(Date.now());
   const opensAt = intake?.enrollmentOpen ? new Date(`${intake.enrollmentOpen}T00:00:00+03:00`).getTime() : 0;
   const closesAt = intake?.enrollmentClose ? new Date(`${intake.enrollmentClose}T23:59:59+03:00`).getTime() : 0;
@@ -65,7 +67,7 @@ export function CoursesPage() {
             <div className="rounded-2xl border border-white/15 bg-white/[.07] p-5 backdrop-blur">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.2em] text-amber-300"><CalendarDays className="h-4 w-4" /> Intake calendar</div>
               <p className="mt-3 text-lg font-extrabold">{!intake || intake.status === 'not-configured' ? 'Intake dates not yet published' : enrollmentOpen ? `${intake.name} · Enrolment Open` : intakeUpcoming ? `${intake.name} · Upcoming Intake` : `${intake.name} · Enrolment Closed`}</p>
-              <p className="mt-1 text-sm text-slate-300">{intake ? <>Enrollment: <strong className="text-white">{intake.enrollmentOpen || '—'} to {intake.enrollmentClose || '—'}</strong>{intake.trainingStart && <> · Training starts {intake.trainingStart}</>}</> : 'The next intake calendar will appear here when published by Admin.'}</p>
+              <p className="mt-1 space-y-1 text-sm text-slate-300">{intake?.notice && <span className="block font-bold text-amber-200">{intake.notice}</span>}{intake ? <span className="block">{intake.status==='closed'?'Enrollment ran:':'Enrollment:'} <strong className="text-white">{formatIntakeDate(intake.enrollmentOpen)} to {formatIntakeDate(intake.enrollmentClose)}</strong>{intake.trainingStart && <> · Training starts {formatIntakeDate(intake.trainingStart)}</>}</span> : 'The next intake calendar will appear here when published by Admin.'}</p>
               {intake && intakeUpcoming && <div className="mt-4 grid grid-cols-4 gap-2">{[['Days', countdown.days], ['Hours', countdown.hours], ['Mins', countdown.minutes], ['Secs', countdown.seconds]].map(([label, value]) => <div key={label} className="rounded-xl bg-black/20 px-2 py-3 text-center"><p className="text-2xl font-black tabular-nums">{String(value).padStart(2, '0')}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p></div>)}</div>}
               <div className="mt-4 flex items-center gap-2 text-xs text-emerald-200"><ShieldCheck className="h-4 w-4" /> Flexible fee payment options available</div>
             </div>
