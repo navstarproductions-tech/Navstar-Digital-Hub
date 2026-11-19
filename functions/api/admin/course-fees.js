@@ -16,7 +16,7 @@ export async function onRequestGet({request,env}) {
       AND NOT EXISTS (
         SELECT 1 FROM course_fee_items f
         WHERE f.course_id=e.course_id AND lower(f.item_name)='admission fee'
-          AND f.active=1 AND f.required=1 AND f.due_stage='enrollment' AND f.amount>0
+          AND f.active=1 AND f.required=1 AND f.due_stage='enrollment' AND f.amount>=100
       )
   `).bind(courseId).first();
   return json({course,items:rows.results||[],studentsWithoutAdmissionFee:Number(legacy?.total||0)});
