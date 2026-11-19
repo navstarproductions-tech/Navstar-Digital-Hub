@@ -49,12 +49,14 @@ export function PortalsPage() {
   useEffect(() => {
     if (!selectedPortal) return;
     let live = true;
-    fetch('/api/maintenance-status', { cache: 'no-store' }).then(async response => {
+    const check = () => fetch('/api/maintenance-status', { cache: 'no-store' }).then(async response => {
       const result = await response.json() as {active?:boolean;portals?:string[];message?:string;startsAt?:string;returnAt?:string;backgroundUrl?:string};
       if (live && response.ok && result.active && (result.portals||[]).includes(selectedPortal.id)) setMaintenance({active:true,portals:result.portals||[],message:result.message||'Navstar Digital Hub is undergoing scheduled maintenance.',startsAt:result.startsAt||'',returnAt:result.returnAt||'',backgroundUrl:result.backgroundUrl||''});
       else if (live) setMaintenance(null);
     }).catch(()=>{if(live)setMaintenance(null);});
-    return () => { live = false; };
+    void check();
+    const interval = window.setInterval(check, 30000);
+    return () => { live = false; window.clearInterval(interval); };
   }, [selectedPortal]);
   const requestStudentPayment = async (item: Enrollment) => {
     if (!item.phone) { setPaymentNotice('No registered payment phone is available. Please update your phone number in My Account or contact Finance.'); return; }
