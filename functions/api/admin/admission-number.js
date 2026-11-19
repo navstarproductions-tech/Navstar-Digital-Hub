@@ -3,18 +3,18 @@ import { error, isSameOrigin, json, safeString, uuid } from '../../_shared/http.
 import { queueCustomerNotice } from '../../_shared/notifications.js';
 
 function initials(title) {
-  const words = String(title || '').trim().split(/\\s+/).filter(Boolean);
+  const words = String(title || '').trim().split(/\s+/).filter(Boolean);
   const letters = words.map(word => word.replace(/[^A-Za-z]/g, '')[0] || '').join('').toUpperCase();
   return (letters || 'NS').slice(0, 3);
 }
 function intakeCode(value) {
   const text = String(value || '').trim();
-  const monthYear = text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\\s+(20\\d{2})/i);
+  const monthYear = text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})/i);
   if (monthYear) {
     const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
     return String(months.indexOf(monthYear[1].toLowerCase()) + 1).padStart(2,'0') + monthYear[2].slice(-2);
   }
-  const numeric = text.match(/^(0[1-9]|1[0-2])\\/?(\\d{2}|20\\d{2})$/);
+  const numeric = text.match(/^(0[1-9]|1[0-2])\/?(\d{2}|20\d{2})$/);
   if (numeric) return numeric[1] + numeric[2].slice(-2);
   return '';
 }
@@ -46,7 +46,7 @@ export async function onRequestPost(context) {
     courseCode = initials(enrollment.title) + String(number).padStart(3,'0');
     await env.DB.prepare('UPDATE courses SET course_code=? WHERE id=? AND (course_code IS NULL OR course_code=?)').bind(courseCode,enrollment.course_id,'').run();
   }
-  if (!/^[A-Z]{1,4}\\d{3}$/.test(courseCode)) return error('Set the course code in the format CP003 (letters followed by exactly three digits).',409);
+  if (!/^[A-Z]{1,4}\d{3}$/.test(courseCode)) return error('Set the course code in the format CP003 (letters followed by exactly three digits).',409);
   const seq = await env.DB.prepare(`
     INSERT INTO admission_number_sequences(course_id,intake_code,last_number) VALUES(?,?,1)
     ON CONFLICT(course_id,intake_code) DO UPDATE SET last_number=last_number+1,updated_at=CURRENT_TIMESTAMP
