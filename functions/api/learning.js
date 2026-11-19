@@ -20,6 +20,17 @@ async function hasCourseAccess(db, user, courseId) {
   return Boolean(enrollment);
 }
 
+async function hasModuleAccess(db,user,moduleId,courseId){
+  if(fullCourseRoles.includes(user.role))return true;
+  if(user.role==='tutor'){
+    const assigned=await db.prepare('SELECT id FROM module_tutor_assignments WHERE module_id=? AND tutor_user_id=?').bind(moduleId,user.id).first();
+    if(assigned)return true;
+    const legacy=await db.prepare('SELECT id FROM course_tutor_assignments WHERE course_id=? AND tutor_user_id=?').bind(courseId,user.id).first();
+    return Boolean(legacy);
+  }
+  return hasCourseAccess(db,user,courseId);
+}
+
 async function writeAudit(db, userId, action, entityType, entityId) {
   await db.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
     .bind(uuid(), userId, action, entityType, entityId).run();
@@ -238,11 +249,8 @@ export async function onRequestPost({ request, env }) {
   if (action === 'update_module') {
     const moduleId=safeString(body.moduleId,80), title=safeString(body.title,160), description=safeString(body.description,4000), status=['draft','published','archived'].includes(body.status)?body.status:'draft';
     const module=await env.DB.prepare('SELECT id,course_id FROM course_modules WHERE id=?').bind(moduleId).first();
-    if(!module||!(await hasCourseAccess(env.DB,user,module.course_id))||title.length<2)return error('Choose an available module and enter a valid title.');
-    if(user.role==='tutor'){
-      const assigned=await env.DB.prepare('SELECT id FROM module_tutor_assignments WHERE module_id=? AND tutor_user_id=?').bind(moduleId,user.id).first();
-      if(!assigned)return error('You can edit only modules assigned to your tutor account.',403);
-    }
+    if(!module||!(await hasModuleAccess(env.DB,user,moduleId,module.course_id))||title.length<2)return error('Choose a module assigned to your account and enter a valid title.');
+    if(user.role==='tutor'&&!(await hasModuleAccess(env.DB,user,moduleId,module.course_id)))return error('You can edit only modules assigned to your tutor account.',403);
     await env.DB.prepare('UPDATE course_modules SET title=?,description=?,status=? WHERE id=?').bind(title,description,status,moduleId).run();
     await writeAudit(env.DB,user.id,'lms_module_updated','course_module',moduleId);
     return json({moduleId,saved:true});
@@ -270,7 +278,7 @@ export async function onRequestPost({ request, env }) {
     const videoUrl = safeString(body.videoUrl, 500);
     const resourceUrl = safeString(body.resourceUrl, 500);
     const module = await env.DB.prepare("SELECT id,course_id FROM course_modules WHERE id = ? AND status != 'archived'").bind(moduleId).first();
-    if (!module || !(await hasCourseAccess(env.DB,user,module.course_id)) || title.length < 2) return error('Choose an available module and enter a lesson title.');
+    if (!module || !(await hasModuleAccess(env.DB,user,moduleId,module.course_id)) || title.length < 2) return error('Choose a module assigned to your account and enter a lesson title.');
     for (const value of [videoUrl, resourceUrl]) if (value && !/^https:\/\//i.test(value) && !/^\/api\/download\/[a-zA-Z0-9-]+$/.test(value)) return error('Lesson resources must use HTTPS or a saved Navstar document link.');
     const status = body.status === 'published' ? 'published' : 'draft';
     const minutes = Number.isSafeInteger(Number(body.estimatedMinutes)) ? Math.max(1, Math.min(1440, Number(body.estimatedMinutes))) : 15;
@@ -290,6 +298,7 @@ export async function onRequestPost({ request, env }) {
     const maxPoints = Number(body.maxPoints);
     const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
     if (!course || !(await hasCourseAccess(env.DB,user,courseId)) || title.length < 2 || !Number.isSafeInteger(maxPoints) || maxPoints < 1 || maxPoints > 10000) return error('Enter a valid course, assignment title and maximum score.');
+    if(user.role==='tutor'&&(!moduleId||!(await hasModuleAccess(env.DB,user,moduleId,courseId))))return error('Tutors must attach assignments to a module allocated to them.',403);
     if (moduleId) {
       const module = await env.DB.prepare('SELECT id FROM course_modules WHERE id = ? AND course_id = ?').bind(moduleId, courseId).first();
       if (!module) return error('The selected module does not belong to this course.');
