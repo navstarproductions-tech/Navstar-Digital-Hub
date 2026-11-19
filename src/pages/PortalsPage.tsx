@@ -201,7 +201,7 @@ export function PortalsPage() {
         </div>
       </section>
       <section className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        {user ? <PortalWorkspaceTabs
+        {user && user.role === 'student' && !user.profilePhotoUrl ? <section className="mx-auto max-w-2xl rounded-2xl border border-amber-200 bg-white p-7 text-center shadow-xl"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-amber-50 text-amber-700"><UserRound className="h-8 w-8"/></div><p className="mt-5 text-xs font-black uppercase tracking-[.2em] text-blue-800">NAVSTAR DIGITAL HUB · STUDENT IDENTITY</p><h2 className="mt-2 text-2xl font-black text-slate-950">Passport photo required</h2><p className="mt-3 text-sm leading-7 text-slate-600">To complete your student profile and access learning services, upload a clear passport photograph. You can upload it yourself or ask the Navstar administrator to add it to your account.</p><Button asChild className="mt-5 rounded-xl bg-blue-800"><Link to="/my-account">Upload my passport photo</Link></Button></section> : user ? <PortalWorkspaceTabs
           role={user.role as 'student'|'tutor'|'admissions'|'principal'|'finance'|'admin'}
           name={user.name}
           enrollments={enrollments}
