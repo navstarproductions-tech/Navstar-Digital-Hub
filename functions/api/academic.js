@@ -9,7 +9,9 @@ async function courseAccess(db,user,courseId){
   if(adminRoles.includes(user.role))return true;
   if(user.role==='tutor'){
     const row=await db.prepare('SELECT id FROM course_tutor_assignments WHERE course_id=? AND tutor_user_id=?').bind(courseId,user.id).first();
-    return Boolean(row);
+    if(row)return true;
+    const moduleRow=await db.prepare('SELECT a.id FROM module_tutor_assignments a JOIN course_modules m ON m.id=a.module_id WHERE m.course_id=? AND a.tutor_user_id=? LIMIT 1').bind(courseId,user.id).first();
+    return Boolean(moduleRow);
   }
   if(user.role==='student'){
     const row=await db.prepare("SELECT id FROM enrollments WHERE course_id=? AND email=? COLLATE NOCASE AND status='accepted' LIMIT 1").bind(courseId,user.email).first();
@@ -23,7 +25,7 @@ async function visibleCourseIds(db,user){
     return (r.results||[]).map(x=>x.id);
   }
   if(user.role==='tutor'){
-    const r=await db.prepare('SELECT course_id AS id FROM course_tutor_assignments WHERE tutor_user_id=?').bind(user.id).all();
+    const r=await db.prepare('SELECT DISTINCT m.course_id AS id FROM module_tutor_assignments a JOIN course_modules m ON m.id=a.module_id WHERE a.tutor_user_id=? UNION SELECT course_id AS id FROM course_tutor_assignments WHERE tutor_user_id=?').bind(user.id,user.id).all();
     return (r.results||[]).map(x=>x.id);
   }
   if(user.role==='student'){
