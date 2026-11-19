@@ -43,6 +43,7 @@ export async function onRequestGet({request,env}){
   if(!env.DB)return error('Academic portal database is not configured.',503);
   const user=await getSession(request,env);
   if(!user)return error('Sign in required.',401);
+  await ensureModuleTutorAssignments(env.DB);
   if(!['student',...staffRoles].includes(user.role))return error('This account cannot access academic records.',403);
   const ids=await visibleCourseIds(env.DB,user);
   if(!ids.length)return json({courses:[],timetable:[],attendance:[],liveClasses:[],scholarships:[],moduleRegistrations:[],assessments:[],graduation:[],reportCards:[]});
