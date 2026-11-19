@@ -49,7 +49,8 @@ export async function onRequestPost({ request, env }) {
     : 'If an active Navstar portal account matches that email address, a verification code will arrive shortly. Check your inbox and spam folder.';
   if (!account) return json({ sent: true, message: genericMessage });
 
-  account.phone = account.phone || account.profile_phone || account.enrollment_phone || '';\n  const otp = makeCode();
+  account.phone = account.phone || account.profile_phone || account.enrollment_phone || '';
+  const otp = makeCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   await env.DB.prepare("UPDATE student_recovery_codes SET used_at=datetime('now'),reset_token_hash=NULL WHERE user_id=? AND used_at IS NULL").bind(account.id).run();
   await env.DB.prepare('INSERT INTO student_recovery_codes (id,user_id,email,otp_hash,expires_at,recovery_identifier,delivery_channel) VALUES (?,?,?,?,?,?,?)')
