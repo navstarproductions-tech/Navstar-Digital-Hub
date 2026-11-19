@@ -18,6 +18,7 @@ const exploreLinks = [
   ['Gallery', '/gallery'],
   ['Fee Structures', '/fees'],
   ['Pay for Services', '/pay'],
+  ['Careers / Staff Applications', '/staff-application'],
 ];
 
 

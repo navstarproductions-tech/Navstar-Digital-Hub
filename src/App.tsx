@@ -6,6 +6,7 @@ import { Footer } from '@/components/layout/Footer';
 import { HomePage } from '@/pages/HomePage';
 import { GalleryPage } from '@/pages/GalleryPage';
 import { PublicEnrollmentPage } from '@/pages/PublicEnrollmentPage';
+import { StaffApplicationPage } from '@/pages/StaffApplicationPage';
 import { CoursesPage } from '@/pages/CoursesPage';
 import { LearningPage } from '@/pages/LearningPage';
 import { EnrollmentPage } from '@/pages/EnrollmentPage';
@@ -104,7 +105,8 @@ function AppShell() {
     || pathname === '/setup'
     || pathname === '/admin-reset'
     || pathname === '/change-password'
-    || pathname === '/my-account';
+    || pathname === '/my-account'
+    || pathname === '/staff-application';
 
   return (
     <>
@@ -115,7 +117,7 @@ function AppShell() {
             <Route path="/" element={<HomePage />} />
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/gallery" element={<GalleryPage />} />
-            <Route path="/enrollment" element={<PublicEnrollmentPage />} />
+            <Route path="/enrollment" element={<PublicEnrollmentPage />} />\n            <Route path="/staff-application" element={<StaffApplicationPage />} />
             <Route path="/learning" element={<LearningPage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/pay" element={<PayPage />} />
