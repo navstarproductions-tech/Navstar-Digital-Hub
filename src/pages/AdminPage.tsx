@@ -18,6 +18,7 @@ import { AdminWorkspaceHub } from '@/components/AdminWorkspaceHub';
 import { LearningAdminSubtab } from '@/components/LearningAdminSubtab';
 import { MarksHubWorkspace } from '@/components/MarksHubWorkspace';
 import { StudentStatusWorkspace } from '@/components/StudentStatusWorkspace';
+import { StaffApplicationsWorkspace } from '@/components/StaffApplicationsWorkspace';
 import { AdminFinancePanel } from '@/components/admin/AdminFinancePanel';
 import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
@@ -1256,7 +1257,7 @@ export function AdminPage() {
 
           {active === 'student-status' && <StudentStatusWorkspace students={portalUsers} courses={courses} applications={applications} subtab={selectedSubtab || 'Active Students'}/ >}
 
-          {active === 'staff-applications' && <AdminWorkspaceHub section="staff-applications" subtab={selectedSubtab || 'All Applications'} courses={courses} users={portalUsers} applications={applications} services={services}/ >}
+          {active === 'staff-applications' && <StaffApplicationsWorkspace subtab={selectedSubtab || 'All Applications'}/ >}
           {active === 'staff-applications' && selectedSubtab === 'Legacy Staff Applications' && <section className="space-y-4 rounded-2xl border border-cyan-400/20 bg-[#101d31] p-5 text-white">
             <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-cyan-300">Human resources · Staff recruitment</p><h3 className="mt-1 text-xl font-extrabold">{selectedSubtab || 'All Applications'}</h3><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">This is the staff recruitment register. It is kept separate from student course-enrollment applications.</p></div>
             <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs text-slate-400">Staff applications received</p><p className="mt-1 text-2xl font-black">0</p></div><div className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs text-slate-400">Pending review</p><p className="mt-1 text-2xl font-black">0</p></div><div className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs text-slate-400">Recruitment decisions</p><p className="mt-1 text-2xl font-black">0</p></div></div>
