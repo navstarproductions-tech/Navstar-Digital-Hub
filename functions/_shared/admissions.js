@@ -13,7 +13,8 @@ function intakeCode(value){
   const monthYear=text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})/i);
   if(monthYear){
     const months=['january','february','march','april','may','june','july','august','september','october','november','december'];
-    return String(months.indexOf(monthYear[1].toLowerCase())+1).padStart(2,'0')+monthYear[2].slice(-2);
+    const monthIndex=months.findIndex(month=>month.startsWith(monthYear[1].slice(0,3).toLowerCase()));
+    return String(monthIndex+1).padStart(2,'0')+monthYear[2].slice(-2);
   }
   const numeric=text.match(/^(0[1-9]|1[0-2])\/?(\d{2}|20\d{2})$/);
   return numeric?numeric[1]+numeric[2].slice(-2):'';
