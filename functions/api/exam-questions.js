@@ -40,46 +40,41 @@ export async function onRequestPost({request,env}){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
   const topic=safeString(body.topic,500),count=Math.max(1,Math.min(20,Number(body.count)||5)),level=safeString(body.level,40)||'intermediate';
   if(!topic)return error('Enter a topic or learning outcome for question generation.');
-  const apiKey=safeString(env.OPENAI_API_KEY,500);
-  if(!apiKey)return error('AI question generation is not configured. Add OPENAI_API_KEY to the Cloudflare Pages Production environment variables.',503);
-  const model=safeString(env.OPENAI_MODEL,100)||'gpt-4.1-mini';
+  const apiKey=safeString(env.GEMINI_API_KEY,500);
+  if(!apiKey)return error('AI question generation is not configured. Add GEMINI_API_KEY as a Cloudflare Pages Production secret.',503);
+  const model=safeString(env.GEMINI_MODEL,100)||'gemini-2.5-flash-lite';
   const prompt='Create '+count+' original '+level+' assessment questions about: '+topic+'. Return a JSON object with a "questions" array. Each question must contain questionText, questionType (single_choice, multiple_choice, true_false, short_answer, essay), options (array of strings), correctAnswer (string or array), points (integer), and explanation. Include answer keys. Use objective types where suitable and include at least one short answer if count permits. Do not include markdown.';
   let generated;
   try{
-   const response=await fetch('https://api.openai.com/v1/chat/completions',{
+   const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{
     method:'POST',
-    headers:{'Authorization':'Bearer '+apiKey,'Content-Type':'application/json'},
+    headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},
     body:JSON.stringify({
-     model,
-     messages:[
-      {role:'system',content:'You are an expert educational assessment author. Follow the requested question types and return valid JSON only.'},
-      {role:'user',content:prompt}
-     ],
-     response_format:{type:'json_object'},
-     max_tokens:3500,
-     temperature:0.3
+     systemInstruction:{parts:[{text:'You are an expert educational assessment author. Follow the requested question types and return valid JSON only.'}]},
+     contents:[{role:'user',parts:[{text:prompt}]}],
+     generationConfig:{responseMimeType:'application/json',maxOutputTokens:3500,temperature:0.3}
     }),
     signal:AbortSignal.timeout(45000)
    });
    const responseText=await response.text();
    let payload;
-   try{payload=JSON.parse(responseText);}catch{throw new Error('OpenAI returned a non-JSON response (HTTP '+response.status+').');}
+   try{payload=JSON.parse(responseText);}catch{throw new Error('Google Gemini returned a non-JSON response (HTTP '+response.status+').');}
    if(!response.ok){
     const status=response.status;
-    console.error('OpenAI exam generation rejected',{status,code:payload?.error?.code||null,type:payload?.error?.type||null});
-    if(status===401||status===403)throw new Error('OpenAI rejected the API key or its permissions. Check the OPENAI_API_KEY secret.');
-    if(status===429)throw new Error('OpenAI usage limit or billing quota reached. Check OpenAI API billing and usage.');
-    throw new Error('OpenAI request failed (HTTP '+status+'). '+safeString(payload?.error?.message,180));
+    console.error('Gemini exam generation rejected',{status,code:payload?.error?.status||null});
+    if(status===401||status===403)throw new Error('Google Gemini rejected the API key or its permissions. Check the GEMINI_API_KEY Cloudflare secret.');
+    if(status===429)throw new Error('The free Gemini usage limit has been reached for now. Please wait and try again later.');
+    throw new Error('Google Gemini request failed (HTTP '+status+'). '+safeString(payload?.error?.message,180));
    }
-   const content=payload?.choices?.[0]?.message?.content;
-   if(!content)throw new Error('OpenAI returned an empty response.');
+   const content=(payload?.candidates?.[0]?.content?.parts||[]).map(part=>typeof part.text==='string'?part.text:'').filter(Boolean).join('\n').trim();
+   if(!content)throw new Error('Google Gemini returned an empty response.');
    const parsed=JSON.parse(content);
    generated=Array.isArray(parsed)?parsed:parsed.questions;
   }catch(e){
-   console.error('OpenAI exam question generation failed',e?.name||'Error',safeString(e?.message,240));
-   return error(safeString(e?.message,300)||'OpenAI could not generate questions. Please try again.',502);
+   console.error('Gemini exam question generation failed',e?.name||'Error',safeString(e?.message,240));
+   return error(safeString(e?.message,300)||'Google Gemini could not generate questions. Please try again.',502);
   }
-  if(!Array.isArray(generated)||!generated.length)return error('OpenAI returned no questions. Try adjusting the topic or question count.',502);
+  if(!Array.isArray(generated)||!generated.length)return error('Google Gemini returned no questions. Try adjusting the topic or question count.',502);
   const result=await importQuestions(env.DB,user,assessmentId,generated.slice(0,count));
   return result;
  }
