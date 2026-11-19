@@ -12,7 +12,7 @@ export async function onRequestPost(context) {
   const enrollmentId=safeString(body.enrollmentId,80);
   if(!enrollmentId)return error('Select a student application.');
   try{
-    const result=await assignAdmissionNumber(context,enrollmentId,access.user.id);
+    const result=await assignAdmissionNumber(context,enrollmentId,access.user.id,safeString(body.intakeName,80));
     return json(result);
   }catch(cause){
     return error(cause instanceof Error?cause.message:'Admission number could not be generated.',Number(cause?.status)||500);
