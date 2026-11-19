@@ -126,7 +126,7 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
  },[endpoint,section,refresh]);
  const sourceRows=useMemo<Row[]>(()=>{
   if(section==='courses')return courses as unknown as Row[];
-  if(section==='student-status')return subtab==='Active Students'?users.filter(item=>item.role==='student'&&item.status==='active') as unknown as Row[]:[];
+  if(section==='student-status')return users.filter(item=>item.role==='student') as unknown as Row[];
   if(section==='school')return users.filter(item=>item.role==='student') as unknown as Row[];
   if(section==='staff-applications')return records;
   if(section==='employees'||section==='admin-access')return users.filter(item=>item.role!=='student') as unknown as Row[];
@@ -156,13 +156,16 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
   if(subtab==='Packing & Delivery')return !['completed','delivered','cancelled'].includes(status);
   if(section==='downloads'&&subtab==='Published Documents')return row.isPublic===true||row.isPublic===1;
   if(section==='student-status'&&subtab==='Active Students')return String(row.status||'').toLowerCase()==='active';
+  if(section==='student-status'&&subtab==='Deferred')return String(row.status||'').toLowerCase()==='deferred';
+  if(section==='student-status'&&subtab==='Suspended')return String(row.status||'').toLowerCase()==='suspended';
+  if(section==='student-status'&&subtab==='Removed Students')return String(row.status||'').toLowerCase()==='deleted';
   if(section==='birthday-center') {const dob=String(row.dateOfBirth||'');if(!dob)return false;const today=new Date();const next=new Date(today);next.setDate(today.getDate()+30);const birthday=new Date(dob);birthday.setFullYear(today.getFullYear());return birthday>=today&&birthday<=next;}
   return true;
  });
  const filtered=tabRows.filter(row=>JSON.stringify(row).toLowerCase().includes(query.toLowerCase()));
  const purpose=definition?.purpose||`Dedicated workspace for ${titleCase(section)}. This view keeps its records and actions separate from other Admin sections.`;
  const source=definition?.source||'Dedicated register for this section';
- const columns=section==='pos'&&subtab==='Packing & Delivery'?['reference','customerName','serviceName','status','createdAt']:section==='finance'&&subtab==='Cashouts'?['reference','amount','status','created_at','requested_by']:section==='users'&&subtab==='Staff IDs & Roles'?['name','staffId','role','department','status']:definition?.columns||['Record','Category','Status','Updated'];
+ const columns=section==='student-status'?['name','email','staffId','status']:section==='pos'&&subtab==='Packing & Delivery'?['reference','customerName','serviceName','status','createdAt']:section==='finance'&&subtab==='Cashouts'?['reference','amount','status','created_at','requested_by']:section==='users'&&subtab==='Staff IDs & Roles'?['name','staffId','role','department','status']:definition?.columns||['Record','Category','Status','Updated'];
  const rows=filtered.slice(0,30);
  const isConnected=Boolean(endpoint)||['courses','school','student-status','employees','applications','enrollment-summary','services'].includes(section);
  return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
