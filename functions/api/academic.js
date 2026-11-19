@@ -131,7 +131,7 @@ export async function onRequestPost({request,env}){
     if(!(await requireCourse(env.DB,user,courseId)))return error('You are not assigned to this course.',403);
     if(title.length<2)return error('Enter a title.');
     const startsAt=safeString(body.startsAt,40),endsAt=safeString(body.endsAt,40);
-    if(!validDate(startsAt)||(endsAt&&!validDate(endsAt))||(endsAt&&Date.parse(endsAt)<=Date.parse(startsAt)))return error('Enter valid start and end dates and times.');
+    if(!validDate(startsAt)||(endsAt&&!validDate(endsAt))||(endsAt&&Date.parse(endsAt)<=Date.parse(startsAt)&&action!=='create_assessment'))return error('Enter valid start and end dates and times.');
     const module=moduleId?await env.DB.prepare('SELECT id FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
     if(moduleId&&!module)return error('The selected module does not belong to this course.',409);
     const id=uuid();
