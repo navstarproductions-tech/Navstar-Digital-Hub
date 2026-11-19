@@ -73,7 +73,7 @@ export async function onRequestPost(context) {
   const consent = body.consent === true || body.consent === 'on';
   const birthTime = datePattern.test(dateOfBirth) ? new Date(`${dateOfBirth}T00:00:00Z`).getTime() : NaN;
   const age = Number.isFinite(birthTime) ? Math.floor((Date.now() - birthTime) / 31557600000) : -1;
-  if (!['national-id','maisha-card','birth-certificate','passport'].includes(identityType) || !safeString(body.identityNumber, 80) || age < 18 || fullName.length < 2 || !emailPattern.test(email) || !phone || !datePattern.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyContactName || !emergencyContactPhone || !consent) {
+  if (!['national-id','maisha-card','birth-certificate','passport'].includes(identityType) || !safeString(body.identityNumber, 80) || age < 18 || fullName.length < 2 || !emailPattern.test(email) || !phone || !datePattern.test(dateOfBirth) || !studyMode || !educationLevel || !emergencyContactName || !emergencyContactPhone || !consent) {
     return error('Complete all required fields with valid contact details.');
   }
 
@@ -111,7 +111,7 @@ export async function onRequestPost(context) {
     id, displayRef, course.id, fullName, email, phone, dateOfBirth, identityType, identityNumber || null,
     safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null, studyMode, educationLevel,
     safeString(intake.name, 80) || null, safeString(body.experience, 2000) || null, county, town,
-    safeString(body.address, 250) || null, safeString(body.subCounty, 100) || null, safeString(body.ward, 100) || null, safeString(body.location, 100) || null, safeString(body.subLocation, 100) || null, emergencyContactName, emergencyContactPhone,
+    null, null, null, null, null, emergencyContactName, emergencyContactPhone,
     safeString(body.emergencyContactRelationship, 80) || null, safeString(body.supportNeeds, 2000) || null,
   ).run();
   const savedDetails = { ...body };
