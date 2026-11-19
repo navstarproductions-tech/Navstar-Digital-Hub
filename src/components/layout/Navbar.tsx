@@ -9,6 +9,8 @@ const navigation = [
   { label: 'Home', to: '/' },
   { label: 'Services', to: '/services' },
   { label: 'Courses', to: '/courses' },
+  { label: 'Enrollment', to: '/enrollment' },
+  { label: 'Gallery', to: '/gallery' },
   { label: 'Campus Life', to: '/campus-life' },
   { label: 'Forum', to: '/forum' },
   { label: 'Admission Letters', to: '/admissions-letters' },
