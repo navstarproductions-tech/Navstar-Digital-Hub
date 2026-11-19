@@ -12,7 +12,7 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
   const purpose = safeString(body.purpose, 20);
   const reference = safeString(body.reference, 80);
-  const phone = normalizePhone(body.phone);\n  const requestedAmount = body.amount === undefined || body.amount === null || body.amount === '' ? null : Number(body.amount);\n  if (requestedAmount !== null && (!Number.isSafeInteger(requestedAmount) || requestedAmount < 1 || requestedAmount > 150000)) return error('Enter a valid payment amount in whole Kenya shillings.');
+  const phone = normalizePhone(body.phone);\n  const requestedAmount = body.amount === undefined || body.amount === null || body.amount === '' ? null : Number(body.amount);\n  if (requestedAmount !== null && (!Number.isSafeInteger(requestedAmount) || requestedAmount < 1 || requestedAmount > 150000)) return error('Enter a valid payment amount in whole Kenya shillings.');\n  const requestedAmount = body.amount === undefined || body.amount === null || body.amount === '' ? null : Number(body.amount);\n  if (requestedAmount !== null && (!Number.isSafeInteger(requestedAmount) || requestedAmount < 1 || requestedAmount > 150000)) return error('Enter a valid payment amount in whole Kenya shillings.');
   if (!reference || !phone || !['enrollment', 'donation', 'service'].includes(purpose)) return error('Invalid payment request.');
 
   let amount;
@@ -35,7 +35,7 @@ export async function onRequestPost({ request, env }) {
     if (!session && enrollment.status !== 'under_review') return error('Sign in to the Student Portal before requesting a payment for an existing enrolment.', 401);
     const configRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
     let config = {}; try { config = JSON.parse(configRow?.value || '{}'); } catch {}
-    const minimum = Number(config['enrollment-settings']?.minimumEnrollmentPayment || 0);\n    const admissionFeeRow = await env.DB.prepare(\"SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id = (SELECT course_id FROM enrollments WHERE id = ?) AND active = 1 AND due_stage = 'enrollment' AND required = 1\").bind(reference).first();\n    const admissionFee = Number(admissionFeeRow?.total || 0);
+    const minimum = Number(config['enrollment-settings']?.minimumEnrollmentPayment || 0);\n    const admissionFeeRow = await env.DB.prepare(\"SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id = (SELECT course_id FROM enrollments WHERE id = ?) AND active = 1 AND due_stage = 'enrollment' AND required = 1\").bind(reference).first();\n    const admissionFee = Number(admissionFeeRow?.total || 0);\n    const admissionFeeRow = await env.DB.prepare(\"SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id = (SELECT course_id FROM enrollments WHERE id = ?) AND active = 1 AND due_stage = 'enrollment' AND required = 1\").bind(reference).first();\n    const admissionFee = Number(admissionFeeRow?.total || 0);
     const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
     const paidTotal = Number(paidRow?.paid_total || 0);
     if (enrollment.status === 'under_review' && paidTotal === 0) {
