@@ -9,7 +9,7 @@ export async function onRequestGet({request,env}) {
   if(!courseId)return error('Select a course.');
   const course=await env.DB.prepare('SELECT id,title,price,course_code FROM courses WHERE id=?').bind(courseId).first();
   if(!course)return error('Course not found.',404);
-  const rows=await env.DB.prepare('SELECT id,item_name AS itemName,amount,due_stage AS dueStage,required,sort_order AS sortOrder,active FROM course_fee_items WHERE course_id=? ORDER BY sort_order,item_name').bind(courseId).all();
+  const rows=await env.DB.prepare('SELECT id,item_name AS itemName,amount,due_stage AS dueStage,required,sort_order AS sortOrder,active FROM course_fee_items WHERE course_id=? AND active=1 ORDER BY sort_order,item_name').bind(courseId).all();
   return json({course,items:rows.results||[]});
 }
 export async function onRequestPut({request,env}) {
@@ -38,11 +38,11 @@ export async function onRequestPut({request,env}) {
   if(!admission||admission.amount<1||admission.required!==1||admission.dueStage!=='enrollment')return error('Keep an active, required Admission fee item with a positive amount due at enrolment.');
   const total=normalized.filter(item=>item.active===1).reduce((sum,item)=>sum+item.amount,0);
   if(total!==Number(course.price))return error('Active fee items must total the published course fee of KSh '+Number(course.price).toLocaleString('en-KE')+'. Adjust the fee items or update the course fee first.');
-  const statements=normalized.map(item=>env.DB.prepare(`
+  const statements=[env.DB.prepare('UPDATE course_fee_items SET active=0,updated_at=CURRENT_TIMESTAMP WHERE course_id=?').bind(courseId),...normalized.map(item=>env.DB.prepare(`
     INSERT INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active)
     VALUES(?,?,?,?,?,?,?,?)
     ON CONFLICT(course_id,item_name) DO UPDATE SET amount=excluded.amount,due_stage=excluded.due_stage,required=excluded.required,sort_order=excluded.sort_order,active=excluded.active,updated_at=CURRENT_TIMESTAMP
-  `).bind(item.id,courseId,item.itemName,item.amount,item.dueStage,item.required,item.sortOrder,item.active));
+  `).bind(item.id,courseId,item.itemName,item.amount,item.dueStage,item.required,item.sortOrder,item.active))];
   await env.DB.batch(statements);
   const retainedNames = normalized.map(item => item.itemName.toLowerCase());
   if (retainedNames.length) {
