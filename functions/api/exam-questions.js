@@ -125,11 +125,11 @@ export async function onRequestPost({request,env}){
 async function importQuestions(db,user,assessmentId,items){
  if(!items.length||items.length>500)return error('No valid questions to import.');
  for(const q of items){
-  const question=safeString(q.questionText||q.question,2000),type=safeString(q.type||q.questionType,24),options=Array.isArray(q.options)?q.options:[];
+  const question=safeString(q.questionText||q.question,2000),type=safeString(q.type||q.questionType,24),options=Array.isArray(q.options)?q.options:[],answer=q.correctAnswer??q.answer??null;
   if(!question||!['single_choice','multiple_choice','true_false','short_answer','essay'].includes(type))return error('CSV contains an invalid question or type.');
-  if(['single_choice','multiple_choice','true_false'].includes(type)&&(!options.length||!q.answer))return error('Objective CSV rows require options and answer.');
+  if(['single_choice','multiple_choice','true_false'].includes(type)&&(!options.length||answer===null||answer===''))return error('Objective questions require options and a correct answer.');
   const points=Number(q.points||1);if(!Number.isInteger(points)||points<1||points>1000)return error('Invalid question marks.');
-  await db.prepare('INSERT INTO course_exam_questions(id,assessment_id,question_text,question_type,options_json,correct_answer_json,explanation,points,created_by) VALUES(?,?,?,?,?,?,?,?,?)').bind(uuid(),assessmentId,question,type,JSON.stringify(options),JSON.stringify(q.answer),safeString(q.explanation,1500),points,user.id).run();
+  await db.prepare('INSERT INTO course_exam_questions(id,assessment_id,question_text,question_type,options_json,correct_answer_json,explanation,points,created_by) VALUES(?,?,?,?,?,?,?,?,?)').bind(uuid(),assessmentId,question,type,JSON.stringify(options),JSON.stringify(answer),safeString(q.explanation,1500),points,user.id).run();
  }
  return json({imported:items.length});
 }
