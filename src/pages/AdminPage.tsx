@@ -511,7 +511,7 @@ export function AdminPage() {
       const statusIndex = at('status');
       const orderIndex = at('moduleorder') >= 0 ? at('moduleorder') : at('sortorder');
 
-      const normalizeCourseName=(value:string)=>value.toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim().split(/\\s+/).filter(word=>!['course','coding','code','level','programme','program','class','training','the','and','in','of'].includes(word)).join(' ');
+      const normalizeCourseName=(value:string)=>value.toLowerCase().normalize('NFKD').replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim().split(' ').filter(Boolean).filter(word=>!['course','coding','code','level','programme','program','class','training','the','and','in','of'].includes(word)).join(' ');
       const resolveCourse=(idValue:string,nameValue:string,codeValue:string)=>{
         if(idValue){const byId=learningCourses.find(item=>item.id.toLowerCase()===idValue.toLowerCase());if(byId)return byId;}
         if(codeValue){const byCode=learningCourses.find(item=>String(item.course_code||'').trim().toUpperCase()===codeValue);if(byCode)return byCode;}
