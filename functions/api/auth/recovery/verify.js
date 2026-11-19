@@ -1,4 +1,4 @@
-import { error, isSameOrigin, json, readJson, safeString } from '../../../_shared/http.js';
+import { error, isSameOrigin, json, readJson, safeString, normalizePhone } from '../../../_shared/http.js';
 
 const digest = async value => {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -15,7 +15,7 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await readJson(request, 2048); } catch { return error('Enter your email and verification code.'); }
   const channel = body.channel === 'sms' ? 'sms' : 'email';
-  const identifier = channel === 'sms' ? safeString(body.identifier, 30) : safeString(body.identifier ?? body.email, 254).toLowerCase();
+  const identifier = channel === 'sms' ? normalizePhone(body.identifier) : safeString(body.identifier ?? body.email, 254).toLowerCase();
   const otp = safeString(body.otp, 6);
   if (!identifier || !/^\d{6}$/.test(otp)) return error('The contact or verification code is incorrect.');
 
