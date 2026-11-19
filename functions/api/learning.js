@@ -41,7 +41,7 @@ export async function onRequestGet({ request, env }) {
   } else if (user.role === 'tutor') {
     courses = await env.DB.prepare("SELECT c.id, c.title, c.description, c.duration, c.image_url AS image, c.category, c.level, c.course_code FROM courses c JOIN course_tutor_assignments a ON a.course_id = c.id WHERE c.status = 'active' AND a.tutor_user_id = ? ORDER BY c.title").bind(user.id).all();
   } else {
-    courses = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, level, course_code FROM courses WHERE status = 'active' ORDER BY title").all();
+    courses = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, level, course_code FROM courses WHERE (? IN ('admin','principal') OR status = 'active') ORDER BY title").bind(user.role).all();
   }
   const courseRows = courses.results ?? [];
   const courseIds = courseRows.map((course) => course.id);
@@ -165,8 +165,8 @@ export async function onRequestPost({ request, env }) {
       const row=rows[index]||{},courseId=safeString(row.courseId,80),title=safeString(row.title,160);
       if(!courseId||title.length<2)return error(`Module row ${index+1} needs a valid course and module title. Nothing was imported.`);
       if(!courseCache.has(courseId)){
-        const course=await env.DB.prepare("SELECT id FROM courses WHERE id=? AND status='active'").bind(courseId).first();
-        courseCache.set(courseId,Boolean(course&&await hasCourseAccess(env.DB,user,courseId)));
+        const course=await env.DB.prepare('SELECT id,status FROM courses WHERE id=?').bind(courseId).first();
+        courseCache.set(courseId,Boolean(course&&(course.status==='active'||fullCourseRoles.includes(user.role))&&await hasCourseAccess(env.DB,user,courseId)));
       }
       if(!courseCache.get(courseId))return error(`Module row ${index+1} is assigned to a course that is inactive or not assigned to your account. Nothing was imported.`,403);
       normalized.push({courseId,title,description:safeString(row.description,4000),status:row.status==='published'?'published':'draft',sortOrder:Number.isSafeInteger(Number(row.sortOrder))?Math.max(0,Math.min(10000,Number(row.sortOrder))):index+1});
@@ -195,7 +195,7 @@ export async function onRequestPost({ request, env }) {
     const invalid = normalized.findIndex(row => !row.courseId || row.title.length < 2);
     if (invalid >= 0) return error(`Module row ${invalid + 1} needs a valid active course association and a title of at least 2 characters. Nothing was imported.`);
     const courseIds = [...new Set(normalized.map(row => row.courseId))];
-    const activeCourses = await env.DB.prepare(`SELECT id FROM courses WHERE status='active' AND id IN (${courseIds.map(() => '?').join(',')})`).bind(...courseIds).all();
+    const activeCourses = await env.DB.prepare(`SELECT id FROM courses WHERE (? IN ('admin','principal') OR status='active') AND id IN (${courseIds.map(() => '?').join(',')})`).bind(user.role,...courseIds).all();
     const activeIds = new Set((activeCourses.results || []).map(course => course.id));
     for (const courseId of courseIds) {
       if (!activeIds.has(courseId) || !(await hasCourseAccess(env.DB, user, courseId))) {
@@ -222,8 +222,8 @@ export async function onRequestPost({ request, env }) {
     const courseId = safeString(body.courseId, 80);
     const title = safeString(body.title, 160);
     const description = safeString(body.description, 4000);
-    const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
-    if (!course || !(await hasCourseAccess(env.DB,user,courseId)) || title.length < 2) return error('Choose an active course assigned to your account and enter a module title.');
+    const course = await env.DB.prepare('SELECT id,status FROM courses WHERE id = ?').bind(courseId).first();
+    if (!course || (course.status !== 'active' && !fullCourseRoles.includes(user.role)) || !(await hasCourseAccess(env.DB,user,courseId)) || title.length < 2) return error('Choose a course available to your account and enter a module title. Administrators may prepare modules before publishing a course.');
     const status = body.status === 'published' ? 'published' : 'draft';
     const id = uuid();
     const order = Number.isSafeInteger(Number(body.sortOrder)) ? Math.max(0, Math.min(10000, Number(body.sortOrder))) : 0;
@@ -241,7 +241,7 @@ export async function onRequestPost({ request, env }) {
     const resourceUrl = safeString(body.resourceUrl, 500);
     const module = await env.DB.prepare("SELECT id,course_id FROM course_modules WHERE id = ? AND status != 'archived'").bind(moduleId).first();
     if (!module || !(await hasCourseAccess(env.DB,user,module.course_id)) || title.length < 2) return error('Choose an available module and enter a lesson title.');
-    for (const value of [videoUrl, resourceUrl]) if (value && !/^https:\/\//i.test(value)) return error('Lesson video and resource links must use HTTPS.');
+    for (const value of [videoUrl, resourceUrl]) if (value && !/^https:\/\//i.test(value) && !/^\/api\/download\/[a-zA-Z0-9-]+$/.test(value)) return error('Lesson resources must use HTTPS or a saved Navstar document link.');
     const status = body.status === 'published' ? 'published' : 'draft';
     const minutes = Number.isSafeInteger(Number(body.estimatedMinutes)) ? Math.max(1, Math.min(1440, Number(body.estimatedMinutes))) : 15;
     const id = uuid();
