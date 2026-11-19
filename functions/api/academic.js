@@ -56,7 +56,9 @@ export async function onRequestGet({request,env}){
   const graduation=user.role==='student'?(await env.DB.prepare(`SELECT g.*,c.title AS course_title FROM student_graduation_records g JOIN courses c ON c.id=g.course_id WHERE g.user_id=?`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT g.*,c.title AS course_title,u.name AS student_name FROM student_graduation_records g JOIN courses c ON c.id=g.course_id JOIN users u ON u.id=g.user_id WHERE g.course_id IN (${marks}) ORDER BY c.title,u.name`).bind(...ids).all()).results||[];
   const reportCards=user.role==='student'?(await env.DB.prepare('SELECT r.*,c.title AS course_title FROM student_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY r.issued_at DESC').bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT r.*,c.title AS course_title,u.name AS student_name FROM student_report_cards r JOIN courses c ON c.id=r.course_id JOIN users u ON u.id=r.user_id WHERE r.course_id IN (${marks}) ORDER BY r.issued_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const assessmentResults=user.role==='student'?[]:(await env.DB.prepare(`SELECT r.*,a.title AS assessment_title,a.course_id,u.name AS student_name,c.title AS course_title FROM course_assessment_results r JOIN course_assessments a ON a.id=r.assessment_id JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=a.course_id WHERE a.course_id IN (${marks}) ORDER BY r.marked_at DESC LIMIT 500`).bind(...ids).all()).results||[];
-  return json({courses,learners,timetable,attendance,liveClasses,scholarships,moduleRegistrations,assessments,assessmentResults,graduation,reportCards,role:user.role});
+  const assessmentAttempts=user.role==='student'?(await env.DB.prepare(`SELECT t.*,a.title AS assessment_title,a.course_id,a.max_points,a.instructions,c.title AS course_title FROM course_assessment_attempts t JOIN course_assessments a ON a.id=t.assessment_id JOIN courses c ON c.id=a.course_id WHERE t.user_id=? ORDER BY t.submitted_at DESC`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT t.*,a.title AS assessment_title,a.course_id,a.max_points,u.name AS student_name,c.title AS course_title FROM course_assessment_attempts t JOIN course_assessments a ON a.id=t.assessment_id JOIN users u ON u.id=t.user_id JOIN courses c ON c.id=a.course_id WHERE a.course_id IN (${marks}) ORDER BY t.submitted_at DESC LIMIT 500`).bind(...ids).all()).results||[];
+  const scholarshipApplications=user.role==='student'?[]:(await env.DB.prepare(`SELECT a.*,s.title AS scholarship_title,s.course_id,u.name AS student_name,u.email,c.title AS course_title FROM scholarship_applications a JOIN course_scholarships s ON s.id=a.scholarship_id JOIN users u ON u.id=a.user_id LEFT JOIN courses c ON c.id=s.course_id WHERE (s.course_id IS NULL OR s.course_id IN (${marks})) ORDER BY a.created_at DESC LIMIT 500`).bind(...ids).all()).results||[];
+  return json({courses,learners,timetable,attendance,liveClasses,scholarships,moduleRegistrations,assessments,assessmentResults,assessmentAttempts,scholarshipApplications,graduation,reportCards,role:user.role});
 }
 export async function onRequestPost({request,env}){
   if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
@@ -77,6 +79,42 @@ export async function onRequestPost({request,env}){
     const id=uuid();
     await env.DB.prepare("INSERT INTO student_module_registrations(id,user_id,course_id,module_id) VALUES(?,?,?,?) ON CONFLICT(user_id,module_id) DO UPDATE SET status='registered'").bind(id,user.id,module.course_id,moduleId).run();
     return json({registered:true,moduleId});
+  }
+
+  if(action==='submit_assessment'){
+    if(user.role!=='student')return error('Only students can submit tests and examinations.',403);
+    const assessmentId=safeString(body.assessmentId,80),responseText=safeString(body.responseText,12000),attachmentUrl=safeString(body.attachmentUrl,500);
+    const assessment=await env.DB.prepare("SELECT id,course_id,status,due_at FROM course_assessments WHERE id=?").bind(assessmentId).first();
+    if(!assessment||assessment.status!=='published'||!(await courseAccess(env.DB,user,assessment.course_id)))return error('This assessment is not available to your account.',403);
+    if(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())return error('The submission deadline has passed.',409);
+    if(!responseText&&!attachmentUrl)return error('Provide your answer or attach a secure HTTPS document.');
+    if(attachmentUrl&&!/^https:\\/\\//i.test(attachmentUrl))return error('Assessment attachments must use HTTPS.');
+    const existing=await env.DB.prepare('SELECT status FROM course_assessment_attempts WHERE assessment_id=? AND user_id=?').bind(assessmentId,user.id).first();
+    if(existing?.status==='graded')return error('This assessment has already been graded. Contact your tutor if a correction is needed.',409);
+    await env.DB.prepare("INSERT INTO course_assessment_attempts(id,assessment_id,user_id,response_text,attachment_url,status) VALUES(?,?,?,?,?,'submitted') ON CONFLICT(assessment_id,user_id) DO UPDATE SET response_text=excluded.response_text,attachment_url=excluded.attachment_url,status='submitted',submitted_at=CURRENT_TIMESTAMP").bind(uuid(),assessmentId,user.id,responseText,attachmentUrl||null).run();
+    return json({submitted:true});
+  }
+
+  if(action==='grade_assessment_attempt'){
+    const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
+    const attemptId=safeString(body.attemptId,80),points=Number(body.pointsAwarded),feedback=safeString(body.feedback,3000);
+    const attempt=await env.DB.prepare('SELECT t.id,t.assessment_id,t.user_id,a.course_id,a.max_points FROM course_assessment_attempts t JOIN course_assessments a ON a.id=t.assessment_id WHERE t.id=?').bind(attemptId).first();
+    if(!attempt||!(await courseAccess(env.DB,user,attempt.course_id))||!Number.isSafeInteger(points)||points<0||points>Number(attempt.max_points))return error('Choose a valid attempt and a score within the assessment maximum.',409);
+    await env.DB.batch([
+      env.DB.prepare("UPDATE course_assessment_attempts SET status='graded',points_awarded=?,feedback=?,marked_by=?,marked_at=CURRENT_TIMESTAMP WHERE id=?").bind(points,feedback,user.id,attemptId),
+      env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by) VALUES(?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP").bind(uuid(),attempt.assessment_id,attempt.user_id,points,feedback,body.publish===false?null:new Date().toISOString(),user.id)
+    ]);
+    return json({graded:true});
+  }
+
+  if(action==='review_scholarship'){
+    const access=await requireRole(request,env,['admin']);if(access.response)return access.response;
+    const applicationId=safeString(body.applicationId,80),status=safeString(body.status,20);
+    if(!['approved','rejected','pending'].includes(status))return error('Choose an allowed scholarship decision.');
+    const result=await env.DB.prepare('UPDATE scholarship_applications SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,user.id,applicationId).run();
+    if(!result.meta?.changes)return error('Scholarship application not found.',404);
+    await audit('scholarship_application_reviewed','scholarship_application',applicationId);
+    return json({saved:true,status});
   }
 
   if(action==='apply_scholarship'){
