@@ -28,6 +28,12 @@ export async function onRequestPost({ request, env }) {
   await env.DB.prepare("INSERT INTO courses (id, title, description, duration, image_url, category, price, status, level, course_code) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)")
     .bind(id, title, description, duration, image, category, price, level, courseCode || null).run();
   await env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?,'Admission fee',0,'enrollment',1,1,1)").bind('admission-'+id,id).run();
+  await env.DB.batch([
+    env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?,'Tuition fee',0,'before_term',1,2,1)").bind('tuition-'+id,id),
+    env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?,'Registration fee',0,'enrollment',0,3,1)").bind('registration-'+id,id),
+    env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?,'Examination fee',0,'before_term',0,4,1)").bind('examination-'+id,id),
+    env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?,'Learning materials',0,'anytime',0,5,1)").bind('materials-'+id,id)
+  ]);
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
     .bind(uuid(), access.user.id, 'course_created', 'course', id).run();
   return json({ id, title, description, duration, image, category, price, level, course_code: courseCode || null, status: 'active' }, 201);
