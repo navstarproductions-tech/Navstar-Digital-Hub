@@ -291,7 +291,7 @@ export function AdminPage() {
   const [learningModuleId, setLearningModuleId] = useState('');
   const [learningModuleTitle, setLearningModuleTitle] = useState('');
   const [learningModuleDescription, setLearningModuleDescription] = useState('');
-  const [moduleImportRows, setModuleImportRows] = useState<{ title: string; description: string; status: string; sortOrder: number }[]>([]);
+  const [moduleImportRows, setModuleImportRows] = useState<{ courseId: string; courseName: string; title: string; description: string; status: string; sortOrder: number }[]>([]);
   const [moduleImportName, setModuleImportName] = useState('');
   const [serviceImportRows, setServiceImportRows] = useState<{ name: string; category: string; price: string; priceAmount: string }[]>([]);
   const [learnerImportRows, setLearnerImportRows] = useState<{ admissionNumber: string; firstName: string; middleName: string; lastName: string; classId: string; gender: string; dateOfBirth: string }[]>([]);
@@ -487,22 +487,35 @@ export function AdminPage() {
       const parsed = parseCsv(await file.text());
       if (parsed.length < 2) throw new Error('The CSV must include a header row and at least one module row.');
       const headers = parsed[0].map(value => value.toLowerCase().replace(/[^a-z]/g, ''));
-      const titleIndex = headers.indexOf('title');
-      if (titleIndex < 0) throw new Error('The template must contain a title column.');
-      const descriptionIndex = headers.indexOf('description');
-      const statusIndex = headers.indexOf('status');
-      const orderIndex = headers.indexOf('sortorder');
-      const rows = parsed.slice(1).map((row, index) => ({
-        title: row[titleIndex] || '',
-        description: descriptionIndex >= 0 ? row[descriptionIndex] || '' : '',
-        status: statusIndex >= 0 && row[statusIndex]?.toLowerCase() === 'published' ? 'published' : 'draft',
-        sortOrder: orderIndex >= 0 && Number.isFinite(Number(row[orderIndex])) ? Number(row[orderIndex]) : index + 1,
-      })).filter(row => row.title.trim());
+      const at = (key: string) => headers.indexOf(key);
+      const titleIndex = at('modulename') >= 0 ? at('modulename') : at('title');
+      const courseIdIndex = at('courseid');
+      const courseNameIndex = at('coursename');
+      if (titleIndex < 0 || (courseIdIndex < 0 && courseNameIndex < 0)) throw new Error('The CSV must include Course ID or Course Name, Module Name and Module Order columns.');
+      const descriptionIndex = at('description');
+      const statusIndex = at('status');
+      const orderIndex = at('moduleorder') >= 0 ? at('moduleorder') : at('sortorder');
+      if (orderIndex < 0) throw new Error('Add a Module Order column so the modules are saved in the correct sequence.');
+      const rows = parsed.slice(1).map((row, index) => {
+        const courseIdValue = courseIdIndex >= 0 ? (row[courseIdIndex] || '').trim() : '';
+        const courseNameValue = courseNameIndex >= 0 ? (row[courseNameIndex] || '').trim() : '';
+        const course = learningCourses.find(item => (courseIdValue && item.id === courseIdValue) || (courseNameValue && item.title.toLowerCase() === courseNameValue.toLowerCase()));
+        return {
+          courseId: course?.id || '',
+          courseName: course?.title || courseNameValue || courseIdValue,
+          title: titleIndex >= 0 ? (row[titleIndex] || '').trim() : '',
+          description: descriptionIndex >= 0 ? row[descriptionIndex] || '' : '',
+          status: statusIndex >= 0 && row[statusIndex]?.toLowerCase() === 'published' ? 'published' : 'draft',
+          sortOrder: orderIndex >= 0 && Number.isFinite(Number(row[orderIndex])) ? Number(row[orderIndex]) : index + 1,
+        };
+      }).filter(row => row.title);
       if (!rows.length) throw new Error('No valid module rows were found in that file.');
       if (rows.length > 100) throw new Error('Upload up to 100 modules at a time.');
+      const unresolved = rows.filter(row => !row.courseId);
+      if (unresolved.length) throw new Error('Every module row must match an active course by its exact Course ID or Course Name. Check: ' + unresolved.map(row => row.courseName).slice(0, 3).join(', '));
       setModuleImportRows(rows);
       setModuleImportName(file.name);
-      setNotice(`${rows.length} module rows are ready to import. Review the course selection before saving.`);
+      setNotice(`${rows.length} module rows across ${new Set(rows.map(row => row.courseId)).size} courses are ready. Each module will be routed to its selected course in the listed order.`);
     } catch (error) {
       setModuleImportRows([]);
       setModuleImportName('');
@@ -511,9 +524,15 @@ export function AdminPage() {
   };
 
   const importModules = async () => {
-    if (!learningCourseId || !moduleImportRows.length) { setNotice('Select a course and choose a completed module template first.'); return; }
-    const saved = await submitLearningAction({ action: 'bulk_create_modules', courseId: learningCourseId, rows: moduleImportRows }, 'Modules imported and saved successfully.');
-    if (saved) { setModuleImportRows([]); setModuleImportName(''); }
+    if (!moduleImportRows.length) { setNotice('Choose a completed module CSV first.'); return; }
+    const groups = [...new Set(moduleImportRows.map(row => row.courseId))];
+    for (const courseId of groups) {
+      const rows = moduleImportRows.filter(row => row.courseId === courseId).sort((a,b) => a.sortOrder-b.sortOrder);
+      const saved = await submitLearningAction({ action: 'bulk_create_modules', courseId, rows: rows.map(({courseId:_id,courseName:_name,...row})=>row) }, 'Modules imported and routed to their selected courses successfully.');
+      if (!saved) return;
+    }
+    setModuleImportRows([]); setModuleImportName('');
+    setNotice('All module rows have been imported into their matching courses in module order.');
   };
 
   const readServiceImport = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -1175,9 +1194,9 @@ export function AdminPage() {
             <section className="grid gap-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-[#0b2854] to-[#123e78] p-5 text-white xl:grid-cols-[1.2fr_1fr]">
               <div><h3 className="font-bold">Bulk module upload & branded registers</h3><p className="mt-1 text-xs leading-5 text-blue-100">Download the Navstar CSV template, fill in module details and import up to 100 rows at once. Existing records are retained.</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => downloadCsvTemplate('navstar-module-import-template.csv', ['title','description','status','sortOrder'], ['Introduction to the course','Module learning objectives','draft','1'])}>Download module template</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => downloadCsvTemplate('navstar-module-import-template.csv', ['courseId','courseName','moduleOrder','moduleName','description','status'], [learningCourses[0]?.id || 'COURSE_ID',learningCourses[0]?.title || 'Course Name','1','Introduction to the course','Module learning objectives','draft'])}>Download module template</Button>
                   <label className="inline-flex cursor-pointer items-center rounded-md border border-white/30 px-3 py-2 text-xs font-semibold hover:bg-white/10">Choose CSV file<input type="file" accept=".csv,text/csv" className="sr-only" onChange={readModuleImport}/></label>
-                  <Button type="button" size="sm" disabled={!moduleImportRows.length || !learningCourseId} onClick={() => void importModules()}>Import {moduleImportRows.length || ''} modules</Button>
+                  <Button type="button" size="sm" disabled={!moduleImportRows.length} onClick={() => void importModules()}>Import {moduleImportRows.length || ''} modules</Button>
                 </div>
                 {moduleImportName && <p className="mt-2 text-xs text-cyan-100">Selected: {moduleImportName} · {moduleImportRows.length} valid rows</p>}
               </div>
