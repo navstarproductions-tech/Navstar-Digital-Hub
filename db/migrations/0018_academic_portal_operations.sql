@@ -97,3 +97,30 @@ CREATE TABLE IF NOT EXISTS student_report_cards (
   UNIQUE(user_id,course_id,period_label)
 );
 CREATE INDEX IF NOT EXISTS idx_report_cards_user ON student_report_cards(user_id,issued_at);
+
+CREATE TABLE IF NOT EXISTS course_assessments (
+  id TEXT PRIMARY KEY,
+  course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  module_id TEXT REFERENCES course_modules(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  assessment_type TEXT NOT NULL DEFAULT 'test' CHECK(assessment_type IN ('test','exam','practical','cat')),
+  instructions TEXT NOT NULL DEFAULT '',
+  starts_at TEXT,
+  due_at TEXT,
+  max_points INTEGER NOT NULL DEFAULT 100 CHECK(max_points BETWEEN 1 AND 10000),
+  status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','published','closed')),
+  created_by TEXT NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS course_assessment_results (
+  id TEXT PRIMARY KEY,
+  assessment_id TEXT NOT NULL REFERENCES course_assessments(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  points_awarded INTEGER NOT NULL CHECK(points_awarded>=0),
+  feedback TEXT NOT NULL DEFAULT '',
+  published_at TEXT,
+  marked_by TEXT NOT NULL REFERENCES users(id),
+  marked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(assessment_id,user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_assessment_results_user ON course_assessment_results(user_id,published_at);
