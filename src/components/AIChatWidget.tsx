@@ -43,9 +43,11 @@ export function AIChatWidget(){
  const [messages,setMessages]=useState<Message[]>([{role:'assistant',content:'Hello! I am **Navstar AI**. Ask me anything, upload an image or document, or paste your work for help. I can explain, analyse, summarise and help you create content.'}]);
  const addFiles=async(files:FileList|null)=>{
   if(!files)return;setError('');
+  let totalBytes=attachments.reduce((sum,file)=>sum+file.size,0);
   for(const file of Array.from(files)){
    if(attachments.length>=5){setError('You can attach up to 5 files per message.');break;}
    if(file.size>MAX_FILE){setError(file.name+' is larger than 8 MB.');continue;}
+   if(totalBytes+file.size>10*1024*1024){setError('Keep the combined attachments under 10 MB per message.');break;}
    const isImage=file.type.startsWith('image/');
    const isPdf=file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf');
    const isText=TEXT_TYPES.has(file.type)||TEXT_EXT.test(file.name);
@@ -53,6 +55,7 @@ export function AIChatWidget(){
    try{
     const data=isText?await file.text():await readFile(file);
     setAttachments(current=>[...current,{name:file.name,mimeType:file.type|| (isPdf?'application/pdf':'text/plain'),data,kind:isImage?'image':isPdf?'pdf':'text',size:file.size}]);
+    totalBytes+=file.size;
    }catch(e){setError(e instanceof Error?e.message:'File could not be read.');}
   }
   if(fileRef.current)fileRef.current.value='';
@@ -89,7 +92,7 @@ export function AIChatWidget(){
     <div className="mb-2 flex items-center gap-1 rounded-xl bg-slate-50 p-1"><span className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Format</span><button type="button" onClick={()=>format('**')} title="Bold" className="rounded-lg p-2 text-slate-600 hover:bg-blue-100 hover:text-blue-800"><Bold className="h-4 w-4"/></button><button type="button" onClick={()=>format('*')} title="Italic" className="rounded-lg p-2 text-slate-600 hover:bg-blue-100 hover:text-blue-800"><Italic className="h-4 w-4"/></button><button type="button" onClick={()=>format('- ' ,'')} title="Bullet list" className="rounded-lg p-2 text-slate-600 hover:bg-blue-100 hover:text-blue-800"><List className="h-4 w-4"/></button><button type="button" onClick={()=>format('`')} title="Code" className="rounded-lg p-2 text-slate-600 hover:bg-blue-100 hover:text-blue-800"><Code2 className="h-4 w-4"/></button><span className="ml-auto pr-2 text-[10px] text-slate-400">Markdown supported</span></div>
     <form onSubmit={event=>{event.preventDefault();void send();}} className="rounded-2xl border border-slate-300 bg-white p-2 shadow-inner focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
      <textarea ref={inputRef} value={input} onChange={event=>setInput(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void send();}}} placeholder="Ask Navstar AI anything… (Shift + Enter for new line)" className="max-h-32 min-h-[68px] w-full resize-y border-0 bg-transparent px-2 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-0" maxLength={6000}/>
-     <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2"><div className="flex items-center gap-1"><input ref={fileRef} type="file" multiple accept="image/*,application/pdf,.txt,.md,.csv,.json,.html,.xml,.js,.ts,.tsx,.jsx,.css,.py,.java,.sql,.log,.yaml,.yml" className="hidden" onChange={event=>void addFiles(event.target.files)}/><button type="button" onClick={()=>fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-900 hover:bg-blue-100"><Paperclip className="h-4 w-4"/>Attach files</button><span className="text-[10px] text-slate-400">Images · PDF · text · max 8 MB each</span></div><button type="submit" disabled={busy||(!input.trim()&&!attachments.length)} aria-label="Send message" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-900 to-blue-700 px-4 py-2.5 text-xs font-extrabold text-white shadow-md hover:from-blue-800 disabled:opacity-40"><Send className="h-4 w-4"/>Send</button></div>
+     <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2"><div className="flex items-center gap-1"><input ref={fileRef} type="file" multiple accept="image/*,application/pdf,.txt,.md,.csv,.json,.html,.xml,.js,.ts,.tsx,.jsx,.css,.py,.java,.sql,.log,.yaml,.yml" className="hidden" onChange={event=>void addFiles(event.target.files)}/><button type="button" onClick={()=>fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-900 hover:bg-blue-100"><Paperclip className="h-4 w-4"/>Attach files</button><span className="text-[10px] text-slate-400">Images · PDF · text · max 8 MB each / 10 MB total</span></div><button type="submit" disabled={busy||(!input.trim()&&!attachments.length)} aria-label="Send message" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-900 to-blue-700 px-4 py-2.5 text-xs font-extrabold text-white shadow-md hover:from-blue-800 disabled:opacity-40"><Send className="h-4 w-4"/>Send</button></div>
     </form>
     <div className="mt-2 flex gap-2 overflow-x-auto pb-1">{quickLinks.map(([label,path])=><Link key={path} to={path} onClick={()=>setOpen(false)} className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[10px] font-semibold text-blue-900">{label}</Link>)}</div><p className="mt-1 text-[10px] text-slate-400">Never share passwords, PINs or private payment credentials. Files are sent to the AI provider for analysis.</p>
    </div>
