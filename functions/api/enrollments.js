@@ -122,8 +122,7 @@ export async function onRequestPost(context) {
     env.DB.prepare("UPDATE enrollment_application_otps SET consumed_at = datetime('now') WHERE id = ? AND consumed_at IS NULL")
       .bind(verification.id)
   ]);
-  const installmentLines = String(rules.installmentPlans || '').split(/\r?
-/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && (parts[0] === course.id || parts[0].toLowerCase() === String(course.title).toLowerCase()));
+  const installmentLines = String(rules.installmentPlans || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && (parts[0] === course.id || parts[0].toLowerCase() === String(course.title).toLowerCase()));
   const installments = installmentLines.map(parts => ({ label: parts[1], amount: Number(parts[2]), dueDate: parts[3] || '' }));
   return json({ id, reference: displayRef, status: 'awaiting_payment', paymentRequired: true, amountDueNow, installments, course: { id: course.id, title: course.title, amount: course.price } }, 201);
 }
