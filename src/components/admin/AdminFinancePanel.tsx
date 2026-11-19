@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { formatEATDateTime } from '@/lib/datetime';
+import { exportBrandedData } from '@/lib/navstar-data-tools';
 
 type FinancePayment = {
   id: string; purpose: string; display_reference?: string; receipt_number?: string; mpesa_receipt?: string;
@@ -12,7 +13,7 @@ type FinanceTotals = { transaction_count?: number; mpesa_received?: number; admi
 type Balance = { balance_text?: string; balance_amount?: number | null; currency?: string; received_at?: string; result_description?: string };
 type FinanceResponse = { payments?: FinancePayment[]; totals?: FinanceTotals; mpesaBalance?: Balance | null; error?: string };
 
-export function AdminFinancePanel({ role }: { role: string }) {
+export function AdminFinancePanel({ role, ledger = 'business' }: { role: string; ledger?: 'business' | 'fees' }) {
   const [payments, setPayments] = useState<FinancePayment[]>([]);
   const [totals, setTotals] = useState<FinanceTotals>({});
   const [balance, setBalance] = useState<Balance | null>(null);
@@ -22,7 +23,7 @@ export function AdminFinancePanel({ role }: { role: string }) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/payments', { headers: { Accept: 'application/json' } });
+      const response = await fetch('/api/admin/payments?ledger=' + ledger, { headers: { Accept: 'application/json' }, cache: 'no-store' });
       const data = await response.json() as FinanceResponse;
       if (!response.ok) throw new Error(data.error || 'Could not load the payment register.');
       setPayments(data.payments || []);
@@ -31,7 +32,7 @@ export function AdminFinancePanel({ role }: { role: string }) {
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : 'Could not load the payment register.');
     } finally { setLoading(false); }
-  }, []);
+  }, [ledger]);
   useEffect(() => { if (role) void refresh(); }, [role, refresh]);
   const review = async (paymentId: string, decision: 'confirmed' | 'flagged') => {
     try {
@@ -69,19 +70,19 @@ export function AdminFinancePanel({ role }: { role: string }) {
       </div>)}
     </section>
     <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-white p-5">
-      <div><h3 className="font-bold text-slate-950">Safaricom M-Pesa account balance</h3>
-        <p className="mt-1 text-sm text-slate-600">A live balance is shown only after Safaricom returns its authenticated callback.</p>
-        {balance?.received_at ? <p className="mt-2 text-sm font-bold text-emerald-800">
+      <div><h3 className="font-bold text-slate-950">{ledger === 'fees' ? 'Student fee collection' : 'Business M-Pesa account balance'}</h3>
+        <p className="mt-1 text-sm text-slate-600">{ledger === 'fees' ? 'This ledger contains student enrolment payments only. Business sales are kept in the Accounts ledger.' : 'Business services and contributions are shown separately from student fee collections.'}</p>
+        {ledger === 'business' && balance?.received_at ? <p className="mt-2 text-sm font-bold text-emerald-800">
           {balance.balance_amount !== null && balance.balance_amount !== undefined ? 'KSh ' + money(balance.balance_amount) : (balance.balance_text || balance.result_description || 'Balance response received')}
           {' · '}{formatEATDateTime(balance.received_at)}
-        </p> : <p className="mt-2 text-sm text-amber-700">No live balance response received yet.</p>}
+        </p>  : ledger === 'business' ? <p className="mt-2 text-sm text-amber-700">No live balance response received yet.</p> : null}
       </div>
       <div className="flex gap-2"><Button type="button" variant="outline" onClick={() => void refresh()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh register'}</Button>
         <Button type="button" onClick={() => void requestBalance()} disabled={balanceLoading || role !== 'admin'}>{balanceLoading ? 'Requesting…' : 'Request live balance'}</Button></div>
     </section>
     <section className="overflow-hidden rounded-xl border bg-white">
-      <div className="border-b p-5"><h3 className="font-bold text-slate-950">Payments, donations and contribution ledger</h3>
-        <p className="mt-1 text-sm text-slate-600">Safaricom payment confirmation and internal administrative review are recorded separately.</p></div>
+      <div className="border-b p-5"><h3 className="font-bold text-slate-950">{ledger === 'fees' ? 'Student fee payment ledger' : 'Business sales and contribution ledger'}</h3>
+        <p className="mt-1 text-sm text-slate-600">{ledger === 'fees' ? 'Only student enrolment fee payments appear here. Business sales do not appear in this ledger.' : 'Service sales and contributions appear here. Student course fees are recorded in the separate Fees area.'}</p><Button type="button" variant="outline" size="sm" onClick={() => { try { exportBrandedData('pdf', ledger === 'fees' ? 'Student Fee Statement Ledger' : 'Navstar Business Account Statement', ['Payer','Purpose','Reference','Amount (KSh)','Status','Date'], payments.map(item => ({Payer:item.payer_name||'—',Purpose:item.description||item.purpose,Reference:item.display_reference||item.receipt_number||'—','Amount (KSh)':item.amount,Status:item.admin_status||item.status,Date:item.created_at?formatEATDateTime(item.created_at):'—'}))); } catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Statement PDF could not be generated.'); } }}>Generate PDF statement</Button></div>
       <div className="overflow-x-auto"><table className="w-full min-w-[920px] text-left text-xs">
         <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Payer / purpose</th><th className="p-3">Reference</th><th className="p-3">Amount</th><th className="p-3">M-Pesa</th><th className="p-3">Admin review</th><th className="p-3">Action</th></tr></thead>
         <tbody>{payments.map(item => <tr key={item.id} className="border-t">
