@@ -139,11 +139,11 @@ export async function onRequestGet({ request, env }) {
     query = env.DB.prepare(`SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, e.status, e.payment_status, e.special_enrollment, e.payment_exception, e.payment_due_date, e.admissions_decision_reason, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id ORDER BY e.created_at DESC LIMIT 200`);
   } else if (user.role === 'student') {
     query = env.DB.prepare(`
-      SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, c.price AS course_fee,
+      SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, COALESCE((SELECT SUM(ef.amount) FROM enrollment_fee_items ef WHERE ef.enrollment_id=e.id),c.price) AS course_fee,
         e.full_name, e.email, e.phone, e.date_of_birth, e.gender, e.nationality, e.study_mode,
         e.education_level, e.preferred_intake, e.county, e.town, e.address, e.status,
         e.payment_status, e.payment_due_date, e.created_at,
-        COALESCE((SELECT SUM(f.amount) FROM course_fee_items f WHERE f.course_id=e.course_id AND lower(f.item_name)='admission fee' AND f.active=1 AND f.due_stage='enrollment' AND f.required=1),0) AS admission_fee,
+        COALESCE((SELECT SUM(ef.amount) FROM enrollment_fee_items ef WHERE ef.enrollment_id=e.id AND lower(ef.item_name)='admission fee' AND ef.due_stage='enrollment'),(SELECT SUM(f.amount) FROM course_fee_items f WHERE f.course_id=e.course_id AND lower(f.item_name)='admission fee' AND f.active=1 AND f.due_stage='enrollment' AND f.required=1),0) AS admission_fee,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id AND p.status = 'paid'), 0) AS amount_paid,
         (SELECT p.internal_receipt_number FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id
           AND p.status = 'paid' AND p.internal_receipt_number IS NOT NULL ORDER BY p.updated_at DESC LIMIT 1) AS latest_receipt,
