@@ -1,5 +1,5 @@
 import { useMemo,useState } from 'react';
-type Student={id:string;name:string;email:string;role:string;status:string;phone?:string|null;staffId?:string};
+type Student={id:string;name:string;email:string;role:string;status:string;phone?:string|null;staffId?:string;activeCourseId?:string|null};
 type Course={id:string;title:string};
 type Application=Record<string,unknown>;
 type Props={students:Student[];courses:Course[];applications:Application[];subtab:string};
@@ -8,7 +8,7 @@ const btn='rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-bold text-white hover
 export function StudentStatusWorkspace({students,courses,applications,subtab}:Props){
  const [sourceCourseId,setSourceCourseId]=useState('');const [targetCourseId,setTargetCourseId]=useState('');const [selected,setSelected]=useState<string[]>([]);const [reason,setReason]=useState('');const [channel,setChannel]=useState('email');const [busy,setBusy]=useState(false);const [notice,setNotice]=useState('');const [failure,setFailure]=useState('');
  const acceptedApp=(s:Student)=>applications.filter(a=>String(a.email||'').toLowerCase()===s.email.toLowerCase()&&['accepted','active'].includes(String(a.status||'').toLowerCase())).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')))[0];
- const courseFor=(s:Student)=>String(acceptedApp(s)?.course_id||'');
+ const courseFor=(s:Student)=>String(s.activeCourseId||acceptedApp(s)?.course_id||'');
  const statusKey=subtab.toLowerCase();
  const visible=useMemo(()=>students.filter(s=>s.role==='student'&&(
  statusKey.includes('active')?s.status.toLowerCase()==='active':
