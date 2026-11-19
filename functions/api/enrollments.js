@@ -131,7 +131,7 @@ export async function onRequestGet({ request, env }) {
   if (!user) return error('Sign in required.', 401);
   let query;
   if (['admin', 'admissions', 'principal'].includes(user.role)) {
-    query = env.DB.prepare(`SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, e.status, e.payment_status, e.special_enrollment, e.payment_exception, e.payment_due_date, e.admissions_decision_reason, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id ORDER BY e.created_at DESC LIMIT 200`);
+    query = env.DB.prepare(`SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, p.profile_photo_url, e.status, e.payment_status, e.special_enrollment, e.payment_exception, e.payment_due_date, e.admissions_decision_reason, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id LEFT JOIN users u ON lower(u.email)=lower(e.email) LEFT JOIN user_profiles p ON p.user_id=u.id ORDER BY e.created_at DESC LIMIT 200`);
   } else if (user.role === 'student') {
     query = env.DB.prepare(`
       SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, c.price AS course_fee,
