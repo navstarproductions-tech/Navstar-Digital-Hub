@@ -35,7 +35,7 @@ export async function onRequestPost({ request, env }) {
     const variants = [identifier, '0' + identifier.slice(3), '+' + identifier];
     const marks = variants.map(() => '?').join(',');
     account = await env.DB.prepare(`
-      SELECT u.id,u.name,u.email,COALESCE(p.phone,(SELECT e.phone FROM enrollments e WHERE lower(e.email)=lower(u.email) ORDER BY e.created_at DESC LIMIT 1)) AS phone
+      SELECT u.id,u.name,u.email,p.phone AS profile_phone,(SELECT e.phone FROM enrollments e WHERE lower(e.email)=lower(u.email) ORDER BY e.created_at DESC LIMIT 1) AS enrollment_phone
       FROM users u LEFT JOIN user_profiles p ON p.user_id=u.id
       WHERE u.status='active' AND (
         p.phone IN (${marks}) OR EXISTS (SELECT 1 FROM enrollments e WHERE lower(e.email)=lower(u.email) AND e.phone IN (${marks}))
