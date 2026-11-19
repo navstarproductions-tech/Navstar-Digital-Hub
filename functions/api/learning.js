@@ -5,6 +5,11 @@ const learnerRoles = ['student'];
 const staffRoles = ['admin', 'tutor', 'principal'];
 const fullCourseRoles = ['admin', 'principal'];
 
+async function ensureModuleTutorAssignments(db){
+  await db.prepare(`CREATE TABLE IF NOT EXISTS module_tutor_assignments (id TEXT PRIMARY KEY,module_id TEXT NOT NULL REFERENCES course_modules(id) ON DELETE CASCADE,tutor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,assigned_by TEXT REFERENCES users(id) ON DELETE SET NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(module_id,tutor_user_id))`).run();
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_module_tutor_assignments_tutor ON module_tutor_assignments(tutor_user_id,module_id)').run();
+}
+
 async function hasCourseAccess(db, user, courseId) {
   if (fullCourseRoles.includes(user.role)) return true;
   if (user.role === 'tutor') {
@@ -25,8 +30,7 @@ async function hasModuleAccess(db,user,moduleId,courseId){
   if(user.role==='tutor'){
     const assigned=await db.prepare('SELECT id FROM module_tutor_assignments WHERE module_id=? AND tutor_user_id=?').bind(moduleId,user.id).first();
     if(assigned)return true;
-    const legacy=await db.prepare('SELECT id FROM course_tutor_assignments WHERE course_id=? AND tutor_user_id=?').bind(courseId,user.id).first();
-    return Boolean(legacy);
+    return false;
   }
   return hasCourseAccess(db,user,courseId);
 }
@@ -41,6 +45,7 @@ export async function onRequestGet({ request, env }) {
   const user = await getSession(request, env);
   if (!user) return error('Sign in required.', 401);
   if (user.mustChangePassword) return error('Change your temporary password before using this portal.', 403);
+  await ensureModuleTutorAssignments(env.DB);
   if (![...learnerRoles, ...staffRoles].includes(user.role)) return error('This account cannot access the learning workspace.', 403);
 
   let courses;
@@ -81,7 +86,7 @@ export async function onRequestGet({ request, env }) {
   const assignmentsResult = await env.DB.prepare(`
     SELECT a.id, a.course_id, a.module_id, a.title, a.instructions, a.due_at, a.max_points, a.status
     FROM course_assignments a
-    WHERE a.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND a.status = 'published'" : user.role === 'tutor' ? "AND a.status = 'published' AND (a.module_id IS NULL OR EXISTS (SELECT 1 FROM module_tutor_assignments mt WHERE mt.module_id=a.module_id AND mt.tutor_user_id=?))" : "AND a.status != 'archived'"}
+    WHERE a.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND a.status = 'published'" : user.role === 'tutor' ? "AND a.status = 'published' AND a.module_id IS NOT NULL AND EXISTS (SELECT 1 FROM module_tutor_assignments mt WHERE mt.module_id=a.module_id AND mt.tutor_user_id=?)" : "AND a.status != 'archived'"}
     ORDER BY a.due_at IS NULL, a.due_at, a.created_at DESC
   `).bind(...(user.role==='tutor'?[...courseIds,user.id]:courseIds)).all();
   const assignments = assignmentsResult.results ?? [];
@@ -141,11 +146,16 @@ export async function onRequestPost({ request, env }) {
   const user = await getSession(request, env);
   if (!user) return error('Sign in required.', 401);
   if (user.mustChangePassword) return error('Change your temporary password before using this portal.', 403);
+  await ensureModuleTutorAssignments(env.DB);
   let body;
   try { body = await readJson(request, 262144); } catch { return error('Invalid request body.'); }
   const action = safeString(body.action, 40);
 
-  if (['create_module', 'update_module', 'bulk_create_modules', 'bulk_create_modules_multi', 'create_lesson', 'create_assignment', 'grade_submission', 'bulk_grade_submissions'].includes(action)) {
+  if (['create_module','bulk_create_modules','bulk_create_modules_multi'].includes(action)) {
+    const access=await requireRole(request,env,['admin','principal']);
+    if(access.response)return access.response;
+  }
+  if (['update_module','create_lesson','create_assignment','grade_submission','bulk_grade_submissions'].includes(action)) {
     const access = await requireRole(request, env, ['admin','principal','tutor']);
     if (access.response) return access.response;
   }
