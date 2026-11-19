@@ -112,11 +112,6 @@ export async function onRequestPost(context) {
     null, null, null, null, null, emergencyContactName, emergencyContactPhone,
     safeString(body.emergencyContactRelationship, 80) || null, safeString(body.supportNeeds, 2000) || null,
   ).run();
-  await env.DB.prepare(`
-    INSERT INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage)
-    SELECT lower(hex(randomblob(16))), ?, id, item_name, amount, due_stage
-    FROM course_fee_items WHERE course_id=? AND active=1
-  `).bind(id,course.id).run();
   const savedDetails = { ...body };
   delete savedDetails.verificationToken;
   await env.DB.batch([
