@@ -28,7 +28,7 @@ export function LearningAdminSubtab({subtab,courses:catalogue}:Props){
  const [instructions,setInstructions]=useState('');
  const [maxPoints,setMaxPoints]=useState('100');
  const [dueAt,setDueAt]=useState('');
- const [csvRows,setCsvRows]=useState<Array<Record<string,string>>>([]);
+ const [csvRows,setCsvRows]=useState<Array<{courseId:string;title:string;description:string;status:string;sortOrder:number}>>([]);
  const [busy,setBusy]=useState(false);
  const [message,setMessage]=useState('');
  const [failure,setFailure]=useState('');
