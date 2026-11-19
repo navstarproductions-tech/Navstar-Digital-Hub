@@ -37,7 +37,7 @@ function navstarSmsMessage(message) {
   if (body.toLowerCase().startsWith(NAVSTAR_SMS_INTRO.toLowerCase())) return body;
   return `${NAVSTAR_SMS_INTRO}\n\n${body}`;
 }
-async function sendTextSms(env, phone, message) {
+export async function sendTextSms(env, phone, message) {
   const mobile = normalizeKenyanMobile(phone);
   if (!/^254\d{9}$/.test(mobile)) throw new Error('TextSMS rejected notification: recipient must be a valid Kenyan mobile number.');
   const response = await fetch(TEXTSMS_ENDPOINT, {
