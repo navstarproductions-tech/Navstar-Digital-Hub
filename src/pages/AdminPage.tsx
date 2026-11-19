@@ -532,12 +532,9 @@ export function AdminPage() {
 
   const importModules = async () => {
     if (!moduleImportRows.length) { setNotice('Choose a completed module CSV first.'); return; }
-    const groups = [...new Set(moduleImportRows.map(row => row.courseId))];
-    for (const courseId of groups) {
-      const rows = moduleImportRows.filter(row => row.courseId === courseId).sort((a,b) => a.sortOrder-b.sortOrder);
-      const saved = await submitLearningAction({ action: 'bulk_create_modules', courseId, rows: rows.map(({courseId:_id,courseName:_name,...row})=>row) }, 'Modules imported and routed to their selected courses successfully.');
-      if (!saved) return;
-    }
+    const rows = [...moduleImportRows].sort((a,b) => a.courseId.localeCompare(b.courseId) || a.sortOrder-b.sortOrder);
+    const saved = await submitLearningAction({ action: 'bulk_create_modules', rows }, 'Modules imported and routed to their selected courses successfully.');
+    if (!saved) return;
     setModuleImportRows([]); setModuleImportName('');
     setNotice('All module rows have been imported into their matching courses in module order.');
   };
