@@ -163,7 +163,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   'admin-access': makeTabs(['Admin Roles','Access Permissions','Access Logs'],'admin-access'),
   'customer-accounts': makeTabs(['Customer Accounts','Account Balances','Payment History'],'customer-accounts'),
   maintenance: makeTabs(['Maintenance Status','Enable / Disable Maintenance','Maintenance Notices'],'maintenance'),
-  'ict-portal': makeTabs(['ICT Service Requests','ICT Services & Pricing','Student Gateway','Tutor Portal','Finance Portal','Principal Portal','Deputy Principal'],'portal-links'),
+  'ict-portal': makeTabs(['ICT Service Requests','ICT Services & Pricing','Student Gateway','Tutor Portal','Finance Portal','Principal Portal','Deputy Principal'],'ict-portal'),
   settings: [
     {label:"Institute Profile",target:'settings',settingsTab:'complete'},
     {label:"Fee Structures (PDFs)",target:'settings',settingsTab:'complete'},
