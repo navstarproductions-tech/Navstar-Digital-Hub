@@ -60,3 +60,12 @@ BEGIN
   SELECT 'snapshot-' || NEW.id || '-' || f.id,NEW.id,f.id,f.item_name,f.amount,f.due_stage
   FROM course_fee_items f WHERE f.course_id=NEW.course_id AND f.active=1;
 END;
+
+INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
+SELECT 'tuition-' || id,id,'Tuition fee',0,'before_term',1,2,1 FROM courses;
+INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
+SELECT 'registration-' || id,id,'Registration fee',0,'enrollment',0,3,1 FROM courses;
+INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
+SELECT 'examination-' || id,id,'Examination fee',0,'before_term',0,4,1 FROM courses;
+INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
+SELECT 'materials-' || id,id,'Learning materials',0,'anytime',0,5,1 FROM courses;
