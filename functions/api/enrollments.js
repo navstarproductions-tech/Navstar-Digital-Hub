@@ -108,7 +108,7 @@ export async function onRequestPost(context) {
   `).bind(
     id, displayRef, course.id, fullName, email, phone, dateOfBirth, identityType, identityNumber || null,
     safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null, studyMode, educationLevel,
-    safeString(intake.name, 80) || null, safeString(body.experience, 2000) || null, county, town,
+    safeString(intake.name, 80) || null, safeString(body.experience, 2000) || null, county || null, town || null,
     null, null, null, null, null, emergencyContactName, emergencyContactPhone,
     safeString(body.emergencyContactRelationship, 80) || null, safeString(body.supportNeeds, 2000) || null,
   ).run();
