@@ -11,6 +11,9 @@ export async function onRequestPost(context) {
   let body;try{body=await readJson(request,2048);}catch{return error('Invalid request body.');}
   const enrollmentId=safeString(body.enrollmentId,80);
   if(!enrollmentId)return error('Select a student application.');
+  const application=await env.DB.prepare('SELECT status FROM enrollments WHERE id=?').bind(enrollmentId).first();
+  if(!application)return error('Student application not found.',404);
+  if(application.status!=='accepted')return error('Admission numbers are issued only after an administrator approves the application.',409);
   try{
     const result=await assignAdmissionNumber(context,enrollmentId,access.user.id,safeString(body.intakeName,80));
     return json(result);

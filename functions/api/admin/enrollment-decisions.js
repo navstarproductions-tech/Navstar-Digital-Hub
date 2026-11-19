@@ -1,6 +1,7 @@
 import { hashPassword, requireRole } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 import { queueCustomerNotice } from '../../_shared/notifications.js';
+import { assignAdmissionNumber } from '../../_shared/admissions.js';
 
 const digest = async value => {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -92,6 +93,13 @@ export async function onRequestPost(context) {
   if (!['paid','deferred'].includes(String(enrollment.payment_status)) && !Number(enrollment.special_enrollment)) {
     return error('The application must have its required payment confirmed or an authorised payment exception recorded before acceptance.', 409);
   }
+  let admissionNumber = enrollment.admission_number || '';
+  try {
+    const assigned = await assignAdmissionNumber(context, enrollmentId, access.user.id);
+    admissionNumber = assigned.admissionNumber;
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : 'Admission number could not be generated. Check the selected intake and course code.', Number(cause?.status) || 409);
+  }
   let user = await env.DB.prepare(`SELECT id, name, email, role, status, must_change_password FROM users WHERE lower(email) = lower(?) LIMIT 1`).bind(enrollment.email).first();
   if (user && user.role !== 'student') return error('This email is already assigned to a non-student Navstar account. Admissions must resolve the account ownership before admission.', 409);
   const userWasCreated = !user;
@@ -151,8 +159,8 @@ export async function onRequestPost(context) {
   queueCustomerNotice(context, env, {
     email: enrollment.email, phone: '',
     subject: 'Admission confirmed — Navstar Digital Hub',
-    message: `NAVSTAR DIGITAL HUB — HOME OF TECHNOCRATS\n\nDear ${enrollment.full_name},\n\nCongratulations. Your application has been accepted by Navstar Digital Hub.\n\nAPPLICATION AND ADMISSION DETAILS\nApplication reference: ${enrollment.display_ref}\nApplicant: ${enrollment.full_name}\nCourse: ${enrollment.course_title}\nIntake: ${enrollment.preferred_intake || 'As confirmed by Admissions'}\nAdmission status: ACCEPTED\nPublished course fee: KSh ${Number(enrollment.course_fee).toLocaleString('en-KE')}\nPayment status at admission: ${enrollment.payment_status}\nPayment exception: ${enrollment.payment_exception || 'None'}\nPayment due date: ${enrollment.payment_due_date || 'As shown in your fee statement'}\nAdmissions decision: ${reason || 'Accepted by Admissions.'}\n\nCOURSE FEE INSTALMENT PLAN\n${schedule}\n\nSTUDENT PORTAL ACCESS\n${accessInstructions}\n\nFor security, Navstar does not send passwords by email or SMS. Never forward a password setup link or share your password.\n\nYOUR NEXT STEPS\n1. Complete password setup if a one-time setup link was issued.\n2. Sign in to the Student Portal and confirm your personal details.\n3. Review your course information, admission letter and fee statement.\n4. Follow the approved instalment plan or contact Finance before a due date if you need assistance.\n5. Keep your application reference for all enquiries.\n\nAdmissions Office\nNAVSTAR DIGITAL HUB\nHOME OF TECHNOCRATS\nnavstardigitalhub@gmail.com | 0797688576`
+    message: `NAVSTAR DIGITAL HUB — HOME OF TECHNOCRATS\n\nDear ${enrollment.full_name},\n\nCongratulations. Your application has been accepted by Navstar Digital Hub.\n\nAPPLICATION AND ADMISSION DETAILS\nApplication reference: ${enrollment.display_ref}\nApplicant: ${enrollment.full_name}\nCourse: ${enrollment.course_title}\nIntake: ${enrollment.preferred_intake || 'As confirmed by Admissions'}\nAdmission status: ACCEPTED\nAdmission number: ${admissionNumber}\nPublished course fee: KSh ${Number(enrollment.course_fee).toLocaleString('en-KE')}\nPayment status at admission: ${enrollment.payment_status}\nPayment exception: ${enrollment.payment_exception || 'None'}\nPayment due date: ${enrollment.payment_due_date || 'As shown in your fee statement'}\nAdmissions decision: ${reason || 'Accepted by Admissions.'}\n\nCOURSE FEE INSTALMENT PLAN\n${schedule}\n\nSTUDENT PORTAL ACCESS\n${accessInstructions}\n\nFor security, Navstar does not send passwords by email or SMS. Never forward a password setup link or share your password.\n\nYOUR NEXT STEPS\n1. Complete password setup if a one-time setup link was issued.\n2. Sign in to the Student Portal and confirm your personal details.\n3. Review your course information, admission letter and fee statement.\n4. Follow the approved instalment plan or contact Finance before a due date if you need assistance.\n5. Keep your application reference for all enquiries.\n\nAdmissions Office\nNAVSTAR DIGITAL HUB\nHOME OF TECHNOCRATS\nnavstardigitalhub@gmail.com | 0797688576`
   });
   queueCustomerNotice(context, env, { email: '', phone: enrollment.phone, subject: 'Navstar admission confirmed', message: `Navstar Digital Hub: your application ${enrollment.display_ref} for ${enrollment.course_title} has been accepted. Published course fee: KSh ${Number(enrollment.course_fee).toLocaleString('en-KE')}. Check your email for the detailed admission notice and secure Student Portal instructions. HOME OF TECHNOCRATS.` });
-  return json({ saved: true, action, status: 'accepted', userCreated: userWasCreated, passwordSetupSent });
+  return json({ saved: true, action, status: 'accepted', admissionNumber, userCreated: userWasCreated, passwordSetupSent });
 }

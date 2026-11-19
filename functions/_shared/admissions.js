@@ -30,7 +30,7 @@ export async function assignAdmissionNumber(context,enrollmentId,actorId,intakeN
   if(intakeName&&intakeName!==enrollment.preferred_intake)await db.prepare('UPDATE enrollments SET preferred_intake=? WHERE id=?').bind(intakeName,enrollmentId).run();
   let courseCode=String(enrollment.course_code||'').trim().toUpperCase();
   if(!courseCode){
-    const position=await db.prepare('SELECT COUNT(*) AS n FROM courses WHERE created_at < (SELECT created_at FROM courses WHERE id=?) OR (created_at=(SELECT created_at FROM courses WHERE id=?) AND id<=?)').bind(enrollment.course_id,enrollment.course_id,enrollment.course_id).first();
+    const position=await db.prepare('SELECT COUNT(*) AS n FROM courses WHERE id <= ?').bind(enrollment.course_id).first();
     const number=Number(position?.n||0);
     if(number<1||number>999)fail('Course sequence exceeds three digits. Set a valid course code in Course Management.');
     courseCode=initials(enrollment.title)+String(number).padStart(3,'0');

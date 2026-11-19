@@ -1,7 +1,6 @@
 import { Hero } from '@/components/home/Hero';
 import { Services } from '@/components/home/Services';
 import { FeaturedCourses } from '@/components/home/FeaturedCourses';
-import { Gallery } from '@/components/home/Gallery';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BadgeCheck, Code2, Cpu, GraduationCap, Lightbulb, MonitorCog, ShieldCheck, Sparkles, Zap } from 'lucide-react';
@@ -83,7 +82,6 @@ export function HomePage() {
       </section>
 
       <FeaturedCourses />
-      <Gallery />
 
       <section className="relative isolate overflow-hidden bg-[#061127] py-20 text-center text-white sm:py-24">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_50%_120%,rgba(37,99,235,.42),transparent_55%)]" />

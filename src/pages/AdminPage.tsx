@@ -123,7 +123,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   alumni: makeTabs(['Alumni Directory','Graduate Records','Alumni Updates','Alumni Events'],'alumni'),
   'report-cards': makeTabs(['Report Card Dashboard','Create Report Cards','Preview & Approve','Transcripts','Print & Export'],'report-cards'),
   'auto-reports': makeTabs(['Document Generator','Report Templates','Bulk Generate','Generated Documents'],'auto-reports'),
-  'student-status': makeTabs(['Active Students','Completed','Graduated','Deferred','Suspended','Dismissed'],'school'),
+  'student-status': makeTabs(['Active Students','Completed','Graduated','Deferred','Suspended','Removed Students'],'student-status'),
   attendance: makeTabs(['Attendance Register','Record Attendance','Attendance Summary','Attendance Reports'],'school'),
   'class-rating': makeTabs(['Rating Forms','Create Rating Form','Responses & Analysis'],'class-rating'),
   fingerprint: makeTabs(['Register Fingerprint','Scan & Verify','Fingerprint Records'],'fingerprint'),
