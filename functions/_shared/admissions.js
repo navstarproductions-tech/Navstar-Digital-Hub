@@ -16,13 +16,15 @@ function intakeCode(value){
   const numeric=text.match(/^(0[1-9]|1[0-2])\/?(\d{2}|20\d{2})$/);
   return numeric?numeric[1]+numeric[2].slice(-2):'';
 }
-export async function assignAdmissionNumber(context,enrollmentId,actorId){
+export async function assignAdmissionNumber(context,enrollmentId,actorId,intakeNameOverride=''){
   const {env}=context,db=env.DB;
   const enrollment=await db.prepare(`SELECT e.id,e.admission_number,e.preferred_intake,e.full_name,e.email,e.phone,c.id AS course_id,c.title,c.course_code FROM enrollments e JOIN courses c ON c.id=e.course_id WHERE e.id=?`).bind(enrollmentId).first();
   if(!enrollment)fail('Student application not found.',404);
   if(enrollment.admission_number)return {admissionNumber:enrollment.admission_number,alreadyAssigned:true};
-  const intake=intakeCode(enrollment.preferred_intake);
+  const intakeName=safeString(intakeNameOverride,80)||enrollment.preferred_intake;
+  const intake=intakeCode(intakeName);
   if(!intake)fail('Set the student intake in the format September 2026 before accepting the application or generating an admission number.');
+  if(intakeName&&intakeName!==enrollment.preferred_intake)await db.prepare('UPDATE enrollments SET preferred_intake=? WHERE id=?').bind(intakeName,enrollmentId).run();
   let courseCode=String(enrollment.course_code||'').trim().toUpperCase();
   if(!courseCode){
     const position=await db.prepare('SELECT COUNT(*) AS n FROM courses WHERE created_at < (SELECT created_at FROM courses WHERE id=?) OR (created_at=(SELECT created_at FROM courses WHERE id=?) AND id<=?)').bind(enrollment.course_id,enrollment.course_id,enrollment.course_id).first();
