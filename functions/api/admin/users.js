@@ -42,7 +42,7 @@ export async function onRequestGet({ request, env }) {
   if (access.response) return access.response;
   const users = await env.DB.prepare(`
     SELECT u.id, u.name, u.email, COALESCE(p.portal_role,u.role) AS role, u.status, u.created_at,
-      p.staff_id AS staffId, p.national_id AS nationalId, p.phone, p.citizenship, p.country, p.province, p.county,
+      p.staff_id AS staffId, p.profile_photo_url AS profilePhotoUrl, p.national_id AS nationalId, p.phone, p.citizenship, p.country, p.province, p.county,
       p.sub_county AS subCounty, p.constituency, p.ward, p.location, p.sub_location AS subLocation,
       p.date_of_birth AS dateOfBirth, p.gender, p.department, p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn, p.address
     FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
@@ -67,6 +67,8 @@ export async function onRequestPost({ request, env }) {
   if (role === 'student') {
     const courseId = safeString(body.courseId, 80);
     const course = await env.DB.prepare('SELECT id, title, price FROM courses WHERE id = ? AND status = ?').bind(courseId, 'active').first();
+    const admissionFee = course ? await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id=? AND lower(item_name)='admission fee' AND active=1 AND required=1 AND due_stage='enrollment'").bind(course.id).first() : null;
+    if (course && Number(admissionFee?.total||0)<1) return error('Configure a positive Admission fee for this course under Courses → Fee Structures before creating the student account.');
     const phone = normalizePhone(body.phone);
     const emergencyPhone = normalizePhone(body.emergencyContactPhone);
     const dateOfBirth = safeString(body.dateOfBirth, 10);

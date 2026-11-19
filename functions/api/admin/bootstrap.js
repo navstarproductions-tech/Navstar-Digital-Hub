@@ -1,11 +1,13 @@
 import { hashPassword } from '../../_shared/auth.js';
+import { passwordPolicyError } from '../../_shared/password-policy.js';
 import { constantTimeEqual, error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
 import { rateLimited } from '../../_shared/rate-limit.js';
 
 export async function onRequestGet({ env }) {
   if (!env.DB) return error('Admin setup is not configured.', 503);
   const admin = await env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND status = 'active'").first();
-  return json({ adminExists: Number(admin?.count ?? 0) > 0, setupAvailable: true, setupRequiresPrivateKey: true });
+  const adminExists = Number(admin?.count ?? 0) > 0;
+  return json({ adminExists, setupAvailable: !adminExists, setupRequiresPrivateKey: true });
 }
 
 export async function onRequestPost({ request, env }) {
@@ -23,7 +25,8 @@ export async function onRequestPost({ request, env }) {
   const password = String(body.password ?? '');
   const confirmPassword = String(body.confirmPassword ?? '');
   if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error('Enter your full name and a valid email address.');
-  if (password.length < 6 || password.length > 200) return error('Password must contain at least 6 characters.');
+  const passwordError = passwordPolicyError(password);
+  if (passwordError) return error(passwordError);
   if (password !== confirmPassword) return error('The passwords do not match.');
 
   const collision = await env.DB.prepare("SELECT id, role FROM users WHERE email = ? COLLATE NOCASE").bind(email).first();

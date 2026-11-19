@@ -16,7 +16,6 @@ import { LoginPage } from '@/pages/LoginPage';
 import { StudentPortalPage } from '@/pages/StudentPortalPage';
 import { StudentRecoveryPage } from '@/pages/StudentRecoveryPage';
 import { ChangePasswordPage } from '@/pages/ChangePasswordPage';
-import { AdminResetPage } from '@/pages/AdminResetPage';
 import { FirstAdminSetupPage } from '@/pages/FirstAdminSetupPage';
 import { CustomerAccountPage } from '@/pages/CustomerAccountPage';
 import { DigitalHubPage } from '@/pages/DigitalHubPage';
@@ -133,7 +132,7 @@ function AppShell() {
             <Route path="/change-password" element={<ChangePasswordPage />} />
             <Route path="/set-password" element={<StudentPasswordSetupPage />} />
             <Route path="/setup" element={<FirstAdminSetupPage />} />
-            <Route path="/admin-reset" element={<AdminResetPage />} />
+            <Route path="/admin-reset" element={<Navigate to="/student-recovery" replace />} />
             <Route path="/enroll/:id" element={<EnrollmentPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/admin/receipts" element={<PaymentReceiptsPage />} />

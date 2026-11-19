@@ -3,7 +3,7 @@ import { error, isSameOrigin, json, readJson, safeString, uuid } from '../_share
 
 export async function onRequestGet({ env }) {
   if (!env.DB) return json({ courses: [] });
-  const rows = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, price, status, level FROM courses WHERE status = 'active' ORDER BY title").all();
+  const rows = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, price, status, level, course_code FROM courses WHERE status = 'active' ORDER BY title").all();
   return json({ courses: rows.results ?? [] });
 }
 
@@ -21,11 +21,20 @@ export async function onRequestPost({ request, env }) {
   const category = safeString(body.category, 60) || 'Professional';
   const level = safeString(body.level, 24) || 'Beginner';
   const price = Number(body.price);
+  const courseCode = safeString(body.courseCode, 8).toUpperCase();
+  if (courseCode && !/^[A-Z]{1,4}\d{3}$/.test(courseCode)) return error('Course code must use letters followed by three digits, for example CP003.');
   if (title.length < 2 || !Number.isSafeInteger(price) || price < 0 || price > 1000000) return error('Valid course title and fee are required.');
   const id = uuid();
-  await env.DB.prepare("INSERT INTO courses (id, title, description, duration, image_url, category, price, status, level) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)")
-    .bind(id, title, description, duration, image, category, price, level).run();
+  await env.DB.prepare("INSERT INTO courses (id, title, description, duration, image_url, category, price, status, level, course_code) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)")
+    .bind(id, title, description, duration, image, category, price, level, courseCode || null).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?,'Admission fee',0,'enrollment',1,1,1)").bind('admission-'+id,id).run();
+  await env.DB.batch([
+    env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?, 'Tuition fee',?,'before_term',1,2,1)").bind('tuition-'+id,id,price),
+    env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?,'Registration fee',0,'enrollment',0,3,1)").bind('registration-'+id,id),
+    env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?,'Examination fee',0,'before_term',0,4,1)").bind('examination-'+id,id),
+    env.DB.prepare("INSERT OR IGNORE INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active) VALUES(?,?,'Learning materials',0,'anytime',0,5,1)").bind('materials-'+id,id)
+  ]);
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
     .bind(uuid(), access.user.id, 'course_created', 'course', id).run();
-  return json({ id, title, description, duration, image, category, price, level, status: 'active' }, 201);
+  return json({ id, title, description, duration, image, category, price, level, course_code: courseCode || null, status: 'active' }, 201);
 }

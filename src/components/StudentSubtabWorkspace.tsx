@@ -7,7 +7,7 @@ import { downloadNavstarTablePdf } from '@/lib/receipt-pdf';
 
 type StudentAccount = {
   id: string; name: string; email: string; role: string; status: string;
-  staffId?: string; phone?: string; dateOfBirth?: string; county?: string; subCounty?: string; ward?: string; location?: string; subLocation?: string;
+  staffId?: string; profilePhotoUrl?: string; phone?: string; dateOfBirth?: string; county?: string; subCounty?: string; ward?: string; location?: string; subLocation?: string;
 };
 type ApplicationRow = Record<string, unknown>;
 
@@ -31,6 +31,10 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
   const [csvRows, setCsvRows] = useState<string[][]>([]);
   const [csvError, setCsvError] = useState('');
   const [pdfError, setPdfError] = useState('');
+  const [admissionBusy, setAdmissionBusy] = useState('');
+  const [generatedAdmissions, setGeneratedAdmissions] = useState<Record<string,string>>({});
+  const [admissionIntakes, setAdmissionIntakes] = useState<Record<string,string>>({});
+  const [admissionMessage, setAdmissionMessage] = useState('');
 
   const activeStudents = useMemo(() => students.filter(student => student.role === 'student' && student.status.toLowerCase() === 'active'), [students]);
   const allStudents = useMemo(() => students.filter(student => student.role === 'student'), [students]);
@@ -46,6 +50,19 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
   });
   const selected = activeStudents.filter(student => selectedIds.includes(student.id));
   const detailStudent = allStudents.find(student => student.id === detailId) || activeStudents[0];
+  const generateAdmission = async (student: StudentAccount) => {
+    const application = latestApplication(student);
+    if (!application?.id) { setAdmissionMessage('No course application is linked to this student. Assign or create the course application first.'); return; }
+    setAdmissionBusy(student.id); setAdmissionMessage('');
+    try {
+      const response = await fetch('/api/admin/admission-number', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ enrollmentId: application.id, intakeName: admissionIntakes[student.id] || getText(application.preferred_intake) }) });
+      const result = await response.json() as { admissionNumber?:string; error?:string };
+      if (!response.ok || !result.admissionNumber) throw new Error(result.error || 'Admission number could not be generated.');
+      setGeneratedAdmissions(current => ({...current,[String(application.id)]:result.admissionNumber!}));
+      setAdmissionMessage('Admission number saved: ' + result.admissionNumber + '. A notification request has been queued for the registered email and phone; actual delivery depends on the configured providers.');
+    } catch (error) { setAdmissionMessage(error instanceof Error ? error.message : 'Admission number could not be generated.'); }
+    finally { setAdmissionBusy(''); }
+  };
   const downloadRegister = async (title: string, records: StudentAccount[], filename: string) => {
     setPdfError('');
     try {
@@ -102,7 +119,7 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
 
     {pageTitle === 'Completed → Graduates' && <section className="rounded-xl border bg-white text-slate-900"><div className="border-b bg-slate-50 p-4"><h3 className="font-bold">Completed learners and graduates</h3><p className="text-xs text-slate-500">Student accounts currently marked completed or graduated.</p></div><div className="divide-y">{allStudents.filter(student => ['completed', 'graduated'].includes(student.status.toLowerCase())).map(student => <div key={student.id} className="flex items-center justify-between gap-3 p-4"><div><strong>{student.name}</strong><p className="text-xs text-slate-500">{student.staffId || 'ID pending'} · {student.email}</p></div><span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-800">{student.status}</span></div>)}{allStudents.filter(student => ['completed', 'graduated'].includes(student.status.toLowerCase())).length === 0 && <p className="p-5 text-sm text-slate-500">No student accounts are currently marked completed or graduated.</p>}</div></section>}
 
-    {pageTitle === 'Edit Student Details' && <section className="rounded-xl border bg-white text-slate-900"><div className="border-b bg-slate-50 p-4"><h3 className="font-bold">Student profile editor</h3><p className="text-xs text-slate-500">Choose a student to open the existing profile editor.</p></div><div className="divide-y">{activeStudents.map(student => <div key={student.id} className="flex items-center justify-between gap-3 p-4"><div><strong>{student.name}</strong><p className="text-xs text-slate-500">{student.staffId || 'ID pending'} · {student.email}</p></div><Button size="sm" variant="outline" onClick={() => onEditStudent(student)}>Edit student</Button></div>)}</div></section>}
+    {pageTitle === 'Edit Student Details' && <section className="rounded-xl border bg-white text-slate-900"><div className="border-b bg-slate-50 p-4"><h3 className="font-bold">Student profile editor</h3><p className="text-xs text-slate-500">Edit student details, view the passport photo and generate missing course admission numbers. {activeStudents.filter(student=>!getText(latestApplication(student)?.admission_number)&&!generatedAdmissions[String(latestApplication(student)?.id)]).length} active student(s) still need an admission number.</p></div>{admissionMessage&&<p role="status" className="m-4 rounded-lg bg-cyan-50 p-3 text-sm text-cyan-900">{admissionMessage}</p>}<div className="divide-y">{activeStudents.map(student => { const app=latestApplication(student); const admission=generatedAdmissions[String(app?.id)]||getText(app?.admission_number); return <div key={student.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="flex min-w-0 items-center gap-3">{student.profilePhotoUrl?<img src={student.profilePhotoUrl} alt={student.name} className="h-14 w-14 rounded-xl border object-cover"/>:<div className="grid h-14 w-14 place-items-center rounded-xl bg-slate-100 text-lg font-black text-slate-500">{student.name.split(' ').map(part=>part[0]).slice(0,2).join('')}</div>}<div className="min-w-0"><strong>{student.name}</strong><p className="text-xs text-slate-500">{student.staffId || 'ID pending'} · {student.email}</p><p className="text-xs font-semibold text-cyan-800">{admission || 'Admission number not assigned'} · {courseName(student)}</p><input aria-label={'Intake for '+student.name} value={admissionIntakes[student.id]??getText(app?.preferred_intake)} onChange={e=>setAdmissionIntakes(current=>({...current,[student.id]:e.target.value}))} placeholder="Intake e.g. September 2026" className="mt-2 w-full max-w-xs rounded-lg border px-2 py-1.5 text-xs"/></div></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!app?.id||!!admissionBusy} onClick={()=>void generateAdmission(student)}>{admissionBusy===student.id?'Generating…':admission?'Admission assigned':'Generate admission no.'}</Button><Button size="sm" variant="outline" onClick={() => onEditStudent(student)}>Edit student</Button></div></div>; })}</div></section>}
 
     {pageTitle === 'Assign Intakes & Years' && <section className="overflow-hidden rounded-xl border bg-white text-slate-900"><div className="border-b bg-slate-50 p-4"><h3 className="font-bold">Intake and academic-year register</h3><p className="text-xs text-slate-500">Displays intake information already stored on the latest student application.</p></div><div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-100 text-xs uppercase"><tr><th className="p-3">Student</th><th className="p-3">Course</th><th className="p-3">Preferred intake</th><th className="p-3">Application</th></tr></thead><tbody>{activeStudents.map(student => { const app = latestApplication(student); return <tr key={student.id} className="border-t"><td className="p-3 font-semibold">{student.name}</td><td className="p-3">{courseName(student)}</td><td className="p-3">{getText(app?.preferred_intake) || 'Not recorded'}</td><td className="p-3">{getText(app?.status) || 'Account active'}</td></tr>; })}</tbody></table></div></section>}
 

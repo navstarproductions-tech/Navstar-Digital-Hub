@@ -33,15 +33,15 @@ export async function onRequestGet({ request, env }) {
   let courses;
   if (user.role === 'student') {
     courses = await env.DB.prepare(`
-      SELECT DISTINCT c.id, c.title, c.description, c.duration, c.image_url AS image, c.category, c.level
+      SELECT DISTINCT c.id, c.title, c.description, c.duration, c.image_url AS image, c.category, c.level, c.course_code
       FROM courses c JOIN enrollments e ON e.course_id = c.id
       WHERE c.status = 'active' AND e.email = ? COLLATE NOCASE AND e.status = 'accepted'
       ORDER BY c.title
     `).bind(user.email).all();
   } else if (user.role === 'tutor') {
-    courses = await env.DB.prepare("SELECT c.id, c.title, c.description, c.duration, c.image_url AS image, c.category, c.level FROM courses c JOIN course_tutor_assignments a ON a.course_id = c.id WHERE c.status = 'active' AND a.tutor_user_id = ? ORDER BY c.title").bind(user.id).all();
+    courses = await env.DB.prepare("SELECT c.id, c.title, c.description, c.duration, c.image_url AS image, c.category, c.level, c.course_code FROM courses c JOIN course_tutor_assignments a ON a.course_id = c.id WHERE c.status = 'active' AND a.tutor_user_id = ? ORDER BY c.title").bind(user.id).all();
   } else {
-    courses = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, level FROM courses WHERE status = 'active' ORDER BY title").all();
+    courses = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, level, course_code FROM courses WHERE status = 'active' ORDER BY title").all();
   }
   const courseRows = courses.results ?? [];
   const courseIds = courseRows.map((course) => course.id);
@@ -87,7 +87,7 @@ export async function onRequestGet({ request, env }) {
   `;
   const submissionResult = user.role === 'student'
     ? await env.DB.prepare(submissionSql).bind(user.id, ...courseIds).all()
-    : user.role === 'admin'
+    : staffRoles.includes(user.role)
       ? await env.DB.prepare(submissionSql).bind(...courseIds).all()
       : { results: [] };
 
@@ -131,8 +131,12 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 262144); } catch { return error('Invalid request body.'); }
   const action = safeString(body.action, 40);
 
-  if (['create_module', 'bulk_create_modules', 'create_lesson', 'create_assignment', 'grade_submission', 'bulk_grade_submissions', 'assign_tutor', 'remove_tutor'].includes(action)) {
-    const access = await requireRole(request, env, ['admin']);
+  if (['create_module', 'bulk_create_modules', 'bulk_create_modules_multi', 'create_lesson', 'create_assignment', 'grade_submission', 'bulk_grade_submissions'].includes(action)) {
+    const access = await requireRole(request, env, ['admin','principal','tutor']);
+    if (access.response) return access.response;
+  }
+  if (['assign_tutor','remove_tutor'].includes(action)) {
+    const access = await requireRole(request, env, ['admin','principal']);
     if (access.response) return access.response;
   }
 
@@ -152,24 +156,56 @@ export async function onRequestPost({ request, env }) {
     return json({ courseId, tutorUserId, assigned: false });
   }
 
+  if (action === 'bulk_create_modules_multi') {
+    const rows=Array.isArray(body.rows)?body.rows:[];
+    if(rows.length<1||rows.length>100)return error('Upload between 1 and 100 module rows.');
+    const normalized=[];
+    const courseCache=new Map();
+    for(let index=0;index<rows.length;index++){
+      const row=rows[index]||{},courseId=safeString(row.courseId,80),title=safeString(row.title,160);
+      if(!courseId||title.length<2)return error(`Module row ${index+1} needs a valid course and module title. Nothing was imported.`);
+      if(!courseCache.has(courseId)){
+        const course=await env.DB.prepare("SELECT id FROM courses WHERE id=? AND status='active'").bind(courseId).first();
+        courseCache.set(courseId,Boolean(course&&await hasCourseAccess(env.DB,user,courseId)));
+      }
+      if(!courseCache.get(courseId))return error(`Module row ${index+1} is assigned to a course that is inactive or not assigned to your account. Nothing was imported.`,403);
+      normalized.push({courseId,title,description:safeString(row.description,4000),status:row.status==='published'?'published':'draft',sortOrder:Number.isSafeInteger(Number(row.sortOrder))?Math.max(0,Math.min(10000,Number(row.sortOrder))):index+1});
+    }
+    const statements=normalized.flatMap(row=>{
+      const id=uuid();
+      return [
+        env.DB.prepare('INSERT INTO course_modules(id,course_id,title,description,sort_order,status,created_by) VALUES(?,?,?,?,?,?,?)').bind(id,row.courseId,row.title,row.description,row.sortOrder,row.status,user.id),
+        env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'lms_module_created','course_module',id)
+      ];
+    });
+    try{await env.DB.batch(statements);}catch(cause){console.error('Navstar multi-course module import failed:',String(cause?.stack||cause));return error('The CSV could not be imported. No modules were changed. Check course mappings and duplicate rows, then try again.',500);}
+    return json({imported:normalized.length,message:`${normalized.length} modules imported into their selected courses.`},201);
+  }
+
   if (action === 'bulk_create_modules') {
-    const courseId = safeString(body.courseId, 80);
     const rows = Array.isArray(body.rows) ? body.rows : [];
-    if (!courseId || rows.length < 1 || rows.length > 100) return error('Choose a course and upload between 1 and 100 module rows.');
-    const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
-    if (!course) return error('The selected course is not active or no longer exists.', 404);
+    if (rows.length < 1 || rows.length > 100) return error('Upload between 1 and 100 module rows.');
     const normalized = rows.map((row, index) => ({
+      courseId: safeString(row?.courseId || body.courseId, 80),
       title: safeString(row?.title, 160),
       description: safeString(row?.description, 4000),
       status: row?.status === 'published' ? 'published' : 'draft',
       sortOrder: Number.isSafeInteger(Number(row?.sortOrder)) ? Math.max(0, Math.min(10000, Number(row.sortOrder))) : index + 1,
     }));
-    const invalid = normalized.findIndex(row => row.title.length < 2);
-    if (invalid >= 0) return error(`Module row ${invalid + 1} needs a title of at least 2 characters. Nothing was imported.`);
+    const invalid = normalized.findIndex(row => !row.courseId || row.title.length < 2);
+    if (invalid >= 0) return error(`Module row ${invalid + 1} needs a valid active course association and a title of at least 2 characters. Nothing was imported.`);
+    const courseIds = [...new Set(normalized.map(row => row.courseId))];
+    const activeCourses = await env.DB.prepare(`SELECT id FROM courses WHERE status='active' AND id IN (${courseIds.map(() => '?').join(',')})`).bind(...courseIds).all();
+    const activeIds = new Set((activeCourses.results || []).map(course => course.id));
+    for (const courseId of courseIds) {
+      if (!activeIds.has(courseId) || !(await hasCourseAccess(env.DB, user, courseId))) {
+        return error('One or more CSV rows refer to a course that is inactive or not assigned to your tutor account. Nothing was imported.', 403);
+      }
+    }
     const ids = normalized.map(() => uuid());
     const statements = normalized.flatMap((row, index) => [
       env.DB.prepare('INSERT INTO course_modules (id, course_id, title, description, sort_order, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .bind(ids[index], courseId, row.title, row.description, row.sortOrder, row.status, user.id),
+        .bind(ids[index], row.courseId, row.title, row.description, row.sortOrder, row.status, user.id),
       env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
         .bind(uuid(), user.id, 'lms_module_created', 'course_module', ids[index]),
     ]);
@@ -177,9 +213,9 @@ export async function onRequestPost({ request, env }) {
       await env.DB.batch(statements);
     } catch (cause) {
       console.error('Navstar bulk module import failed:', String(cause?.stack || cause));
-      return error('The module import could not be saved. No existing modules were changed. Check for duplicate or invalid rows and try again.', 500);
+      return error('The module import could not be saved. Existing modules were not changed. Check the CSV and try again.', 500);
     }
-    return json({ imported: ids.length, ids, message: `${ids.length} modules saved successfully.` }, 201);
+    return json({ imported: ids.length, ids, courses: courseIds.length, message: `${ids.length} modules saved across ${courseIds.length} course(s).` }, 201);
   }
 
   if (action === 'create_module') {
@@ -187,7 +223,7 @@ export async function onRequestPost({ request, env }) {
     const title = safeString(body.title, 160);
     const description = safeString(body.description, 4000);
     const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
-    if (!course || title.length < 2) return error('Choose an active course and enter a module title.');
+    if (!course || !(await hasCourseAccess(env.DB,user,courseId)) || title.length < 2) return error('Choose an active course assigned to your account and enter a module title.');
     const status = body.status === 'published' ? 'published' : 'draft';
     const id = uuid();
     const order = Number.isSafeInteger(Number(body.sortOrder)) ? Math.max(0, Math.min(10000, Number(body.sortOrder))) : 0;
@@ -203,8 +239,8 @@ export async function onRequestPost({ request, env }) {
     const content = safeString(body.content, 12000);
     const videoUrl = safeString(body.videoUrl, 500);
     const resourceUrl = safeString(body.resourceUrl, 500);
-    const module = await env.DB.prepare("SELECT id FROM course_modules WHERE id = ? AND status != 'archived'").bind(moduleId).first();
-    if (!module || title.length < 2) return error('Choose an available module and enter a lesson title.');
+    const module = await env.DB.prepare("SELECT id,course_id FROM course_modules WHERE id = ? AND status != 'archived'").bind(moduleId).first();
+    if (!module || !(await hasCourseAccess(env.DB,user,module.course_id)) || title.length < 2) return error('Choose an available module and enter a lesson title.');
     for (const value of [videoUrl, resourceUrl]) if (value && !/^https:\/\//i.test(value)) return error('Lesson video and resource links must use HTTPS.');
     const status = body.status === 'published' ? 'published' : 'draft';
     const minutes = Number.isSafeInteger(Number(body.estimatedMinutes)) ? Math.max(1, Math.min(1440, Number(body.estimatedMinutes))) : 15;
@@ -223,7 +259,7 @@ export async function onRequestPost({ request, env }) {
     const dueAt = safeString(body.dueAt, 40) || null;
     const maxPoints = Number(body.maxPoints);
     const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
-    if (!course || title.length < 2 || !Number.isSafeInteger(maxPoints) || maxPoints < 1 || maxPoints > 10000) return error('Enter a valid course, assignment title and maximum score.');
+    if (!course || !(await hasCourseAccess(env.DB,user,courseId)) || title.length < 2 || !Number.isSafeInteger(maxPoints) || maxPoints < 1 || maxPoints > 10000) return error('Enter a valid course, assignment title and maximum score.');
     if (moduleId) {
       const module = await env.DB.prepare('SELECT id FROM course_modules WHERE id = ? AND course_id = ?').bind(moduleId, courseId).first();
       if (!module) return error('The selected module does not belong to this course.');
@@ -292,10 +328,10 @@ export async function onRequestPost({ request, env }) {
       const points = Number(rows[index]?.pointsAwarded);
       const feedback = safeString(rows[index]?.feedback, 4000);
       const submission = await env.DB.prepare(`
-        SELECT s.id, a.max_points FROM course_assignment_submissions s
+        SELECT s.id, a.max_points, a.course_id FROM course_assignment_submissions s
         JOIN course_assignments a ON a.id = s.assignment_id WHERE s.id = ?
       `).bind(submissionId).first();
-      if (!submission || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) {
+      if (!submission || !(await hasCourseAccess(env.DB,user,submission.course_id)) || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) {
         return error(`Marks row ${index + 1} has an unknown submission or a score outside the allowed range. Nothing was imported.`);
       }
       prepared.push({ submissionId, points, feedback });
@@ -319,10 +355,10 @@ export async function onRequestPost({ request, env }) {
     const points = Number(body.pointsAwarded);
     const feedback = safeString(body.feedback, 4000);
     const submission = await env.DB.prepare(`
-      SELECT s.id, a.max_points FROM course_assignment_submissions s
+      SELECT s.id, a.max_points, a.course_id FROM course_assignment_submissions s
       JOIN course_assignments a ON a.id = s.assignment_id WHERE s.id = ?
     `).bind(submissionId).first();
-    if (!submission || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) return error('Enter a valid score within the assignment maximum.');
+    if (!submission || !(await hasCourseAccess(env.DB,user,submission.course_id)) || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) return error('Enter a valid score within the assignment maximum for a course assigned to your account.');
     await env.DB.prepare("UPDATE course_assignment_submissions SET status = 'graded', points_awarded = ?, feedback = ?, graded_by = ?, graded_at = CURRENT_TIMESTAMP WHERE id = ?")
       .bind(points, feedback, user.id, submissionId).run();
     await writeAudit(env.DB, user.id, 'lms_submission_graded', 'course_assignment_submission', submissionId);

@@ -73,7 +73,7 @@ export async function onRequestPost(context) {
   const consent = body.consent === true || body.consent === 'on';
   const birthTime = datePattern.test(dateOfBirth) ? new Date(`${dateOfBirth}T00:00:00Z`).getTime() : NaN;
   const age = Number.isFinite(birthTime) ? Math.floor((Date.now() - birthTime) / 31557600000) : -1;
-  if (!['national-id','maisha-card','birth-certificate','passport'].includes(identityType) || !safeString(body.identityNumber, 80) || age < 18 || fullName.length < 2 || !emailPattern.test(email) || !phone || !datePattern.test(dateOfBirth) || !studyMode || !educationLevel || !county || !town || !emergencyContactName || !emergencyContactPhone || !consent) {
+  if (!['national-id','maisha-card','birth-certificate','passport'].includes(identityType) || !safeString(body.identityNumber, 80) || age < 18 || fullName.length < 2 || !emailPattern.test(email) || !phone || !datePattern.test(dateOfBirth) || !studyMode || !educationLevel || !emergencyContactName || !emergencyContactPhone || !consent) {
     return error('Complete all required fields with valid contact details.');
   }
 
@@ -93,9 +93,9 @@ export async function onRequestPost(context) {
     return error(`The student has reached the maximum of ${maximumCourses} course(s) allowed by Navstar. Please contact Admissions for assistance.`, 409);
   }
 
-  const configuredMinimum = Number(rules.minimumEnrollmentPayment || 0);
-  const amountDueNow = configuredMinimum > 0 ? configuredMinimum : Number(course.price);
-  if (!Number.isSafeInteger(amountDueNow) || amountDueNow < 1 || amountDueNow > Number(course.price)) return error('The minimum enrolment payment in Admin Settings must be at least KSh 1 and cannot exceed the published course fee.', 409);
+  const admissionFeeRow = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id=? AND lower(item_name)='admission fee' AND active=1 AND due_stage='enrollment' AND required=1").bind(course.id).first();
+  const amountDueNow = Number(admissionFeeRow?.total || 0);
+  if (!Number.isSafeInteger(amountDueNow) || amountDueNow < 1 || amountDueNow > Number(course.price)) return error('Admission fee is not configured for this course. Administration must set it under Courses → Fee Structures before enrolment can proceed.', 409);
 
   const id = uuid();
   const displayRef = await nextReference(env.DB, 'ENR');
@@ -108,8 +108,8 @@ export async function onRequestPost(context) {
   `).bind(
     id, displayRef, course.id, fullName, email, phone, dateOfBirth, identityType, identityNumber || null,
     safeString(body.gender, 40) || null, safeString(body.nationality, 80) || null, studyMode, educationLevel,
-    safeString(intake.name, 80) || null, safeString(body.experience, 2000) || null, county, town,
-    safeString(body.address, 250) || null, safeString(body.subCounty, 100) || null, safeString(body.ward, 100) || null, safeString(body.location, 100) || null, safeString(body.subLocation, 100) || null, emergencyContactName, emergencyContactPhone,
+    safeString(intake.name, 80) || null, safeString(body.experience, 2000) || null, county || '', town || '',
+    null, null, null, null, null, emergencyContactName, emergencyContactPhone,
     safeString(body.emergencyContactRelationship, 80) || null, safeString(body.supportNeeds, 2000) || null,
   ).run();
   const savedDetails = { ...body };
@@ -131,13 +131,18 @@ export async function onRequestGet({ request, env }) {
   if (!user) return error('Sign in required.', 401);
   let query;
   if (['admin', 'admissions', 'principal'].includes(user.role)) {
-    query = env.DB.prepare(`SELECT e.id, e.display_ref AS reference, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, e.status, e.payment_status, e.special_enrollment, e.payment_exception, e.payment_due_date, e.admissions_decision_reason, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id ORDER BY e.created_at DESC LIMIT 200`);
+    query = env.DB.prepare(`SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, p.profile_photo_url, e.status, e.payment_status, e.special_enrollment, e.payment_exception, e.payment_due_date, e.admissions_decision_reason, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id LEFT JOIN users u ON lower(u.email)=lower(e.email) LEFT JOIN user_profiles p ON p.user_id=u.id ORDER BY e.created_at DESC LIMIT 200`);
   } else if (user.role === 'student') {
     query = env.DB.prepare(`
-      SELECT e.id, e.display_ref AS reference, e.course_id, c.title AS course_title, c.price AS course_fee,
+      SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title,
+        CASE WHEN EXISTS(SELECT 1 FROM enrollment_fee_items sf WHERE sf.enrollment_id=e.id)
+          THEN (SELECT COALESCE(SUM(sf.amount),0) FROM enrollment_fee_items sf WHERE sf.enrollment_id=e.id)
+          ELSE c.price END AS course_fee,
         e.full_name, e.email, e.phone, e.date_of_birth, e.gender, e.nationality, e.study_mode,
         e.education_level, e.preferred_intake, e.county, e.town, e.address, e.status,
         e.payment_status, e.payment_due_date, e.created_at,
+        COALESCE(NULLIF((SELECT SUM(sf.amount) FROM enrollment_fee_items sf WHERE sf.enrollment_id=e.id AND lower(sf.item_name)='admission fee' AND sf.due_stage='enrollment'),0),
+          (SELECT SUM(cf.amount) FROM course_fee_items cf WHERE cf.course_id=e.course_id AND lower(cf.item_name)='admission fee' AND cf.active=1 AND cf.due_stage='enrollment' AND cf.required=1),0) AS admission_fee,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id AND p.status = 'paid'), 0) AS amount_paid,
         (SELECT p.internal_receipt_number FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id
           AND p.status = 'paid' AND p.internal_receipt_number IS NOT NULL ORDER BY p.updated_at DESC LIMIT 1) AS latest_receipt,
@@ -152,5 +157,27 @@ export async function onRequestGet({ request, env }) {
     return error('Tutor access must be assigned to specific classes before student records are visible.', 403);
   }
   const result = await query.all();
-  return json({ enrollments: result.results ?? [] });
+  const enrollments = result.results ?? [];
+  const enrollmentIds = enrollments.map(item => item.id);
+  const byEnrollment = new Map();
+  if (enrollmentIds.length) {
+    const rows = await env.DB.prepare(`SELECT enrollment_id,item_name,amount,due_stage FROM enrollment_fee_items WHERE enrollment_id IN (${enrollmentIds.map(() => '?').join(',')}) ORDER BY created_at,item_name`).bind(...enrollmentIds).all();
+    for (const item of rows.results ?? []) {
+      const list = byEnrollment.get(item.enrollment_id) || [];
+      list.push({ item_name:item.item_name, amount:Number(item.amount), due_stage:item.due_stage });
+      byEnrollment.set(item.enrollment_id,list);
+    }
+  }
+  const missingSnapshots = enrollments.filter(item => !byEnrollment.has(item.id));
+  const fallbackByCourse = new Map();
+  if (missingSnapshots.length) {
+    const missingCourseIds = [...new Set(missingSnapshots.map(item => item.course_id))];
+    const rows = await env.DB.prepare(`SELECT course_id,item_name,amount,due_stage FROM course_fee_items WHERE course_id IN (${missingCourseIds.map(() => '?').join(',')}) AND active=1 ORDER BY sort_order,item_name`).bind(...missingCourseIds).all();
+    for (const item of rows.results ?? []) {
+      const list = fallbackByCourse.get(item.course_id) || [];
+      list.push({ item_name:item.item_name, amount:Number(item.amount), due_stage:item.due_stage });
+      fallbackByCourse.set(item.course_id,list);
+    }
+  }
+  return json({ enrollments: enrollments.map(item => ({...item,fee_items:byEnrollment.get(item.id)||fallbackByCourse.get(item.course_id)||[]})) });
 }

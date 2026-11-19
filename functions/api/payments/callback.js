@@ -48,7 +48,7 @@ export async function onRequestPost({ request, env }) {
   `).bind(paid ? 'paid' : 'failed', Number.isFinite(resultCode) ? resultCode : -1, receipt, internalReceipt, resultDescription, transactionDate, callbackPhone || null, Number.isFinite(callbackAmount) ? callbackAmount : null, payment.id).run();
 
   if (payment.purpose === 'enrollment') {
-    const balance = await env.DB.prepare("SELECT courses.price AS course_fee, COALESCE(SUM(CASE WHEN payments.status = 'paid' THEN payments.amount ELSE 0 END), 0) AS paid_total FROM enrollments JOIN courses ON courses.id = enrollments.course_id LEFT JOIN payments ON payments.reference_id = enrollments.id AND payments.purpose = 'enrollment' WHERE enrollments.id = ? GROUP BY enrollments.id, courses.price").bind(payment.reference_id).first();
+    const balance = await env.DB.prepare("SELECT CASE WHEN EXISTS(SELECT 1 FROM enrollment_fee_items ef WHERE ef.enrollment_id=enrollments.id) THEN (SELECT COALESCE(SUM(ef.amount),0) FROM enrollment_fee_items ef WHERE ef.enrollment_id=enrollments.id) ELSE courses.price END AS course_fee, COALESCE(SUM(CASE WHEN payments.status = 'paid' THEN payments.amount ELSE 0 END), 0) AS paid_total FROM enrollments JOIN courses ON courses.id = enrollments.course_id LEFT JOIN payments ON payments.reference_id = enrollments.id AND payments.purpose = 'enrollment' WHERE enrollments.id = ? GROUP BY enrollments.id, courses.price").bind(payment.reference_id).first();
     const fullyPaid = Number(balance?.paid_total || 0) >= Number(balance?.course_fee || 0);
     await env.DB.prepare(`UPDATE enrollments SET payment_status = ?, status = CASE WHEN ? = 1 AND status NOT IN ('accepted','rejected','withdrawn') THEN 'submitted' ELSE status END WHERE id = ?`)
       .bind(paid ? (fullyPaid ? 'paid' : 'pending') : 'failed', paid ? 1 : 0, payment.reference_id).run();
@@ -63,7 +63,7 @@ export async function onRequestPost({ request, env }) {
   let customer = { email: '', phone: payment.phone, name: 'Customer' };
   let enrollmentDetails = '';
   if (payment.purpose === 'enrollment') {
-    const row = await env.DB.prepare(`SELECT e.full_name AS name,e.email,e.phone,e.display_ref,e.preferred_intake,e.status,c.title AS course_title,c.price AS course_fee
+    const row = await env.DB.prepare(`SELECT e.full_name AS name,e.email,e.phone,e.display_ref,e.preferred_intake,e.status,c.title AS course_title,CASE WHEN EXISTS(SELECT 1 FROM enrollment_fee_items ef WHERE ef.enrollment_id=e.id) THEN (SELECT COALESCE(SUM(ef.amount),0) FROM enrollment_fee_items ef WHERE ef.enrollment_id=e.id) ELSE c.price END AS course_fee
       FROM enrollments e JOIN courses c ON c.id=e.course_id WHERE e.id=?`).bind(payment.reference_id).first();
     if (row) {
       customer = row;

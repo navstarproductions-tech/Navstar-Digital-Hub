@@ -23,7 +23,7 @@ type PortalUser = { id: string; name: string; email: string; role: string; statu
 type LearningSubmission = { id: string; learner_name: string; response_text: string; attachment_url?: string | null; status: string; points_awarded?: number | null; feedback?: string | null; submitted_at: string };
 type LearningAssignment = { id: string; title: string; instructions: string; due_at?: string | null; max_points: number; status: string; submissions?: LearningSubmission[] };
 type LearningModule = { id: string; title: string; description: string; status: string; lessons: { id: string; title: string; content: string; status: string; estimated_minutes: number }[] };
-type LearningCourse = { id: string; title: string; modules: LearningModule[]; assignments: LearningAssignment[] };
+type LearningCourse = { id: string; title: string; course_code?:string|null; modules: LearningModule[]; assignments: LearningAssignment[] };
 type SchoolRecord = { id: string; school_code: string; name: string; school_type: string; curriculum: string };
 type SchoolYear = { id: string; name: string; start_date: string; end_date: string; is_current: number };
 type SchoolClass = { id: string; name: string; education_stage: string; grade_level: string; stream: string; academic_year: string };
@@ -103,8 +103,8 @@ type AdminSubtab = {label:string;target:Section;settingsTab?:'complete'|'site'|'
 const makeTabs = (labels:string[],target:Section):AdminSubtab[] => labels.map(label=>({label,target}));
 const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   overview: [],
-  courses: [{label:'Course Catalogue',target:'courses',coursesTab:'catalogue'},{label:'Manage Courses',target:'courses',coursesTab:'manage'},{label:'Fee Structures',target:'finance'}],
-  learning: [{label:'View Modules',target:'learning',learningTab:'modules'},{label:'Assign Modules',target:'learning',learningTab:'modules'},{label:'Auto-Assign Modules',target:'learning',learningTab:'bulk'}],
+  courses: [{label:'Course Catalogue',target:'courses',coursesTab:'catalogue'},{label:'Manage Courses',target:'courses',coursesTab:'manage'},{label:'Course Codes & Intakes',target:'courses',coursesTab:'manage'},{label:'Fee Structures',target:'courses'},{label:'Course Modules',target:'learning',learningTab:'modules'}],
+  learning: [{label:'View Modules',target:'learning',learningTab:'modules'},{label:'Module Catalogue',target:'learning',learningTab:'modules'},{label:'Lessons & Resources',target:'learning',learningTab:'modules'},{label:'Assignments',target:'learning',learningTab:'modules'},{label:'Tests & Exams',target:'learning',learningTab:'modules'},{label:'Tutor Allocation',target:'learning',learningTab:'modules'},{label:'Bulk Module Import',target:'learning',learningTab:'bulk'},{label:'Assign Modules',target:'learning',learningTab:'modules'},{label:'Auto-Assign Modules',target:'learning',learningTab:'bulk'}],
   school: [{label:'Active Students',target:'school'},{label:'Add New Student',target:'student-directory'},...makeTabs(['Bulk Enrollment','Completed → Graduates','Edit Student Details','Assign Intakes & Years','Detail Edit Requests','Print Basic List','Students List PDF (Filters & Select)','Manage Logins','Deleted Students & Recovery','Enrollment Links','Generate Bulk PDFs','Student Detail PDF'],'school')],
   employees: makeTabs(['Employee Directory','Add Employee','Edit Employee Details','Staff Roles & Departments','Staff Attendance','Employee Documents'],'users'),
   'staff-applications': makeTabs(['All Applications','Pending Review','Approved Applications','Rejected Applications','Application Documents'],'enrollments'),
@@ -215,12 +215,19 @@ export function AdminPage() {
   const [servicePrice, setServicePrice] = useState('');
   const [servicePriceAmount, setServicePriceAmount] = useState('');
   const [courseName, setCourseName] = useState('');
+  const [courseCode, setCourseCode] = useState('');
   const [coursePrice, setCoursePrice] = useState('');
   const [courseDescription, setCourseDescription] = useState('');
   const [courseDuration, setCourseDuration] = useState('4 Months');
   const [courseCategory, setCourseCategory] = useState<Course['category']>('Professional');
   const [courseLevel, setCourseLevel] = useState<Course['level']>('Beginner');
   const [courseImage, setCourseImage] = useState('');
+  const [feeCourseId, setFeeCourseId] = useState('');
+  const [feeItems, setFeeItems] = useState<{id:string;itemName:string;amount:number;dueStage:string;required:boolean;sortOrder:number;active:boolean}[]>([]);
+  const [feeLoading, setFeeLoading] = useState(false);
+  const [feeStudentsMissing, setFeeStudentsMissing] = useState(0);
+  const [feeSaving, setFeeSaving] = useState(false);
+  const [feeStudentsWithoutAdmissionFee, setFeeStudentsWithoutAdmissionFee] = useState(0);
   const [editingCourseId, setEditingCourseId] = useState('');
   const [cashoutAmount, setCashoutAmount] = useState('');
   const [notice, setNotice] = useState('');
@@ -291,7 +298,7 @@ export function AdminPage() {
   const [learningModuleId, setLearningModuleId] = useState('');
   const [learningModuleTitle, setLearningModuleTitle] = useState('');
   const [learningModuleDescription, setLearningModuleDescription] = useState('');
-  const [moduleImportRows, setModuleImportRows] = useState<{ title: string; description: string; status: string; sortOrder: number }[]>([]);
+  const [moduleImportRows, setModuleImportRows] = useState<{ courseId: string; courseName: string; title: string; description: string; status: string; sortOrder: number }[]>([]);
   const [moduleImportName, setModuleImportName] = useState('');
   const [serviceImportRows, setServiceImportRows] = useState<{ name: string; category: string; price: string; priceAmount: string }[]>([]);
   const [learnerImportRows, setLearnerImportRows] = useState<{ admissionNumber: string; firstName: string; middleName: string; lastName: string; classId: string; gender: string; dateOfBirth: string }[]>([]);
@@ -487,22 +494,37 @@ export function AdminPage() {
       const parsed = parseCsv(await file.text());
       if (parsed.length < 2) throw new Error('The CSV must include a header row and at least one module row.');
       const headers = parsed[0].map(value => value.toLowerCase().replace(/[^a-z]/g, ''));
-      const titleIndex = headers.indexOf('title');
-      if (titleIndex < 0) throw new Error('The template must contain a title column.');
-      const descriptionIndex = headers.indexOf('description');
-      const statusIndex = headers.indexOf('status');
-      const orderIndex = headers.indexOf('sortorder');
-      const rows = parsed.slice(1).map((row, index) => ({
-        title: row[titleIndex] || '',
-        description: descriptionIndex >= 0 ? row[descriptionIndex] || '' : '',
-        status: statusIndex >= 0 && row[statusIndex]?.toLowerCase() === 'published' ? 'published' : 'draft',
-        sortOrder: orderIndex >= 0 && Number.isFinite(Number(row[orderIndex])) ? Number(row[orderIndex]) : index + 1,
-      })).filter(row => row.title.trim());
+      const at = (key: string) => headers.indexOf(key);
+      const titleIndex = at('modulename') >= 0 ? at('modulename') : at('title');
+      const courseIdIndex = at('courseid');
+      const courseNameIndex = at('coursename');
+      const courseCodeIndex = at('coursecode');
+      if (titleIndex < 0 || (courseIdIndex < 0 && courseNameIndex < 0 && courseCodeIndex < 0)) throw new Error('The CSV must include Course ID, Course Code or Course Name, Module Name and Module Order columns.');
+      const descriptionIndex = at('description');
+      const statusIndex = at('status');
+      const orderIndex = at('moduleorder') >= 0 ? at('moduleorder') : at('sortorder');
+      if (orderIndex < 0) throw new Error('Add a Module Order column so the modules are saved in the correct sequence.');
+      const rows = parsed.slice(1).map((row, index) => {
+        const courseIdValue = courseIdIndex >= 0 ? (row[courseIdIndex] || '').trim() : '';
+        const courseNameValue = courseNameIndex >= 0 ? (row[courseNameIndex] || '').trim() : '';
+        const courseCodeValue = courseCodeIndex >= 0 ? (row[courseCodeIndex] || '').trim().toUpperCase() : '';
+        const course = learningCourses.find(item => (courseIdValue && item.id === courseIdValue) || (courseNameValue && item.title.toLowerCase() === courseNameValue.toLowerCase()) || (courseCodeValue && String(item.course_code||'').toUpperCase()===courseCodeValue));
+        return {
+          courseId: course?.id || '',
+          courseName: course?.title || courseNameValue || courseCodeValue || courseIdValue,
+          title: titleIndex >= 0 ? (row[titleIndex] || '').trim() : '',
+          description: descriptionIndex >= 0 ? row[descriptionIndex] || '' : '',
+          status: statusIndex >= 0 && row[statusIndex]?.toLowerCase() === 'published' ? 'published' : 'draft',
+          sortOrder: orderIndex >= 0 && Number.isFinite(Number(row[orderIndex])) ? Number(row[orderIndex]) : index + 1,
+        };
+      }).filter(row => row.title);
       if (!rows.length) throw new Error('No valid module rows were found in that file.');
       if (rows.length > 100) throw new Error('Upload up to 100 modules at a time.');
+      const unresolved = rows.filter(row => !row.courseId);
+      if (unresolved.length) throw new Error('Every module row must match an active course by its exact Course ID or Course Name. Check: ' + unresolved.map(row => row.courseName).slice(0, 3).join(', '));
       setModuleImportRows(rows);
       setModuleImportName(file.name);
-      setNotice(`${rows.length} module rows are ready to import. Review the course selection before saving.`);
+      setNotice(`${rows.length} module rows across ${new Set(rows.map(row => row.courseId)).size} courses are ready. Each module will be routed to its selected course in the listed order.`);
     } catch (error) {
       setModuleImportRows([]);
       setModuleImportName('');
@@ -511,9 +533,10 @@ export function AdminPage() {
   };
 
   const importModules = async () => {
-    if (!learningCourseId || !moduleImportRows.length) { setNotice('Select a course and choose a completed module template first.'); return; }
-    const saved = await submitLearningAction({ action: 'bulk_create_modules', courseId: learningCourseId, rows: moduleImportRows }, 'Modules imported and saved successfully.');
-    if (saved) { setModuleImportRows([]); setModuleImportName(''); }
+    if (!moduleImportRows.length) { setNotice('Choose a completed module CSV first.'); return; }
+    const rows = [...moduleImportRows].sort((a,b) => a.courseId.localeCompare(b.courseId) || a.sortOrder-b.sortOrder);
+    const saved = await submitLearningAction({ action: 'bulk_create_modules_multi', rows }, 'All module rows imported and routed to their selected courses.');
+    if (saved) { setModuleImportRows([]); setModuleImportName(''); setNotice('All module rows were imported atomically into their matching courses in module order.'); }
   };
 
   const readServiceImport = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -711,6 +734,16 @@ export function AdminPage() {
     setServicePrice('');
   };
 
+  const generateAdmissionNumber = async (enrollmentId: string) => {
+    try {
+      const response = await fetch('/api/admin/admission-number', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enrollmentId }) });
+      const result = await response.json() as { admissionNumber?: string; error?: string };
+      if (!response.ok || !result.admissionNumber) throw new Error(result.error || 'Admission number could not be generated.');
+      setApplications(current => current.map(item => String(item.id) === enrollmentId ? { ...item, admission_number: result.admissionNumber } : item));
+      setNotice('Admission number ' + result.admissionNumber + ' generated and saved. Student notification has been queued.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Admission number could not be generated.'); }
+  };
+
   const updateApplicationStatus = async (applicationId: string, status: string) => {
     try {
       const response = await fetch(`/api/enrollments/${encodeURIComponent(applicationId)}`, {
@@ -727,10 +760,38 @@ export function AdminPage() {
     }
   };
 
+  const loadFeeStructure = async () => {
+    if (!feeCourseId) { setNotice('Select a course first.'); return; }
+    setFeeLoading(true);
+    try {
+      const response = await fetch('/api/admin/course-fees?courseId=' + encodeURIComponent(feeCourseId));
+      const result = await response.json() as {items?:{id:string;itemName:string;amount:number;dueStage:string;required:number;sortOrder:number;active:number}[];studentsWithoutAdmissionFee?:number;error?:string};
+      if (!response.ok) throw new Error(result.error || 'Fee structure could not be loaded.');
+      setFeeItems((result.items||[]).map(item=>({...item,required:Boolean(item.required),active:Boolean(item.active)})));
+      setFeeStudentsMissing(Number(result.studentsWithoutAdmissionFee||0));
+      setFeeStudentsWithoutAdmissionFee(Number(result.studentsWithoutAdmissionFee||0));
+      setNotice('Course fee items loaded. Update the amounts and save when ready.');
+    } catch(error) { setNotice(error instanceof Error?error.message:'Fee structure could not be loaded.'); }
+    finally { setFeeLoading(false); }
+  };
+  const saveFeeStructure = async () => {
+    if (!feeCourseId || !feeItems.length) { setNotice('Add at least one fee item.'); return; }
+    setFeeSaving(true);
+    try {
+      const response=await fetch('/api/admin/course-fees',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({courseId:feeCourseId,items:feeItems})});
+      const result=await response.json() as {items?:typeof feeItems;error?:string};
+      if(!response.ok||!result.items)throw new Error(result.error||'Fee structure could not be saved.');
+      setFeeItems(result.items.map(item=>({...item,required:Boolean(item.required),active:Boolean(item.active)})));
+      setFeeStudentsMissing(0);
+      setNotice('Fee structure saved. The Admission fee is the required first-payment item for new enrolments.');
+    } catch(error) { setNotice(error instanceof Error?error.message:'Fee structure could not be saved.'); }
+    finally { setFeeSaving(false); }
+  };
+
   const addCourse = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!courseName.trim() || Number(coursePrice) < 1) return;
-    const payload = { title: courseName.trim(), description: courseDescription.trim(), duration: courseDuration.trim(), image: courseImage.trim(), category: courseCategory, level: courseLevel, price: Number(coursePrice) };
+    const payload = { title: courseName.trim(), courseCode: courseCode.trim().toUpperCase(), description: courseDescription.trim(), duration: courseDuration.trim(), image: courseImage.trim(), category: courseCategory, level: courseLevel, price: Number(coursePrice) };
     if (backendReady) {
       const response = await fetch('/api/courses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const result = await response.json() as { id?: string; error?: string };
@@ -742,6 +803,7 @@ export function AdminPage() {
       setNotice('Course draft added to this preview only.');
     }
     setCourseName('');
+    setCourseCode('');
     setCoursePrice('');
     setCourseDescription('');
     setCourseDuration('4 Months');
@@ -753,6 +815,7 @@ export function AdminPage() {
   const editCourse = (course: Course) => {
     setEditingCourseId(course.id);
     setCourseName(course.title);
+    setCourseCode(String((course as Course & {course_code?:string}).course_code || ''));
     setCoursePrice(String(course.price));
     setCourseDescription(course.description);
     setCourseDuration(course.duration);
@@ -767,7 +830,7 @@ export function AdminPage() {
   const saveCourse = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editingCourseId || !courseName.trim() || !Number.isSafeInteger(Number(coursePrice)) || Number(coursePrice) < 0) return;
-    const payload = { title: courseName.trim(), description: courseDescription.trim(), duration: courseDuration.trim(), image: courseImage.trim(), category: courseCategory, level: courseLevel, price: Number(coursePrice) };
+    const payload = { title: courseName.trim(), courseCode: courseCode.trim().toUpperCase(), description: courseDescription.trim(), duration: courseDuration.trim(), image: courseImage.trim(), category: courseCategory, level: courseLevel, price: Number(coursePrice) };
     if (backendReady) {
       const response = await fetch(`/api/courses/${encodeURIComponent(editingCourseId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const result = await response.json() as { error?: string };
@@ -775,10 +838,10 @@ export function AdminPage() {
     }
     setCourses((current) => current.map((course) => course.id === editingCourseId ? { ...course, ...payload } : course));
     setNotice(backendReady ? 'Course updated and published.' : 'Course updated in this preview only.');
-    setEditingCourseId(''); setCourseName(''); setCoursePrice(''); setCourseDescription(''); setCourseDuration('4 Months'); setCourseCategory('Professional'); setCourseLevel('Beginner'); setCourseImage('');
+    setEditingCourseId(''); setCourseName(''); setCourseCode(''); setCoursePrice(''); setCourseDescription(''); setCourseDuration('4 Months'); setCourseCategory('Professional'); setCourseLevel('Beginner'); setCourseImage('');
   };
 
-  const cancelCourseEdit = () => { setEditingCourseId(''); setCourseName(''); setCoursePrice(''); setCourseDescription(''); setCourseDuration('4 Months'); setCourseCategory('Professional'); setCourseLevel('Beginner'); setCourseImage(''); };
+  const cancelCourseEdit = () => { setEditingCourseId(''); setCourseName(''); setCourseCode(''); setCoursePrice(''); setCourseDescription(''); setCourseDuration('4 Months'); setCourseCategory('Professional'); setCourseLevel('Beginner'); setCourseImage(''); };
 
   const removeCourse = async (courseId: string) => {
     if (backendReady) {
@@ -1153,7 +1216,7 @@ export function AdminPage() {
             }}
           />}
 
-          {active === 'courses' && selectedSubtab !== 'Fee Structures' && <div className="space-y-5">{(coursesSubTab === 'manage' || (coursesSubTab === 'edit' && Boolean(editingCourseId))) && <form onSubmit={editingCourseId ? saveCourse : addCourse} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-3"><div className="space-y-2 sm:col-span-2 xl:col-span-3"><h3 className="font-bold text-slate-950">{editingCourseId ? 'Edit course details' : 'Add a new course'}</h3><p className="text-xs text-slate-500">All fees are whole Kenyan shillings for M-Pesa payment compatibility.</p></div><div className="space-y-2"><Label htmlFor="new-course">Course title</Label><Input id="new-course" value={courseName} onChange={(event) => setCourseName(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="new-course-price">Fee (KSh)</Label><Input id="new-course-price" type="number" min="0" step="1" value={coursePrice} onChange={(event) => setCoursePrice(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-duration">Duration</Label><Input id="course-duration" value={courseDuration} onChange={(event) => setCourseDuration(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-category">Category</Label><select id="course-category" value={courseCategory} onChange={(event) => setCourseCategory(event.target.value as Course['category'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Professional</option><option>Computer School</option><option>Cyber Services</option></select></div><div className="space-y-2"><Label htmlFor="course-image">Course image URL</Label><Input id="course-image" value={courseImage} onChange={(event) => setCourseImage(event.target.value)} placeholder="https://..." /></div><div className="space-y-2"><Label htmlFor="course-level">Course level</Label><select id="course-level" value={courseLevel} onChange={(event) => setCourseLevel(event.target.value as Course['level'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></div><div className="space-y-2 sm:col-span-2 xl:col-span-3"><Label htmlFor="course-description">Course description</Label><textarea id="course-description" value={courseDescription} onChange={(event) => setCourseDescription(event.target.value)} rows={3} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" /></div><div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><Button type="submit" className="bg-emerald-800 hover:bg-emerald-900">{editingCourseId ? <><Save className="mr-2 h-4 w-4" />Save course</> : <><Plus className="mr-2 h-4 w-4" />Add course</>}</Button>{editingCourseId && <Button type="button" variant="outline" onClick={cancelCourseEdit}>Cancel edit</Button>}</div></form>}{coursesSubTab === 'edit' && !editingCourseId && <p className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">Choose the pencil icon beside a course in Course Catalogue to edit its details.</p>}{coursesSubTab !== 'edit' && <div className="overflow-x-auto border bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Course</th><th className="p-3">Category</th><th className="p-3">Duration</th><th className="p-3">Fee</th><th className="p-3">Actions</th></tr></thead><tbody>{courses.map((course) => <tr key={course.id} className="border-b last:border-0"><td className="p-3 font-semibold text-slate-900">{course.title}<p className="mt-1 max-w-md text-xs font-normal text-slate-500">{course.description}</p></td><td className="p-3">{course.category}</td><td className="p-3">{course.duration}</td><td className="p-3">KSh {course.price.toLocaleString()}</td><td className="p-3"><div className="flex items-center gap-3"><button aria-label={`Edit ${course.title}`} className="text-blue-700 hover:text-blue-900" onClick={() => editCourse(course)}><Pencil className="h-4 w-4" /></button><button aria-label={`Archive ${course.title}`} className="text-slate-500 hover:text-red-700" onClick={() => void removeCourse(course.id)}><Trash2 className="h-4 w-4" /></button></div></td></tr>)}</tbody></table></div>}</div>}
+          {active === 'courses' && selectedSubtab !== 'Fee Structures' && <div className="space-y-5">{(coursesSubTab === 'manage' || (coursesSubTab === 'edit' && Boolean(editingCourseId))) && <form onSubmit={editingCourseId ? saveCourse : addCourse} className="grid gap-3 border bg-white p-4 sm:grid-cols-2 xl:grid-cols-3"><div className="space-y-2 sm:col-span-2 xl:col-span-3"><h3 className="font-bold text-slate-950">{editingCourseId ? 'Edit course details' : 'Add a new course'}</h3><p className="text-xs text-slate-500">All fees are whole Kenyan shillings for M-Pesa payment compatibility.</p></div><div className="space-y-2"><Label htmlFor="new-course">Course title</Label><Input id="new-course" value={courseName} onChange={(event) => setCourseName(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="new-course-code">Course code</Label><Input id="new-course-code" value={courseCode} onChange={(event) => setCourseCode(event.target.value.toUpperCase())} placeholder="e.g. CP003" maxLength={7}/><p className="text-[11px] text-slate-500">Letters plus a three-digit course number. Used in admission numbers.</p></div><div className="space-y-2"><Label htmlFor="new-course-price">Fee (KSh)</Label><Input id="new-course-price" type="number" min="0" step="1" value={coursePrice} onChange={(event) => setCoursePrice(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-duration">Duration</Label><Input id="course-duration" value={courseDuration} onChange={(event) => setCourseDuration(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="course-category">Category</Label><select id="course-category" value={courseCategory} onChange={(event) => setCourseCategory(event.target.value as Course['category'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Professional</option><option>Computer School</option><option>Cyber Services</option></select></div><div className="space-y-2"><Label htmlFor="course-image">Course image URL</Label><Input id="course-image" value={courseImage} onChange={(event) => setCourseImage(event.target.value)} placeholder="https://..." /></div><div className="space-y-2"><Label htmlFor="course-level">Course level</Label><select id="course-level" value={courseLevel} onChange={(event) => setCourseLevel(event.target.value as Course['level'])} className="h-10 w-full border border-slate-300 bg-white px-3 text-sm"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></div><div className="space-y-2 sm:col-span-2 xl:col-span-3"><Label htmlFor="course-description">Course description</Label><textarea id="course-description" value={courseDescription} onChange={(event) => setCourseDescription(event.target.value)} rows={3} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" /></div><div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><Button type="submit" className="bg-emerald-800 hover:bg-emerald-900">{editingCourseId ? <><Save className="mr-2 h-4 w-4" />Save course</> : <><Plus className="mr-2 h-4 w-4" />Add course</>}</Button>{editingCourseId && <Button type="button" variant="outline" onClick={cancelCourseEdit}>Cancel edit</Button>}</div></form>}{coursesSubTab === 'edit' && !editingCourseId && <p className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">Choose the pencil icon beside a course in Course Catalogue to edit its details.</p>}{coursesSubTab !== 'edit' && <div className="overflow-x-auto border bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Course</th><th className="p-3">Category</th><th className="p-3">Duration</th><th className="p-3">Fee</th><th className="p-3">Actions</th></tr></thead><tbody>{courses.map((course) => <tr key={course.id} className="border-b last:border-0"><td className="p-3 font-semibold text-slate-900">{course.title}<p className="mt-1 max-w-md text-xs font-normal text-slate-500">{course.description}</p></td><td className="p-3">{course.category}</td><td className="p-3">{course.duration}</td><td className="p-3">KSh {course.price.toLocaleString()}</td><td className="p-3"><div className="flex items-center gap-3"><button aria-label={`Edit ${course.title}`} className="text-blue-700 hover:text-blue-900" onClick={() => editCourse(course)}><Pencil className="h-4 w-4" /></button><button aria-label={`Archive ${course.title}`} className="text-slate-500 hover:text-red-700" onClick={() => void removeCourse(course.id)}><Trash2 className="h-4 w-4" /></button></div></td></tr>)}</tbody></table></div>}</div>}
 
           {active === 'courses' && selectedSubtab === 'Fee Structures' && <AdminWorkspaceHub section="fees" subtab="Fee Structures" courses={courses} users={portalUsers} applications={applications} services={services}/>}
           {active === 'school' && <StudentSubtabWorkspace
@@ -1165,19 +1228,20 @@ export function AdminPage() {
             onAddStudent={() => { setActive('student-directory'); setSelectedSubtab('Add New Student'); }}
           />}
 
+                    {active === 'courses' && selectedSubtab === 'Fee Structures' && <section className="space-y-5 rounded-2xl border bg-white p-5 text-slate-900 shadow-sm"><div><p className="text-xs font-black uppercase tracking-widest text-cyan-800">NAVSTAR · COURSE FINANCE</p><h2 className="mt-1 text-xl font-black">Custom course fee structures</h2><p className="mt-2 text-sm text-slate-600">Set Admission fee, tuition, materials, examination and other charges independently for every course. The required Admission fee is the minimum first payment for enrolment.</p></div><div className="flex flex-wrap items-end gap-3"><div className="min-w-[240px] flex-1 space-y-2"><Label>Course</Label><select value={feeCourseId} onChange={e=>{setFeeCourseId(e.target.value);setFeeItems([]);}} className="h-11 w-full rounded-xl border bg-white px-3"><option value="">Select course</option>{courses.map(course=><option key={course.id} value={course.id}>{course.title}</option>)}</select></div><Button type="button" disabled={!feeCourseId||feeLoading} onClick={()=>void loadFeeStructure()}>{feeLoading?'Loading…':'Load fee structure'}</Button></div><div className="space-y-3">{feeItems.some(item=>item.itemName.toLowerCase()==="admission fee"&&item.amount>0&&item.required&&item.dueStage==="enrollment")?null:<p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Warning: set a positive required Admission fee due at enrolment. Students cannot be admitted with an unset admission fee.</p>}{feeStudentsMissing>0&&<p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Attention: {feeStudentsMissing} existing student application(s) are linked to a course without a configured Admission fee. Set the Admission fee and review those student accounts.</p>}{feeStudentsWithoutAdmissionFee>0&&<p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Legacy records warning: {feeStudentsWithoutAdmissionFee} existing student(s) in this course do not have a positive Admission fee saved in their individual fee record. Review their accounts before changing their balances.</p>}{feeItems.map((item,index)=><div key={item.id} className="grid gap-3 rounded-xl border bg-slate-50 p-4 sm:grid-cols-[1.3fr_1fr_1fr_auto_auto] sm:items-end"><div className="space-y-1"><Label>Fee item</Label><Input value={item.itemName} onChange={e=>setFeeItems(current=>current.map((row,i)=>i===index?{...row,itemName:e.target.value}:row))}/></div><div className="space-y-1"><Label>Amount (KSh)</Label><Input type="number" min="0" step="1" value={item.amount} onChange={e=>setFeeItems(current=>current.map((row,i)=>i===index?{...row,amount:Number(e.target.value)}:row))}/></div><div className="space-y-1"><Label>When due</Label><select value={item.dueStage} onChange={e=>setFeeItems(current=>current.map((row,i)=>i===index?{...row,dueStage:e.target.value}:row))} className="h-10 w-full rounded-md border bg-white px-2 text-sm"><option value="enrollment">At enrolment</option><option value="before_term">Before term</option><option value="anytime">Any time</option></select></div><label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={item.required} onChange={e=>setFeeItems(current=>current.map((row,i)=>i===index?{...row,required:e.target.checked}:row))}/>Required</label><Button type="button" size="sm" variant="outline" onClick={()=>setFeeItems(current=>current.filter((_,i)=>i!==index))}>Remove</Button></div>)}{!feeItems.length&&<p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-500">Load a course fee structure to begin. Each course starts with an Admission fee item.</p>}</div><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={()=>setFeeItems(current=>[...current,{id:crypto.randomUUID(),itemName:'New fee item',amount:0,dueStage:'anytime',required:false,sortOrder:current.length+1,active:true}])}>+ Add fee item</Button><Button type="button" disabled={!feeItems.length||feeSaving} onClick={()=>void saveFeeStructure()} className="bg-cyan-900 text-white">{feeSaving?'Saving…':'Save fee structure'}</Button></div><p className="text-xs text-slate-500">Existing fee and payment history is preserved. Changes affect the selected course fee schedule going forward.</p></section>}
           {active === 'learning' && ['Assign Modules','Auto-Assign Modules'].includes(selectedSubtab) && <AdminWorkspaceHub section="learning" subtab={selectedSubtab} courses={courses} users={portalUsers} applications={applications} services={services}/>}
           {active === 'marks-tests' && <AdminWorkspaceHub section="marks-tests" subtab={selectedSubtab || 'Marks Hub'} courses={courses} users={portalUsers} applications={applications} services={services}/>}
-          {active === 'learning' && (!selectedSubtab || selectedSubtab === 'View Modules') && <div className="space-y-6">
+          {active === 'learning' && (!selectedSubtab || ['View Modules','Module Catalogue','Lessons & Resources','Assignments','Tests & Exams','Tutor Allocation','Bulk Module Import','Course Modules'].includes(selectedSubtab)) && <div className="space-y-6">
             <section className="rounded-2xl border bg-white p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-950">Learning Management System</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Build course content, publish modules and lessons, set assignments, allocate tutors and assess learner submissions. Published content becomes visible in the authorised Learning Workspace.</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{learningCourses.length} active courses</span></div>
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-950">Learning Management System</h3><Link to="/learning" className="mt-3 inline-flex rounded-xl bg-cyan-900 px-4 py-2 text-xs font-bold text-white">Open Academic Operations</Link><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Build course content, publish modules and lessons, set assignments, allocate tutors and assess learner submissions. Published content becomes visible in the authorised Learning Workspace.</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{learningCourses.length} active courses</span></div>
               <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Modules</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.modules.length,0)}</p></div><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Lessons</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.modules.reduce((m,x)=>m+x.lessons.length,0),0)}</p></div><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Assignments</p><p className="mt-1 text-2xl font-bold">{learningCourses.reduce((n,c)=>n+c.assignments.length,0)}</p></div></div>
             </section>
             <section className="grid gap-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-[#0b2854] to-[#123e78] p-5 text-white xl:grid-cols-[1.2fr_1fr]">
               <div><h3 className="font-bold">Bulk module upload & branded registers</h3><p className="mt-1 text-xs leading-5 text-blue-100">Download the Navstar CSV template, fill in module details and import up to 100 rows at once. Existing records are retained.</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => downloadCsvTemplate('navstar-module-import-template.csv', ['title','description','status','sortOrder'], ['Introduction to the course','Module learning objectives','draft','1'])}>Download module template</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => downloadCsvTemplate('navstar-module-import-template.csv', ['courseId','courseCode','courseName','moduleOrder','moduleName','description','status'], [learningCourses[0]?.id || 'COURSE_ID',learningCourses[0]?.course_code || 'CP003',learningCourses[0]?.title || 'Course Name','1','Introduction to the course','Module learning objectives','draft'])}>Download module template</Button>
                   <label className="inline-flex cursor-pointer items-center rounded-md border border-white/30 px-3 py-2 text-xs font-semibold hover:bg-white/10">Choose CSV file<input type="file" accept=".csv,text/csv" className="sr-only" onChange={readModuleImport}/></label>
-                  <Button type="button" size="sm" disabled={!moduleImportRows.length || !learningCourseId} onClick={() => void importModules()}>Import {moduleImportRows.length || ''} modules</Button>
+                  <Button type="button" size="sm" disabled={!moduleImportRows.length} onClick={() => void importModules()}>Import {moduleImportRows.length || ''} modules</Button>
                 </div>
                 {moduleImportName && <p className="mt-2 text-xs text-cyan-100">Selected: {moduleImportName} · {moduleImportRows.length} valid rows</p>}
               </div>
@@ -1263,7 +1327,7 @@ export function AdminPage() {
            {active === 'enrollment-summary' && selectedSubtab === 'Enrollment Status' && <section className="rounded-xl border border-white/10 bg-[#111d30] p-5 text-white"><h3 className="font-bold">Enrollment status breakdown</h3><div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{['submitted','under_review','accepted','rejected'].map(status=><div key={status} className="rounded-lg border border-white/10 bg-white/5 p-4"><p className="text-xs uppercase text-slate-400">{status.replace('_',' ')}</p><p className="mt-1 text-2xl font-black">{applications.filter(item=>String(item.status||'').toLowerCase()===status).length}</p></div>)}</div></section>}
            {active === 'applications' && selectedSubtab === 'Application Status' && <section className="rounded-xl border border-white/10 bg-[#111d30] p-5 text-white"><h3 className="font-bold">Application status summary</h3><div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{['submitted','under_review','accepted','rejected'].map(status=><div key={status} className="rounded-lg border border-white/10 bg-white/5 p-4"><p className="text-xs uppercase text-slate-400">{status.replace('_',' ')}</p><p className="mt-1 text-2xl font-black">{applications.filter(item=>String(item.status||'').toLowerCase()===status).length}</p></div>)}</div></section>}
            {active === 'applications' && <div className="flex flex-wrap gap-2 rounded-xl border border-white/10 bg-[#111d30] p-3 text-xs text-slate-300"><span className="font-bold text-cyan-200">Viewing:</span><span>{selectedSubtab || 'All Applications'}</span><span className="ml-auto">{applications.filter(item=>selectedSubtab==='New Applications'?String(item.status||'').toLowerCase()==='submitted':selectedSubtab==='Review Applications'?String(item.status||'').toLowerCase()==='under_review':true).length} records</span></div>}
-            <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full min-w-[820px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course</th><th className="p-3">Application</th><th className="p-3">Payment</th><th className="p-3">Received (EAT)</th><th className="p-3">Review</th></tr></thead><tbody>{applications.filter(item=>active!=='applications'||(selectedSubtab==='New Applications'?String(item.status||'').toLowerCase()==='submitted':selectedSubtab==='Review Applications'?String(item.status||'').toLowerCase()==='under_review':true)).map(application=><tr key={String(application.id)} className="border-b last:border-0"><td className="p-3"><p className="font-semibold">{String(application.full_name??'')}</p><p className="text-xs text-slate-500">{String(application.email??'')}</p></td><td className="p-3">{courses.find(item=>item.id===application.course_id)?.title??String(application.course_id??'')}</td><td className="p-3">{String(application.status??'')}</td><td className="p-3">{String(application.payment_status??'')}</td><td className="p-3">{formatEATDateTime(application.created_at as string|null|undefined)}</td><td className="p-3">{(user?.role==='admin'||user?.role==='admissions')?<select aria-label={`Review application for ${String(application.full_name??'learner')}`} className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs text-slate-900" value={String(application.status??'submitted')} onChange={event=>void updateApplicationStatus(String(application.id),event.target.value)}><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="accepted">Accepted — enable LMS</option><option value="rejected">Rejected</option></select>:'Read only'}</td></tr>)}{applications.length===0&&<tr><td className="p-6 text-center text-slate-500" colSpan={6}>{backendReady?'No applications received yet.':'Connect the backend and sign in to view applications.'}</td></tr>}</tbody></table></div>
+            <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full min-w-[980px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Applicant</th><th className="p-3">Course</th><th className="p-3">Application</th><th className="p-3">Admission number</th><th className="p-3">Payment</th><th className="p-3">Received (EAT)</th><th className="p-3">Review</th></tr></thead><tbody>{applications.filter(item=>active!=='applications'||(selectedSubtab==='New Applications'?String(item.status||'').toLowerCase()==='submitted':selectedSubtab==='Review Applications'?String(item.status||'').toLowerCase()==='under_review':true)).map(application=><tr key={String(application.id)} className="border-b last:border-0"><td className="p-3"><div className="flex items-center gap-3">{application.profile_photo_url&&<img src={String(application.profile_photo_url)} alt="" className="h-10 w-10 rounded-full border object-cover"/>}<div><p className="font-semibold">{String(application.full_name??'')}</p><p className="text-xs text-slate-500">{String(application.email??'')}</p></div></div></td><td className="p-3">{courses.find(item=>item.id===application.course_id)?.title??String(application.course_id??'')}</td><td className="p-3">{String(application.status??'')}</td><td className="p-3">{application.admission_number?<span className="font-mono text-xs font-bold text-emerald-800">{String(application.admission_number)}</span>:String(application.status)==="accepted"&&(user?.role==="admin"||user?.role==="admissions")?<Button type="button" size="sm" variant="outline" onClick={()=>void generateAdmissionNumber(String(application.id))}>Generate number</Button>:<span className="text-xs text-slate-400">Pending acceptance</span>}</td><td className="p-3">{String(application.payment_status??'')}</td><td className="p-3">{formatEATDateTime(application.created_at as string|null|undefined)}</td><td className="p-3">{(user?.role==='admin'||user?.role==='admissions')?<select aria-label={`Review application for ${String(application.full_name??'learner')}`} className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs text-slate-900" value={String(application.status??'submitted')} onChange={event=>void updateApplicationStatus(String(application.id),event.target.value)}><option value="submitted">Submitted</option><option value="under_review">Under review</option><option value="accepted">Accepted — enable LMS</option><option value="rejected">Rejected</option></select>:'Read only'}</td></tr>)}{applications.length===0&&<tr><td className="p-6 text-center text-slate-500" colSpan={7}>{backendReady?'No applications received yet.':'Connect the backend and sign in to view applications.'}</td></tr>}</tbody></table></div>
           </div>}
           {(active === 'users' || active === 'employees') && <div className="space-y-5">{((active === 'users' && selectedSubtab === 'Create User') || (active === 'employees' && selectedSubtab === 'Add Employee')) && <form onSubmit={createPortalUser} className="space-y-5 border bg-white p-4 sm:p-6">
             <div><h3 className="font-bold text-slate-900">{active === 'employees' ? 'Create a staff account' : 'Create a system user'}</h3><p className="mt-1 text-sm text-slate-600">{active === 'employees' ? 'Register tutors, admissions, finance, principal and administrative staff. Student accounts are managed separately in Students.' : 'Create and manage system accounts with role-appropriate access.'} A unique Navstar ID is generated automatically.</p></div>
@@ -1343,7 +1407,7 @@ export function AdminPage() {
 
           {active === 'orders' && (!selectedSubtab || selectedSubtab === 'Service Orders') && <section className="overflow-hidden rounded-2xl border bg-white">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><div><h3 className="font-bold text-slate-950">Customer service orders</h3><p className="mt-1 text-sm text-slate-600">Requests submitted from the public Customer Service Desk.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">{customerOrders.length} orders</span></div>
-            <div className="divide-y">{customerOrders.map((order) => <article key={order.id} className="grid gap-3 p-4 lg:grid-cols-[1fr_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-950">{order.serviceName}</p><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-600">{order.status}</span></div><p className="mt-1 text-sm text-slate-600">{order.customerName} · {order.phone}{order.email ? ' · ' + order.email : ''}</p><p className="mt-1 text-xs text-slate-500">Reference: {order.reference} · KSh {Number(order.amount).toLocaleString()} · {formatEATDateTime(order.createdAt)}</p>{order.notes && <p className="mt-2 text-sm text-slate-600">{order.notes}</p>}</div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void updateOrderStatus(order.id, 'completed')} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800">Mark completed</button><button type="button" onClick={() => void updateOrderStatus(order.id, 'cancelled')} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700">Cancel</button></div></article>)}{customerOrders.length === 0 && <p className="p-6 text-sm text-slate-500">No customer orders have been submitted yet.</p>}</div>
+            <div className="divide-y">{customerOrders.map((order) => <article key={order.id} className="grid gap-3 p-4 lg:grid-cols-[1fr_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-950">{order.serviceName}</p><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-600">{order.status}</span></div><p className="mt-1 text-sm text-slate-600">{order.customerName} · {order.phone}{order.email ? ' · ' + order.email : ''}</p><p className="mt-1 text-xs text-slate-500">Reference: {order.reference} · KSh {Number(order.amount).toLocaleString()} · {formatEATDateTime(order.createdAt)}</p>{order.notes && <p className="mt-2 text-sm text-slate-600">{order.notes}</p>}</div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void updateOrderStatus(order.id, 'in_progress')} className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-bold text-blue-800">In progress</button><button type="button" onClick={() => void updateOrderStatus(order.id, 'ready')} className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-bold text-amber-800">Ready</button><button type="button" onClick={() => void updateOrderStatus(order.id, 'delivered')} className="rounded-lg border border-cyan-200 px-3 py-2 text-xs font-bold text-cyan-800">Delivered</button><button type="button" onClick={() => void updateOrderStatus(order.id, 'completed')} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800">Completed</button><button type="button" onClick={() => void updateOrderStatus(order.id, 'cancelled')} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700">Cancel</button></div></article>)}{customerOrders.length === 0 && <p className="p-6 text-sm text-slate-500">No customer orders have been submitted yet.</p>}</div>
           </section>}
 
           {active === 'downloads' && ['Published Documents','Manage Downloads'].includes(selectedSubtab) && <AdminWorkspaceHub section="downloads" subtab={selectedSubtab} courses={courses} users={portalUsers} applications={applications} services={services}/>}

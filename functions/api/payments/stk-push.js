@@ -13,6 +13,8 @@ export async function onRequestPost({ request, env }) {
   const purpose = safeString(body.purpose, 20);
   const reference = safeString(body.reference, 80);
   const phone = normalizePhone(body.phone);
+  const requestedAmount = body.amount === undefined || body.amount === null || body.amount === '' ? null : Number(body.amount);
+  if (requestedAmount !== null && (!Number.isSafeInteger(requestedAmount) || requestedAmount < 1 || requestedAmount > 150000)) return error('Enter a valid payment amount in whole Kenya shillings.');
   if (!reference || !phone || !['enrollment', 'donation', 'service'].includes(purpose)) return error('Invalid payment request.');
 
   let amount;
@@ -29,21 +31,35 @@ export async function onRequestPost({ request, env }) {
       SELECT enrollments.id, enrollments.display_ref, enrollments.email, enrollments.phone, enrollments.payment_status, enrollments.status, enrollments.approved_initial_payment, courses.price
       FROM enrollments JOIN courses ON courses.id = enrollments.course_id WHERE enrollments.id = ?
     `).bind(reference).first();
-    if (!enrollment || enrollment.phone !== phone || enrollment.payment_status === 'paid') return error('Enrollment payment is not available.', 404);
+    if (!enrollment || enrollment.payment_status === 'paid') return error('Enrollment payment is not available.', 404);
     if (session && !['student', 'admin', 'finance', 'admissions'].includes(session.role)) return error('This account cannot make an enrollment payment.', 403);
     if (session?.role === 'student' && String(enrollment.email).toLowerCase() !== String(session.email).toLowerCase()) return error('You can only pay fees for your own student account.', 403);
     if (!session && enrollment.status !== 'under_review') return error('Sign in to the Student Portal before requesting a payment for an existing enrolment.', 401);
-    const configRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
-    let config = {}; try { config = JSON.parse(configRow?.value || '{}'); } catch {}
-    const minimum = Number(config['enrollment-settings']?.minimumEnrollmentPayment || 0);
+    if (!session && enrollment.phone !== phone) return error('Use the registered phone number or sign in to pay from another phone.', 403);
+    const feeSnapshot = await env.DB.prepare(`
+      SELECT COUNT(*) AS item_count, COALESCE(SUM(amount),0) AS total_fee,
+        COALESCE(SUM(CASE WHEN lower(item_name)='admission fee' AND due_stage='enrollment' THEN amount ELSE 0 END),0) AS admission_fee
+      FROM enrollment_fee_items WHERE enrollment_id=?
+    `).bind(reference).first();
+    const legacyAdmission = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id=(SELECT course_id FROM enrollments WHERE id=?) AND lower(item_name)='admission fee' AND active=1 AND due_stage='enrollment' AND required=1").bind(reference).first();
+    const totalFee = Number(feeSnapshot?.item_count || 0) > 0 ? Number(feeSnapshot.total_fee) : Number(enrollment.price);
+    // Legacy enrolments may have a fee snapshot created before the Admission fee was configured.
+    // Preserve their saved total while using the active required Admission fee as the first-payment minimum.
+    const snapshotAdmissionFee = Number(feeSnapshot?.admission_fee || 0);
+    const admissionFee = snapshotAdmissionFee > 0 ? snapshotAdmissionFee : Number(legacyAdmission?.total || 0);
+    if (admissionFee < 1) return error('Admission fee is not configured for this course. Please contact Navstar Admissions before making a payment.', 409);
     const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
     const paidTotal = Number(paidRow?.paid_total || 0);
     if (enrollment.status === 'under_review' && paidTotal === 0) {
-      amount = Number(enrollment.approved_initial_payment ?? (minimum > 0 ? minimum : enrollment.price));
+      amount = Number(enrollment.approved_initial_payment ?? admissionFee);
     } else {
-      amount = Math.max(0, Number(enrollment.price) - paidTotal);
+      amount = Math.max(0, totalFee - paidTotal);
     }
-    if (!Number.isSafeInteger(amount) || amount < 1 || amount > enrollment.price) return error('There is no outstanding enrollment balance or the minimum payment is not configured correctly.', 409);
+    const outstanding = Math.max(0, totalFee - paidTotal);
+    if (requestedAmount !== null) amount = requestedAmount;
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > outstanding) return error('Enter an amount greater than zero and no more than your outstanding balance.', 409);
+    const firstPaymentMinimum = admissionFee;
+    if (paidTotal === 0 && amount < firstPaymentMinimum) return error('Your first payment must cover the configured Admission fee of at least KSh ' + firstPaymentMinimum.toLocaleString('en-KE') + '.', 409);
     displayReference = enrollment.display_ref;
   } else {
     const service = await env.DB.prepare("SELECT id, display_ref, phone, amount, status FROM service_requests WHERE id = ?").bind(reference).first();
