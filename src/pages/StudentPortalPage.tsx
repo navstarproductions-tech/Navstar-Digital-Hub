@@ -13,6 +13,7 @@ type Notice={id:string;title:string;message:string;read_at:string|null;created_a
 type Tab='overview'|'profile'|'applications'|'academic'|'courses'|'assignments'|'fees'|'notifications'|'support';
 const tabs:{id:Tab;label:string;icon:any}[]=[{id:'overview',label:'Overview',icon:Home},{id:'profile',label:'My Profile',icon:UserRound},{id:'applications',label:'Applications',icon:NotebookTabs},{id:'academic',label:'Academics',icon:GraduationCap},{id:'courses',label:'My Courses',icon:BookOpen},{id:'assignments',label:'Assignments & Results',icon:FileText},{id:'fees',label:'Fees & Receipts',icon:Wallet},{id:'notifications',label:'Notifications',icon:Bell},{id:'support',label:'Help & Support',icon:Headphones}];
 const date=(v?:string|null)=>v?new Date(v).toLocaleDateString('en-KE',{day:'2-digit',month:'short',year:'numeric'}):'—';
+const formatDateTime=(v?:string|null)=>v?new Date(v).toLocaleString('en-KE',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Nairobi'}):'To be confirmed';
 const kes=(v:number)=>'KSh '+Number(v||0).toLocaleString('en-KE');
 const badge=(v:string)=>['accepted','paid','graded','completed'].includes((v||'').toLowerCase())?'bg-emerald-50 text-emerald-700':['rejected','failed'].includes((v||'').toLowerCase())?'bg-rose-50 text-rose-700':'bg-amber-50 text-amber-800';
 
