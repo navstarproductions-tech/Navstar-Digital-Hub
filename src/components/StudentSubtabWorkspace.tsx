@@ -32,7 +32,8 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
   const [csvError, setCsvError] = useState('');
   const [pdfError, setPdfError] = useState('');
   const [admissionBusy, setAdmissionBusy] = useState('');
-  const [generatedAdmissions, setGeneratedAdmissions] = useState<Record<string,string>>({});\n  const [admissionIntakes, setAdmissionIntakes] = useState<Record<string,string>>({});
+  const [generatedAdmissions, setGeneratedAdmissions] = useState<Record<string,string>>({});
+  const [admissionIntakes, setAdmissionIntakes] = useState<Record<string,string>>({});
   const [admissionMessage, setAdmissionMessage] = useState('');
 
   const activeStudents = useMemo(() => students.filter(student => student.role === 'student' && student.status.toLowerCase() === 'active'), [students]);
