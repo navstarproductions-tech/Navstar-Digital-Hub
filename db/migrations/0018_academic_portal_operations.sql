@@ -124,3 +124,19 @@ CREATE TABLE IF NOT EXISTS course_assessment_results (
   UNIQUE(assessment_id,user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_assessment_results_user ON course_assessment_results(user_id,published_at);
+
+CREATE TABLE IF NOT EXISTS course_assessment_attempts (
+  id TEXT PRIMARY KEY,
+  assessment_id TEXT NOT NULL REFERENCES course_assessments(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  response_text TEXT NOT NULL DEFAULT '',
+  attachment_url TEXT,
+  status TEXT NOT NULL DEFAULT 'submitted' CHECK(status IN ('submitted','graded','returned')),
+  points_awarded INTEGER,
+  feedback TEXT,
+  submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  marked_by TEXT REFERENCES users(id),
+  marked_at TEXT,
+  UNIQUE(assessment_id,user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_assessment_attempts_user ON course_assessment_attempts(user_id,submitted_at);
