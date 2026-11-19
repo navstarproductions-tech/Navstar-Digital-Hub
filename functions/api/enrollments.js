@@ -94,7 +94,7 @@ export async function onRequestPost(context) {
   }
 
   const configuredMinimum = Number(rules.minimumEnrollmentPayment || 0);
-  const admissionFeeRow = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id=? AND active=1 AND due_stage='enrollment' AND required=1").bind(course.id).first();
+  const admissionFeeRow = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id=? AND lower(item_name)='admission fee' AND active=1 AND due_stage='enrollment' AND required=1").bind(course.id).first();
   const configuredAdmissionFee = Number(admissionFeeRow?.total || 0);
   const amountDueNow = configuredAdmissionFee > 0 ? configuredAdmissionFee : (configuredMinimum > 0 ? configuredMinimum : Number(course.price));
   if (!Number.isSafeInteger(amountDueNow) || amountDueNow < 1 || amountDueNow > Number(course.price)) return error('Set a valid Admission fee for this course in Admin → Courses → Fee Structures. It must be at least KSh 1 and cannot exceed the total course fee.', 409);
