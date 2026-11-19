@@ -42,7 +42,7 @@ export async function onRequestGet({ request, env }) {
   if (access.response) return access.response;
   const users = await env.DB.prepare(`
     SELECT u.id, u.name, u.email, COALESCE(p.portal_role,u.role) AS role, u.status, u.created_at,
-      p.staff_id AS staffId, p.national_id AS nationalId, p.phone, p.citizenship, p.country, p.province, p.county,
+      p.staff_id AS staffId, p.profile_photo_url AS profilePhotoUrl, p.national_id AS nationalId, p.phone, p.citizenship, p.country, p.province, p.county,
       p.sub_county AS subCounty, p.constituency, p.ward, p.location, p.sub_location AS subLocation,
       p.date_of_birth AS dateOfBirth, p.gender, p.department, p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn, p.address
     FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
