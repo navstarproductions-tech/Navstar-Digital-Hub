@@ -1,6 +1,6 @@
 import { requireRole } from '../../_shared/auth.js';
 import { error,isSameOrigin,json,readJson,safeString,uuid } from '../../_shared/http.js';
-function tokens(value){return new Set(String(value||'').toLowerCase().split(/[,;|/\n]+/).flatMap(x=>x.trim().split(/[^a-z0-9+#]+/)).filter(x=>x.length>2));}
+function tokens(value){return new Set(String(value||'').toLowerCase().split(/[,;|\/\n]+/).flatMap(x=>x.trim().split(/[^a-z0-9+#]+/)).filter(x=>x.length>2));}
 export async function onRequestGet({request,env}){
  if(!env.DB)return error('Tutor allocation database is not configured.',503);
  const access=await requireRole(request,env,['admin','principal']);if(access.response)return access.response;
