@@ -104,7 +104,8 @@ function AppShell() {
     || pathname === '/setup'
     || pathname === '/admin-reset'
     || pathname === '/change-password'
-    || pathname === '/my-account'\n    || pathname === '/staff-application';
+    || pathname === '/my-account'
+    || pathname === '/staff-application';
 
   return (
     <>
