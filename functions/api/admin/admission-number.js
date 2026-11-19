@@ -1,5 +1,6 @@
 import { requireRole } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, safeString, uuid } from '../../_shared/http.js';
+import { queueCustomerNotice } from '../../_shared/notifications.js';
 
 function initials(title) {
   const words = String(title || '').trim().split(/\\s+/).filter(Boolean);
@@ -17,7 +18,8 @@ function intakeCode(value) {
   if (numeric) return numeric[1] + numeric[2].slice(-2);
   return '';
 }
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost(context) {
+  const { request, env } = context;
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
   if (!env.DB) return error('Admissions database is not configured.', 503);
   const access = await requireRole(request, env, ['admin','admissions']);
@@ -56,7 +58,13 @@ export async function onRequestPost({ request, env }) {
   } catch {
     return error('Admission number could not be saved. Refresh the student record and try again.',409);
   }
+  const saved = await env.DB.prepare('SELECT admission_number,full_name,email,phone FROM enrollments WHERE id=?').bind(enrollmentId).first();
+  const finalNumber = saved?.admission_number || admissionNumber;
+  if (finalNumber === admissionNumber) {
+    const message = `Dear ${saved.full_name}, your Navstar Digital Hub admission number is ${finalNumber}. Keep it safe and use it for all academic communication. HOME OF TECHNOCRATS.`;
+    queueCustomerNotice(context, env, { email:saved.email, phone:saved.phone, subject:'Your Navstar admission number', message });
+  }
   await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
     .bind(uuid(),access.user.id,'admission_number_generated','enrollment',enrollmentId).run();
-  return json({ admissionNumber, courseCode, intakeCode:intake });
+  return json({ admissionNumber:finalNumber, courseCode, intakeCode:intake, notificationQueued:finalNumber===admissionNumber });
 }
