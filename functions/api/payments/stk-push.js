@@ -53,7 +53,8 @@ export async function onRequestPost({ request, env }) {
     const outstanding = Math.max(0, Number(enrollment.price) - paidTotal);
     if (requestedAmount !== null) amount = requestedAmount;
     if (!Number.isSafeInteger(amount) || amount < 1 || amount > outstanding) return error('Enter an amount greater than zero and no more than your outstanding balance.', 409);
-    if (paidTotal === 0 && amount < Math.max(admissionFee, minimum)) return error('Your first payment must cover the configured admission fee of at least KSh ' + Math.max(admissionFee, minimum).toLocaleString('en-KE') + '.', 409);
+    const firstPaymentMinimum = admissionFee > 0 ? admissionFee : minimum;
+    if (paidTotal === 0 && amount < firstPaymentMinimum) return error('Your first payment must cover the configured Admission fee of at least KSh ' + firstPaymentMinimum.toLocaleString('en-KE') + '.', 409);
     displayReference = enrollment.display_ref;
   } else {
     const service = await env.DB.prepare("SELECT id, display_ref, phone, amount, status FROM service_requests WHERE id = ?").bind(reference).first();
