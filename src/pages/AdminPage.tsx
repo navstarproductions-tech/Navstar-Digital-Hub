@@ -498,7 +498,7 @@ export function AdminPage() {
       const courseIdIndex = at('courseid');
       const courseNameIndex = at('coursename');
       const courseCodeIndex = at('coursecode');
-      if (titleIndex < 0 || (courseIdIndex < 0 && courseNameIndex < 0 && courseCodeIndex < 0)) throw new Error('The CSV must include Course ID or Course Name, Module Name and Module Order columns.');
+      if (titleIndex < 0 || (courseIdIndex < 0 && courseNameIndex < 0 && courseCodeIndex < 0)) throw new Error('The CSV must include Course ID, Course Code or Course Name, Module Name and Module Order columns.');
       const descriptionIndex = at('description');
       const statusIndex = at('status');
       const orderIndex = at('moduleorder') >= 0 ? at('moduleorder') : at('sortorder');
