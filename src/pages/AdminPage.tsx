@@ -23,7 +23,7 @@ type PortalUser = { id: string; name: string; email: string; role: string; statu
 type LearningSubmission = { id: string; learner_name: string; response_text: string; attachment_url?: string | null; status: string; points_awarded?: number | null; feedback?: string | null; submitted_at: string };
 type LearningAssignment = { id: string; title: string; instructions: string; due_at?: string | null; max_points: number; status: string; submissions?: LearningSubmission[] };
 type LearningModule = { id: string; title: string; description: string; status: string; lessons: { id: string; title: string; content: string; status: string; estimated_minutes: number }[] };
-type LearningCourse = { id: string; title: string; modules: LearningModule[]; assignments: LearningAssignment[] };
+type LearningCourse = { id: string; title: string; course_code?:string|null; modules: LearningModule[]; assignments: LearningAssignment[] };
 type SchoolRecord = { id: string; school_code: string; name: string; school_type: string; curriculum: string };
 type SchoolYear = { id: string; name: string; start_date: string; end_date: string; is_current: number };
 type SchoolClass = { id: string; name: string; education_stage: string; grade_level: string; stream: string; academic_year: string };
@@ -496,7 +496,8 @@ export function AdminPage() {
       const titleIndex = at('modulename') >= 0 ? at('modulename') : at('title');
       const courseIdIndex = at('courseid');
       const courseNameIndex = at('coursename');
-      if (titleIndex < 0 || (courseIdIndex < 0 && courseNameIndex < 0)) throw new Error('The CSV must include Course ID or Course Name, Module Name and Module Order columns.');
+      const courseCodeIndex = at('coursecode');
+      if (titleIndex < 0 || (courseIdIndex < 0 && courseNameIndex < 0 && courseCodeIndex < 0)) throw new Error('The CSV must include Course ID or Course Name, Module Name and Module Order columns.');
       const descriptionIndex = at('description');
       const statusIndex = at('status');
       const orderIndex = at('moduleorder') >= 0 ? at('moduleorder') : at('sortorder');
@@ -504,10 +505,11 @@ export function AdminPage() {
       const rows = parsed.slice(1).map((row, index) => {
         const courseIdValue = courseIdIndex >= 0 ? (row[courseIdIndex] || '').trim() : '';
         const courseNameValue = courseNameIndex >= 0 ? (row[courseNameIndex] || '').trim() : '';
-        const course = learningCourses.find(item => (courseIdValue && item.id === courseIdValue) || (courseNameValue && item.title.toLowerCase() === courseNameValue.toLowerCase()));
+        const courseCodeValue = courseCodeIndex >= 0 ? (row[courseCodeIndex] || '').trim().toUpperCase() : '';
+        const course = learningCourses.find(item => (courseIdValue && item.id === courseIdValue) || (courseNameValue && item.title.toLowerCase() === courseNameValue.toLowerCase()) || (courseCodeValue && String(item.course_code||'').toUpperCase()===courseCodeValue));
         return {
           courseId: course?.id || '',
-          courseName: course?.title || courseNameValue || courseIdValue,
+          courseName: course?.title || courseNameValue || courseCodeValue || courseIdValue,
           title: titleIndex >= 0 ? (row[titleIndex] || '').trim() : '',
           description: descriptionIndex >= 0 ? row[descriptionIndex] || '' : '',
           status: statusIndex >= 0 && row[statusIndex]?.toLowerCase() === 'published' ? 'published' : 'draft',
@@ -1227,7 +1229,7 @@ export function AdminPage() {
             <section className="grid gap-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-[#0b2854] to-[#123e78] p-5 text-white xl:grid-cols-[1.2fr_1fr]">
               <div><h3 className="font-bold">Bulk module upload & branded registers</h3><p className="mt-1 text-xs leading-5 text-blue-100">Download the Navstar CSV template, fill in module details and import up to 100 rows at once. Existing records are retained.</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => downloadCsvTemplate('navstar-module-import-template.csv', ['courseId','courseName','moduleOrder','moduleName','description','status'], [learningCourses[0]?.id || 'COURSE_ID',learningCourses[0]?.title || 'Course Name','1','Introduction to the course','Module learning objectives','draft'])}>Download module template</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => downloadCsvTemplate('navstar-module-import-template.csv', ['courseId','courseCode','courseName','moduleOrder','moduleName','description','status'], [learningCourses[0]?.id || 'COURSE_ID',learningCourses[0]?.course_code || 'CP003',learningCourses[0]?.title || 'Course Name','1','Introduction to the course','Module learning objectives','draft'])}>Download module template</Button>
                   <label className="inline-flex cursor-pointer items-center rounded-md border border-white/30 px-3 py-2 text-xs font-semibold hover:bg-white/10">Choose CSV file<input type="file" accept=".csv,text/csv" className="sr-only" onChange={readModuleImport}/></label>
                   <Button type="button" size="sm" disabled={!moduleImportRows.length} onClick={() => void importModules()}>Import {moduleImportRows.length || ''} modules</Button>
                 </div>
