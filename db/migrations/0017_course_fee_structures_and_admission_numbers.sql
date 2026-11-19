@@ -45,6 +45,18 @@ CREATE TABLE IF NOT EXISTS admission_number_sequences (
 -- Every course starts with editable fee lines. The administrator configures their amounts.
 INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
 SELECT 'admission-' || id,id,'Admission fee',0,'enrollment',1,1,1 FROM courses;
+
+-- Keep a default tuition line so the initial editable schedule equals the published course fee.
+INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
+SELECT 'tuition-' || id,id,'Tuition fee',price,'before_term',1,2,1 FROM courses;
+
+-- Snapshot the current fee schedule for every existing enrolment. Later course edits
+-- therefore do not silently rewrite an existing learner's agreed fee account.
+INSERT INTO enrollment_fee_items (id,enrollment_id,fee_item_id,item_name,amount,due_stage)
+SELECT lower(hex(randomblob(16)), e.id, f.id, f.item_name, f.amount, f.due_stage
+FROM enrollments e
+JOIN course_fee_items f ON f.course_id=e.course_id
+WHERE f.active=1;
 INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
 SELECT 'tuition-' || id,id,'Tuition fee',0,'before_term',1,2,1 FROM courses;
 INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,required,sort_order,active)
