@@ -22,7 +22,7 @@ export async function onRequestPost({ request, env }) {
   const level = safeString(body.level, 24) || 'Beginner';
   const price = Number(body.price);
   const courseCode = safeString(body.courseCode, 8).toUpperCase();
-  if (courseCode && !/^[A-Z]{1,4}\\d{3}$/.test(courseCode)) return error('Course code must use letters followed by three digits, for example CP003.');
+  if (courseCode && !/^[A-Z]{1,4}\d{3}$/.test(courseCode)) return error('Course code must use letters followed by three digits, for example CP003.');
   if (title.length < 2 || !Number.isSafeInteger(price) || price < 0 || price > 1000000) return error('Valid course title and fee are required.');
   const id = uuid();
   await env.DB.prepare("INSERT INTO courses (id, title, description, duration, image_url, category, price, status, level, course_code) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)")
