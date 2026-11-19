@@ -61,7 +61,8 @@ export function LearningPage() {
       if (!response.ok) throw new Error(result.error || 'The learning workspace could not be loaded.');
       setData(result);
       setSelectedCourseId((current) => result.courses.some((course) => course.id === current) ? current : result.courses[0]?.id ?? '');
-      const academicResponse=await fetch('/api/academic',{headers:{Accept:'application/json'}});\n      if(academicResponse.ok)setAcademic(await academicResponse.json() as AcademicData);
+      const academicResponse=await fetch('/api/academic',{headers:{Accept:'application/json'}});
+      if(academicResponse.ok)setAcademic(await academicResponse.json() as AcademicData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The learning workspace could not be loaded.');
     } finally {
@@ -109,7 +110,7 @@ export function LearningPage() {
   };
   const createTimetable = async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!selectedCourse)return;if(await sendAcademicAction({action:'create_timetable',courseId:selectedCourse.id,title:sessionTitle,startsAt:eatDateTimeLocalToIso(sessionStart),endsAt:eatDateTimeLocalToIso(sessionEnd),venue:sessionVenue})){setSessionTitle('');setSessionStart('');setSessionEnd('');setSessionVenue('');}};
   const createLiveClass = async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!selectedCourse)return;if(await sendAcademicAction({action:'create_live_class',courseId:selectedCourse.id,title:liveTitle,startsAt:eatDateTimeLocalToIso(liveStart),endsAt:liveEnd?eatDateTimeLocalToIso(liveEnd):'',meetingUrl:liveUrl})){setLiveTitle('');setLiveStart('');setLiveEnd('');setLiveUrl('');}};
-  const createAssessment = async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!selectedCourse)return;if(await sendAcademicAction({action:'create_assessment',courseId:selectedCourse.id,title:assessmentName,assessmentType,startsAt:assessmentDue?eatDateTimeLocalToIso(assessmentDue):'',endsAt:'',maxPoints:Number(assessmentMax),instructions:assessmentInstructions})){setAssessmentName('');setAssessmentInstructions('');}};
+  const createAssessment = async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!selectedCourse)return;if(await sendAcademicAction({action:'create_assessment',courseId:selectedCourse.id,title:assessmentName,assessmentType,startsAt:assessmentDue?eatDateTimeLocalToIso(assessmentDue):'',endsAt:assessmentDue?eatDateTimeLocalToIso(assessmentDue):'',maxPoints:Number(assessmentMax),instructions:assessmentInstructions})){setAssessmentName('');setAssessmentInstructions('');}};
   const markAttendance = async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();if(await sendAcademicAction({action:'mark_attendance',timetableId:attendanceSession,studentId:attendanceStudent,status:attendanceStatus})){setAttendanceStudent('');}};
   const issueReportCard = async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!selectedCourse)return;if(await sendAcademicAction({action:'issue_report_card',courseId:selectedCourse.id,studentId:reportStudent,periodLabel:reportPeriod})){setReportPeriod('');}};
   const publishScholarship = async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!selectedCourse)return;if(await sendAcademicAction({action:'publish_scholarship',courseId:selectedCourse.id,title:scholarshipTitle,awardAmount:Number(scholarshipAmount),deadline:scholarshipDeadline,description:scholarshipDescription})){setScholarshipTitle('');setScholarshipAmount('');setScholarshipDeadline('');setScholarshipDescription('');}};
