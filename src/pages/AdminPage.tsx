@@ -103,7 +103,7 @@ type AdminSubtab = {label:string;target:Section;settingsTab?:'complete'|'site'|'
 const makeTabs = (labels:string[],target:Section):AdminSubtab[] => labels.map(label=>({label,target}));
 const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   overview: [],
-  courses: [{label:'Course Catalogue',target:'courses',coursesTab:'catalogue'},{label:'Manage Courses',target:'courses',coursesTab:'manage'},{label:'Fee Structures',target:'finance'}],
+  courses: [{label:'Course Catalogue',target:'courses',coursesTab:'catalogue'},{label:'Manage Courses',target:'courses',coursesTab:'manage'},{label:'Fee Structures',target:'courses'}],
   learning: [{label:'View Modules',target:'learning',learningTab:'modules'},{label:'Assign Modules',target:'learning',learningTab:'modules'},{label:'Auto-Assign Modules',target:'learning',learningTab:'bulk'}],
   school: [{label:'Active Students',target:'school'},{label:'Add New Student',target:'student-directory'},...makeTabs(['Bulk Enrollment','Completed → Graduates','Edit Student Details','Assign Intakes & Years','Detail Edit Requests','Print Basic List','Students List PDF (Filters & Select)','Manage Logins','Deleted Students & Recovery','Enrollment Links','Generate Bulk PDFs','Student Detail PDF'],'school')],
   employees: makeTabs(['Employee Directory','Add Employee','Edit Employee Details','Staff Roles & Departments','Staff Attendance','Employee Documents'],'users'),
@@ -222,6 +222,10 @@ export function AdminPage() {
   const [courseCategory, setCourseCategory] = useState<Course['category']>('Professional');
   const [courseLevel, setCourseLevel] = useState<Course['level']>('Beginner');
   const [courseImage, setCourseImage] = useState('');
+  const [feeCourseId, setFeeCourseId] = useState('');
+  const [feeItems, setFeeItems] = useState<{id:string;itemName:string;amount:number;dueStage:string;required:boolean;sortOrder:number;active:boolean}[]>([]);
+  const [feeLoading, setFeeLoading] = useState(false);
+  const [feeSaving, setFeeSaving] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState('');
   const [cashoutAmount, setCashoutAmount] = useState('');
   const [notice, setNotice] = useState('');
@@ -747,6 +751,31 @@ export function AdminPage() {
     }
   };
 
+  const loadFeeStructure = async () => {
+    if (!feeCourseId) { setNotice('Select a course first.'); return; }
+    setFeeLoading(true);
+    try {
+      const response = await fetch('/api/admin/course-fees?courseId=' + encodeURIComponent(feeCourseId));
+      const result = await response.json() as {items?:{id:string;itemName:string;amount:number;dueStage:string;required:number;sortOrder:number;active:number}[];error?:string};
+      if (!response.ok) throw new Error(result.error || 'Fee structure could not be loaded.');
+      setFeeItems((result.items||[]).map(item=>({...item,required:Boolean(item.required),active:Boolean(item.active)})));
+      setNotice('Course fee items loaded. Update the amounts and save when ready.');
+    } catch(error) { setNotice(error instanceof Error?error.message:'Fee structure could not be loaded.'); }
+    finally { setFeeLoading(false); }
+  };
+  const saveFeeStructure = async () => {
+    if (!feeCourseId || !feeItems.length) { setNotice('Add at least one fee item.'); return; }
+    setFeeSaving(true);
+    try {
+      const response=await fetch('/api/admin/course-fees',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({courseId:feeCourseId,items:feeItems})});
+      const result=await response.json() as {items?:typeof feeItems;error?:string};
+      if(!response.ok||!result.items)throw new Error(result.error||'Fee structure could not be saved.');
+      setFeeItems(result.items.map(item=>({...item,required:Boolean(item.required),active:Boolean(item.active)})));
+      setNotice('Fee structure saved. The Admission fee is the required first-payment item for new enrolments.');
+    } catch(error) { setNotice(error instanceof Error?error.message:'Fee structure could not be saved.'); }
+    finally { setFeeSaving(false); }
+  };
+
   const addCourse = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!courseName.trim() || Number(coursePrice) < 1) return;
@@ -1187,6 +1216,7 @@ export function AdminPage() {
             onAddStudent={() => { setActive('student-directory'); setSelectedSubtab('Add New Student'); }}
           />}
 
+                    {active === 'courses' && selectedSubtab === 'Fee Structures' && <section className="space-y-5 rounded-2xl border bg-white p-5 text-slate-900 shadow-sm"><div><p className="text-xs font-black uppercase tracking-widest text-cyan-800">NAVSTAR · COURSE FINANCE</p><h2 className="mt-1 text-xl font-black">Custom course fee structures</h2><p className="mt-2 text-sm text-slate-600">Set Admission fee, tuition, materials, examination and other charges independently for every course. The required Admission fee is the minimum first payment for enrolment.</p></div><div className="flex flex-wrap items-end gap-3"><div className="min-w-[240px] flex-1 space-y-2"><Label>Course</Label><select value={feeCourseId} onChange={e=>{setFeeCourseId(e.target.value);setFeeItems([]);}} className="h-11 w-full rounded-xl border bg-white px-3"><option value="">Select course</option>{courses.map(course=><option key={course.id} value={course.id}>{course.title}</option>)}</select></div><Button type="button" disabled={!feeCourseId||feeLoading} onClick={()=>void loadFeeStructure()}>{feeLoading?'Loading…':'Load fee structure'}</Button></div><div className="space-y-3">{feeItems.map((item,index)=><div key={item.id} className="grid gap-3 rounded-xl border bg-slate-50 p-4 sm:grid-cols-[1.3fr_1fr_1fr_auto_auto] sm:items-end"><div className="space-y-1"><Label>Fee item</Label><Input value={item.itemName} onChange={e=>setFeeItems(current=>current.map((row,i)=>i===index?{...row,itemName:e.target.value}:row))}/></div><div className="space-y-1"><Label>Amount (KSh)</Label><Input type="number" min="0" step="1" value={item.amount} onChange={e=>setFeeItems(current=>current.map((row,i)=>i===index?{...row,amount:Number(e.target.value)}:row))}/></div><div className="space-y-1"><Label>When due</Label><select value={item.dueStage} onChange={e=>setFeeItems(current=>current.map((row,i)=>i===index?{...row,dueStage:e.target.value}:row))} className="h-10 w-full rounded-md border bg-white px-2 text-sm"><option value="enrollment">At enrolment</option><option value="before_term">Before term</option><option value="anytime">Any time</option></select></div><label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={item.required} onChange={e=>setFeeItems(current=>current.map((row,i)=>i===index?{...row,required:e.target.checked}:row))}/>Required</label><Button type="button" size="sm" variant="outline" onClick={()=>setFeeItems(current=>current.filter((_,i)=>i!==index))}>Remove</Button></div>)}{!feeItems.length&&<p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-500">Load a course fee structure to begin. Each course starts with an Admission fee item.</p>}</div><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={()=>setFeeItems(current=>[...current,{id:crypto.randomUUID(),itemName:'New fee item',amount:0,dueStage:'anytime',required:false,sortOrder:current.length+1,active:true}])}>+ Add fee item</Button><Button type="button" disabled={!feeItems.length||feeSaving} onClick={()=>void saveFeeStructure()} className="bg-cyan-900 text-white">{feeSaving?'Saving…':'Save fee structure'}</Button></div><p className="text-xs text-slate-500">Existing fee and payment history is preserved. Changes affect the selected course fee schedule going forward.</p></section>}
           {active === 'learning' && ['Assign Modules','Auto-Assign Modules'].includes(selectedSubtab) && <AdminWorkspaceHub section="learning" subtab={selectedSubtab} courses={courses} users={portalUsers} applications={applications} services={services}/>}
           {active === 'marks-tests' && <AdminWorkspaceHub section="marks-tests" subtab={selectedSubtab || 'Marks Hub'} courses={courses} users={portalUsers} applications={applications} services={services}/>}
           {active === 'learning' && (!selectedSubtab || selectedSubtab === 'View Modules') && <div className="space-y-6">
