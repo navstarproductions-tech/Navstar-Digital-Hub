@@ -553,7 +553,7 @@ export function AdminPage() {
     if (!moduleImportRows.length) { setNotice('Choose a completed module CSV first.'); return; }
     const rows = [...moduleImportRows].sort((a,b) => a.courseId.localeCompare(b.courseId) || a.sortOrder-b.sortOrder);
     const saved = await submitLearningAction({ action: 'bulk_create_modules_multi', rows }, 'All module rows imported and routed to their selected courses.');
-    if (saved) { setModuleImportRows([]); setModuleImportName(''); setNotice('All module rows were imported atomically into their matching courses in module order.'); }
+    if (saved) { const summary=rows.reduce((groups,row)=>{groups.set(row.courseName,[...(groups.get(row.courseName)||[]),row.title]);return groups;},new Map<string,string[]>());setModuleImportRows([]);setModuleImportName('');setNotice('SUCCESS: '+rows.length+' modules saved. '+[...summary.entries()].map(([course,titles])=>course+': '+titles.join(', ')).join(' | ')); }
   };
 
   const readServiceImport = async (event: ChangeEvent<HTMLInputElement>) => {
