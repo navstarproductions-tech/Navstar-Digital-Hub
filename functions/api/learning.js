@@ -87,7 +87,7 @@ export async function onRequestGet({ request, env }) {
   `;
   const submissionResult = user.role === 'student'
     ? await env.DB.prepare(submissionSql).bind(user.id, ...courseIds).all()
-    : user.role === 'admin'
+    : staffRoles.includes(user.role)
       ? await env.DB.prepare(submissionSql).bind(...courseIds).all()
       : { results: [] };
 
