@@ -12,7 +12,11 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 4096); } catch { return error('Invalid request body.'); }
   const purpose = safeString(body.purpose, 20);
   const reference = safeString(body.reference, 80);
-  const phone = normalizePhone(body.phone);\n  const requestedAmount = body.amount === undefined || body.amount === null || body.amount === '' ? null : Number(body.amount);\n  if (requestedAmount !== null && (!Number.isSafeInteger(requestedAmount) || requestedAmount < 1 || requestedAmount > 150000)) return error('Enter a valid payment amount in whole Kenya shillings.');\n  const requestedAmount = body.amount === undefined || body.amount === null || body.amount === '' ? null : Number(body.amount);\n  if (requestedAmount !== null && (!Number.isSafeInteger(requestedAmount) || requestedAmount < 1 || requestedAmount > 150000)) return error('Enter a valid payment amount in whole Kenya shillings.');
+  const phone = normalizePhone(body.phone);
+  const requestedAmount = body.amount === undefined || body.amount === null || body.amount === '' ? null : Number(body.amount);
+  if (requestedAmount !== null && (!Number.isSafeInteger(requestedAmount) || requestedAmount < 1 || requestedAmount > 150000)) return error('Enter a valid payment amount in whole Kenya shillings.');
+  const requestedAmount = body.amount === undefined || body.amount === null || body.amount === '' ? null : Number(body.amount);
+  if (requestedAmount !== null && (!Number.isSafeInteger(requestedAmount) || requestedAmount < 1 || requestedAmount > 150000)) return error('Enter a valid payment amount in whole Kenya shillings.');
   if (!reference || !phone || !['enrollment', 'donation', 'service'].includes(purpose)) return error('Invalid payment request.');
 
   let amount;
@@ -32,10 +36,13 @@ export async function onRequestPost({ request, env }) {
     if (!enrollment || enrollment.payment_status === 'paid') return error('Enrollment payment is not available.', 404);
     if (session && !['student', 'admin', 'finance', 'admissions'].includes(session.role)) return error('This account cannot make an enrollment payment.', 403);
     if (session?.role === 'student' && String(enrollment.email).toLowerCase() !== String(session.email).toLowerCase()) return error('You can only pay fees for your own student account.', 403);
-    if (!session && enrollment.status !== 'under_review') return error('Sign in to the Student Portal before requesting a payment for an existing enrolment.', 401);\n    if (!session && enrollment.phone !== phone) return error('Use the registered phone number or sign in to pay from another phone.', 403);
+    if (!session && enrollment.status !== 'under_review') return error('Sign in to the Student Portal before requesting a payment for an existing enrolment.', 401);
+    if (!session && enrollment.phone !== phone) return error('Use the registered phone number or sign in to pay from another phone.', 403);
     const configRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first();
     let config = {}; try { config = JSON.parse(configRow?.value || '{}'); } catch {}
-    const minimum = Number(config['enrollment-settings']?.minimumEnrollmentPayment || 0);\n    const admissionFeeRow = await env.DB.prepare(\"SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id = (SELECT course_id FROM enrollments WHERE id = ?) AND active = 1 AND due_stage = 'enrollment' AND required = 1\").bind(reference).first();\n    const admissionFee = Number(admissionFeeRow?.total || 0);\n    const admissionFeeRow = await env.DB.prepare(\"SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id = (SELECT course_id FROM enrollments WHERE id = ?) AND active = 1 AND due_stage = 'enrollment' AND required = 1\").bind(reference).first();\n    const admissionFee = Number(admissionFeeRow?.total || 0);
+    const minimum = Number(config['enrollment-settings']?.minimumEnrollmentPayment || 0);
+    const admissionFeeRow = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id = (SELECT course_id FROM enrollments WHERE id = ?) AND active = 1 AND due_stage = 'enrollment' AND required = 1").bind(reference).first();
+    const admissionFee = Number(admissionFeeRow?.total || 0);
     const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
     const paidTotal = Number(paidRow?.paid_total || 0);
     if (enrollment.status === 'under_review' && paidTotal === 0) {
@@ -43,7 +50,10 @@ export async function onRequestPost({ request, env }) {
     } else {
       amount = Math.max(0, Number(enrollment.price) - paidTotal);
     }
-    const outstanding = Math.max(0, Number(enrollment.price) - paidTotal);\n    if (requestedAmount !== null) amount = requestedAmount;\n    if (!Number.isSafeInteger(amount) || amount < 1 || amount > outstanding) return error('Enter an amount greater than zero and no more than your outstanding balance.', 409);\n    if (paidTotal === 0 && amount < Math.max(admissionFee, minimum)) return error('Your first payment must cover the configured admission fee of at least KSh ' + Math.max(admissionFee, minimum).toLocaleString('en-KE') + '.', 409);
+    const outstanding = Math.max(0, Number(enrollment.price) - paidTotal);
+    if (requestedAmount !== null) amount = requestedAmount;
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > outstanding) return error('Enter an amount greater than zero and no more than your outstanding balance.', 409);
+    if (paidTotal === 0 && amount < Math.max(admissionFee, minimum)) return error('Your first payment must cover the configured admission fee of at least KSh ' + Math.max(admissionFee, minimum).toLocaleString('en-KE') + '.', 409);
     displayReference = enrollment.display_ref;
   } else {
     const service = await env.DB.prepare("SELECT id, display_ref, phone, amount, status FROM service_requests WHERE id = ?").bind(reference).first();
