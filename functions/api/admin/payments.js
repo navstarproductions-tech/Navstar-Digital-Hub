@@ -6,6 +6,8 @@ export async function onRequestGet({ request, env }) {
   const access = await requireRole(request, env, ['admin', 'principal', 'admissions', 'finance']);
   if (access.response) return access.response;
 
+  const ledger=new URL(request.url).searchParams.get('ledger')==='fees'?'fees':'business';
+  const where=ledger==='fees'?"WHERE p.purpose='enrollment'":"WHERE p.purpose IN ('service','donation')";
   try {
     const [rows, totals, balance] = await Promise.all([
       env.DB.prepare(`
@@ -24,7 +26,7 @@ export async function onRequestGet({ request, env }) {
         LEFT JOIN courses c ON c.id = e.course_id
         LEFT JOIN service_requests s ON p.purpose = 'service' AND s.id = p.reference_id
         LEFT JOIN donations d ON p.purpose = 'donation' AND d.id = p.reference_id
-        ORDER BY p.created_at DESC LIMIT 500
+        ${where} ORDER BY p.created_at DESC LIMIT 500
       `).all(),
       env.DB.prepare(`
         SELECT COUNT(*) AS transaction_count,
@@ -32,11 +34,11 @@ export async function onRequestGet({ request, env }) {
           COALESCE(SUM(CASE WHEN status = 'paid' AND admin_status = 'confirmed' THEN amount ELSE 0 END), 0) AS admin_confirmed,
           COALESCE(SUM(CASE WHEN status IN ('pending','initiating') THEN amount ELSE 0 END), 0) AS awaiting_mpesa,
           COALESCE(SUM(CASE WHEN status = 'paid' AND admin_status IN ('pending_review','flagged') THEN amount ELSE 0 END), 0) AS awaiting_admin_review
-        FROM payments
+        FROM payments p ${where}
       `).first(),
       env.DB.prepare('SELECT balance_text, balance_amount, currency, received_at, result_description FROM mpesa_balance_snapshots ORDER BY created_at DESC LIMIT 1').first()
     ]);
-    return json({ payments: rows.results || [], totals: totals || {}, mpesaBalance: balance || null });
+    return json({ ledger, payments: rows.results || [], totals: totals || {}, mpesaBalance: ledger==='business'?(balance || null):null });
   } catch (cause) {
     console.error('Admin payment register failed:', String(cause?.message || cause));
     return error('The payment register is not ready. Confirm that the latest database migrations have been applied.', 503);
