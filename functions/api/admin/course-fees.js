@@ -14,9 +14,9 @@ export async function onRequestGet({request,env}) {
     SELECT COUNT(*) AS total FROM enrollments e
     WHERE e.course_id=? AND e.status IN ('submitted','under_review','accepted')
       AND NOT EXISTS (
-        SELECT 1 FROM enrollment_fee_items ef
-        WHERE ef.enrollment_id=e.id AND lower(ef.item_name)='admission fee'
-          AND ef.due_stage='enrollment' AND ef.amount>0
+        SELECT 1 FROM course_fee_items f
+        WHERE f.course_id=e.course_id AND lower(f.item_name)='admission fee'
+          AND f.active=1 AND f.required=1 AND f.due_stage='enrollment' AND f.amount>0
       )
   `).bind(courseId).first();
   return json({course,items:rows.results||[],studentsWithoutAdmissionFee:Number(legacy?.total||0)});
