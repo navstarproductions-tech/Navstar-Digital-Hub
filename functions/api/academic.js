@@ -60,12 +60,14 @@ export async function onRequestGet({request,env}){
   const moduleRegistrations=user.role==='student'?(await env.DB.prepare(`SELECT r.*,m.title AS module_title,c.title AS course_title FROM student_module_registrations r JOIN course_modules m ON m.id=r.module_id JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY c.title,m.sort_order`).bind(user.id).all()).results||[]:[];
   const attendance=user.role==='student'?(await env.DB.prepare(`SELECT a.*,t.title AS session_title,t.starts_at,c.title AS course_title FROM course_attendance a JOIN course_timetable t ON t.id=a.timetable_id JOIN courses c ON c.id=t.course_id WHERE a.student_user_id=? ORDER BY a.marked_at DESC`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT a.*,t.title AS session_title,t.starts_at,c.title AS course_title,u.name AS student_name FROM course_attendance a JOIN course_timetable t ON t.id=a.timetable_id JOIN courses c ON c.id=t.course_id JOIN users u ON u.id=a.student_user_id WHERE t.course_id IN (${marks}) ORDER BY a.marked_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const assessments=(await env.DB.prepare(`SELECT a.*,c.title AS course_title,m.title AS module_title,r.points_awarded,r.feedback,r.published_at FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=? WHERE a.course_id IN (${marks}) AND a.status!='draft' ORDER BY a.due_at`).bind(user.id,...ids).all()).results||[];
+  const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();
+  let examSettings={};try{examSettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{examSettings={};}
   const graduation=user.role==='student'?(await env.DB.prepare(`SELECT g.*,c.title AS course_title FROM student_graduation_records g JOIN courses c ON c.id=g.course_id WHERE g.user_id=?`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT g.*,c.title AS course_title,u.name AS student_name FROM student_graduation_records g JOIN courses c ON c.id=g.course_id JOIN users u ON u.id=g.user_id WHERE g.course_id IN (${marks}) ORDER BY c.title,u.name`).bind(...ids).all()).results||[];
   const reportCards=user.role==='student'?(await env.DB.prepare('SELECT r.*,c.title AS course_title FROM student_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY r.issued_at DESC').bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT r.*,c.title AS course_title,u.name AS student_name FROM student_report_cards r JOIN courses c ON c.id=r.course_id JOIN users u ON u.id=r.user_id WHERE r.course_id IN (${marks}) ORDER BY r.issued_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const assessmentResults=user.role==='student'?[]:(await env.DB.prepare(`SELECT r.*,a.title AS assessment_title,a.course_id,u.name AS student_name,c.title AS course_title FROM course_assessment_results r JOIN course_assessments a ON a.id=r.assessment_id JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=a.course_id WHERE a.course_id IN (${marks}) ORDER BY r.marked_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const assessmentAttempts=user.role==='student'?(await env.DB.prepare(`SELECT t.*,a.title AS assessment_title,a.course_id,a.max_points,a.instructions,c.title AS course_title FROM course_assessment_attempts t JOIN course_assessments a ON a.id=t.assessment_id JOIN courses c ON c.id=a.course_id WHERE t.user_id=? ORDER BY t.submitted_at DESC`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT t.*,a.title AS assessment_title,a.course_id,a.max_points,u.name AS student_name,c.title AS course_title FROM course_assessment_attempts t JOIN course_assessments a ON a.id=t.assessment_id JOIN users u ON u.id=t.user_id JOIN courses c ON c.id=a.course_id WHERE a.course_id IN (${marks}) ORDER BY t.submitted_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const scholarshipApplications=user.role==='student'?[]:(await env.DB.prepare(`SELECT a.*,s.title AS scholarship_title,s.course_id,u.name AS student_name,u.email,c.title AS course_title FROM scholarship_applications a JOIN course_scholarships s ON s.id=a.scholarship_id JOIN users u ON u.id=a.user_id LEFT JOIN courses c ON c.id=s.course_id WHERE (s.course_id IS NULL OR s.course_id IN (${marks})) ORDER BY a.created_at DESC LIMIT 500`).bind(...ids).all()).results||[];
-  return json({courses,learners,timetable,attendance,liveClasses,scholarships,moduleRegistrations,assessments,assessmentResults,assessmentAttempts,scholarshipApplications,graduation,reportCards,role:user.role});
+  return json({courses,learners,timetable,attendance,liveClasses,scholarships,moduleRegistrations,assessments,assessmentResults,assessmentAttempts,scholarshipApplications,graduation,reportCards,examSettings,role:user.role});
 }
 export async function onRequestPost({request,env}){
   if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
@@ -78,6 +80,23 @@ export async function onRequestPost({request,env}){
   const moduleId=safeString(body.moduleId,80);
   const title=safeString(body.title,160);
   const audit=async(name,type,id)=>env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,name,type,id).run();
+  if(action==='save_exam_settings'){
+    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const settings=body.settings&&typeof body.settings==='object'?body.settings:{};
+    await env.DB.prepare("INSERT INTO exam_institute_settings(id,settings_json,updated_by,updated_at) VALUES('default',?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET settings_json=excluded.settings_json,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(settings),user.id).run();
+    await audit('exam_institute_settings_updated','exam_settings','default');
+    return json({saved:true});
+  }
+  if(action==='set_result_visibility'){
+    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const assessmentId=safeString(body.assessmentId,80),visible=body.visible===true;
+    const assessment=await env.DB.prepare('SELECT id FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    if(!assessment)return error('Exam not found.',404);
+    await env.DB.prepare('UPDATE course_assessment_results SET published_at=? WHERE assessment_id=?').bind(visible?new Date().toISOString():null,assessmentId).run();
+    await audit(visible?'exam_results_published':'exam_results_hidden','assessment',assessmentId);
+    return json({updated:true,visible});
+  }
+
 
   if(action==='register_module'){
     if(user.role!=='student')return error('Only students can register for modules.',403);
@@ -152,7 +171,9 @@ export async function onRequestPost({request,env}){
     }else{
       const maxPoints=Number(body.maxPoints),type=safeString(body.assessmentType,20)||'test';
       if(!Number.isSafeInteger(maxPoints)||maxPoints<1||maxPoints>10000||!['test','exam','practical','cat'].includes(type))return error('Choose a valid assessment type and maximum score.');
-      await env.DB.prepare('INSERT INTO course_assessments(id,course_id,module_id,title,assessment_type,instructions,starts_at,due_at,max_points,status,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(id,courseId,moduleId||null,title,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,'published',user.id).run();
+      const duration=Number(body.durationMinutes??60),passMark=Number(body.passMark??Math.floor(maxPoints/2)),attempts=Number(body.maxAttempts??1);
+      if(!Number.isSafeInteger(duration)||duration<1||duration>600||!Number.isSafeInteger(passMark)||passMark<0||passMark>maxPoints||!Number.isSafeInteger(attempts)||attempts<1||attempts>10)return error('Check the exam duration, pass mark and attempt limit.');
+      await env.DB.prepare('INSERT INTO course_assessments(id,course_id,module_id,title,assessment_type,instructions,starts_at,due_at,max_points,status,created_by,duration_minutes,pass_mark,max_attempts,require_full_fee_payment,require_assignment_submission,allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,courseId,moduleId||null,title,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,'published',user.id,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.shuffleQuestions?1:0,body.disableCopyPaste?1:0,body.strictTimeLimit===false?0:1).run();
     }
     await audit(action,'course',courseId);
     return json({id,created:true},201);
