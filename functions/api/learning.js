@@ -131,8 +131,12 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 262144); } catch { return error('Invalid request body.'); }
   const action = safeString(body.action, 40);
 
-  if (['create_module', 'bulk_create_modules', 'create_lesson', 'create_assignment', 'grade_submission', 'bulk_grade_submissions', 'assign_tutor', 'remove_tutor'].includes(action)) {
-    const access = await requireRole(request, env, ['admin']);
+  if (['create_module', 'bulk_create_modules', 'create_lesson', 'create_assignment', 'grade_submission', 'bulk_grade_submissions'].includes(action)) {
+    const access = await requireRole(request, env, ['admin','principal','tutor']);
+    if (access.response) return access.response;
+  }
+  if (['assign_tutor','remove_tutor'].includes(action)) {
+    const access = await requireRole(request, env, ['admin','principal']);
     if (access.response) return access.response;
   }
 
@@ -157,7 +161,7 @@ export async function onRequestPost({ request, env }) {
     const rows = Array.isArray(body.rows) ? body.rows : [];
     if (!courseId || rows.length < 1 || rows.length > 100) return error('Choose a course and upload between 1 and 100 module rows.');
     const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
-    if (!course) return error('The selected course is not active or no longer exists.', 404);
+    if (!course || !(await hasCourseAccess(env.DB,user,courseId))) return error('The selected course is not active or is not assigned to your tutor account.', 403);
     const normalized = rows.map((row, index) => ({
       title: safeString(row?.title, 160),
       description: safeString(row?.description, 4000),
@@ -187,7 +191,7 @@ export async function onRequestPost({ request, env }) {
     const title = safeString(body.title, 160);
     const description = safeString(body.description, 4000);
     const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
-    if (!course || title.length < 2) return error('Choose an active course and enter a module title.');
+    if (!course || !(await hasCourseAccess(env.DB,user,courseId)) || title.length < 2) return error('Choose an active course assigned to your account and enter a module title.');
     const status = body.status === 'published' ? 'published' : 'draft';
     const id = uuid();
     const order = Number.isSafeInteger(Number(body.sortOrder)) ? Math.max(0, Math.min(10000, Number(body.sortOrder))) : 0;
@@ -203,8 +207,8 @@ export async function onRequestPost({ request, env }) {
     const content = safeString(body.content, 12000);
     const videoUrl = safeString(body.videoUrl, 500);
     const resourceUrl = safeString(body.resourceUrl, 500);
-    const module = await env.DB.prepare("SELECT id FROM course_modules WHERE id = ? AND status != 'archived'").bind(moduleId).first();
-    if (!module || title.length < 2) return error('Choose an available module and enter a lesson title.');
+    const module = await env.DB.prepare("SELECT id,course_id FROM course_modules WHERE id = ? AND status != 'archived'").bind(moduleId).first();
+    if (!module || !(await hasCourseAccess(env.DB,user,module.course_id)) || title.length < 2) return error('Choose an available module and enter a lesson title.');
     for (const value of [videoUrl, resourceUrl]) if (value && !/^https:\/\//i.test(value)) return error('Lesson video and resource links must use HTTPS.');
     const status = body.status === 'published' ? 'published' : 'draft';
     const minutes = Number.isSafeInteger(Number(body.estimatedMinutes)) ? Math.max(1, Math.min(1440, Number(body.estimatedMinutes))) : 15;
@@ -223,7 +227,7 @@ export async function onRequestPost({ request, env }) {
     const dueAt = safeString(body.dueAt, 40) || null;
     const maxPoints = Number(body.maxPoints);
     const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
-    if (!course || title.length < 2 || !Number.isSafeInteger(maxPoints) || maxPoints < 1 || maxPoints > 10000) return error('Enter a valid course, assignment title and maximum score.');
+    if (!course || !(await hasCourseAccess(env.DB,user,courseId)) || title.length < 2 || !Number.isSafeInteger(maxPoints) || maxPoints < 1 || maxPoints > 10000) return error('Enter a valid course, assignment title and maximum score.');
     if (moduleId) {
       const module = await env.DB.prepare('SELECT id FROM course_modules WHERE id = ? AND course_id = ?').bind(moduleId, courseId).first();
       if (!module) return error('The selected module does not belong to this course.');
@@ -292,10 +296,10 @@ export async function onRequestPost({ request, env }) {
       const points = Number(rows[index]?.pointsAwarded);
       const feedback = safeString(rows[index]?.feedback, 4000);
       const submission = await env.DB.prepare(`
-        SELECT s.id, a.max_points FROM course_assignment_submissions s
+        SELECT s.id, a.max_points, a.course_id FROM course_assignment_submissions s
         JOIN course_assignments a ON a.id = s.assignment_id WHERE s.id = ?
       `).bind(submissionId).first();
-      if (!submission || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) {
+      if (!submission || !(await hasCourseAccess(env.DB,user,submission.course_id)) || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) {
         return error(`Marks row ${index + 1} has an unknown submission or a score outside the allowed range. Nothing was imported.`);
       }
       prepared.push({ submissionId, points, feedback });
@@ -319,10 +323,10 @@ export async function onRequestPost({ request, env }) {
     const points = Number(body.pointsAwarded);
     const feedback = safeString(body.feedback, 4000);
     const submission = await env.DB.prepare(`
-      SELECT s.id, a.max_points FROM course_assignment_submissions s
+      SELECT s.id, a.max_points, a.course_id FROM course_assignment_submissions s
       JOIN course_assignments a ON a.id = s.assignment_id WHERE s.id = ?
     `).bind(submissionId).first();
-    if (!submission || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) return error('Enter a valid score within the assignment maximum.');
+    if (!submission || !(await hasCourseAccess(env.DB,user,submission.course_id)) || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) return error('Enter a valid score within the assignment maximum for a course assigned to your account.');
     await env.DB.prepare("UPDATE course_assignment_submissions SET status = 'graded', points_awarded = ?, feedback = ?, graded_by = ?, graded_at = CURRENT_TIMESTAMP WHERE id = ?")
       .bind(points, feedback, user.id, submissionId).run();
     await writeAudit(env.DB, user.id, 'lms_submission_graded', 'course_assignment_submission', submissionId);
