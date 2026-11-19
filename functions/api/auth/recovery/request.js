@@ -27,7 +27,7 @@ export async function onRequestPost({ request, env }) {
   let account = null;
   if (channel === 'email') {
     account = await env.DB.prepare(`
-      SELECT u.id,u.name,u.email,COALESCE(p.phone,(SELECT e.phone FROM enrollments e WHERE lower(e.email)=lower(u.email) ORDER BY e.created_at DESC LIMIT 1)) AS phone
+      SELECT u.id,u.name,u.email,p.phone AS profile_phone,(SELECT e.phone FROM enrollments e WHERE lower(e.email)=lower(u.email) ORDER BY e.created_at DESC LIMIT 1) AS enrollment_phone
       FROM users u LEFT JOIN user_profiles p ON p.user_id=u.id
       WHERE lower(u.email)=? AND u.status='active' LIMIT 1
     `).bind(identifier).first();
@@ -41,7 +41,7 @@ export async function onRequestPost({ request, env }) {
         p.phone IN (${marks}) OR EXISTS (SELECT 1 FROM enrollments e WHERE lower(e.email)=lower(u.email) AND e.phone IN (${marks}))
       ) LIMIT 1
     `).bind(...variants,...variants).first();
-    if (account && normalizePhone(account.phone) !== identifier) account = null;
+    if (account) { const matchedPhone=[account.profile_phone,account.enrollment_phone].find(value=>normalizePhone(value)===identifier); if(matchedPhone) account.phone=matchedPhone; else account=null; }
   }
 
   const genericMessage = channel === 'sms'
@@ -49,7 +49,7 @@ export async function onRequestPost({ request, env }) {
     : 'If an active Navstar portal account matches that email address, a verification code will arrive shortly. Check your inbox and spam folder.';
   if (!account) return json({ sent: true, message: genericMessage });
 
-  const otp = makeCode();
+  account.phone = account.phone || account.profile_phone || account.enrollment_phone || '';\n  const otp = makeCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   await env.DB.prepare("UPDATE student_recovery_codes SET used_at=datetime('now'),reset_token_hash=NULL WHERE user_id=? AND used_at IS NULL").bind(account.id).run();
   await env.DB.prepare('INSERT INTO student_recovery_codes (id,user_id,email,otp_hash,expires_at,recovery_identifier,delivery_channel) VALUES (?,?,?,?,?,?,?)')
