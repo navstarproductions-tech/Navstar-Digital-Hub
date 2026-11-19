@@ -134,11 +134,11 @@ export async function onRequestGet({ request, env }) {
     query = env.DB.prepare(`SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, e.status, e.payment_status, e.special_enrollment, e.payment_exception, e.payment_due_date, e.admissions_decision_reason, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id ORDER BY e.created_at DESC LIMIT 200`);
   } else if (user.role === 'student') {
     query = env.DB.prepare(`
-      SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, COALESCE((SELECT SUM(ef.amount) FROM enrollment_fee_items ef WHERE ef.enrollment_id=e.id),c.price) AS course_fee,
+      SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, c.price AS course_fee,
         e.full_name, e.email, e.phone, e.date_of_birth, e.gender, e.nationality, e.study_mode,
         e.education_level, e.preferred_intake, e.county, e.town, e.address, e.status,
         e.payment_status, e.payment_due_date, e.created_at,
-        COALESCE((SELECT SUM(ef.amount) FROM enrollment_fee_items ef WHERE ef.enrollment_id=e.id AND lower(ef.item_name)='admission fee' AND ef.due_stage='enrollment'),(SELECT SUM(f.amount) FROM course_fee_items f WHERE f.course_id=e.course_id AND lower(f.item_name)='admission fee' AND f.active=1 AND f.due_stage='enrollment' AND f.required=1),0) AS admission_fee,
+        COALESCE((SELECT SUM(f.amount) FROM course_fee_items f WHERE f.course_id=e.course_id AND lower(f.item_name)='admission fee' AND f.active=1 AND f.due_stage='enrollment' AND f.required=1),0) AS admission_fee,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id AND p.status = 'paid'), 0) AS amount_paid,
         (SELECT p.internal_receipt_number FROM payments p WHERE p.purpose = 'enrollment' AND p.reference_id = e.id
           AND p.status = 'paid' AND p.internal_receipt_number IS NOT NULL ORDER BY p.updated_at DESC LIMIT 1) AS latest_receipt,
@@ -154,17 +154,17 @@ export async function onRequestGet({ request, env }) {
   }
   const result = await query.all();
   const enrollments = result.results ?? [];
-  const ids = enrollments.map(item => item.id);
+  const courseIds = [...new Set(enrollments.map(item => item.course_id))];
   let feeItems = [];
-  if (ids.length) {
-    const rows = await env.DB.prepare(`SELECT enrollment_id,item_name,amount,due_stage FROM enrollment_fee_items WHERE enrollment_id IN (${ids.map(() => '?').join(',')}) ORDER BY due_stage,item_name`).bind(...ids).all();
+  if (courseIds.length) {
+    const rows = await env.DB.prepare(`SELECT course_id,item_name,amount,due_stage FROM course_fee_items WHERE course_id IN (${courseIds.map(() => '?').join(',')}) AND active=1 ORDER BY sort_order,item_name`).bind(...courseIds).all();
     feeItems = rows.results ?? [];
   }
-  const byEnrollment = new Map();
+  const byCourse = new Map();
   for (const item of feeItems) {
-    const list = byEnrollment.get(item.enrollment_id) || [];
+    const list = byCourse.get(item.course_id) || [];
     list.push({ item_name:item.item_name, amount:Number(item.amount), due_stage:item.due_stage });
-    byEnrollment.set(item.enrollment_id,list);
+    byCourse.set(item.course_id,list);
   }
-  return json({ enrollments: enrollments.map(item => ({...item,fee_items:byEnrollment.get(item.id)||[]})) });
+  return json({ enrollments: enrollments.map(item => ({...item,fee_items:byCourse.get(item.course_id)||[]})) });
 }
