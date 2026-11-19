@@ -131,7 +131,8 @@ export async function onRequestGet({ request, env }) {
   const tutors = user.role === 'admin'
     ? ((await env.DB.prepare("SELECT u.id, u.name, u.email FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE COALESCE(p.portal_role, u.role) = 'tutor' AND u.status = 'active' ORDER BY u.name").all()).results ?? [])
     : [];
-  return json({ courses: resultCourses, role: user.role, tutors });
+  const moduleTutorAssignments = user.role === 'admin' ? ((await env.DB.prepare('SELECT module_id,tutor_user_id FROM module_tutor_assignments').all()).results ?? []) : [];
+  return json({ courses: resultCourses, role: user.role, tutors, moduleTutorAssignments });
 }
 
 export async function onRequestPost({ request, env }) {
