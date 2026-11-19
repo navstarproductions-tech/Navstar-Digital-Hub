@@ -10,9 +10,13 @@ export async function onRequestGet({ env }) {
   const dateParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   const dateValues = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
   const today = `${dateValues.year}-${dateValues.month}-${dateValues.day}`;
-  const lines = String(section.intakes || fallbackIntake).split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0]);
+  const lines = String(section.intakes || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0]);
   const entries = lines.map(parts => ({ name: parts[0], enrollmentOpen: parts[1] || '', enrollmentClose: parts[2] || '', trainingStart: parts[3] || '', trainingEnd: parts[4] || '', graduationDate: parts[5] || '' }));
   if (!entries.length && section.currentIntake) entries.push({ name: section.currentIntake, enrollmentOpen: section.enrollmentOpen || '', enrollmentClose: section.enrollmentClose || '', trainingStart: section.trainingStart || '', trainingEnd: section.trainingEnd || '', graduationDate: section.graduationDate || '' });
+  if (!entries.some(item => item.name.toLowerCase() === 'september 2026 intake')) {
+    const parts = fallbackIntake.split('|').map(part => part.trim());
+    entries.push({name:parts[0],enrollmentOpen:parts[1],enrollmentClose:parts[2],trainingStart:'',trainingEnd:'',graduationDate:''});
+  }
   entries.sort((a,b) => (a.enrollmentOpen || '9999-12-31').localeCompare(b.enrollmentOpen || '9999-12-31') || a.name.localeCompare(b.name));
   const open = entries.find(item => item.enrollmentOpen && item.enrollmentClose && today >= item.enrollmentOpen && today <= item.enrollmentClose);
   const upcoming = entries.filter(item => item.enrollmentOpen && item.enrollmentOpen > today)[0];
