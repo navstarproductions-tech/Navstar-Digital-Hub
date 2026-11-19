@@ -291,7 +291,7 @@ export async function onRequestPost({ request, env }) {
     const resourceUrl = safeString(body.resourceUrl, 500);
     const module = await env.DB.prepare("SELECT id,course_id FROM course_modules WHERE id = ? AND status != 'archived'").bind(moduleId).first();
     if (!module || !(await hasModuleAccess(env.DB,user,moduleId,module.course_id)) || title.length < 2) return error('Choose a module assigned to your account and enter a lesson title.');
-    for (const value of [videoUrl, resourceUrl]) if (value && !/^https:\/\//i.test(value) && !/^\/api\/download\/[a-zA-Z0-9-]+$/.test(value)) return error('Lesson resources must use HTTPS or a saved Navstar document link.');
+    for (const value of [videoUrl, resourceUrl]) if (value && !/^https:\/\//i.test(value) && !/^\/api\/(?:download|media)\/[a-zA-Z0-9-]+$/.test(value)) return error('Lesson resources must use HTTPS or a saved Navstar document link.');
     const status = body.status === 'published' ? 'published' : 'draft';
     const minutes = Number.isSafeInteger(Number(body.estimatedMinutes)) ? Math.max(1, Math.min(1440, Number(body.estimatedMinutes))) : 15;
     const id = uuid();
