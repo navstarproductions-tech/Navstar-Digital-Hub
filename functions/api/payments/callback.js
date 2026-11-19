@@ -44,8 +44,8 @@ export async function onRequestPost({ request, env }) {
   const resultDescription = safeString(callback.ResultDesc, 500) || (paid ? 'Payment confirmed by M-Pesa.' : 'Payment was not completed.');
   const transactionDate = items.TransactionDate ? String(items.TransactionDate) : null;
   await env.DB.prepare(`
-    UPDATE payments SET status = ?, result_code = ?, receipt_number = ?, internal_receipt_number = ?, result_description = ?, transaction_date = ?, callback_phone = ?, callback_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-  `).bind(paid ? 'paid' : 'failed', Number.isFinite(resultCode) ? resultCode : -1, receipt, internalReceipt, resultDescription, transactionDate, callbackPhone || null, Number.isFinite(callbackAmount) ? callbackAmount : null, payment.id).run();
+    UPDATE payments SET status = ?, admin_status = ?, result_code = ?, receipt_number = ?, internal_receipt_number = ?, result_description = ?, transaction_date = ?, callback_phone = ?, callback_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `).bind(paid ? 'paid' : 'failed', paid ? 'pending_review' : 'not_received', Number.isFinite(resultCode) ? resultCode : -1, receipt, internalReceipt, resultDescription, transactionDate, callbackPhone || null, Number.isFinite(callbackAmount) ? callbackAmount : null, payment.id).run();
 
   if (payment.purpose === 'enrollment') {
     const balance = await env.DB.prepare("SELECT CASE WHEN EXISTS(SELECT 1 FROM enrollment_fee_items ef WHERE ef.enrollment_id=enrollments.id) THEN (SELECT COALESCE(SUM(ef.amount),0) FROM enrollment_fee_items ef WHERE ef.enrollment_id=enrollments.id) ELSE courses.price END AS course_fee, COALESCE(SUM(CASE WHEN payments.status = 'paid' THEN payments.amount ELSE 0 END), 0) AS paid_total FROM enrollments JOIN courses ON courses.id = enrollments.course_id LEFT JOIN payments ON payments.reference_id = enrollments.id AND payments.purpose = 'enrollment' WHERE enrollments.id = ? GROUP BY enrollments.id, courses.price").bind(payment.reference_id).first();
@@ -53,8 +53,8 @@ export async function onRequestPost({ request, env }) {
     await env.DB.prepare(`UPDATE enrollments SET payment_status = ?, status = CASE WHEN ? = 1 AND status NOT IN ('accepted','rejected','withdrawn') THEN 'submitted' ELSE status END WHERE id = ?`)
       .bind(paid ? (fullyPaid ? 'paid' : 'pending') : 'failed', paid ? 1 : 0, payment.reference_id).run();
   } else if (payment.purpose === 'donation') {
-    await env.DB.prepare('UPDATE donations SET status = ? WHERE id = ?')
-      .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
+    await env.DB.prepare('UPDATE donations SET status = ?, admin_status = ? WHERE id = ?')
+      .bind(paid ? 'paid' : 'failed', paid ? 'pending_review' : 'not_received', payment.reference_id).run();
   } else if (payment.purpose === 'service') {
     await env.DB.prepare('UPDATE service_requests SET status = ? WHERE id = ?')
       .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
