@@ -10,7 +10,16 @@ export async function onRequestGet({request,env}) {
   const course=await env.DB.prepare('SELECT id,title,price,course_code FROM courses WHERE id=?').bind(courseId).first();
   if(!course)return error('Course not found.',404);
   const rows=await env.DB.prepare('SELECT id,item_name AS itemName,amount,due_stage AS dueStage,required,sort_order AS sortOrder,active FROM course_fee_items WHERE course_id=? AND active=1 ORDER BY sort_order,item_name').bind(courseId).all();
-  return json({course,items:rows.results||[]});
+  const legacy=await env.DB.prepare(`
+    SELECT COUNT(*) AS total FROM enrollments e
+    WHERE e.course_id=? AND e.status IN ('submitted','under_review','accepted')
+      AND NOT EXISTS (
+        SELECT 1 FROM enrollment_fee_items ef
+        WHERE ef.enrollment_id=e.id AND lower(ef.item_name)='admission fee'
+          AND ef.due_stage='enrollment' AND ef.amount>0
+      )
+  `).bind(courseId).first();
+  return json({course,items:rows.results||[],studentsWithoutAdmissionFee:Number(legacy?.total||0)});
 }
 export async function onRequestPut({request,env}) {
   if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
