@@ -8,14 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { INITIAL_COURSES } from '@/data/courses';
 import type { Course } from '@/types';
-import { GeographyPicker } from '@/components/GeographyPicker';
 
 const steps = [
   { title: 'Personal profile', description: 'Your legal identity and personal details.' },
   { title: 'Contact information', description: 'How Navstar Admissions can reach you.' },
   { title: 'Identity document', description: 'Provide the document used for identity verification.' },
   { title: 'Course and education', description: 'Confirm the course and your learning background.' },
-  { title: 'Location and address', description: 'Your county, sub-county, ward and local address.' },
   { title: 'Emergency and support', description: 'A trusted emergency contact and any learning support needs.' },
   { title: 'Declaration and verification', description: 'Review your details and verify your email and phone.' }
 ];
@@ -35,7 +33,6 @@ export function EnrollmentPage() {
   const [registrationId, setRegistrationId] = useState('');
   const [registrationReference, setRegistrationReference] = useState('');
   const [installments, setInstallments] = useState<Array<{label:string;amount:number;dueDate:string}>>([]);
-  const [geography, setGeography] = useState({ county: '', subCounty: '', ward: '', location: '', subLocation: '' });
 
   useEffect(() => {
     let active = true;
@@ -64,10 +61,6 @@ export function EnrollmentPage() {
       if (field.disabled || field.type === 'hidden') continue;
       if (!field.checkValidity()) { field.reportValidity(); return false; }
     }
-    if (step === 4 && (!geography.county || !geography.subCounty || !geography.ward || !geography.location || !geography.subLocation)) {
-      setStatus('Complete the county, sub-county, ward, location and sub-location selections before continuing.');
-      return false;
-    }
     setStatus('');
     return true;
   };
@@ -93,9 +86,6 @@ export function EnrollmentPage() {
       body: JSON.stringify({
         ...Object.fromEntries(formData.entries()),
         phone, courseId: course.id, courseTitle: course.title,
-        county: geography.county, subCounty: geography.subCounty, ward: geography.ward,
-        location: geography.location, subLocation: geography.subLocation,
-        town: geography.location || geography.ward || geography.subCounty || geography.county,
         verificationToken: token
       })
     });
@@ -170,7 +160,7 @@ export function EnrollmentPage() {
         <div className="mb-7 mt-5 border-b pb-6">
           <p className="text-xs font-bold uppercase tracking-widest text-blue-800">NAVSTAR DIGITAL HUB / ADMISSIONS</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-950">Student application</h1>
-          <p className="mt-2 text-slate-600">Complete all seven sections for <strong>{course.title}</strong>. Each section unlocks after the current section is complete.</p>
+          <p className="mt-2 text-slate-600">Complete all six sections for <strong>{course.title}</strong>. Each section unlocks after the current section is complete.</p>
         </div>
         <div className="mb-6 grid grid-cols-7 gap-1.5" aria-label="Application progress">
           {steps.map((item,index)=><div key={item.title} className="min-w-0"><div className={`h-2 rounded-full ${index<=step?'bg-blue-800':'bg-slate-200'}`}/><p className={`mt-2 hidden truncate text-[10px] font-semibold sm:block ${index===step?'text-blue-900':'text-slate-500'}`}>{index+1}. {item.title}</p></div>)}
@@ -178,7 +168,7 @@ export function EnrollmentPage() {
         <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]">
           <form id="navstar-application-form" noValidate onSubmit={handleFinalSubmit} className="min-w-0 space-y-5">
             <Card>
-              <CardHeader><CardTitle>Section {step+1} of 7 · {currentStep.title}</CardTitle><CardDescription>{currentStep.description}</CardDescription></CardHeader>
+              <CardHeader><CardTitle>Section {step+1} of 6 · {currentStep.title}</CardTitle><CardDescription>{currentStep.description}</CardDescription></CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <div data-wizard-step={0} className={step===0?'grid gap-4 sm:grid-cols-2':'hidden'}>
                   <div className="space-y-2 sm:col-span-2"><Label htmlFor="full-name">Full legal name *</Label><Input id="full-name" name="fullName" autoComplete="name" required placeholder="As shown on your identity document"/></div>
@@ -189,7 +179,6 @@ export function EnrollmentPage() {
                 <div data-wizard-step={1} className={step===1?'grid gap-4 sm:grid-cols-2':'hidden'}>
                   <div className="space-y-2"><Label htmlFor="email">Email address *</Label><Input id="email" name="email" type="email" autoComplete="email" required placeholder="you@example.com"/></div>
                   <div className="space-y-2"><Label htmlFor="phone">M-Pesa / mobile number *</Label><Input id="phone" name="phone" inputMode="tel" autoComplete="tel" required placeholder="07xx xxx xxx"/></div>
-                  <div className="space-y-2 sm:col-span-2"><Label htmlFor="address">Postal or physical address</Label><Input id="address" name="address" autoComplete="street-address" placeholder="Estate, street or postal address"/></div>
                 </div>
                 <div data-wizard-step={2} className={step===2?'grid gap-4 sm:grid-cols-2':'hidden'}>
                   <div className="space-y-2"><Label htmlFor="identity-type">Identity document *</Label><select id="identity-type" name="identityType" required className={fieldClass}><option value="">Select document</option><option value="national-id">National ID</option><option value="maisha-card">Maisha Card</option><option value="birth-certificate">Birth Certificate</option><option value="passport">Passport</option></select></div>
@@ -204,16 +193,12 @@ export function EnrollmentPage() {
                   <div className="space-y-2 sm:col-span-2"><Label htmlFor="experience">Relevant experience or learning goals</Label><textarea id="experience" name="experience" rows={4} className={textAreaClass} placeholder="Tell us about your experience and what you hope to learn."/></div>
                 </div>
                 <div data-wizard-step={4} className={step===4?'grid gap-4 sm:grid-cols-2':'hidden'}>
-                  <div className="sm:col-span-2"><GeographyPicker {...geography} onChange={setGeography}/></div>
-                  <p className="text-xs text-slate-500 sm:col-span-2">Choose each level in order. Location and sub-location options are maintained by Navstar Admin.</p>
-                </div>
-                <div data-wizard-step={5} className={step===5?'grid gap-4 sm:grid-cols-2':'hidden'}>
                   <div className="space-y-2"><Label htmlFor="emergency-name">Emergency contact full name *</Label><Input id="emergency-name" name="emergencyContactName" required/></div>
                   <div className="space-y-2"><Label htmlFor="emergency-phone">Emergency contact phone *</Label><Input id="emergency-phone" name="emergencyContactPhone" inputMode="tel" required/></div>
                   <div className="space-y-2"><Label htmlFor="relationship">Relationship to applicant</Label><Input id="relationship" name="emergencyContactRelationship" placeholder="Parent, guardian, spouse, friend…"/></div>
                   <div className="space-y-2 sm:col-span-2"><Label htmlFor="support-needs">Accessibility or learning support needs</Label><textarea id="support-needs" name="supportNeeds" rows={4} className={textAreaClass} placeholder="Optional"/></div>
                 </div>
-                <div data-wizard-step={6} className={step===6?'grid gap-4 sm:grid-cols-2':'hidden'}>
+                <div data-wizard-step={5} className={step===5?'grid gap-4 sm:grid-cols-2':'hidden'}>
                   <div className="rounded-xl border bg-slate-50 p-4 text-sm leading-6 text-slate-700 sm:col-span-2"><p className="font-bold text-slate-950">Application review</p><p>Course: {course.title}</p><p>Published course fee: KSh {Number(course.price).toLocaleString('en-KE')}</p><p>Required initial payment is calculated by Navstar from the published course fee and the approved minimum payment setting.</p><p className="mt-2">After you submit this section, a one-time code will be sent to both your email and mobile phone. You must verify both contact channels before the application is saved and the M-Pesa payment prompt is requested.</p></div>
                   <label className="flex items-start gap-3 rounded-xl border bg-white p-4 text-sm leading-6 text-slate-700 sm:col-span-2"><input type="checkbox" name="consent" required className="mt-1 h-4 w-4 accent-blue-800"/><span>I confirm that the information supplied is accurate and consent to Navstar Digital Hub using it for admissions, student administration and official communication. *</span></label>
                 </div>
@@ -221,7 +206,7 @@ export function EnrollmentPage() {
             </Card>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Button type="button" variant="outline" disabled={step===0||loading} onClick={()=>{setStep(value=>Math.max(0,value-1));setStatus('');}}><ChevronLeft className="mr-1 h-4 w-4"/>Back</Button>
-              {step<6?<Button type="button" disabled={loading} onClick={()=>{if(validateStep())setStep(value=>Math.min(6,value+1));}} className="bg-blue-800 hover:bg-blue-900">Continue <ChevronRight className="ml-1 h-4 w-4"/></Button>:<Button type="submit" disabled={loading} className="bg-blue-800 hover:bg-blue-900">{loading?'Processing…':'Verify contacts and continue'}</Button>}
+              {step<5?<Button type="button" disabled={loading} onClick={()=>{if(validateStep())setStep(value=>Math.min(5,value+1));}} className="bg-blue-800 hover:bg-blue-900">Continue <ChevronRight className="ml-1 h-4 w-4"/></Button>:<Button type="submit" disabled={loading} className="bg-blue-800 hover:bg-blue-900">{loading?'Processing…':'Verify contacts and continue'}</Button>}
             </div>
             {status&&<p role="status" className="rounded-xl border bg-white p-4 text-sm text-slate-700">{status}</p>}
             {paymentMessage&&<p role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-900">{paymentMessage}</p>}
