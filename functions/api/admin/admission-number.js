@@ -34,9 +34,11 @@ export async function onRequestPost(context) {
   `).bind(enrollmentId).first();
   if (!enrollment) return error('Student application not found.',404);
   if (enrollment.admission_number) return json({ admissionNumber: enrollment.admission_number, alreadyAssigned: true });
-  const intakeName = safeString(body.intakeName,80) || enrollment.preferred_intake;\n  const intake = intakeCode(intakeName);
+  const intakeName = safeString(body.intakeName,80) || enrollment.preferred_intake;
+  const intake = intakeCode(intakeName);
   if (!intake) return error('The intake must include a month and year, for example September 2026, before an admission number can be generated.',409);
-  if (intakeName && intakeName !== enrollment.preferred_intake) await env.DB.prepare('UPDATE enrollments SET preferred_intake=? WHERE id=?').bind(intakeName,enrollmentId).run();\n  let courseCode = String(enrollment.course_code || '').trim().toUpperCase();
+  if (intakeName && intakeName !== enrollment.preferred_intake) await env.DB.prepare('UPDATE enrollments SET preferred_intake=? WHERE id=?').bind(intakeName,enrollmentId).run();
+  let courseCode = String(enrollment.course_code || '').trim().toUpperCase();
   if (!courseCode) {
     const position = await env.DB.prepare('SELECT COUNT(*) AS n FROM courses WHERE created_at < (SELECT created_at FROM courses WHERE id=?) OR (created_at = (SELECT created_at FROM courses WHERE id=?) AND id <= ?)').bind(enrollment.course_id,enrollment.course_id,enrollment.course_id).first();
     const number = Number(position?.n || 0);
