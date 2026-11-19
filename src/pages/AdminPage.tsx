@@ -299,6 +299,8 @@ export function AdminPage() {
   const [learningModuleId, setLearningModuleId] = useState('');
   const [learningModuleTitle, setLearningModuleTitle] = useState('');
   const [learningModuleDescription, setLearningModuleDescription] = useState('');
+  const [learningModuleEdits, setLearningModuleEdits] = useState<Record<string,{title:string;description:string;status:string}>>({});
+  const [learningTutorModuleId, setLearningTutorModuleId] = useState('');
   const [moduleImportRows, setModuleImportRows] = useState<{ courseId: string; courseName: string; title: string; description: string; status: string; sortOrder: number }[]>([]);
   const [moduleImportName, setModuleImportName] = useState('');
   const [serviceImportRows, setServiceImportRows] = useState<{ name: string; category: string; price: string; priceAmount: string }[]>([]);
@@ -505,25 +507,35 @@ export function AdminPage() {
       const descriptionIndex = at('description');
       const statusIndex = at('status');
       const orderIndex = at('moduleorder') >= 0 ? at('moduleorder') : at('sortorder');
-      if (orderIndex < 0) throw new Error('Add a Module Order column so the modules are saved in the correct sequence.');
+
+      const normalizeCourseName=(value:string)=>value.toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim().split(/\\s+/).filter(word=>!['course','coding','code','level','programme','program','class','training','the','and','in','of'].includes(word)).join(' ');
+      const resolveCourse=(idValue:string,nameValue:string,codeValue:string)=>{
+        if(idValue){const byId=learningCourses.find(item=>item.id.toLowerCase()===idValue.toLowerCase());if(byId)return byId;}
+        if(codeValue){const byCode=learningCourses.find(item=>String(item.course_code||'').trim().toUpperCase()===codeValue);if(byCode)return byCode;}
+        const key=normalizeCourseName(nameValue||codeValue||idValue);if(!key)return undefined;
+        const exact=learningCourses.find(item=>normalizeCourseName(item.title)===key);if(exact)return exact;
+        const wanted=new Set(key.split(' '));let best:typeof learningCourses[number]|undefined,bestScore=0,second=0;
+        for(const item of learningCourses){const tokens=new Set(normalizeCourseName(item.title).split(' '));const overlap=[...wanted].filter(token=>tokens.has(token)).length;const score=overlap/Math.max(1,Math.min(wanted.size,tokens.size));if(score>bestScore){second=bestScore;bestScore=score;best=item;}else if(score>second)second=score;}
+        return bestScore>=0.66&&bestScore-second>=0.12?best:undefined;
+      };
       const rows = parsed.slice(1).map((row, index) => {
         const courseIdValue = courseIdIndex >= 0 ? (row[courseIdIndex] || '').trim() : '';
         const courseNameValue = courseNameIndex >= 0 ? (row[courseNameIndex] || '').trim() : '';
         const courseCodeValue = courseCodeIndex >= 0 ? (row[courseCodeIndex] || '').trim().toUpperCase() : '';
-        const course = learningCourses.find(item => (courseIdValue && item.id === courseIdValue) || (courseNameValue && item.title.toLowerCase() === courseNameValue.toLowerCase()) || (courseCodeValue && String(item.course_code||'').toUpperCase()===courseCodeValue));
+        const course = resolveCourse(courseIdValue,courseNameValue,courseCodeValue);
         return {
           courseId: course?.id || '',
           courseName: course?.title || courseNameValue || courseCodeValue || courseIdValue,
           title: titleIndex >= 0 ? (row[titleIndex] || '').trim() : '',
           description: descriptionIndex >= 0 ? row[descriptionIndex] || '' : '',
           status: statusIndex >= 0 && row[statusIndex]?.toLowerCase() === 'published' ? 'published' : 'draft',
-          sortOrder: orderIndex >= 0 && Number.isFinite(Number(row[orderIndex])) ? Number(row[orderIndex]) : index + 1,
+          sortOrder: orderIndex >= 0 && Number.isFinite(Number(row[orderIndex])) && String(row[orderIndex]||'').trim() ? Number(row[orderIndex]) : index + 1,
         };
       }).filter(row => row.title);
       if (!rows.length) throw new Error('No valid module rows were found in that file.');
       if (rows.length > 100) throw new Error('Upload up to 100 modules at a time.');
       const unresolved = rows.filter(row => !row.courseId);
-      if (unresolved.length) throw new Error('Every module row must match an active course by its exact Course ID or Course Name. Check: ' + unresolved.map(row => row.courseName).slice(0, 3).join(', '));
+      if (unresolved.length) throw new Error('Navstar could not confidently identify the course for: ' + unresolved.map(row => row.courseName).slice(0, 3).join(', '));
       setModuleImportRows(rows);
       setModuleImportName(file.name);
       setNotice(`${rows.length} module rows across ${new Set(rows.map(row => row.courseId)).size} courses are ready. Each module will be routed to its selected course in the listed order.`);
