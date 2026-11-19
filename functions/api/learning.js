@@ -301,7 +301,7 @@ export async function onRequestPost({ request, env }) {
     if(user.role==='tutor'&&(!moduleId||!(await hasModuleAccess(env.DB,user,moduleId,courseId))))return error('Tutors must attach assignments to a module allocated to them.',403);
     if (moduleId) {
       const module = await env.DB.prepare('SELECT id FROM course_modules WHERE id = ? AND course_id = ?').bind(moduleId, courseId).first();
-      if (!module) return error('The selected module does not belong to this course.');
+      if (!module || !(await hasModuleAccess(env.DB,user,moduleId,courseId))) return error('The selected module does not belong to this course or is not allocated to your account.');
     }
     if (dueAt && Number.isNaN(Date.parse(dueAt))) return error('Enter a valid assignment deadline.');
     const status = body.status === 'published' ? 'published' : 'draft';
