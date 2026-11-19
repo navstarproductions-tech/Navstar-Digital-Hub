@@ -189,7 +189,9 @@ export async function onRequestPost({request,env}){
     const access=await requireRole(request,env,['admin']);if(access.response)return access.response;
     const studentId=safeString(body.studentId,80),status=safeString(body.status,20);
     if(!['candidate','eligible','graduated','deferred'].includes(status))return error('Choose a valid graduation status.');
-    if(!(await requireCourse(env.DB,user,courseId)))return error('Course not found.',404);
+    if(!(await env.DB.prepare('SELECT id FROM courses WHERE id=?').bind(courseId).first()))return error('Course not found.',404);
+    const student=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(studentId,courseId).first();
+    if(!student)return error('The selected student is not enrolled in this course.',409);
     await env.DB.prepare('INSERT INTO student_graduation_records(id,user_id,course_id,status,completed_at,updated_by) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,course_id) DO UPDATE SET status=excluded.status,completed_at=excluded.completed_at,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP').bind(uuid(),studentId,courseId,status,status==='graduated'?new Date().toISOString():null,user.id).run();
     await audit('graduation_status_updated','student',studentId);
     return json({saved:true});
