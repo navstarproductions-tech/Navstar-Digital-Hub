@@ -54,6 +54,30 @@ export async function onRequestPut({ request, env }) {
   if (!body || typeof body.section !== 'string' || !/^[a-z][a-z0-9-]{1,79}$/.test(body.section) || !body.values || typeof body.values !== 'object' || Array.isArray(body.values)) return error('Choose a valid settings section and values.');
   let values;
   try { values = clean(body.values); } catch (e) { return error(e instanceof Error ? e.message : 'Invalid settings values.'); }
+  if (body.section === 'academic-intakes' && typeof values.intakes === 'string') {
+    const seen = new Set();
+    for (const line of values.intakes.split(/\\r?\\n/).map(value => value.trim()).filter(Boolean)) {
+      const parts = line.split('|').map(value => value.trim());
+      if (parts.length !== 6 || !parts[0]) return error('Each intake must contain a name and five date fields.');
+      const key = parts[0].toLowerCase();
+      if (seen.has(key)) return error('The intake "' + parts[0] + '" already exists. Load the existing intake instead of creating it again.', 409);
+      seen.add(key);
+      for (const date of parts.slice(1)) if (date && !/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return error('Intake dates must use YYYY-MM-DD.');
+      if (parts[1] && parts[2] && parts[1] > parts[2]) return error('An intake enrollment opening date cannot be after its closing date.');
+      if (parts[3] && parts[4] && parts[3] > parts[4]) return error('A training start date cannot be after its end date.');
+    }
+  }
+  if (body.section === 'maintenance') {
+    const allowed = new Set(['student','tutor','finance','principal','admissions','admin','customer']);
+    const portals = String(values.maintenancePortals || '').split(/[\\r\\n,]+/).map(value => value.trim().toLowerCase()).filter(Boolean);
+    if (portals.some(portal => !allowed.has(portal))) return error('Choose only the listed Navstar portals for maintenance.');
+    if (values.maintenanceEnabled === true) {
+      const starts = String(values.maintenanceStartAt || '').trim();
+      const ends = String(values.maintenanceReturnAt || '').trim();
+      const valid = value => /^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}$/.test(value);
+      if (!portals.length || !valid(starts) || !valid(ends) || ends <= starts) return error('Select at least one portal and enter a valid maintenance start and expected return time in EAT. The return time must be later than the start.');
+    }
+  }
   if (body.section === 'enrollment-settings' && typeof values.installmentPlans === 'string' && values.installmentPlans.trim()) {
     const lines = values.installmentPlans.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     const totals = new Map();
