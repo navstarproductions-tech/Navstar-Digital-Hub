@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Clock3, Wrench } from 'lucide-react';
 type Maintenance={active:boolean;portals:string[];message:string;startsAt:string;returnAt:string;backgroundUrl:string};
 export function PortalMaintenanceGate({role,children}:{role:string;children:ReactNode}) {
- const [data,setData]=useState<Maintenance|null>(null);
- useEffect(()=>{let live=true;fetch('/api/maintenance-status',{cache:'no-store'}).then(async response=>{const result=await response.json() as Partial<Maintenance>;if(live&&response.ok&&result.active&&(result.portals||[]).includes(role))setData({active:true,portals:result.portals||[],message:result.message||'Navstar Digital Hub is undergoing scheduled maintenance.',startsAt:result.startsAt||'',returnAt:result.returnAt||'',backgroundUrl:result.backgroundUrl||''});else if(live)setData(null);}).catch(()=>{if(live)setData(null)});return()=>{live=false}},[role]);
+ const [data,setData]=useState<Maintenance|null>(null); const [checked,setChecked]=useState(false);
+ useEffect(()=>{let live=true;fetch('/api/maintenance-status',{cache:'no-store'}).then(async response=>{const result=await response.json() as Partial<Maintenance>;if(live&&response.ok&&result.active&&(result.portals||[]).includes(role))setData({active:true,portals:result.portals||[],message:result.message||'Navstar Digital Hub is undergoing scheduled maintenance.',startsAt:result.startsAt||'',returnAt:result.returnAt||'',backgroundUrl:result.backgroundUrl||''});else if(live)setData(null);if(live)setChecked(true);}).catch(()=>{if(live){setData(null);setChecked(true)}});return()=>{live=false}},[role]);
+ if(!checked)return <main className="grid min-h-screen place-items-center bg-[#061127] text-white"><p className="text-sm font-semibold text-cyan-100">Checking portal availability…</p></main>;
  if(!data?.active)return <>{children}</>;
  return <main className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#061127] px-4 py-12 text-white">
   {data.backgroundUrl&&<div className="absolute inset-0 -z-20 bg-cover bg-center opacity-35" style={{backgroundImage:`url("${data.backgroundUrl}")`}}/>}
