@@ -78,18 +78,32 @@ export async function onRequestPost({request,env}){
   const questions=rows.map(r=>({questionText:r[idx.question],type:r[idx.type],options:(r[idx.options]||'').split('|').map(x=>x.trim()).filter(Boolean),answer:r[idx.answer],points:Number(r[idx.marks]||1),explanation:r[idx.explanation]||''}));
   return await importQuestions(env.DB,user,assessmentId,questions);
  }
+ if(action==='start_runtime'){
+  if(user.role!=='student')return error('Only enrolled students can start an examination.',403);
+  if(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now()))return error('This examination is not open.',409);
+  const active=await env.DB.prepare("SELECT id,expires_at,attempt_number FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status='in_progress' ORDER BY attempt_number DESC LIMIT 1").bind(assessmentId,user.id).first();
+  if(active){if(Date.parse(active.expires_at)<=Date.now()){await env.DB.prepare("UPDATE exam_runtime_attempts SET status='expired' WHERE id=?").bind(active.id).run();return error('Your examination time has expired.',409);}return json({started:true,attemptId:active.id,expiresAt:active.expires_at,attemptNumber:active.attempt_number,resumed:true});}
+  const count=await env.DB.prepare('SELECT COUNT(*) AS n FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=?').bind(assessmentId,user.id).first();
+  if(Number(count?.n||0)>=Math.max(1,Number(assessment.max_attempts||1)))return error('You have used all permitted attempts.',409);
+  const id=uuid(),started=new Date().toISOString(),expires=new Date(Date.now()+Math.max(1,Number(assessment.duration_minutes||60))*60000).toISOString();
+  await env.DB.prepare("INSERT INTO exam_runtime_attempts(id,assessment_id,user_id,attempt_number,started_at,expires_at,last_activity_at) VALUES(?,?,?,?,?,?,?)").bind(id,assessmentId,user.id,Number(count?.n||0)+1,started,expires,started).run();
+  return json({started:true,attemptId:id,expiresAt:expires,attemptNumber:Number(count?.n||0)+1});
+ }
+ if(action==='report_violation'){
+  if(user.role!=='student')return error('Only students can report an examination event.',403);
+  const attemptId=safeString(body.attemptId,80),kind=safeString(body.kind,60);
+  const attempt=await env.DB.prepare("SELECT id,expires_at FROM exam_runtime_attempts WHERE id=? AND assessment_id=? AND user_id=? AND status='in_progress'").bind(attemptId,assessmentId,user.id).first();
+  if(!attempt)return error('Active examination attempt not found.',404);
+  if(Date.parse(attempt.expires_at)<=Date.now()){await env.DB.prepare("UPDATE exam_runtime_attempts SET status='expired' WHERE id=?").bind(attemptId).run();return error('Your examination time has expired.',409);}
+  await env.DB.prepare('UPDATE exam_runtime_attempts SET flagged_count=flagged_count+1,last_activity_at=CURRENT_TIMESTAMP WHERE id=?').bind(attemptId).run();
+  await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'exam_violation_'+kind.slice(0,40),'exam_attempt',attemptId).run();
+  return json({recorded:true});
+ }
  if(action==='submit_runtime'){
   if(user.role!=='student')return error('Only enrolled students can sit an examination.',403);
   if(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now()))return error('This examination is not open.',409);
-  const now=Date.now(),existing=await env.DB.prepare("SELECT * FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status='in_progress' ORDER BY attempt_number DESC LIMIT 1").bind(assessmentId,user.id).first();
-  let attempt=existing;
-  if(!attempt){
-   const count=await env.DB.prepare('SELECT COUNT(*) AS n FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=?').bind(assessmentId,user.id).first();
-   if(Number(count?.n||0)>=Math.max(1,Number(assessment.max_attempts||1)))return error('You have used all permitted attempts.',409);
-   const id=uuid(),start=new Date(now).toISOString(),expiry=new Date(now+Math.max(1,Number(assessment.duration_minutes||60))*60000).toISOString();
-   await env.DB.prepare("INSERT INTO exam_runtime_attempts(id,assessment_id,user_id,attempt_number,started_at,expires_at,last_activity_at) VALUES(?,?,?,?,?,?,?)").bind(id,assessmentId,user.id,Number(count?.n||0)+1,start,expiry,start).run();
-   attempt={id,expires_at:expiry};
-  }
+  const now=Date.now(),attempt=await env.DB.prepare("SELECT * FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status='in_progress' ORDER BY attempt_number DESC LIMIT 1").bind(assessmentId,user.id).first();
+  if(!attempt)return error('Start the examination before submitting answers.',409);
   if(Date.parse(attempt.expires_at)<=now){await env.DB.prepare("UPDATE exam_runtime_attempts SET status='expired' WHERE id=?").bind(attempt.id).run();return error('Your examination time has expired.',409);}
   const answers=Array.isArray(body.answers)?body.answers.slice(0,500):[];
   let score=0,autoMarked=true;
