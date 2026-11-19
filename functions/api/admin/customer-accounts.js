@@ -6,8 +6,7 @@ export async function onRequestGet({request,env}) {
   const access=await requireRole(request,env,['admin','principal','admissions','finance']);
   if(access.response)return access.response;
   const result=await env.DB.prepare(`SELECT c.id,c.full_name,c.email,c.phone,c.status,c.created_at,c.updated_at,
-    (SELECT COUNT(*) FROM customer_cart_items i JOIN customer_carts cart ON cart.id=i.cart_id WHERE cart.customer_id=c.id) AS cart_items,
-    (SELECT COUNT(*) FROM service_requests sr WHERE lower(sr.email)=lower(c.email)) AS service_requests
+    (SELECT COUNT(*) FROM customer_cart_items i JOIN customer_carts cart ON cart.id=i.cart_id WHERE cart.customer_id=c.id) AS cart_items
     FROM customer_accounts c ORDER BY c.created_at DESC LIMIT 1000`).all();
   return json({accounts:result.results||[]});
 }
