@@ -14,9 +14,10 @@ export async function onRequestPost({ request, env }) {
   if (!env.DB) return error('Recovery service is not configured.', 503);
   let body;
   try { body = await readJson(request, 2048); } catch { return error('Enter your email and verification code.'); }
-  const email = safeString(body.email, 254).toLowerCase();
+  const channel = body.channel === 'sms' ? 'sms' : 'email';
+  const identifier = channel === 'sms' ? safeString(body.identifier, 30) : safeString(body.identifier ?? body.email, 254).toLowerCase();
   const otp = safeString(body.otp, 6);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(otp)) return error('The email or verification code is incorrect.');
+  if (!identifier || !/^\d{6}$/.test(otp)) return error('The contact or verification code is incorrect.');
 
   const record = await env.DB.prepare(`
     SELECT id, otp_hash, attempts, expires_at
