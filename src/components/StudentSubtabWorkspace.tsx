@@ -30,7 +30,10 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
   const [detailId, setDetailId] = useState('');
   const [csvRows, setCsvRows] = useState<string[][]>([]);
   const [csvError, setCsvError] = useState('');
-  const [pdfError, setPdfError] = useState('');\n  const [admissionBusy, setAdmissionBusy] = useState('');\n  const [generatedAdmissions, setGeneratedAdmissions] = useState<Record<string,string>>({});\n  const [admissionMessage, setAdmissionMessage] = useState('');
+  const [pdfError, setPdfError] = useState('');
+  const [admissionBusy, setAdmissionBusy] = useState('');
+  const [generatedAdmissions, setGeneratedAdmissions] = useState<Record<string,string>>({});
+  const [admissionMessage, setAdmissionMessage] = useState('');
 
   const activeStudents = useMemo(() => students.filter(student => student.role === 'student' && student.status.toLowerCase() === 'active'), [students]);
   const allStudents = useMemo(() => students.filter(student => student.role === 'student'), [students]);
@@ -70,7 +73,8 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
   };
 
   const downloadTemplate = () => {
-    const csv = 'fullName,email,phone,dateOfBirth,identityNumber,courseId,studyMode,educationLevel,county,town,emergencyContactName,emergencyContactPhone\nJane Doe,jane@example.com,0712345678,2000-01-01,,COURSE_ID,On campus,Secondary,Bungoma,Bungoma,John Doe,0712345679';
+    const csv = 'fullName,email,phone,dateOfBirth,identityNumber,courseId,studyMode,educationLevel,county,town,emergencyContactName,emergencyContactPhone
+Jane Doe,jane@example.com,0712345678,2000-01-01,,COURSE_ID,On campus,Secondary,Bungoma,Bungoma,John Doe,0712345679';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -89,7 +93,8 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
       return;
     }
     const text = await file.text();
-    const rows = text.split(/\r?\n/).filter(Boolean).slice(0, 101).map(line => line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
+    const rows = text.split(/\r?
+/).filter(Boolean).slice(0, 101).map(line => line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
     setCsvRows(rows);
   };
 
