@@ -12,8 +12,7 @@ async function currentIntake(DB) {
   let config = {}; try { config = JSON.parse(row?.value || '{}'); } catch {}
   const section = config['academic-intakes'] || {};
   const today = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const entries = String(section.intakes || '').split(/\r?
-/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0]);
+  const entries = String(section.intakes || '').split(/\r?\n/).map(line => line.split('|').map(part => part.trim())).filter(parts => parts.length >= 3 && parts[0]);
   const mapped = entries.map(parts => ({ name: parts[0], enrollmentOpen: parts[1], enrollmentClose: parts[2], trainingStart: parts[3] || '', trainingEnd: parts[4] || '', graduationDate: parts[5] || '' }));
   if (!mapped.length && section.currentIntake) mapped.push({ name: section.currentIntake, enrollmentOpen: section.enrollmentOpen || '', enrollmentClose: section.enrollmentClose || '', trainingStart: section.trainingStart || '', trainingEnd: section.trainingEnd || '', graduationDate: section.graduationDate || '' });
   const open = mapped.find(item => item.enrollmentOpen && item.enrollmentClose && today >= item.enrollmentOpen && today <= item.enrollmentClose);
