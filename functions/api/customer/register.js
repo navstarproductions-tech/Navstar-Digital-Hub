@@ -1,13 +1,16 @@
 import { registerCustomer,loginCustomer,setCustomerSession } from '../../_shared/customer-auth.js';
 import { error,isSameOrigin,json,readJson,safeString,normalizePhone } from '../../_shared/http.js';
+import { rateLimited } from '../../_shared/rate-limit.js';
 import { passwordPolicyError } from '../../_shared/password-policy.js';
 
 const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export async function onRequestPost({request,env}) {
   if(!isSameOrigin(request)) return error('Cross-origin request rejected.',403);
   if(!env.DB) return error('Customer accounts are not configured yet.',503);
+  if(await rateLimited(env.DB,request,'customer-register-ip',{maximum:30,minutes:15})) return error('Too many registration attempts from this network. Please wait a little while and try again.',429);
   let body; try{body=await readJson(request,8192);}catch{return error('Invalid registration details.');}
   const fullName=safeString(body.fullName,120), email=safeString(body.email,254).toLowerCase();
+  if(await rateLimited(env.DB,request,'customer-register-email',{maximum:8,minutes:30},email)) return error('Too many attempts for this email address. Please wait a little while and try again.',429);
   const phone=body.phone ? normalizePhone(body.phone) : '';
   const password=String(body.password||'');
   if(fullName.length<2||!emailPattern.test(email)||(body.phone&&!phone)) return error('Enter your full name, a valid email address, and a valid phone number if supplied.');
