@@ -36,17 +36,23 @@ export async function onRequestPost({ request, env }) {
     if (session?.role === 'student' && String(enrollment.email).toLowerCase() !== String(session.email).toLowerCase()) return error('You can only pay fees for your own student account.', 403);
     if (!session && enrollment.status !== 'under_review') return error('Sign in to the Student Portal before requesting a payment for an existing enrolment.', 401);
     if (!session && enrollment.phone !== phone) return error('Use the registered phone number or sign in to pay from another phone.', 403);
-    const admissionFeeRow = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id = (SELECT course_id FROM enrollments WHERE id = ?) AND lower(item_name) = 'admission fee' AND active = 1 AND due_stage = 'enrollment' AND required = 1").bind(reference).first();
-    const admissionFee = Number(admissionFeeRow?.total || 0);
+    const feeSnapshot = await env.DB.prepare(`
+      SELECT COUNT(*) AS item_count, COALESCE(SUM(amount),0) AS total_fee,
+        COALESCE(SUM(CASE WHEN lower(item_name)='admission fee' AND due_stage='enrollment' THEN amount ELSE 0 END),0) AS admission_fee
+      FROM enrollment_fee_items WHERE enrollment_id=?
+    `).bind(reference).first();
+    const legacyAdmission = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id=(SELECT course_id FROM enrollments WHERE id=?) AND lower(item_name)='admission fee' AND active=1 AND due_stage='enrollment' AND required=1").bind(reference).first();
+    const totalFee = Number(feeSnapshot?.item_count || 0) > 0 ? Number(feeSnapshot.total_fee) : Number(enrollment.price);
+    const admissionFee = Number(feeSnapshot?.item_count || 0) > 0 ? Number(feeSnapshot.admission_fee) : Number(legacyAdmission?.total || 0);
     if (admissionFee < 1) return error('Admission fee is not configured for this course. Please contact Navstar Admissions before making a payment.', 409);
     const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
     const paidTotal = Number(paidRow?.paid_total || 0);
     if (enrollment.status === 'under_review' && paidTotal === 0) {
       amount = Number(enrollment.approved_initial_payment ?? admissionFee);
     } else {
-      amount = Math.max(0, Number(enrollment.price) - paidTotal);
+      amount = Math.max(0, totalFee - paidTotal);
     }
-    const outstanding = Math.max(0, Number(enrollment.price) - paidTotal);
+    const outstanding = Math.max(0, totalFee - paidTotal);
     if (requestedAmount !== null) amount = requestedAmount;
     if (!Number.isSafeInteger(amount) || amount < 1 || amount > outstanding) return error('Enter an amount greater than zero and no more than your outstanding balance.', 409);
     const firstPaymentMinimum = admissionFee;
