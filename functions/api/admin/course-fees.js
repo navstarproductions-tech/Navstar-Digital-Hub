@@ -44,6 +44,11 @@ export async function onRequestPut({request,env}) {
     ON CONFLICT(course_id,item_name) DO UPDATE SET amount=excluded.amount,due_stage=excluded.due_stage,required=excluded.required,sort_order=excluded.sort_order,active=excluded.active,updated_at=CURRENT_TIMESTAMP
   `).bind(item.id,courseId,item.itemName,item.amount,item.dueStage,item.required,item.sortOrder,item.active));
   await env.DB.batch(statements);
+  const retainedNames = normalized.map(item => item.itemName.toLowerCase());
+  if (retainedNames.length) {
+    await env.DB.prepare(`UPDATE course_fee_items SET active=0,updated_at=CURRENT_TIMESTAMP WHERE course_id=? AND lower(item_name) NOT IN (${retainedNames.map(() => '?').join(',')})`)
+      .bind(courseId, ...retainedNames).run();
+  }
   await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
     .bind(uuid(),access.user.id,'course_fee_structure_updated','course',courseId).run();
   const rows=await env.DB.prepare('SELECT id,item_name AS itemName,amount,due_stage AS dueStage,required,sort_order AS sortOrder,active FROM course_fee_items WHERE course_id=? ORDER BY sort_order,item_name').bind(courseId).all();
