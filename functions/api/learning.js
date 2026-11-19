@@ -131,7 +131,7 @@ export async function onRequestPost({ request, env }) {
   try { body = await readJson(request, 262144); } catch { return error('Invalid request body.'); }
   const action = safeString(body.action, 40);
 
-  if (['create_module', 'bulk_create_modules', 'create_lesson', 'create_assignment', 'grade_submission', 'bulk_grade_submissions'].includes(action)) {
+  if (['create_module', 'bulk_create_modules', 'bulk_create_modules_multi', 'create_lesson', 'create_assignment', 'grade_submission', 'bulk_grade_submissions'].includes(action)) {
     const access = await requireRole(request, env, ['admin','principal','tutor']);
     if (access.response) return access.response;
   }
@@ -154,6 +154,32 @@ export async function onRequestPost({ request, env }) {
     await env.DB.prepare('DELETE FROM course_tutor_assignments WHERE course_id = ? AND tutor_user_id = ?').bind(courseId, tutorUserId).run();
     await writeAudit(env.DB, user.id, 'lms_tutor_unassigned', 'course', courseId);
     return json({ courseId, tutorUserId, assigned: false });
+  }
+
+  if (action === 'bulk_create_modules_multi') {
+    const rows=Array.isArray(body.rows)?body.rows:[];
+    if(rows.length<1||rows.length>100)return error('Upload between 1 and 100 module rows.');
+    const normalized=[];
+    const courseCache=new Map();
+    for(let index=0;index<rows.length;index++){
+      const row=rows[index]||{},courseId=safeString(row.courseId,80),title=safeString(row.title,160);
+      if(!courseId||title.length<2)return error(`Module row ${index+1} needs a valid course and module title. Nothing was imported.`);
+      if(!courseCache.has(courseId)){
+        const course=await env.DB.prepare("SELECT id FROM courses WHERE id=? AND status='active'").bind(courseId).first();
+        courseCache.set(courseId,Boolean(course&&await hasCourseAccess(env.DB,user,courseId)));
+      }
+      if(!courseCache.get(courseId))return error(`Module row ${index+1} is assigned to a course that is inactive or not assigned to your account. Nothing was imported.`,403);
+      normalized.push({courseId,title,description:safeString(row.description,4000),status:row.status==='published'?'published':'draft',sortOrder:Number.isSafeInteger(Number(row.sortOrder))?Math.max(0,Math.min(10000,Number(row.sortOrder))):index+1});
+    }
+    const statements=normalized.flatMap(row=>{
+      const id=uuid();
+      return [
+        env.DB.prepare('INSERT INTO course_modules(id,course_id,title,description,sort_order,status,created_by) VALUES(?,?,?,?,?,?,?)').bind(id,row.courseId,row.title,row.description,row.sortOrder,row.status,user.id),
+        env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'lms_module_created','course_module',id)
+      ];
+    });
+    try{await env.DB.batch(statements);}catch(cause){console.error('Navstar multi-course module import failed:',String(cause?.stack||cause));return error('The CSV could not be imported. No modules were changed. Check course mappings and duplicate rows, then try again.',500);}
+    return json({imported:normalized.length,message:`${normalized.length} modules imported into their selected courses.`},201);
   }
 
   if (action === 'bulk_create_modules') {
