@@ -21,6 +21,8 @@ export async function onRequestPut({ request, env, params }) {
   if (title.length < 2 || !Number.isSafeInteger(price) || price < 0 || price > 1000000) return error('Valid course title and whole-KSh fee are required.');
   const existing = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(id).first();
   if (!existing) return error('Active course not found.', 404);
+  const configuredFees = await env.DB.prepare('SELECT COUNT(*) AS count,COALESCE(SUM(amount),0) AS total FROM course_fee_items WHERE course_id=? AND active=1').bind(id).first();
+  if (Number(configuredFees?.total||0)>0 && Number(configuredFees.total)!==price) return error('The updated course fee must equal the total of its active fee items. Update the fee structure to match, or change the course fee to KSh '+Number(configuredFees.total).toLocaleString('en-KE')+'.',409);
   await env.DB.prepare('UPDATE courses SET title = ?, description = ?, duration = ?, image_url = ?, category = ?, price = ?, level = ?, course_code = ? WHERE id = ?')
     .bind(title, description, duration, image, category, price, level, courseCode || null, id).run();
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
