@@ -100,13 +100,13 @@ export async function onRequestGet({ request, env }) {
     FROM course_assignment_submissions s
     JOIN course_assignments a ON a.id = s.assignment_id
     JOIN users u ON u.id = s.user_id
-    WHERE ${user.role === 'student' ? 's.user_id = ? AND ' : ''}a.course_id IN (${courseIds.map(() => '?').join(',')})
+    WHERE ${user.role === 'student' ? 's.user_id = ? AND ' : ''}a.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role==='tutor' ? 'AND a.module_id IN (SELECT module_id FROM module_tutor_assignments WHERE tutor_user_id = ?)' : ''}
     ORDER BY s.submitted_at DESC
   `;
   const submissionResult = user.role === 'student'
     ? await env.DB.prepare(submissionSql).bind(user.id, ...courseIds).all()
     : staffRoles.includes(user.role)
-      ? await env.DB.prepare(submissionSql).bind(...courseIds).all()
+      ? await env.DB.prepare(submissionSql).bind(...(user.role==='tutor'?[...courseIds,user.id]:courseIds)).all()
       : { results: [] };
 
   const progressByLesson = new Map((progressResult.results ?? []).map((item) => [item.lesson_id, item]));
@@ -378,10 +378,10 @@ export async function onRequestPost({ request, env }) {
       const points = Number(rows[index]?.pointsAwarded);
       const feedback = safeString(rows[index]?.feedback, 4000);
       const submission = await env.DB.prepare(`
-        SELECT s.id, a.max_points, a.course_id FROM course_assignment_submissions s
+        SELECT s.id, a.max_points, a.course_id, a.module_id FROM course_assignment_submissions s
         JOIN course_assignments a ON a.id = s.assignment_id WHERE s.id = ?
       `).bind(submissionId).first();
-      if (!submission || !(await hasCourseAccess(env.DB,user,submission.course_id)) || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) {
+      if (!submission || !(await hasCourseAccess(env.DB,user,submission.course_id)) || (user.role==='tutor'&&(!submission.module_id||!(await hasModuleAccess(env.DB,user,submission.module_id,submission.course_id)))) || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) {
         return error(`Marks row ${index + 1} has an unknown submission or a score outside the allowed range. Nothing was imported.`);
       }
       prepared.push({ submissionId, points, feedback });
