@@ -5,11 +5,17 @@ const staffRoles=['admin','principal','tutor'];
 const adminRoles=['admin','principal'];
 const dateTimePattern=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
+async function ensureModuleTutorAssignments(db){
+  await db.prepare('CREATE TABLE IF NOT EXISTS module_tutor_assignments (id TEXT PRIMARY KEY,module_id TEXT NOT NULL REFERENCES course_modules(id) ON DELETE CASCADE,tutor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,assigned_by TEXT REFERENCES users(id) ON DELETE SET NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(module_id,tutor_user_id))').run();
+  await db.prepare('INSERT OR IGNORE INTO module_tutor_assignments(id,module_id,tutor_user_id,assigned_by) SELECT lower(hex(randomblob(16))),m.id,a.tutor_user_id,a.assigned_by FROM course_modules m JOIN course_tutor_assignments a ON a.course_id=m.course_id').run();
+}
 async function courseAccess(db,user,courseId){
   if(adminRoles.includes(user.role))return true;
   if(user.role==='tutor'){
     const row=await db.prepare('SELECT id FROM course_tutor_assignments WHERE course_id=? AND tutor_user_id=?').bind(courseId,user.id).first();
-    return Boolean(row);
+    if(row)return true;
+    const moduleRow=await db.prepare('SELECT a.id FROM module_tutor_assignments a JOIN course_modules m ON m.id=a.module_id WHERE m.course_id=? AND a.tutor_user_id=? LIMIT 1').bind(courseId,user.id).first();
+    return Boolean(moduleRow);
   }
   if(user.role==='student'){
     const row=await db.prepare("SELECT id FROM enrollments WHERE course_id=? AND email=? COLLATE NOCASE AND status='accepted' LIMIT 1").bind(courseId,user.email).first();
@@ -23,7 +29,7 @@ async function visibleCourseIds(db,user){
     return (r.results||[]).map(x=>x.id);
   }
   if(user.role==='tutor'){
-    const r=await db.prepare('SELECT course_id AS id FROM course_tutor_assignments WHERE tutor_user_id=?').bind(user.id).all();
+    const r=await db.prepare('SELECT DISTINCT m.course_id AS id FROM module_tutor_assignments a JOIN course_modules m ON m.id=a.module_id WHERE a.tutor_user_id=? UNION SELECT course_id AS id FROM course_tutor_assignments WHERE tutor_user_id=?').bind(user.id,user.id).all();
     return (r.results||[]).map(x=>x.id);
   }
   if(user.role==='student'){
@@ -41,6 +47,7 @@ export async function onRequestGet({request,env}){
   if(!env.DB)return error('Academic portal database is not configured.',503);
   const user=await getSession(request,env);
   if(!user)return error('Sign in required.',401);
+  await ensureModuleTutorAssignments(env.DB);
   if(!['student',...staffRoles].includes(user.role))return error('This account cannot access academic records.',403);
   const ids=await visibleCourseIds(env.DB,user);
   if(!ids.length)return json({courses:[],timetable:[],attendance:[],liveClasses:[],scholarships:[],moduleRegistrations:[],assessments:[],graduation:[],reportCards:[]});
