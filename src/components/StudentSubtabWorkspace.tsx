@@ -74,8 +74,7 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
   };
 
   const downloadTemplate = () => {
-    const csv = 'fullName,email,phone,dateOfBirth,identityNumber,courseId,studyMode,educationLevel,county,town,emergencyContactName,emergencyContactPhone
-Jane Doe,jane@example.com,0712345678,2000-01-01,,COURSE_ID,On campus,Secondary,Bungoma,Bungoma,John Doe,0712345679';
+    const csv = 'fullName,email,phone,dateOfBirth,identityNumber,courseId,studyMode,educationLevel,county,town,emergencyContactName,emergencyContactPhone\nJane Doe,jane@example.com,0712345678,2000-01-01,,COURSE_ID,On campus,Secondary,Bungoma,Bungoma,John Doe,0712345679';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -94,8 +93,7 @@ Jane Doe,jane@example.com,0712345678,2000-01-01,,COURSE_ID,On campus,Secondary,B
       return;
     }
     const text = await file.text();
-    const rows = text.split(/\r?
-/).filter(Boolean).slice(0, 101).map(line => line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
+    const rows = text.split(/\r?\n/).filter(Boolean).slice(0, 101).map(line => line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
     setCsvRows(rows);
   };
 
