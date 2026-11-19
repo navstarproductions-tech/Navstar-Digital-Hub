@@ -9,14 +9,21 @@ export async function onRequestGet({request,env}){
  const url=new URL(request.url),view=url.searchParams.get('view')||'overview';
  if(view==='products'){const r=await env.DB.prepare('SELECT * FROM business_products ORDER BY name LIMIT 1000').all();return json({products:r.results||[]});}
  if(view==='sales'){const r=await env.DB.prepare('SELECT * FROM business_sales ORDER BY created_at DESC LIMIT 500').all();return json({sales:r.results||[]});}
- const [products,sales,revenue,lowStock,top]=await Promise.all([
+ const [products,sales,revenue,lowStock,top,students,employees,applications,courseCount,serviceCount,verifiedPayments,donations]=await Promise.all([
   env.DB.prepare('SELECT COUNT(*) AS n FROM business_products WHERE status=?').bind('active').first(),
   env.DB.prepare('SELECT COUNT(*) AS n FROM business_sales').first(),
   env.DB.prepare("SELECT COALESCE(SUM(total_amount),0) AS n FROM business_sales WHERE payment_status='paid'").first(),
   env.DB.prepare('SELECT COUNT(*) AS n FROM business_products WHERE status=? AND stock_quantity<=reorder_level').bind('active').first(),
-  env.DB.prepare("SELECT i.product_name AS name,SUM(i.quantity) AS quantity,SUM(i.line_total) AS value FROM business_sale_items i JOIN business_sales s ON s.id=i.sale_id WHERE s.payment_status='paid' GROUP BY i.product_id ORDER BY quantity DESC LIMIT 10").all()
+  env.DB.prepare("SELECT i.product_name AS name,SUM(i.quantity) AS quantity,SUM(i.line_total) AS value FROM business_sale_items i JOIN business_sales s ON s.id=i.sale_id WHERE s.payment_status='paid' GROUP BY i.product_id ORDER BY quantity DESC LIMIT 10").all(),
+  env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role='student' AND status='active'").first(),
+  env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role!='student' AND status='active'").first(),
+  env.DB.prepare("SELECT COUNT(*) AS n FROM staff_applications WHERE status IN ('pending','under_review')").first(),
+  env.DB.prepare("SELECT COUNT(*) AS n FROM courses WHERE status='active'").first(),
+  env.DB.prepare("SELECT COUNT(*) AS n FROM services WHERE status='active'").first(),
+  env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS n FROM payments WHERE status='paid'").first(),
+  env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS n FROM donations WHERE status='paid'").first()
  ]);
- return json({products:Number(products?.n||0),sales:Number(sales?.n||0),verifiedRevenue:Number(revenue?.n||0),lowStock:Number(lowStock?.n||0),topProducts:top.results||[]});
+ return json({products:Number(products?.n||0),sales:Number(sales?.n||0),verifiedRevenue:Number(revenue?.n||0),lowStock:Number(lowStock?.n||0),topProducts:top.results||[],activeStudents:Number(students?.n||0),activeEmployees:Number(employees?.n||0),pendingStaffApplications:Number(applications?.n||0),activeCourses:Number(courseCount?.n||0),activeServices:Number(serviceCount?.n||0),verifiedPayments:Number(verifiedPayments?.n||0),verifiedDonations:Number(donations?.n||0)});
 }
 export async function onRequestPost({request,env}){
  if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
