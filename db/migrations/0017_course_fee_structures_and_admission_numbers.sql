@@ -47,3 +47,16 @@ INSERT OR IGNORE INTO course_fee_items (id,course_id,item_name,amount,due_stage,
 SELECT 'admission-' || id,id,'Admission fee',0,'enrollment',1,1,1 FROM courses;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_courses_course_code ON courses(course_code) WHERE course_code IS NOT NULL AND course_code <> '';
+
+-- Preserve the fee schedule applicable to every existing and future enrolment.
+INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage)
+SELECT 'snapshot-' || e.id || '-' || f.id,e.id,f.id,f.item_name,f.amount,f.due_stage
+FROM enrollments e JOIN course_fee_items f ON f.course_id=e.course_id AND f.active=1;
+
+CREATE TRIGGER IF NOT EXISTS trg_snapshot_course_fees_after_enrollment
+AFTER INSERT ON enrollments
+BEGIN
+  INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage)
+  SELECT 'snapshot-' || NEW.id || '-' || f.id,NEW.id,f.id,f.item_name,f.amount,f.due_stage
+  FROM course_fee_items f WHERE f.course_id=NEW.course_id AND f.active=1;
+END;
