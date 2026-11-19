@@ -117,7 +117,7 @@ export async function onRequestPost({request,env}){
    await env.DB.prepare('INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct) VALUES(?,?,?,?,?,?) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer_json=excluded.answer_json,points_awarded=excluded.points_awarded,is_correct=excluded.is_correct,updated_at=CURRENT_TIMESTAMP').bind(uuid(),attempt.id,q.id,JSON.stringify(submitted),points,correct===null?null:(correct?1:0)).run();
   }
   const expired=Date.parse(attempt.expires_at)<=Date.now();
-  await env.DB.prepare("UPDATE exam_runtime_attempts SET status='submitted',submitted_at=CURRENT_TIMESTAMP,last_activity_at=CURRENT_TIMESTAMP,objective_score=?,total_score=? WHERE id=?").bind(score,autoMarked?score:null,attempt.id).run();
+  await env.DB.prepare("UPDATE exam_runtime_attempts SET status=?,submitted_at=CURRENT_TIMESTAMP,last_activity_at=CURRENT_TIMESTAMP,objective_score=?,total_score=? WHERE id=?").bind(autoMarked?'graded':'submitted',score,autoMarked?score:null,attempt.id).run();
   return json({submitted:true,attemptId:attempt.id,objectiveScore:score,autoMarked,manualMarkingRequired:!autoMarked,expired});
  }
  return error('Unsupported examination action.');
