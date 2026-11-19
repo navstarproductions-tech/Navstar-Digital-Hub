@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 
 type Course={id:string;title:string};
 type Module={id:string;title:string;course_id:string};
 type Exam={id:string;course_id:string;module_id?:string|null;course_title?:string;module_title?:string;title:string;assessment_type:string;instructions:string;starts_at?:string|null;due_at?:string|null;max_points:number;duration_minutes?:number;pass_mark?:number;max_attempts?:number;status:string;published_at?:string|null};
-type Attempt={id:string;assessment_id:string;assessment_title:string;course_id:string;student_name?:string;user_id:string;status:string;points_awarded?:number|null;max_points:number;submitted_at:string;feedback?:string};
+type Attempt={id:string;assessment_id:string;assessment_title:string;course_id:string;student_name?:string;user_id:string;status:string;points_awarded?:number|null;max_points:number;submitted_at:string;feedback?:string;published_at?:string|null};
 type Props={subtab:string;courses:Course[]};
 const cls='w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900';
 const btn='rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50';
+const secondary='rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50';
 const flagKeys=['publishResultsAutomatically','showCorrectAnswers','negativeMarking','neverBelowZero','penaliseUnanswered','freezeTextSelection','killShortcuts','blockDragging','blockLinks','stripSpellcheck','aiInsertionGuard','blockReload','identityWatermark','forceFullscreen','blockScreenshots','blockPrintingSaving','blockAppSwitching','disableRightClick','liveCameraPresence','blockCopying','blockPasting','blockDeveloperTools','lockTabSwitching','pauseOnViolation','autoSubmitAtViolationLimit','flagForReview','alertAdmin'];
 const labels=['Publish results automatically','Show correct answers after submission','Negative marking','Never let a question fall below zero','Also penalise unanswered questions','Freeze all text selection','Kill copy / cut / paste and risky shortcuts','Block dragging in and out','Block links and new windows','Strip spellcheck, autocorrect and autofill','AI insertion guard','Block reload and refresh','Identity watermark','Force fullscreen','Hide paper on screenshot / focus loss','Block printing and saving','Block app switching','Disable right-click menu','Require live camera presence','Block copying','Block pasting','Block developer tools','Lock tab switching','Pause on every violation','Auto-submit at violation limit','Flag attempt for review','Alert administrator'];
 const boolDefault=Object.fromEntries(flagKeys.map(k=>[k,false]));
