@@ -16,3 +16,6 @@ bucket_name = "navstar-digital-hub-docs"
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "navstar-digital-hub-media"
+
+[ai]
+binding = "AI"
