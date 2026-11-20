@@ -134,6 +134,7 @@ export function LoginPage() {
             <div><p className="text-[10px] font-extrabold uppercase tracking-[.18em] text-cyan-200">Secure sign in</p><h1 className="text-lg font-extrabold tracking-tight text-white">Welcome back to {roleLabel} Portal</h1></div>
           </div>
           <p className="mt-1 text-xs leading-5 text-slate-300">Enter your details to access the selected portal.</p>
+          <a href="/api/auth/google" className="mt-3 flex h-10 w-full items-center justify-center gap-3 rounded-xl border border-slate-500 bg-white font-bold text-slate-800 transition hover:bg-slate-100"><svg viewBox="0 0 48 48" className="h-5 w-5" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.2 13.3l7.8 6.1C12 13.5 17.5 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.5 6.9l7.3 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10 28.6a14.4 14.4 0 0 1 0-9.2l-7.8-6.1a24 24 0 0 0 0 21.4l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.3 0 11.6-2.1 15.4-5.8l-7.3-5.7c-2 1.3-4.6 2-8.1 2-6.5 0-12-4-14-9.6l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Continue with Google</a>
 
           {!isStaff ? (
             <form onSubmit={signInStudent} className="mt-4 space-y-3">
