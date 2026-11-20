@@ -15,8 +15,8 @@ const defaultHeroPhotos = ['https://images.unsplash.com/photo-1516321318423-f06f
 export function Hero() {
   const [heroPhotos, setHeroPhotos] = useState<string[]>(defaultHeroPhotos);
   const [activePhoto, setActivePhoto] = useState(0);
-  const [slideSeconds, setSlideSeconds] = useState(6.5);
-  const [fadeSeconds, setFadeSeconds] = useState(1.1);
+  const [slideSeconds, setSlideSeconds] = useState(3.8);
+  const [fadeSeconds, setFadeSeconds] = useState(0.55);
   useEffect(() => { let alive = true; fetch('/api/home-slideshow', { cache: 'no-store' }).then(async r => r.ok ? r.json() as Promise<{images?:{url?:string}[]; settings?:{homeSlideSeconds?:number;homeFadeSeconds?:number}}> : null).then(data => { const uploaded=(data?.images||[]).map(x=>x.url).filter((url):url is string=>Boolean(url)); if(alive){ if(data?.settings?.homeSlideSeconds) setSlideSeconds(Math.max(2,Math.min(30,Number(data.settings.homeSlideSeconds)))); if(data?.settings?.homeFadeSeconds) setFadeSeconds(Math.max(0.2,Math.min(5,Number(data.settings.homeFadeSeconds)))); if(uploaded.length)setHeroPhotos(uploaded); } }).catch(()=>undefined); return ()=>{alive=false}; }, []);
   useEffect(() => { if(heroPhotos.length<2)return; const timer=window.setInterval(()=>setActivePhoto(i=>(i+1)%heroPhotos.length),Math.max(2000,slideSeconds*1000)); return ()=>window.clearInterval(timer); },[heroPhotos,slideSeconds]);
   return (
