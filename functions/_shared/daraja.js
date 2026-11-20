@@ -38,7 +38,16 @@ function providerMessage(body, fallback) {
     : fallback;
 }
 
+let cachedAccessToken = '';
+let cachedAccessTokenExpiresAt = 0;
+let cachedAccessTokenKey = '';
+let accessTokenRequest = null;
+
 async function getAccessToken(env) {
+  const tokenKey = `${darajaHost(env)}:${String(env.DARAJA_CONSUMER_KEY || '')}`;
+  if (cachedAccessToken && cachedAccessTokenKey === tokenKey && cachedAccessTokenExpiresAt > Date.now() + 60000) return cachedAccessToken;
+  if (accessTokenRequest && cachedAccessTokenKey === tokenKey) return accessTokenRequest;
+  const requestToken = async () => {
   const authorization = btoa(`${env.DARAJA_CONSUMER_KEY}:${env.DARAJA_CONSUMER_SECRET}`);
   let response;
   try {
@@ -57,7 +66,15 @@ async function getAccessToken(env) {
     const detail = providerMessage(body, 'Check the Daraja Consumer Key and Consumer Secret.');
     throw new Error(`Safaricom authentication failed (HTTP ${response.status}): ${detail}`);
   }
-  return body.access_token;
+  cachedAccessToken = String(body.access_token);
+  cachedAccessTokenKey = tokenKey;
+  const expiresIn = Math.max(120, Number(body.expires_in || 3599));
+  cachedAccessTokenExpiresAt = Date.now() + Math.min(expiresIn, 3599) * 1000;
+  return cachedAccessToken;
+  };
+  accessTokenRequest = requestToken();
+  try { return await accessTokenRequest; }
+  finally { accessTokenRequest = null; }
 }
 
 export async function startStkPush(env, { phone, amount, accountReference, description }) {
