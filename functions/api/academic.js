@@ -82,6 +82,18 @@ export async function onRequestPost({request,env}){
   const moduleId=safeString(body.moduleId,80);
   const title=safeString(body.title,160);
   const audit=async(name,type,id)=>env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,name,type,id).run();
+  if(action==='delete_assessment_result'){
+    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80);
+    const assessment=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id)))return error('Assessment access denied.',403);
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM assessment_component_marks WHERE assessment_id=? AND user_id=?').bind(assessmentId,studentId),
+      env.DB.prepare('DELETE FROM course_assessment_results WHERE assessment_id=? AND user_id=?').bind(assessmentId,studentId),
+      env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'assessment_result_deleted','assessment_result',assessmentId+':'+studentId)
+    ]);
+    return json({deleted:true});
+  }
   if(action==='set_exam_candidate_approval'){
     const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),status=safeString(body.status,20);
