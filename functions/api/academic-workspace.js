@@ -23,11 +23,11 @@ export async function onRequestGet({request,env}){
  }
  if(action==='report-cards'){
   if(user.role==='student'){
-   const rows=await env.DB.prepare('SELECT id,report_card_no,period_label,public_token,issued_at,course_id FROM academic_report_cards WHERE user_id=? ORDER BY issued_at DESC').bind(user.id).all();
+   const rows=await env.DB.prepare('SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.course_id,r.snapshot_json,c.title AS course_title FROM academic_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY issued_at DESC').bind(user.id).all();
    return json({reportCards:rows.results||[]});
   }
   if(!staff.includes(user.role))return error('Not authorised.',403);
-  const rows=await env.DB.prepare('SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.course_id,u.name AS student_name,c.title AS course_title FROM academic_report_cards r JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=r.course_id ORDER BY r.issued_at DESC LIMIT 500').all();
+  const rows=await env.DB.prepare('SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.course_id,r.snapshot_json,u.name AS student_name,c.title AS course_title FROM academic_report_cards r JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=r.course_id ORDER BY r.issued_at DESC LIMIT 500').all();
   return json({reportCards:rows.results||[]});
  }
  if(action==='messages'){
@@ -46,6 +46,12 @@ export async function onRequestGet({request,env}){
   const rows=await env.DB.prepare('SELECT m.*,u.name AS sender_name FROM academic_messages m JOIN users u ON u.id=m.sender_user_id WHERE m.conversation_id=? ORDER BY m.created_at').bind(id).all();
   await env.DB.prepare('UPDATE academic_messages SET read_at=CURRENT_TIMESTAMP WHERE conversation_id=? AND sender_user_id!=? AND read_at IS NULL').bind(id,user.id).run();
   return json({conversation:c,messages:rows.results||[]});
+ }
+ if(action==='tutors'){
+  if(user.role!=='student')return error('Not authorised.',403);
+  const courseId=clean(url.searchParams.get('courseId'),80);if(!await canCourse(env.DB,user,courseId))return error('Course access denied.',403);
+  const rows=await env.DB.prepare("SELECT DISTINCT u.id,u.name,u.role FROM users u LEFT JOIN course_tutor_assignments a ON a.tutor_user_id=u.id AND a.course_id=? LEFT JOIN module_tutor_assignments ma ON ma.tutor_user_id=u.id JOIN course_modules cm ON cm.id=ma.module_id AND cm.course_id=? WHERE u.status='active' AND u.role IN ('tutor','admin','principal') AND (a.id IS NOT NULL OR ma.id IS NOT NULL OR u.role IN ('admin','principal')) ORDER BY u.name").bind(courseId,courseId).all();
+  return json({tutors:rows.results||[]});
  }
  if(action==='students'){
   if(!staff.includes(user.role))return error('Not authorised.',403);
