@@ -6,11 +6,11 @@ import { PortalWorkspaceTabs } from '@/components/PortalWorkspaceTabs';
 
 const portals = [
   { id: 'student', title: 'Student Portal', icon: GraduationCap, summary: 'One secure student account for your profile, applications, courses, learning materials, assignments, fees, receipts and updates.', accent: 'from-blue-600 to-cyan-500', tint: 'bg-blue-500/10 text-blue-700' },
-  { id: 'tutor', title: 'Tutor portal', icon: BookOpen, summary: 'Manage class lists, learning resources, attendance and student progress.', accent: 'from-violet-600 to-indigo-500', tint: 'bg-violet-500/10 text-violet-700' },
-  { id: 'admissions', title: 'Admissions portal', icon: UserRound, summary: 'Review applications, applicant documents, enquiries and admission follow-up.', accent: 'from-cyan-600 to-blue-500', tint: 'bg-cyan-500/10 text-cyan-700' },
-  { id: 'principal', title: 'Principal portal', icon: BriefcaseBusiness, summary: 'View academic activity, approvals, staff operations and institutional reports.', accent: 'from-amber-500 to-orange-500', tint: 'bg-amber-500/10 text-amber-700' },
-  { id: 'finance', title: 'Finance portal', icon: CircleDollarSign, summary: 'Manage authorised fee collections, payments, refunds, scholarships and financial reports.', accent: 'from-emerald-600 to-teal-500', tint: 'bg-emerald-500/10 text-emerald-700' },
-  { id: 'admin', title: 'Administrator portal', icon: ShieldCheck, summary: 'Manage courses, services, users, payments, notifications, downloadable documents and website settings.', accent: 'from-slate-800 to-blue-700', tint: 'bg-slate-800/10 text-slate-800' },
+  { id: 'tutor', title: 'Tutor portal', icon: BookOpen, summary: 'Manage class lists, learning resources, attendance and student progress.', accent: 'from-blue-700 to-cyan-500', tint: 'bg-blue-500/10 text-blue-700' },
+  { id: 'admissions', title: 'Admissions portal', icon: UserRound, summary: 'Review applications, applicant documents, enquiries and admission follow-up.', accent: 'from-blue-700 to-cyan-500', tint: 'bg-blue-500/10 text-blue-700' },
+  { id: 'principal', title: 'Principal portal', icon: BriefcaseBusiness, summary: 'View academic activity, approvals, staff operations and institutional reports.', accent: 'from-blue-700 to-cyan-500', tint: 'bg-blue-500/10 text-blue-700' },
+  { id: 'finance', title: 'Finance portal', icon: CircleDollarSign, summary: 'Manage authorised fee collections, payments, refunds, scholarships and financial reports.', accent: 'from-blue-700 to-cyan-500', tint: 'bg-blue-500/10 text-blue-700' },
+  { id: 'admin', title: 'Administrator portal', icon: ShieldCheck, summary: 'Manage courses, services, users, payments, notifications, downloadable documents and website settings.', accent: 'from-blue-700 to-cyan-500', tint: 'bg-blue-500/10 text-blue-700' },
   { id: 'customer', title: 'Customer service desk', icon: BriefcaseBusiness, summary: 'Browse Navstar services, request assistance, place service orders and pay securely. No student or staff account is required.', accent: 'from-emerald-600 to-teal-500', tint: 'bg-emerald-500/10 text-emerald-700' },
 
 ];
@@ -87,7 +87,7 @@ export function PortalsPage() {
     if (!item.phone) { setPaymentNotice('No registered payment phone is available. Please update your phone number in My Account or contact Finance.'); return; }
     setPaymentBusyId(item.id); setPaymentNotice('');
     try {
-      const response = await fetch('/api/payments/stk-push', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'enrollment', reference: item.id, phone: item.phone, ...(item.status==='submitted'||item.status==='under_review' ? {amount:Number(item.admission_fee||0)} : {}) }) });
+      const response = await fetch('/api/payments/stk-push', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'enrollment', reference: item.id, phone: item.phone }) });
       const result = await response.json() as { id?: string; message?: string; error?: string };
       if (!response.ok || !result.id) throw new Error(result.error || 'The M-Pesa prompt could not be sent.');
       setPaymentNotice(result.message || 'M-Pesa prompt sent. Check your registered phone and complete the request using your Safaricom PIN.');
