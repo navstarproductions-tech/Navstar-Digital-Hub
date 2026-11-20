@@ -7,7 +7,7 @@ export async function onRequest({ request, next }) {
     if (!isApi) return response;
     // Document endpoints return PDF/Office/binary file streams, not JSON.
     // Pass successful downloads through unchanged instead of converting them to API_NON_JSON_RESPONSE.
-    if (/^\/api\/downloads?\/[^/]+$/.test(url.pathname) && response.ok) return response;
+    if ((/^\\/api\\/downloads?\\/[^/]+$/.test(url.pathname) || /^\\/api\\/admin\\/employee-documents\\/[^/]+$/.test(url.pathname)) && response.ok) return response;
     // R2-backed image endpoints return binary image streams, not JSON. Preserve successful
     // image responses so profile photos, avatars and uploaded site images can render normally.
     if (response.ok && (response.headers.get('Content-Type') || '').toLowerCase().startsWith('image/')) return response;
