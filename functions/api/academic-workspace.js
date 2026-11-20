@@ -155,7 +155,7 @@ export async function onRequestPost({request,env}){
   const days=Array.isArray(rules.days)?rules.days.filter(x=>Number.isInteger(x)&&x>=1&&x<=7):[1,2,3,4,5];
   const venues=Array.isArray(rules.venues)?rules.venues.map(x=>clean(x,100)).filter(Boolean):[];
   const tutors=(await env.DB.prepare('SELECT tutor_user_id FROM course_tutor_assignments WHERE course_id=?').bind(courseId).all()).results||[];
-  const periods=Number(rules.periodsPerDay||4),minutes=Number(rules.periodMinutes||60),startHour=Number(rules.startHour||8),startDate=new Date(clean(rules.startDate,30)||new Date().toISOString().slice(0,10));
+  const periods=Number(rules.periodsPerDay||4),minutes=Number(rules.periodMinutes||60),startHour=Number(rules.startHour||8),startDateText=clean(rules.startDate,30)||new Date().toISOString().slice(0,10),startDate=new Date(startDateText+'T00:00:00+03:00');
   if(!modules.length||!venues.length||!days.length||!Number.isInteger(periods)||periods<1||periods>12||!Number.isInteger(minutes)||minutes<20||minutes>240||!Number.isFinite(startDate.getTime()))return error('Set published modules, weekdays, venues, start date and valid teaching periods.');
   const slots=[];let cursor=0;
   for(let week=0;week<Number(rules.weeks||1)&&week<20;week++){
