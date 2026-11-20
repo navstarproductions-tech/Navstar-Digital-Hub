@@ -28,11 +28,14 @@ export async function readJson(request, maxBytes = 32768) {
 }
 
 export function normalizePhone(value) {
-  const compact = String(value ?? '').replace(/[\s().-]/g, '').replace(/^\+/, '');
-  if (/^[17]\d{8}$/.test(compact)) return `254${compact}`;
-  if (/^0[17]\d{8}$/.test(compact)) return `254${compact.slice(1)}`;
-  if (/^254[17]\d{8}$/.test(compact)) return compact;
-  return '';
+  // Accept Kenyan mobile numbers in local, national, or international notation.
+  // Examples: 0712345678, 712345678, +254712345678, 2540712345678, 00254712345678.
+  let digits = String(value ?? '').replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (/^2540[17]\d{8}$/.test(digits)) digits = '254' + digits.slice(4);
+  if (/^0[17]\d{8}$/.test(digits)) digits = '254' + digits.slice(1);
+  if (/^[17]\d{8}$/.test(digits)) digits = '254' + digits;
+  return /^254[17]\d{8}$/.test(digits) ? digits : '';
 }
 export function constantTimeEqual(left, right) {
   if (typeof left !== 'string' || typeof right !== 'string' || left.length !== right.length) return false;
