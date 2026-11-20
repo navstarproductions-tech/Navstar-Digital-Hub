@@ -20,7 +20,7 @@ export async function onRequestGet({request,env}){
  if(!env.DB)return error('Exam question database is not configured.',503);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  const assessmentId=safeString(new URL(request.url).searchParams.get('assessmentId'),80);
- const assessment=await env.DB.prepare('SELECT id,course_id,status,starts_at,due_at,duration_minutes FROM course_assessments WHERE id=?').bind(assessmentId).first();
+ const assessment=await env.DB.prepare('SELECT id,course_id,status,starts_at,due_at,duration_minutes,require_admin_approval FROM course_assessments WHERE id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not available.',404);
  const student=user.role==='student';
  if(student&&(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())))return error('This examination is not currently open.',403);
@@ -34,7 +34,7 @@ export async function onRequestPost({request,env}){
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  let body;try{body=await readJson(request,500000);}catch{return error('Invalid question request.');}
  const action=safeString(body.action,32),assessmentId=safeString(body.assessmentId,80);
- const assessment=await env.DB.prepare('SELECT id,course_id,status,starts_at,due_at,duration_minutes,max_attempts FROM course_assessments WHERE id=?').bind(assessmentId).first();
+ const assessment=await env.DB.prepare('SELECT id,course_id,status,starts_at,due_at,duration_minutes,max_attempts,require_admin_approval FROM course_assessments WHERE id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not found or access denied.',404);
  if(action==='generate_ai'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
@@ -106,7 +106,7 @@ export async function onRequestPost({request,env}){
  }
  if(action==='start_runtime'){
   if(user.role!=='student')return error('Only enrolled students can start an examination.',403);
-  if(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now()))return error('This examination is not open.',409);
+  if(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now()))return error('This examination is not open.',409);if(assessment.require_admin_approval){const approval=await env.DB.prepare('SELECT status FROM exam_attempt_approvals WHERE assessment_id=? AND user_id=?').bind(assessmentId,user.id).first();if(approval?.status!=='approved')return error(approval?.status==='rejected'?'Your examination access was declined. Contact the administrator.':'Your examination attempt is awaiting administrator approval.',403);}
   const active=await env.DB.prepare("SELECT id,expires_at,attempt_number FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status='in_progress' ORDER BY attempt_number DESC LIMIT 1").bind(assessmentId,user.id).first();
   if(active){if(Date.parse(active.expires_at)<=Date.now()){await env.DB.prepare("UPDATE exam_runtime_attempts SET status='expired' WHERE id=?").bind(active.id).run();return error('Your examination time has expired.',409);}return json({started:true,attemptId:active.id,expiresAt:active.expires_at,attemptNumber:active.attempt_number,resumed:true});}
   const count=await env.DB.prepare('SELECT COUNT(*) AS n FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=?').bind(assessmentId,user.id).first();
