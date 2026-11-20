@@ -72,7 +72,7 @@ export function FeaturedCourses() {
               </CardContent>
               <CardFooter className="pt-0">
                 <Button asChild className="w-full">
-                  <Link to={`/enroll/${course.id}`}>Enroll Now</Link>
+                  <Link to="/enrollment">Enrollment information</Link>
                 </Button>
               </CardFooter>
             </Card>
