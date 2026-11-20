@@ -5,6 +5,15 @@ const staffRoles=['admin','principal','tutor'];
 const adminRoles=['admin','principal'];
 const dateTimePattern=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
+const requiredAcademicTables=['course_timetable','course_attendance','course_live_classes','course_scholarships','scholarship_applications','student_graduation_records','student_report_cards','course_assessments','course_assessment_results','course_assessment_attempts','student_module_registrations','module_tutor_assignments','exam_institute_settings','course_exam_questions','exam_runtime_attempts','exam_runtime_answers','assessment_component_marks','academic_report_cards','academic_conversations','academic_messages','timetable_generation_rules','exam_attempt_approvals'];
+async function requireAcademicSchema(db){
+  const placeholders=requiredAcademicTables.map(()=>'?').join(',');
+  const result=await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ("+placeholders+")").bind(...requiredAcademicTables).all();
+  const existing=new Set((result.results||[]).map(row=>row.name));
+  const missing=requiredAcademicTables.filter(name=>!existing.has(name));
+  return missing.length?json({error:'The academic database upgrade has not been fully applied. Existing records are safe; complete the pending production D1 migrations before using the academic workspace.',code:'ACADEMIC_SCHEMA_NOT_READY',missingTables:missing},503):null;
+}
+
 async function ensureModuleTutorAssignments(db){
   await db.prepare('CREATE TABLE IF NOT EXISTS module_tutor_assignments (id TEXT PRIMARY KEY,module_id TEXT NOT NULL REFERENCES course_modules(id) ON DELETE CASCADE,tutor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,assigned_by TEXT REFERENCES users(id) ON DELETE SET NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(module_id,tutor_user_id))').run();
   await db.prepare('INSERT OR IGNORE INTO module_tutor_assignments(id,module_id,tutor_user_id,assigned_by) SELECT lower(hex(randomblob(16))),m.id,a.tutor_user_id,a.assigned_by FROM course_modules m JOIN course_tutor_assignments a ON a.course_id=m.course_id').run();
@@ -47,6 +56,8 @@ export async function onRequestGet({request,env}){
   if(!env.DB)return error('Academic portal database is not configured.',503);
   const user=await getSession(request,env);
   if(!user)return error('Sign in required.',401);
+  const schemaResponse=await requireAcademicSchema(env.DB);
+  if(schemaResponse)return schemaResponse;
   await ensureModuleTutorAssignments(env.DB);
   if(!['student',...staffRoles].includes(user.role))return error('This account cannot access academic records.',403);
   const ids=await visibleCourseIds(env.DB,user);
@@ -76,6 +87,8 @@ export async function onRequestPost({request,env}){
   if(!env.DB)return error('Academic portal database is not configured.',503);
   const user=await getSession(request,env);
   if(!user)return error('Sign in required.',401);
+  const schemaResponse=await requireAcademicSchema(env.DB);
+  if(schemaResponse)return schemaResponse;
   let body;try{body=await readJson(request,16384);}catch{return error('Invalid academic request.');}
   const action=safeString(body.action,40);
   const courseId=safeString(body.courseId,80);
