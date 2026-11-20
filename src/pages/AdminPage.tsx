@@ -124,7 +124,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   pos: [{label:'Dashboards',target:'overview'},{label:'New Sale',target:'pos'},{label:'Packing & Delivery',target:'orders'},{label:'Payment Approvals',target:'finance'},{label:'Sales History',target:'receipts'},{label:'Scan & Sells',target:'pos'},{label:'Print Barcode Labels',target:'pos-tools'},{label:'Generate Missing Barcodes',target:'pos-tools'}],
   finance: makeTabs(['Accounts Overview','Transactions','Payment Receipts','Cashouts','Financial Reports'],'finance'),
   fees: makeTabs(['Collect Fees','Receipts','Fee Statements','Fee Defaulters','Enrollment Fee Offers'],'finance'),
-  'marks-tests': makeTabs(['Marks Hub','Exam Management (AI)','Export Exam as PDF','Exam Room (Live Monitor)','Exam Settings','Results Moderation','Results Visibility','Approve Changes'],'marks-tests'),
+  'marks-tests': makeTabs(['Marks Hub','Component Marks Entry','Exam Management (AI)','Export Exam as PDF','Exam Room (Live Monitor)','Exam Settings','Results Moderation','Results Visibility','Approve Changes'],'marks-tests'),
   'student-projects': makeTabs(['All Projects','Submit Project','Review & Approve Projects','Project Showcase'],'student-projects'),
   scholarships: makeTabs(['Scholarship Register','Discount Applications','Approve Discounts','Award History'],'scholarships'),
   certificates: makeTabs(['Dashboard','Merit List — Promote to Complete','Graduation List — Complete → Graduate','Graduate Serial Processing','Certificate Management','Document Access Control','Certificate Templates','Academic Documents','Student Records','Examination Records','QR Auth Center','Digital Signatures','Reports & Analytics','Audit Logs','Certificate Settings'],'certificates'),
