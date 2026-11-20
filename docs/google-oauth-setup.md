@@ -1,6 +1,6 @@
 # Google sign-in setup for Navstar Digital Hub
 
-Google sign-in is implemented for existing active Navstar portal accounts. It verifies Google's signed identity, requires a verified email, and links the Google subject to the existing account by email. It does not create an administrator or grant a new role.
+Google sign-in is a public customer-account option on the main Navstar website. It appears under **Log in / Sign up** at `/account`, alongside the existing email registration and sign-in forms. It is not a staff or student portal login method.
 
 ## Google Cloud Console
 
@@ -18,16 +18,22 @@ Add these as encrypted production secrets / environment variables for the Pages 
 - `GOOGLE_CLIENT_ID` — the OAuth web client ID.
 - `GOOGLE_CLIENT_SECRET` — the OAuth web client secret.
 
-Do not commit either value to Git or place it in frontend code. After saving the secrets, redeploy the Pages project.
+Do not commit either value to Git or place it in frontend code. Redeploy the Pages project after saving the secrets.
 
-## Account linking and access
+## Public customer account behaviour
 
-- A Google email must match an existing active Navstar portal account.
-- The Google email must be verified by Google.
-- Google sign-in does not create an account or elevate privileges.
-- Existing email/password and staff ID login remain available.
-- If an account is already linked to a different Google identity, the link is rejected for administrator review.
+- A verified Google email creates a public Navstar customer account on first sign-in.
+- Returning customers are signed in to the same account.
+- If a customer account already exists with that email, Google links to that account.
+- Suspended accounts are not allowed to sign in.
+- Google sign-in does not create or grant staff/student portal privileges.
+- Existing email/password customer registration and sign-in remain available.
+- Staff and student portals continue using their separate portal login process.
 
-## Callback
+## Database migration
 
-The Worker callback is `/api/auth/google?callback=1`. State is checked using a short-lived, secure, HttpOnly cookie.
+Apply migration `0021_customer_google_signin.sql` to add the unique Google identity link to the customer-account table before enabling the feature in production.
+
+## Callback security
+
+The Worker callback is `/api/auth/google?callback=1`. It checks a short-lived, secure, HttpOnly state cookie and verifies the Google token audience and verified email before creating a customer session.
