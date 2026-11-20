@@ -76,7 +76,7 @@ export function AIChatWidget(){
    const raw=await response.text();let data:{answer?:string;error?:string;code?:string;requestId?:string};
    try{data=JSON.parse(raw) as {answer?:string;error?:string;code?:string;requestId?:string};}
    catch{
-    const detail=raw.replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,220);
+    const detail=raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,220);
     const reference=response.headers.get('cf-ray')||response.headers.get('X-Request-ID')||'not supplied';
     throw new Error('AI server returned a non-JSON response (HTTP '+response.status+'). '+(detail||'The request failed before Navstar AI could return a structured response.')+' Reference: '+reference);
    }
