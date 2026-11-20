@@ -12,7 +12,6 @@ async function canCourse(db,user,courseId){
 }
 export async function onRequestGet({request,env}){
  if(!env.DB)return error('Academic workspace database unavailable.',503);
- const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  const url=new URL(request.url),action=url.searchParams.get('action')||'messages';
  if(action==='verify-report-card'){
   const key=clean(url.searchParams.get('token'),100);if(!key)return error('Verification token required.');
@@ -21,6 +20,7 @@ export async function onRequestGet({request,env}){
   let snapshot={};try{snapshot=JSON.parse(row.snapshot_json)}catch{}
   return json({reportCardNo:row.report_card_no,period:row.period_label,issuedAt:row.issued_at,student:snapshot.student,course:snapshot.course,results:snapshot.results,summary:snapshot.summary,verification:'verified'});
  }
+ const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  if(action==='report-cards'){
   if(user.role==='student'){
    const rows=await env.DB.prepare('SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.course_id,r.snapshot_json,c.title AS course_title FROM academic_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY issued_at DESC').bind(user.id).all();
