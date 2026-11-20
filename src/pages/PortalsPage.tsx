@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, GraduationCap, LogOut, LockKeyhole, ShieldCheck, Sparkles, UserRound, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ const portals = [
 ];
 
 const portalStyles: Record<string, { page: string; hero: string; eyebrow: string }> = {
-  student: { page: 'bg-cyan-50', hero: 'bg-gradient-to-r from-cyan-950 via-sky-900 to-cyan-700', eyebrow: 'text-cyan-200' },
+  student: { page: 'bg-[#f3f7fc]', hero: 'bg-gradient-to-r from-[#061631] via-[#0b3470] to-[#087eaa]', eyebrow: 'text-amber-300' },
   tutor: { page: 'bg-violet-50', hero: 'bg-gradient-to-r from-violet-950 via-indigo-900 to-slate-900', eyebrow: 'text-violet-200' },
   admissions: { page: 'bg-teal-50', hero: 'bg-gradient-to-r from-teal-950 via-cyan-900 to-slate-900', eyebrow: 'text-teal-200' },
   principal: { page: 'bg-amber-50', hero: 'bg-gradient-to-r from-amber-950 via-orange-900 to-slate-950', eyebrow: 'text-amber-200' },
@@ -26,7 +26,7 @@ const portalStyles: Record<string, { page: string; hero: string; eyebrow: string
 };
 
 type SessionUser = { id: string; name: string; email: string; role: string; profilePhotoUrl?: string | null; mustChangePassword?: boolean };
-type Enrollment = { id: string; full_name: string; course_id: string; phone?: string; status: string; payment_status: string; created_at: string };
+type Enrollment = { id: string; full_name: string; course_id: string; course_title?:string; phone?: string; status: string; payment_status: string; created_at: string; admission_fee?:number; amount_paid?:number; course_fee?:number };
 type Overview = { students: number; applications: number; verifiedPayments: number; verifiedDonations: number; courses: number; services: number };
 type FinancePayment = { id: string; purpose: string; receipt_number?: string; mpesa_receipt?: string; amount: number; payer_name: string; description: string; status: string; updated_at: string };
 type CashoutRequest = { id: string; reference: string; amount: number; status: string; created_at: string; requested_by: string };
@@ -44,6 +44,7 @@ export function PortalsPage() {
   const [financeCashouts, setFinanceCashouts] = useState<CashoutRequest[]>([]);
   const [paymentBusyId, setPaymentBusyId] = useState('');
   const [paymentNotice, setPaymentNotice] = useState('');
+  const autoPaymentSent = useRef(new Set<string>());
   const [status, setStatus] = useState('Checking your secure session…');
   const signOut = async () => { await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined); setUser(null); navigate('/login', { replace: true }); };
   useEffect(() => {
@@ -58,15 +59,40 @@ export function PortalsPage() {
     const interval = window.setInterval(check, 30000);
     return () => { live = false; window.clearInterval(interval); };
   }, [selectedPortal]);
+  const refreshStudentFees = async () => {
+    const response=await fetch('/api/enrollments',{cache:'no-store'});
+    const result=await response.json() as {enrollments?:Enrollment[]};
+    if(response.ok)setEnrollments(result.enrollments||[]);
+  };
+  const watchStudentPayment = async (paymentId:string) => {
+    for(let attempt=0;attempt<24;attempt++){
+      await new Promise(resolve=>window.setTimeout(resolve,5000));
+      try{
+        const response=await fetch('/api/payments/stk-push?reference='+encodeURIComponent(paymentId),{cache:'no-store'});
+        const result=await response.json();
+        if(response.ok&&result.payment?.status==='paid'){
+          setPaymentNotice('Payment verified by M-Pesa. Your student fee balance has been updated.');
+          await refreshStudentFees();return;
+        }
+        if(response.ok&&result.payment?.status==='failed'){
+          setPaymentNotice('M-Pesa did not confirm the payment. Your balance has not been reduced. You can retry from Fees & Payments.');
+          await refreshStudentFees();return;
+        }
+      }catch{}
+    }
+    setPaymentNotice('The M-Pesa prompt was sent. Confirmation is still pending. Refresh the portal shortly to see your verified balance.');
+    await refreshStudentFees();
+  };
   const requestStudentPayment = async (item: Enrollment) => {
     if (!item.phone) { setPaymentNotice('No registered payment phone is available. Please update your phone number in My Account or contact Finance.'); return; }
     setPaymentBusyId(item.id); setPaymentNotice('');
     try {
-      const response = await fetch('/api/payments/stk-push', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'enrollment', reference: item.id, phone: item.phone }) });
+      const response = await fetch('/api/payments/stk-push', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purpose: 'enrollment', reference: item.id, phone: item.phone, ...(item.status==='submitted'||item.status==='under_review' ? {amount:Number(item.admission_fee||0)} : {}) }) });
       const result = await response.json() as { id?: string; message?: string; error?: string };
       if (!response.ok || !result.id) throw new Error(result.error || 'The M-Pesa prompt could not be sent.');
       setPaymentNotice(result.message || 'M-Pesa prompt sent. Check your registered phone and complete the request using your Safaricom PIN.');
       setEnrollments(current => current.map(row => row.id === item.id ? { ...row, payment_status: 'pending' } : row));
+      void watchStudentPayment(result.id);
     } catch (error) {
       setPaymentNotice(error instanceof Error ? error.message : 'Payment request could not be completed.');
     } finally { setPaymentBusyId(''); }
@@ -121,6 +147,14 @@ export function PortalsPage() {
     void loadPortal();
     return () => { active = false; };
   }, [navigate, selectedPortal]);
+
+  useEffect(() => {
+    if(user?.role!=='student'||!enrollments.length)return;
+    const due=enrollments.find(item=>['submitted','under_review'].includes(item.status)&&item.payment_status!=='paid'&&Number(item.amount_paid||0)===0&&Number(item.admission_fee||0)>=100&&Boolean(item.phone));
+    if(!due||autoPaymentSent.current.has(due.id))return;
+    autoPaymentSent.current.add(due.id);
+    void requestStudentPayment(due);
+  },[user,enrollments]);
 
   if (!selectedPortal) {
     return (
@@ -196,13 +230,13 @@ export function PortalsPage() {
   return (
     <main className={"navstar-portal min-h-screen " + (selectedStyle?.page || "bg-slate-50")}> 
       <section className={(selectedStyle?.hero || "bg-[#061127]") + " text-white"}>
-        <div className="container mx-auto flex flex-col justify-between gap-4 px-4 py-10 sm:flex-row sm:items-end sm:px-6 lg:px-8">
+        <div className="flex w-full flex-col justify-between gap-4 px-4 py-10 sm:flex-row sm:items-end sm:px-6 lg:px-8">
           <div><p className={"text-xs font-bold uppercase tracking-[.25em] " + (selectedStyle?.eyebrow || "text-cyan-300")}>NAVSTAR DIGITAL HUB / {selectedPortal.id}</p><h1 className="mt-2 text-3xl font-black">{selectedPortal.title}</h1><div className="mt-2 flex items-center gap-3 text-slate-300">{user?.profilePhotoUrl && <img src={user.profilePhotoUrl} alt="Profile photo" className="h-10 w-10 rounded-full border border-white/30 object-cover"/>}<p className="font-semibold text-white">{user ? `Welcome back, ${user.name} · ${selectedPortal.title}` : status}</p></div></div>
           {!user && <Button asChild className="w-fit rounded-full bg-blue-600 hover:bg-blue-500"><Link to={`/login?role=${selectedPortal.id}`}>Sign in securely <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>}
           {user && <div className="flex flex-wrap gap-2"><Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/portals/notifications"><Bell className="mr-2 h-4 w-4"/>Notifications</Link></Button><Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/my-account"><UserRound className="mr-2 h-4 w-4"/>My account</Link></Button>{['admin','principal','tutor'].includes(user.role) && <Button asChild variant="outline" className="border-cyan-300/50 bg-cyan-300/10 text-white hover:bg-cyan-300/20"><Link to="/learning">Academic operations</Link></Button>}{user.role === 'admin' && <Button asChild variant="outline" className="border-white/30 bg-white/5 text-white hover:bg-white/10"><Link to="/admin">Admin workspace</Link></Button>}<Button type="button" variant="outline" onClick={() => void signOut()} className="border-amber-300/60 bg-amber-300/10 text-white hover:bg-amber-300/20"><LogOut className="mr-2 h-4 w-4"/>Log out</Button></div>}
         </div>
       </section>
-      <section className="container mx-auto space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+      <section className="w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         {user && user.role === 'student' && !user.profilePhotoUrl ? <section className="mx-auto max-w-2xl rounded-2xl border border-amber-200 bg-white p-7 text-center shadow-xl"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-amber-50 text-amber-700"><UserRound className="h-8 w-8"/></div><p className="mt-5 text-xs font-black uppercase tracking-[.2em] text-blue-800">NAVSTAR DIGITAL HUB · STUDENT IDENTITY</p><h2 className="mt-2 text-2xl font-black text-slate-950">Passport photo required</h2><p className="mt-3 text-sm leading-7 text-slate-600">To complete your student profile and access learning services, upload a clear passport photograph. You can upload it yourself or ask the Navstar administrator to add it to your account.</p><Button asChild className="mt-5 rounded-xl bg-blue-800"><Link to="/my-account">Upload my passport photo</Link></Button></section> : user ? <PortalWorkspaceTabs
           role={user.role as 'student'|'tutor'|'admissions'|'principal'|'finance'|'admin'}
           name={user.name}
