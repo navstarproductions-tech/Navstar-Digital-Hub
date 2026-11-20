@@ -21,7 +21,7 @@ export async function onRequestGet({request,env}){
   const tokenData=await tokenResponse.json();if(!tokenResponse.ok||!tokenData.id_token)throw new Error('Google could not verify this sign-in.');
   const verify=await fetch('https://oauth2.googleapis.com/tokeninfo?id_token='+encodeURIComponent(tokenData.id_token));const identity=await verify.json();
   if(!verify.ok||identity.aud!==env.GOOGLE_CLIENT_ID||identity.email_verified!=='true'||!identity.sub||!identity.email)throw new Error('Google account verification failed.');
-  const user=await env.DB.prepare('SELECT id,email,role,google_sub,status FROM users WHERE lower(email)=lower(?) LIMIT 1').bind(identity.email).first();
+  const user=await env.DB.prepare('SELECT u.id,u.email,COALESCE(up.portal_role,u.role) AS role,u.google_sub,u.status FROM users u LEFT JOIN user_profiles up ON up.user_id=u.id WHERE lower(u.email)=lower(?) LIMIT 1').bind(identity.email).first();
   if(!user||user.status!=='active')return new Response(null,{status:302,headers:{Location:'/login?google=account-not-found','Set-Cookie':clear}});
   if(user.google_sub&&user.google_sub!==identity.sub)return new Response(null,{status:302,headers:{Location:'/login?google=account-link-conflict','Set-Cookie':clear}});
   await env.DB.prepare('UPDATE users SET google_sub=? WHERE id=? AND (google_sub IS NULL OR google_sub=?)').bind(identity.sub,user.id,identity.sub).run();
