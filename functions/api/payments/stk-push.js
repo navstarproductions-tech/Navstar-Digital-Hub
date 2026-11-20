@@ -51,8 +51,8 @@ export async function onRequestPost({ request, env }) {
     if (isNewAdmission && admissionFee < 100) return error('The course Admission fee must be configured at KSh 100 or more before a new student can enrol.', 409);
     const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS paid_total FROM payments WHERE purpose = 'enrollment' AND reference_id = ? AND status = 'paid'").bind(reference).first();
     const paidTotal = Number(paidRow?.paid_total || 0);
-    if (enrollment.status === 'under_review' && paidTotal === 0) {
-      amount = Number(enrollment.approved_initial_payment ?? admissionFee);
+    if (isNewAdmission && paidTotal === 0) {
+      amount = Number(enrollment.status === 'under_review' ? (enrollment.approved_initial_payment ?? admissionFee) : admissionFee);
     } else {
       amount = Math.max(0, totalFee - paidTotal);
     }
@@ -61,6 +61,11 @@ export async function onRequestPost({ request, env }) {
     if (!Number.isSafeInteger(amount) || amount < 1 || amount > outstanding) return error('Enter an amount greater than zero and no more than your outstanding balance.', 409);
     const firstPaymentMinimum = isNewAdmission && paidTotal === 0 ? Math.max(100, admissionFee) : 1;
     if (paidTotal === 0 && amount < firstPaymentMinimum) return error('A new enrolment requires an initial payment of at least KSh ' + firstPaymentMinimum.toLocaleString('en-KE') + ' (the Admission fee). Existing enrolled students may pay any amount from KSh 1.', 409);
+    // Reuse a recent live prompt for this same student, amount and phone.
+    const existingPrompt = await env.DB.prepare("SELECT id,amount FROM payments WHERE purpose='enrollment' AND reference_id=? AND phone=? AND status IN ('pending','initiating') AND created_at >= datetime('now','-10 minutes') ORDER BY created_at DESC LIMIT 1").bind(reference, phone).first();
+    if (existingPrompt && Number(existingPrompt.amount) === Number(amount)) {
+      return json({ id: existingPrompt.id, reference: enrollment.display_ref, status: 'pending', reused: true, message: 'An M-Pesa prompt is already active for this enrolment. Complete it on your phone.' });
+    }
     displayReference = enrollment.display_ref;
   } else {
     const service = await env.DB.prepare("SELECT id, display_ref, phone, amount, status FROM service_requests WHERE id = ?").bind(reference).first();
@@ -92,10 +97,18 @@ export async function onRequestPost({ request, env }) {
 
 export async function onRequestGet({ request, env }) {
   if (!env.DB) return error('Payments service is not configured.', 503);
+  const session = await getSession(request, env);
+  if (!session) return error('Sign in required.', 401);
   const url = new URL(request.url);
   const reference = safeString(url.searchParams.get('reference'), 80);
   if (!reference) return error('Payment reference is required.');
   const payment = await env.DB.prepare('SELECT id, purpose, reference_id, display_reference AS reference, phone, amount, status, receipt_number, internal_receipt_number, result_code, result_description, transaction_date, callback_phone, callback_amount, created_at, updated_at FROM payments WHERE id = ?').bind(reference).first();
   if (!payment) return error('Payment not found.', 404);
+  if (payment.purpose === 'enrollment' && session.role === 'student') {
+    const owner = await env.DB.prepare('SELECT email FROM enrollments WHERE id=?').bind(payment.reference_id).first();
+    if (!owner || String(owner.email).toLowerCase() !== String(session.email).toLowerCase()) return error('You can only view payments linked to your own account.', 403);
+  } else if (!['admin','finance','admissions','principal'].includes(session.role)) {
+    return error('This account cannot view this payment.', 403);
+  }
   return json({ payment });
 }
