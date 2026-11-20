@@ -28,13 +28,12 @@ export async function readJson(request, maxBytes = 32768) {
 }
 
 export function normalizePhone(value) {
-  const compact = String(value ?? '').replace(/[\\s().-]/g, '').replace(/^\\+/, '');
-  if (/^[17]\\d{8}$/.test(compact)) return `254${compact}`;
-  if (/^0[17]\\d{8}$/.test(compact)) return `254${compact.slice(1)}`;
-  if (/^254[17]\\d{8}$/.test(compact)) return compact;
+  const compact = String(value ?? '').replace(/[\s().-]/g, '').replace(/^\+/, '');
+  if (/^[17]\d{8}$/.test(compact)) return \`254\${compact}\`;
+  if (/^0[17]\d{8}$/.test(compact)) return \`254\${compact.slice(1)}\`;
+  if (/^254[17]\d{8}$/.test(compact)) return compact;
   return '';
-}
-export function safeString(value, maxLength = 200) {
+}export function safeString(value, maxLength = 200) {
   return String(value ?? '').trim().slice(0, maxLength);
 }
 
