@@ -42,11 +42,12 @@ let cachedAccessToken = '';
 let cachedAccessTokenExpiresAt = 0;
 let cachedAccessTokenKey = '';
 let accessTokenRequest = null;
+let accessTokenRequestKey = '';
 
 async function getAccessToken(env) {
   const tokenKey = `${darajaHost(env)}:${String(env.DARAJA_CONSUMER_KEY || '')}`;
   if (cachedAccessToken && cachedAccessTokenKey === tokenKey && cachedAccessTokenExpiresAt > Date.now() + 60000) return cachedAccessToken;
-  if (accessTokenRequest && cachedAccessTokenKey === tokenKey) return accessTokenRequest;
+  if (accessTokenRequest && accessTokenRequestKey === tokenKey) return accessTokenRequest;
   const requestToken = async () => {
   const authorization = btoa(`${env.DARAJA_CONSUMER_KEY}:${env.DARAJA_CONSUMER_SECRET}`);
   let response;
@@ -72,9 +73,16 @@ async function getAccessToken(env) {
   cachedAccessTokenExpiresAt = Date.now() + Math.min(expiresIn, 3599) * 1000;
   return cachedAccessToken;
   };
-  accessTokenRequest = requestToken();
-  try { return await accessTokenRequest; }
-  finally { accessTokenRequest = null; }
+  const pendingRequest = requestToken();
+  accessTokenRequest = pendingRequest;
+  accessTokenRequestKey = tokenKey;
+  try { return await pendingRequest; }
+  finally {
+    if (accessTokenRequest === pendingRequest) {
+      accessTokenRequest = null;
+      accessTokenRequestKey = '';
+    }
+  }
 }
 
 export async function startStkPush(env, { phone, amount, accountReference, description }) {
