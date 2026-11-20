@@ -15,16 +15,18 @@ const defaultHeroPhotos = ['https://images.unsplash.com/photo-1516321318423-f06f
 export function Hero() {
   const [heroPhotos, setHeroPhotos] = useState<string[]>(defaultHeroPhotos);
   const [activePhoto, setActivePhoto] = useState(0);
-  useEffect(() => { let alive = true; fetch('/api/gallery', { cache: 'no-store' }).then(async r => r.ok ? r.json() as Promise<{images?:{url?:string}[]}> : null).then(data => { const uploaded=(data?.images||[]).map(x=>x.url).filter((url):url is string=>Boolean(url)); if(alive&&uploaded.length)setHeroPhotos([...uploaded,...defaultHeroPhotos]); }).catch(()=>undefined); return ()=>{alive=false}; }, []);
-  useEffect(() => { if(heroPhotos.length<2)return; const timer=window.setInterval(()=>setActivePhoto(i=>(i+1)%heroPhotos.length),6500); return ()=>window.clearInterval(timer); },[heroPhotos]);
+  const [slideSeconds, setSlideSeconds] = useState(6.5);
+  const [fadeSeconds, setFadeSeconds] = useState(1.1);
+  useEffect(() => { let alive = true; fetch('/api/home-slideshow', { cache: 'no-store' }).then(async r => r.ok ? r.json() as Promise<{images?:{url?:string}[]; settings?:{homeSlideSeconds?:number;homeFadeSeconds?:number}}> : null).then(data => { const uploaded=(data?.images||[]).map(x=>x.url).filter((url):url is string=>Boolean(url)); if(alive){ if(data?.settings?.homeSlideSeconds) setSlideSeconds(Math.max(2,Math.min(30,Number(data.settings.homeSlideSeconds)))); if(data?.settings?.homeFadeSeconds) setFadeSeconds(Math.max(0.2,Math.min(5,Number(data.settings.homeFadeSeconds)))); if(uploaded.length)setHeroPhotos([...uploaded,...defaultHeroPhotos]); } }).catch(()=>undefined); return ()=>{alive=false}; }, []);
+  useEffect(() => { if(heroPhotos.length<2)return; const timer=window.setInterval(()=>setActivePhoto(i=>(i+1)%heroPhotos.length),Math.max(2000,slideSeconds*1000)); return ()=>window.clearInterval(timer); },[heroPhotos,slideSeconds]);
   return (
     <section className="relative isolate overflow-hidden bg-[#050b1b] text-white">
       <style>{`
-        .navstar-hero-slideshow { transition: opacity 1.1s ease-in-out, transform 7s ease; }
-        @media (prefers-reduced-motion: reduce) { .navstar-hero-slideshow { transition: none; }
+        .navstar-hero-slideshow { transition: opacity ${fadeSeconds}s ease-in-out, transform ${Math.max(slideSeconds,fadeSeconds)}s ease; }
+        @media (prefers-reduced-motion: reduce) { .navstar-hero-slideshow { transition: none; } }
       `}</style>
       <div className="absolute inset-0 -z-10" aria-hidden="true">
-        {heroPhotos.map((photo, index) => <div key={photo} className={`navstar-hero-slideshow absolute inset-0 bg-cover bg-center ${index === activePhoto ? "opacity-100 scale-105" : "opacity-0 scale-100"}`} style={{ backgroundImage: `url("${photo}")` }} aria-hidden="true" />)
+        {heroPhotos.map((photo, index) => <div key={photo} className={`navstar-hero-slideshow absolute inset-0 bg-cover bg-center ${index === activePhoto ? "opacity-100 scale-105" : "opacity-0 scale-100"}`} style={{ backgroundImage: `url("${photo}")` }} aria-hidden="true" />)}
         <div className="absolute inset-0 bg-gradient-to-r from-[#030817]/70 via-[#06132b]/48 to-[#06132b]/35" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_15%_20%,rgba(37,99,235,.20),transparent_38%),radial-gradient(ellipse_at_85%_15%,rgba(14,165,233,.13),transparent_34%),radial-gradient(ellipse_at_75%_90%,rgba(202,138,4,.10),transparent_32%)]" />
       </div>
