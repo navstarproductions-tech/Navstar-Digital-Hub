@@ -24,6 +24,7 @@ import { CustomerAccountPage } from '@/pages/CustomerAccountPage';
 import { DigitalHubPage } from '@/pages/DigitalHubPage';
 import { ForumPage } from '@/pages/ForumPage';
 import { PaymentReceiptsPage } from '@/pages/PaymentReceiptsPage';
+import { PublicResultVerificationPage } from '@/pages/PublicResultVerificationPage';
 import { PayPage } from '@/pages/PayPage';
 import { MusicPage } from '@/pages/MusicPage';
 import { PortalNotificationsPage } from '@/pages/PortalNotificationsPage';
@@ -144,6 +145,7 @@ function AppShell() {
             <Route path="/admin" element={<PortalMaintenanceGate role="admin"><AdminPage /></PortalMaintenanceGate>} />
             <Route path="/admin/receipts" element={<PortalMaintenanceGate role="admin"><PaymentReceiptsPage /></PortalMaintenanceGate>} />
             <Route path="/payment-receipt/:id" element={<PaymentReceiptsPage />} />
+            <Route path="/verify-result/:token" element={<PublicResultVerificationPage />} />
             <Route path="*" element={<HomePage />} />
           </Routes>
         </div>
