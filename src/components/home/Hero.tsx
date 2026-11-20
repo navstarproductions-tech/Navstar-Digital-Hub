@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Code2, Cpu, GraduationCap, Monitor, ShieldCheck, Sparkles, LogIn } from 'lucide-react';
+import { ArrowRight, BookOpen, Code2, Cpu, GraduationCap, Monitor, ShieldCheck, LogIn } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const highlights = [
@@ -10,7 +10,6 @@ const highlights = [
 ];
 
 const heroPoster = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=2000&q=85';
-
 
 export function Hero() {
   return (
@@ -28,33 +27,6 @@ export function Hero() {
         @media (prefers-reduced-motion: reduce) {
           .navstar-hero-video { display: none; }
         }
-      `}</style>on } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Code2, Cpu, GraduationCap, Monitor, ShieldCheck, Sparkles, LogIn } from 'lucide-react';
-import { motion } from 'framer-motion';
-
-const highlights = [
-  { icon: GraduationCap, label: 'Digital training', detail: 'Build practical skills' },
-  { icon: Monitor, label: 'Cyber services', detail: 'Everyday digital support' },
-  { icon: Code2, label: 'Technology solutions', detail: 'Create, automate, innovate' },
-];
-
-const heroPoster = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=2000&q=85';
-
-
-export function Hero() {
-  return (
-    <section className="relative isolate overflow-hidden bg-[#050b1b] text-white">
-      <style>{`
-        @keyframes navstarHeroFade {
-          0%, 28% { opacity: 1; transform: scale(1.02); }
-          34%, 94% { opacity: 0; transform: scale(1.09); }
-          100% { opacity: 1; transform: scale(1.02); }
-        }
-        .navstar-hero-photo { animation: navstarHeroFade 24s ease-in-out infinite; }
-        .navstar-hero-photo:nth-child(2) { animation-delay: 8s; }
-        .navstar-hero-photo:nth-child(3) { animation-delay: 16s; }
-        @media (prefers-reduced-motion: reduce) { .navstar-hero-photo { animation: none; opacity: 0; } .navstar-hero-photo:first-child { opacity: 1; } }
       `}</style>
       <div className="absolute inset-0 -z-10" aria-hidden="true">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${heroPoster}")` }} />
@@ -72,8 +44,7 @@ export function Hero() {
         </video>
         <div className="absolute inset-0 bg-gradient-to-r from-[#030817]/70 via-[#06132b]/48 to-[#06132b]/35" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_15%_20%,rgba(37,99,235,.20),transparent_38%),radial-gradient(ellipse_at_85%_15%,rgba(14,165,233,.13),transparent_34%),radial-gradient(ellipse_at_75%_90%,rgba(202,138,4,.10),transparent_32%)]" />
-      </div>>
-
+      </div>
       <div className="container mx-auto grid min-h-[690px] items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[1.08fr_.92fr] lg:px-8 lg:py-24">
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65 }}>
           <div className="mb-6 flex items-center gap-4 rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur-md sm:p-4">
@@ -144,3 +115,4 @@ export function Hero() {
     </section>
   );
 }
+
