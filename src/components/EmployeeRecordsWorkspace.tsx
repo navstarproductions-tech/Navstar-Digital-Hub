@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { CalendarCheck, FileLock2, RefreshCw, Upload, Users } from 'lucide-react';
+import { CalendarCheck, FileLock2, RefreshCw, Upload } from 'lucide-react';
 
 type Staff={id:string;name:string;email:string;role:string;status:string;staffId?:string;department?:string};
 type Attendance={id:string;employeeUserId:string;employeeName:string;staffId?:string;attendanceDate:string;status:string;checkIn?:string;checkOut?:string;notes?:string};
@@ -27,7 +27,6 @@ export function EmployeeRecordsWorkspace({mode}:{mode:'attendance'|'documents'})
   }catch(e){setError(e instanceof Error?e.message:'Employee records could not be loaded.');}
  };
  useEffect(()=>{void load();},[]);
- const selected=staff.find(s=>s.id===employeeId);
  const filteredAttendance=useMemo(()=>attendance.filter(a=>a.attendanceDate===date),[attendance,date]);
  const saveAttendance=async(e:FormEvent)=>{
   e.preventDefault();setBusy(true);setNotice('');setError('');
