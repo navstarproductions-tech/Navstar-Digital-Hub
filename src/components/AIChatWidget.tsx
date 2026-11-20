@@ -73,9 +73,13 @@ export function AIChatWidget(){
   setMessages(next);setInput('');setBusy(true);setError('');
   try{
    const response=await fetch('/api/assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:next.slice(-10).map(({role,content})=>({role,content})),attachments:attachments.map(({name,mimeType,data,kind})=>({name,mimeType,data,kind}))})});
-   const raw=await response.text();let data:{answer?:string;error?:string};
-   try{data=JSON.parse(raw) as {answer?:string;error?:string};}
-   catch{throw new Error('The AI server returned an invalid response (HTTP '+response.status+'). Please try again.');}
+   const raw=await response.text();let data:{answer?:string;error?:string;code?:string;requestId?:string};
+   try{data=JSON.parse(raw) as {answer?:string;error?:string;code?:string;requestId?:string};}
+   catch{
+    const detail=raw.replace(/<script[\\s\\S]*?<\\/script>/gi,' ').replace(/<style[\\s\\S]*?<\\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/\\s+/g,' ').trim().slice(0,220);
+    const reference=response.headers.get('cf-ray')||response.headers.get('X-Request-ID')||'not supplied';
+    throw new Error('AI server returned a non-JSON response (HTTP '+response.status+'). '+(detail||'The request failed before Navstar AI could return a structured response.')+' Reference: '+reference);
+   }
    if(!response.ok)throw new Error(data.error||'The assistant request failed (HTTP '+response.status+').');
    setMessages(current=>[...current,{role:'assistant',content:data.answer||'I could not prepare an answer. Please try again.'}]);
    setAttachments([]);
