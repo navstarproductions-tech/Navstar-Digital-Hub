@@ -9,11 +9,38 @@ const highlights = [
   { icon: Code2, label: 'Technology solutions', detail: 'Create, automate, innovate' },
 ];
 
-const heroPhotos = [
-  'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=2000&q=85',
-  'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=2000&q=85',
-  'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=2000&q=85',
+const heroPoster = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=2000&q=85';
+
+
+export function Hero() {
+  return (
+    <section className="relative isolate overflow-hidden bg-[#050b1b] text-white">
+      <style>{`
+        .navstar-hero-video {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center 45%;
+          filter: saturate(1.08) contrast(1.04);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .navstar-hero-video { display: none; }
+        }
+      `}</style>on } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
+import { ArrowRight, BookOpen, Code2, Cpu, GraduationCap, Monitor, ShieldCheck, Sparkles, LogIn } from 'lucide-react';
+import { motion } from 'framer-motion';
+
+const highlights = [
+  { icon: GraduationCap, label: 'Digital training', detail: 'Build practical skills' },
+  { icon: Monitor, label: 'Cyber services', detail: 'Everyday digital support' },
+  { icon: Code2, label: 'Technology solutions', detail: 'Create, automate, innovate' },
 ];
+
+const heroPoster = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=2000&q=85';
+
 
 export function Hero() {
   return (
@@ -30,15 +57,22 @@ export function Hero() {
         @media (prefers-reduced-motion: reduce) { .navstar-hero-photo { animation: none; opacity: 0; } .navstar-hero-photo:first-child { opacity: 1; } }
       `}</style>
       <div className="absolute inset-0 -z-10" aria-hidden="true">
-        {heroPhotos.map((photo, index) => (
-          <div key={photo} className="navstar-hero-photo absolute inset-0 bg-cover bg-center opacity-0" style={{ backgroundImage: `url("${photo}")`, animationDelay: `${index * 8}s` }} />
-        ))}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#030817]/95 via-[#06132b]/85 to-[#06132b]/65" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_15%_20%,rgba(37,99,235,.42),transparent_38%),radial-gradient(ellipse_at_85%_15%,rgba(14,165,233,.25),transparent_34%),radial-gradient(ellipse_at_75%_90%,rgba(202,138,4,.20),transparent_32%)]" />
-        <div className="absolute inset-0 opacity-[0.13] [background-image:linear-gradient(rgba(255,255,255,.2)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.2)_1px,transparent_1px)] [background-size:42px_42px]" />
-        <div className="absolute -left-24 top-32 h-72 w-72 rounded-full bg-blue-600/20 blur-3xl" />
-        <div className="absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-cyan-400/15 blur-3xl" />
-      </div>
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${heroPoster}")` }} />
+        <video
+          className="navstar-hero-video"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          poster={heroPoster}
+          aria-hidden="true"
+        >
+          <source src="https://upload.wikimedia.org/wikipedia/commons/b/bf/Programming_a_simple_http_client.webm" type="video/webm" />
+        </video>
+        <div className="absolute inset-0 bg-gradient-to-r from-[#030817]/70 via-[#06132b]/48 to-[#06132b]/35" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_15%_20%,rgba(37,99,235,.20),transparent_38%),radial-gradient(ellipse_at_85%_15%,rgba(14,165,233,.13),transparent_34%),radial-gradient(ellipse_at_75%_90%,rgba(202,138,4,.10),transparent_32%)]" />
+      </div>>
 
       <div className="container mx-auto grid min-h-[690px] items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[1.08fr_.92fr] lg:px-8 lg:py-24">
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65 }}>
