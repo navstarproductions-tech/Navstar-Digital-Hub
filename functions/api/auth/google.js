@@ -26,6 +26,6 @@ export async function onRequestGet({request,env}){
   if(user.google_sub&&user.google_sub!==identity.sub)return new Response(null,{status:302,headers:{Location:'/login?google=account-link-conflict','Set-Cookie':clear}});
   await env.DB.prepare('UPDATE users SET google_sub=? WHERE id=? AND (google_sub IS NULL OR google_sub=?)').bind(identity.sub,user.id,identity.sub).run();
   const session=await createSession(env,user.id);
-  return new Response(null,{status:302,headers:{Location:safeNext(user.role),'Set-Cookie':[session,clear].join(', '),'Cache-Control':'no-store'}});
+  const headers=new Headers({Location:safeNext(user.role),'Cache-Control':'no-store'});headers.append('Set-Cookie',session);headers.append('Set-Cookie',clear);return new Response(null,{status:302,headers});
  }catch(e){return new Response(null,{status:302,headers:{Location:'/login?google=failed','Set-Cookie':clear}});}
 }
