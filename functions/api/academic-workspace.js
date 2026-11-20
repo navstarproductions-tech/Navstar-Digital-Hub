@@ -5,6 +5,10 @@ const admins=['admin','principal'];
 const staff=['admin','principal','tutor'];
 const clean=(v,n=200)=>safeString(v,n);
 const token=()=>Array.from(crypto.getRandomValues(new Uint8Array(18)),b=>b.toString(16).padStart(2,'0')).join('');
+async function ensureModuleTutors(db){
+ await db.prepare('CREATE TABLE IF NOT EXISTS module_tutor_assignments (id TEXT PRIMARY KEY,module_id TEXT NOT NULL REFERENCES course_modules(id) ON DELETE CASCADE,tutor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,assigned_by TEXT REFERENCES users(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(module_id,tutor_user_id))').run();
+ await db.prepare('INSERT OR IGNORE INTO module_tutor_assignments(id,module_id,tutor_user_id,assigned_by) SELECT lower(hex(randomblob(16))),m.id,a.tutor_user_id,a.assigned_by FROM course_modules m JOIN course_tutor_assignments a ON a.course_id=m.course_id').run();
+}
 async function canCourse(db,user,courseId){
  if(admins.includes(user.role))return Boolean(await db.prepare('SELECT id FROM courses WHERE id=?').bind(courseId).first());
  if(user.role==='tutor')return Boolean(await db.prepare('SELECT id FROM course_tutor_assignments WHERE course_id=? AND tutor_user_id=? UNION SELECT m.id FROM module_tutor_assignments m JOIN course_modules cm ON cm.id=m.module_id WHERE cm.course_id=? AND m.tutor_user_id=? LIMIT 1').bind(courseId,user.id,courseId,user.id).first());
@@ -12,6 +16,7 @@ async function canCourse(db,user,courseId){
 }
 export async function onRequestGet({request,env}){
  if(!env.DB)return error('Academic workspace database unavailable.',503);
+ await ensureModuleTutors(env.DB);
  const url=new URL(request.url),action=url.searchParams.get('action')||'messages';
  if(action==='verify-report-card'){
   const key=clean(url.searchParams.get('token'),100);if(!key)return error('Verification token required.');
@@ -65,6 +70,7 @@ export async function onRequestGet({request,env}){
 export async function onRequestPost({request,env}){
  if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
  if(!env.DB)return error('Academic workspace database unavailable.',503);
+ await ensureModuleTutors(env.DB);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  let b;try{b=await readJson(request,20000)}catch{return error('Invalid request body.')}
  const action=clean(b.action,50);
