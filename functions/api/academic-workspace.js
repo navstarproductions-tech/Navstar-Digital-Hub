@@ -160,11 +160,11 @@ export async function onRequestPost({request,env}){
   const slots=[];let cursor=0;
   for(let week=0;week<Number(rules.weeks||1)&&week<20;week++){
    for(let dayOffset=0;dayOffset<7;dayOffset++){
-    const date=new Date(startDate);date.setDate(date.getDate()+week*7+dayOffset);
-    if(!days.includes(date.getDay()||7))continue;
+    const date=new Date(startDate);date.setUTCDate(date.getUTCDate()+week*7+dayOffset);
+    if(!days.includes(date.getUTCDay()||7))continue;
     for(let p=0;p<periods&&cursor<modules.length*Number(rules.weeks||1);p++){
      const mod=modules[cursor%modules.length],hour=startHour+p*Math.ceil(minutes/60);
-     const start=new Date(date);start.setHours(hour,0,0,0);const end=new Date(start.getTime()+minutes*60000);
+     const day=date.toISOString().slice(0,10),start=new Date(day+'T'+String(hour).padStart(2,'0')+':00:00+03:00'),end=new Date(start.getTime()+minutes*60000);
      slots.push({module:mod,start,end,venue:venues[(cursor)%venues.length]});cursor++;
     }
    }
