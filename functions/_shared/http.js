@@ -27,6 +27,15 @@ export async function readJson(request, maxBytes = 32768) {
   return value;
 }
 
+// Convert untrusted scalar input to a trimmed, length-limited string.
+// Objects and arrays are rejected rather than coerced to values such as "[object Object]".
+export function safeString(value, maxLength = 1000) {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') return '';
+  const limit = Number.isFinite(Number(maxLength)) ? Math.max(0, Math.floor(Number(maxLength))) : 1000;
+  return String(value).replace(/\\0/g, '').trim().slice(0, limit);
+}
+
 export function normalizePhone(value) {
   // Accept Kenyan mobile numbers in local, national, or international notation.
   // Examples: 0712345678, 712345678, +254712345678, 2540712345678, 00254712345678.
