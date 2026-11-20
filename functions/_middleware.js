@@ -8,6 +8,9 @@ export async function onRequest({ request, next }) {
     // Document endpoints return PDF/Office/binary file streams, not JSON.
     // Pass successful downloads through unchanged instead of converting them to API_NON_JSON_RESPONSE.
     if (/^\/api\/downloads?\/[^/]+$/.test(url.pathname) && response.ok) return response;
+    // R2-backed image endpoints return binary image streams, not JSON. Preserve successful
+    // image responses so profile photos, avatars and uploaded site images can render normally.
+    if (response.ok && (response.headers.get('Content-Type') || '').toLowerCase().startsWith('image/')) return response;
     const contentType = response.headers.get('Content-Type') || '';
     if (contentType.toLowerCase().includes('application/json')) return response;
     console.error('Navstar API returned a non-JSON response:', requestId, request.method, url.pathname, response.status, contentType);
