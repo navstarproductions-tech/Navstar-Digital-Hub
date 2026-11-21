@@ -247,9 +247,9 @@ export async function onRequestPost({ request, env }) {
           if (typeof policySettings[key] === 'string' && policySettings[key].trim()) liveContext += '\n' + label + ': ' + clean(policySettings[key], 5000);
         }
         if (context === 'student' && typeof policySettings.studentDataPrivacyNotice === 'string' && policySettings.studentDataPrivacyNotice.trim()) {
-          liveContext += '\\nApproved student data privacy notice: ' + clean(policySettings.studentDataPrivacyNotice, 4000);
+          liveContext += '\nApproved data privacy notice: ' + clean(policySettings.studentDataPrivacyNotice, 4000);
         }
-        if (typeof policySettings.aiDataUseNotice === 'string' && policySettings.aiDataUseNotice.trim()) liveContext += '\\nApproved Navstar AI data-use notice: ' + clean(policySettings.aiDataUseNotice, 3000);
+        if (typeof policySettings.aiDataUseNotice === 'string' && policySettings.aiDataUseNotice.trim()) liveContext += '\nApproved Navstar AI data-use notice: ' + clean(policySettings.aiDataUseNotice, 3000);
       }
     }
     const contextInstructions = context === 'admin'
