@@ -200,6 +200,10 @@ export async function onRequestPost({request,env}){
     if(title.length<2)return error('Select a course, module and exam type to generate the title.');
     const selectedModule=moduleId?await env.DB.prepare('SELECT id,title FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
     if(!selectedModule)return error('Select a valid module belonging to the selected course.');
+    const existingQuestions=await env.DB.prepare("SELECT COUNT(*) AS count,COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status='active'").bind(assessmentId).first();
+    if(existingQuestions?.count&&Number(existingQuestions.count)>0&&Number(existingQuestions.total)>maxPoints)return error('The new paper total is below the marks already allocated to its questions.');
+    if(existingQuestions?.count&&Number(existingQuestions.count)>0&&existing.course_id!==courseId)return error('A paper with saved questions cannot be moved to another course. Create a new paper to preserve its question history.');
+
     const startsAt=safeString(body.startsAt,40),endsAt=safeString(body.endsAt,40);
     const maxPoints=Number(body.maxPoints),duration=Number(body.durationMinutes),passMark=Number(body.passMark),attempts=Number(body.maxAttempts);
     if(!validDate(startsAt)||!validDate(endsAt)||Date.parse(endsAt)<=Date.parse(startsAt))return error('Enter a valid scheduled date and expiry time.');
@@ -278,7 +282,7 @@ export async function onRequestPost({request,env}){
     const endRequired=action==='create_timetable'||action==='create_assessment';
     if(!validDate(startsAt)||(endRequired&&!validDate(endsAt))||(endsAt&&!validDate(endsAt))||(endsAt&&(action==='create_assessment'?Date.parse(endsAt)<Date.parse(startsAt):Date.parse(endsAt)<=Date.parse(startsAt))))return error(action==='create_assessment'?'Enter a valid assessment start and deadline; the deadline may be on the same date/time but not earlier.':'Enter valid start and end dates and times.');
     const module=moduleId?await env.DB.prepare('SELECT id,title FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
-    if(moduleId&&!module)return error('The selected module does not belong to this course.',409);
+    if(!module)return error('Select a valid module belonging to this course.',409);
     const id=uuid();
     if(action==='create_timetable'){
       await env.DB.prepare('INSERT INTO course_timetable(id,course_id,module_id,title,starts_at,ends_at,venue,meeting_url,created_by) VALUES(?,?,?,?,?,?,?,?,?)').bind(id,courseId,moduleId||null,title,startsAt,endsAt,safeString(body.venue,160),safeString(body.meetingUrl,500)||null,user.id).run();
