@@ -89,8 +89,11 @@ export async function onRequestPost({request,env}){
   }
   const totalMax=components.reduce((n,c)=>n+Number(c.max),0);
   if(total>Number(a.max_points)||totalMax>Number(a.max_points))return error('Component totals cannot exceed the assessment maximum.');
-  statements.push(env.DB.prepare('INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by) VALUES(?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP').bind(uuid(),assessmentId,studentId,total,clean(b.feedback,2000),b.publish===true?new Date().toISOString():null,user.id));
-  await env.DB.batch(statements);return json({saved:true,total,max:totalMax});
+  const cfg=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();let examConfig={};try{examConfig=JSON.parse(cfg?.settings_json||'{}')}catch{}
+  const paper=await env.DB.prepare('SELECT assessment_type FROM course_assessments WHERE id=?').bind(assessmentId).first();
+  const targetMax=categoryMaximum(paper?.assessment_type,examConfig),published=scaleScore(total,totalMax,targetMax);
+  statements.push(env.DB.prepare('INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points').bind(uuid(),assessmentId,studentId,published,clean(b.feedback,2000),b.publish===true?new Date().toISOString():null,user.id,total,targetMax));
+  await env.DB.batch(statements);return json({saved:true,total,published,publishedMaximum:targetMax,rawMaximum:totalMax});
  }
  if(action==='issue-report-card'){
   const access=await requireRole(request,env,admins);if(access.response)return access.response;
