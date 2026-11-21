@@ -124,7 +124,9 @@ export async function onRequestPost({ request, env }) {
     const requestedContext = clean(body.context, 24) || 'public';
     if (requestedContext === 'admin' && sessionUser?.role !== 'admin') return json({ error: 'Administrator AI requires an active administrator sign-in.', code: 'AI_ADMIN_AUTH_REQUIRED', requestId }, 403, requestId);
     if (requestedContext === 'student' && sessionUser?.role !== 'student') return json({ error: 'Student AI requires an active student sign-in.', code: 'AI_STUDENT_AUTH_REQUIRED', requestId }, 403, requestId);
-    const context = sessionUser?.role === 'admin' ? 'admin' : sessionUser?.role === 'student' ? 'student' : requestedContext;
+    const staffRoles = ['tutor', 'principal', 'admissions', 'finance'];
+    if (requestedContext === 'staff' && (!sessionUser || !staffRoles.includes(sessionUser.role))) return json({ error: 'Staff AI requires an authorised staff portal sign-in.', code: 'AI_STAFF_AUTH_REQUIRED', requestId }, 403, requestId);
+    const context = sessionUser?.role === 'admin' ? 'admin' : sessionUser?.role === 'student' ? 'student' : sessionUser && staffRoles.includes(sessionUser.role) ? 'staff' : requestedContext;
 
     let aiSettings = {};
     let siteSettings = {};
@@ -167,7 +169,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const identityHash = await usageIdentity(request, sessionUser || customerUser);
-    const textLimit = Math.max(1, Math.min(500, Number(aiSettings[context === 'admin' ? 'aiAdminDailyRequests' : context === 'student' ? 'aiStudentDailyRequests' : 'aiPublicDailyRequests']) || (context === 'admin' ? 100 : context === 'student' ? 60 : 20)));
+    const textLimit = Math.max(1, Math.min(500, Number(aiSettings[context === 'admin' ? 'aiAdminDailyRequests' : context === 'student' ? 'aiStudentDailyRequests' : context === 'staff' ? 'aiStaffDailyRequests' : 'aiPublicDailyRequests']) || (context === 'admin' ? 100 : context === 'student' || context === 'staff' ? 60 : 20)));
     const textUsed = await usageCount(env.DB, 'ai-text-day', identityHash);
     if (textUsed >= textLimit) return json({ error: 'You have reached today’s Navstar AI message limit (' + textLimit + '). Please try again tomorrow or contact an administrator.', code: 'AI_DAILY_LIMIT', limit: textLimit, used: textUsed }, 429, requestId);
     const imageUploads = attachments.filter(file => clean(file?.kind, 20) === 'image').length;
