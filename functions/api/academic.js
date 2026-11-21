@@ -198,7 +198,7 @@ export async function onRequestPost({request,env}){
     if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
     if(!(await requireCourse(env.DB,user,courseId)))return error('You are not assigned to the selected course.',403);
     if(title.length<2)return error('Select a course, module and exam type to generate the title.');
-    const selectedModule=moduleId?await env.DB.prepare('SELECT id FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
+    const selectedModule=moduleId?await env.DB.prepare('SELECT id,title FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
     if(!selectedModule)return error('Select a valid module belonging to the selected course.');
     const startsAt=safeString(body.startsAt,40),endsAt=safeString(body.endsAt,40);
     const maxPoints=Number(body.maxPoints),duration=Number(body.durationMinutes),passMark=Number(body.passMark),attempts=Number(body.maxAttempts);
@@ -206,8 +206,9 @@ export async function onRequestPost({request,env}){
     if(!Number.isSafeInteger(maxPoints)||maxPoints<1||maxPoints>10000||!Number.isSafeInteger(duration)||duration<1||duration>600||!Number.isSafeInteger(passMark)||passMark<0||passMark>maxPoints||!Number.isSafeInteger(attempts)||attempts<1||attempts>10)return error('Check total marks, duration, pass mark and attempts.');
     const type=safeString(body.assessmentType,20);
     if(!['test','exam','practical','cat'].includes(type))return error('Choose a valid exam type.');
+    const generatedTitle=selectedModule.title+' — '+({cat:'CAT',exam:'Final Examination',practical:'Practical Assessment',test:'Test'}[type]);
     await env.DB.prepare('UPDATE course_assessments SET course_id=?,module_id=?,title=?,assessment_type=?,instructions=?,starts_at=?,due_at=?,max_points=?,duration_minutes=?,pass_mark=?,max_attempts=?,require_full_fee_payment=?,require_assignment_submission=?,allow_result_review=?,require_admin_approval=? WHERE id=?')
-      .bind(courseId,moduleId,title,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.requireAdminApproval?1:0,assessmentId).run();
+      .bind(courseId,moduleId,generatedTitle,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.requireAdminApproval?1:0,assessmentId).run();
     await audit('assessment_updated','assessment',assessmentId);
     return json({id:assessmentId,updated:true});
   }
@@ -276,7 +277,7 @@ export async function onRequestPost({request,env}){
     const startsAt=safeString(body.startsAt,40),endsAt=safeString(body.endsAt,40);
     const endRequired=action==='create_timetable'||action==='create_assessment';
     if(!validDate(startsAt)||(endRequired&&!validDate(endsAt))||(endsAt&&!validDate(endsAt))||(endsAt&&(action==='create_assessment'?Date.parse(endsAt)<Date.parse(startsAt):Date.parse(endsAt)<=Date.parse(startsAt))))return error(action==='create_assessment'?'Enter a valid assessment start and deadline; the deadline may be on the same date/time but not earlier.':'Enter valid start and end dates and times.');
-    const module=moduleId?await env.DB.prepare('SELECT id FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
+    const module=moduleId?await env.DB.prepare('SELECT id,title FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
     if(moduleId&&!module)return error('The selected module does not belong to this course.',409);
     const id=uuid();
     if(action==='create_timetable'){
@@ -290,7 +291,8 @@ export async function onRequestPost({request,env}){
       if(!Number.isSafeInteger(maxPoints)||maxPoints<1||maxPoints>10000||!['test','exam','practical','cat'].includes(type))return error('Choose a valid assessment type and maximum score.');
       const duration=Number(body.durationMinutes??60),passMark=Number(body.passMark??Math.floor(maxPoints/2)),attempts=Number(body.maxAttempts??1);
       if(!Number.isSafeInteger(duration)||duration<1||duration>600||!Number.isSafeInteger(passMark)||passMark<0||passMark>maxPoints||!Number.isSafeInteger(attempts)||attempts<1||attempts>10)return error('Check the exam duration, pass mark and attempt limit.');
-      await env.DB.prepare('INSERT INTO course_assessments(id,course_id,module_id,title,assessment_type,instructions,starts_at,due_at,max_points,status,created_by,duration_minutes,pass_mark,max_attempts,require_full_fee_payment,require_assignment_submission,allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit,require_admin_approval) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,courseId,moduleId||null,title,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,'published',user.id,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.shuffleQuestions?1:0,body.disableCopyPaste?1:0,body.strictTimeLimit===false?0:1,body.requireAdminApproval?1:0).run();
+      const generatedTitle=module.title+' — '+({cat:'CAT',exam:'Final Examination',practical:'Practical Assessment',test:'Test'}[type]);
+      await env.DB.prepare('INSERT INTO course_assessments(id,course_id,module_id,title,assessment_type,instructions,starts_at,due_at,max_points,status,created_by,duration_minutes,pass_mark,max_attempts,require_full_fee_payment,require_assignment_submission,allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit,require_admin_approval) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,courseId,moduleId||null,generatedTitle,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,'published',user.id,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.shuffleQuestions?1:0,body.disableCopyPaste?1:0,body.strictTimeLimit===false?0:1,body.requireAdminApproval?1:0).run();
     }
     await audit(action,'course',courseId);
     return json({id,created:true},201);
