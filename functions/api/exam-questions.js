@@ -22,7 +22,7 @@ export async function onRequestGet({request,env}){
  const assessmentId=safeString(new URL(request.url).searchParams.get('assessmentId'),80);
  const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,CASE WHEN a.max_points>0 THEN a.max_points ELSE 100 END AS max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.require_admin_approval,a.allow_result_review,c.title AS course_title,m.title AS module_title,m.code AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not available.',404);
- const paperMaximum=paperMaximum>0?Number(assessment.max_points):100;
+ const paperMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
  const student=user.role==='student';
  if(student&&(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())))return error('This examination is not currently open.',403);
  let revealAnswers=!student;
@@ -56,9 +56,9 @@ export async function onRequestPost({request,env}){
   if(!module?.title)return error('This exam must be linked to a module before AI can set its questions.',409);
   if(!Number.isInteger(pointsPerQuestion)||pointsPerQuestion<1||pointsPerQuestion>1000)return error('Enter valid marks per question.');
   if(!['multiple_choice','single_choice','true_false','short_answer','mixed'].includes(questionType))return error('Choose a supported AI question type.');
-  if(pointsPerQuestion*count>Number(assessment.max_points))return error('The requested questions exceed the paper maximum of '+paperMaximum+' marks.');
+  if(pointsPerQuestion*count>paperMaximum)return error('The requested questions exceed the paper maximum of '+paperMaximum+' marks.');
   const existingTotal=await env.DB.prepare('SELECT COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status=?').bind(assessmentId,'active').first();
-  if(!replaceAll&&Number(existingTotal?.total||0)+pointsPerQuestion*count>Number(assessment.max_points))return error('The new questions would exceed the remaining '+(paperMaximum-Number(existingTotal?.total||0))+' marks.');
+  if(!replaceAll&&Number(existingTotal?.total||0)+pointsPerQuestion*count>paperMaximum)return error('The new questions would exceed the remaining '+(paperMaximum-Number(existingTotal?.total||0))+' marks.');
   if(!topic&& !module.title)return error('Select a module or enter a topic.');
   const settingsRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first().catch(()=>null);
   let aiSettings={};
@@ -93,7 +93,7 @@ export async function onRequestPost({request,env}){
   if(generated.length<count)return error('AI returned fewer questions than requested. Please try again.');
   const normalized=generated.slice(0,count).map(q=>({...q,points:pointsPerQuestion}));
   const totalMarks=normalized.reduce((n,q)=>n+Number(q.points||0),0);
-  if(totalMarks>Number(assessment.max_points))return error('Generated questions exceed the paper maximum.');
+  if(totalMarks>paperMaximum)return error('Generated questions exceed the paper maximum.');
   const supportedTypes=['single_choice','multiple_choice','true_false','short_answer','essay'];
   if(normalized.some(q=>!safeString(q.questionText||q.question,2000)||!supportedTypes.includes(safeString(q.questionType||q.type,24))))return error('The AI returned a question with missing text or an unsupported type. Please retry.');
   if(normalized.some(q=>['single_choice','multiple_choice','true_false'].includes(safeString(q.questionType||q.type,24))&&(!Array.isArray(q.options)||!q.options.length||q.correctAnswer===undefined||q.correctAnswer===null||q.correctAnswer==='')))return error('The AI returned an objective question without options or an answer key. Please retry.');
