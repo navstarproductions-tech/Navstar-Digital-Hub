@@ -92,6 +92,9 @@ export async function onRequestPost({request,env}){
   const normalized=generated.slice(0,count).map(q=>({...q,points:pointsPerQuestion}));
   const totalMarks=normalized.reduce((n,q)=>n+Number(q.points||0),0);
   if(totalMarks>Number(assessment.max_points))return error('Generated questions exceed the paper maximum.');
+  const supportedTypes=['single_choice','multiple_choice','true_false','short_answer','essay'];
+  if(normalized.some(q=>!safeString(q.questionText||q.question,2000)||!supportedTypes.includes(safeString(q.questionType||q.type,24))))return error('The AI returned a question with missing text or an unsupported type. Please retry.');
+  if(normalized.some(q=>['single_choice','multiple_choice','true_false'].includes(safeString(q.questionType||q.type,24))&&(!Array.isArray(q.options)||!q.options.length||q.correctAnswer===undefined||q.correctAnswer===null||q.correctAnswer==='')))return error('The AI returned an objective question without options or an answer key. Please retry.');
   if(replaceAll)await env.DB.prepare("UPDATE course_exam_questions SET status='archived' WHERE assessment_id=? AND status='active'").bind(assessmentId).run();
   const result=await importQuestions(env.DB,user,assessmentId,normalized);
 
