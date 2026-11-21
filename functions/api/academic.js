@@ -227,7 +227,7 @@ export async function onRequestPost({request,env}){
     const perDay=Number(rules.papersPerDay),morning=safeString(rules.morningTime,5),evening=safeString(rules.eveningTime,5);
     if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(startText)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(endText)||endText<startText||!Number.isInteger(perDay)||perDay<1||perDay>30||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(morning)||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(evening))return error('Enter valid timetable dates, papers per day and EAT paper times.');
     const selectedCourse=safeString(body.courseId,80);
-    const allCourses=(await env.DB.prepare("SELECT id,title FROM courses WHERE status='active' ORDER BY title").all()).results||[];
+    const allCourses=(await env.DB.prepare('SELECT id,title FROM courses ORDER BY title').all()).results||[];
     const targetCourses=selectedCourse?allCourses.filter(c=>c.id===selectedCourse):allCourses;
     if(selectedCourse&&!targetCourses.length)return error('Selected course was not found or is not active.',404);
     const ready=[];
@@ -245,8 +245,9 @@ export async function onRequestPost({request,env}){
     const statements=[],scheduledPapers=[];
     const parseTime=(day,time)=>new Date(day+'T'+time+':00+03:00');
     const nextWeekday=(date)=>{const d=new Date(date+'T12:00:00Z');while([0,6].includes(d.getUTCDay()))d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10);};
+    let nextCourseStart=nextWeekday(startText);
     for(const item of ready){
-      let day=nextWeekday(startText),index=0;
+      let day=nextCourseStart,index=0;
       const papers=item.papers;
       while(index<papers.length){
         if(day>endText)return error('The selected end date is too early to schedule all module papers. Extend the date range and try again.');
@@ -262,6 +263,7 @@ export async function onRequestPost({request,env}){
         }
         const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1);day=nextWeekday(d.toISOString().slice(0,10));
       }
+      nextCourseStart=day;
     }
     if(statements.length)await env.DB.batch(statements);
     await audit('exam_timetable_generated','exam_timetable',selectedCourse||'all');
