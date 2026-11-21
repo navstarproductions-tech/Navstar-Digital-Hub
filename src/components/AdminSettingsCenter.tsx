@@ -13,8 +13,6 @@ const sections: Section[] = [
    {key:'aiDocumentAnalysis',label:'Allow image, PDF and text document analysis',type:'toggle'},
    {key:'aiExamQuestionGeneration',label:'Allow AI exam and question generation',type:'toggle'},
    {key:'aiAdminAssistance',label:'Enable administrator workflow assistance',type:'toggle'},
-   {key:'aiCustomerGuidance',label:'Enable customer services and admissions guidance',type:'toggle'},
-   {key:'aiConversationRetention',label:'Conversation retention on this device',type:'select',options:['Off','Current browser only','30 days','90 days']}
   ]}]},
  {id:'notifications',label:'Notifications',description:'Set which system events trigger administrator notifications.',groups:[
   {title:'Notification preferences',fields:[{key:'notifyNewApplication',label:'Notify on new student applications',type:'toggle'},{key:'notifyPaymentUpdate',label:'Notify on payment status updates',type:'toggle'},{key:'notifyDonation',label:'Notify when a donation is received',type:'toggle'}]}]},
@@ -86,7 +84,7 @@ const sections: Section[] = [
 ];
 
 const defaults: Record<string, Record<string, string|number|boolean>> = {
- 'ai-assistant': {aiEnabled:true,aiPublicAssistant:true,aiStudentLearning:true,aiDocumentAnalysis:true,aiExamQuestionGeneration:true,aiAdminAssistance:true,aiCustomerGuidance:true,aiConversationRetention:'30 days'},
+ 'ai-assistant': {aiEnabled:true,aiPublicAssistant:true,aiStudentLearning:true,aiDocumentAnalysis:true,aiExamQuestionGeneration:true,aiAdminAssistance:true},
  'home-content': {homeSlideSeconds:6.5,homeFadeSeconds:1.1,marqueeEnabled:true,marqueeDirection:'Left',marqueeText:''},
  'academic-intakes': {intakes:'September 2026 Intake | 2026-09-01 | 2026-09-20 | | |',showEnrollmentStatus:true,intakeStatusMessage:''},
  'institute-profile': {institutionName:'NAVSTAR DIGITAL HUB',motto:'HOME OF TECHNOCRATS',email:'navstardigitalhub@gmail.com',phone:'+254797688576',whatsapp:'+254797688576',admissionsContact:'+254797688576',financeContact:'+254797688576',supportContact:'+254797688576',postalAddress:'P.O. BOX 546-50200 BUNGOMA (K)',website:'https://navstardigitalhub.base44.app',principalName:'SIMIYU SIFUNA HARON',yearEstablished:2023,institutionCategory:'Digital & Technical Skills Training',registrationNumber:'BN-J9S6J7AB',institutionCode:'NAV-039',physicalAddress:'Bungoma, Kenya',requireEnrollmentDocuments:true},
