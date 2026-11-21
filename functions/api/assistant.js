@@ -244,7 +244,7 @@ export async function onRequestPost({ request, env }) {
       const policySettings = siteSettings?.['privacy-policies'] || {};
       if (policySettings.publishPoliciesToPublicAI === true) {
         for (const [label, key] of [['Approved privacy policy', 'privacyPolicy'], ['Approved website and service terms', 'termsConditions'], ['Approved acceptable-use policy', 'acceptableUsePolicy']]) {
-          if (typeof policySettings[key] === 'string' && policySettings[key].trim()) liveContext += '\\n' + label + ': ' + clean(policySettings[key], 5000);
+          if (typeof policySettings[key] === 'string' && policySettings[key].trim()) liveContext += '\n' + label + ': ' + clean(policySettings[key], 5000);
         }
         if (context === 'student' && typeof policySettings.studentDataPrivacyNotice === 'string' && policySettings.studentDataPrivacyNotice.trim()) {
           liveContext += '\\nApproved student data privacy notice: ' + clean(policySettings.studentDataPrivacyNotice, 4000);
