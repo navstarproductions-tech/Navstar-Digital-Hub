@@ -49,8 +49,6 @@ export async function onRequestPost({ request, env }) {
     const used = Number(usedRow?.total || 0);
     if (used >= generationLimit) return json({ error: 'You have reached today’s image-generation limit (' + generationLimit + '). Please try again tomorrow.', code: 'AI_IMAGE_GENERATION_DAILY_LIMIT', limit: generationLimit, used }, 429);
     if (references.length && settings.aiImageEditing === false) return json({ error: 'AI image editing is disabled in Admin Settings → Navstar AI.' }, 403);
-
-    if (references.length && settings.aiImageEditing === false) return json({ error: 'AI image editing is disabled in Admin Settings → Navstar AI.' }, 403);
     await env.DB.prepare('INSERT INTO api_rate_limits (id, scope, key_hash, created_at) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), 'ai-image-generation-day', identityHash, new Date().toISOString()).run();
     const form = new FormData();
     form.append('prompt', prompt);
