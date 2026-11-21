@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const navigation = [
   { label: 'Home', to: '/' },
   { label: 'Services', to: '/services' },
+  { label: 'Navstar AI', to: '/ai' },
   { label: 'Courses', to: '/courses' },
   { label: 'Enrollment', to: '/enrollment' },
   { label: 'Gallery', to: '/gallery' },
