@@ -11,7 +11,7 @@ export function AIPage() {
           <div className="flex flex-wrap items-center gap-3"><span className="rounded-2xl border border-white/20 bg-white/10 p-3"><Bot className="h-8 w-8 text-amber-300"/></span><div><p className="text-xs font-black uppercase tracking-[.22em] text-amber-300">HOME OF TECHNOCRATS</p><h1 className="text-2xl font-black sm:text-3xl">Navstar AI</h1><p className="mt-1 text-sm text-blue-100">Your learning, academic and digital services assistant.</p></div></div>
           <div className="mt-5 grid gap-2 sm:grid-cols-3"><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 p-3 text-xs font-semibold"><GraduationCap className="h-4 w-4 text-amber-300"/>Mathematics, Physics & ICT</div><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 p-3 text-xs font-semibold"><BookOpen className="h-4 w-4 text-amber-300"/>Assignments, exams & documents</div><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 p-3 text-xs font-semibold"><Sparkles className="h-4 w-4 text-amber-300"/>Courses, admissions & services</div></div>
         </header>
-        <AIChatWidget embedded/>
+        <AIChatWidget embedded context="public"/>
         <p className="mt-3 text-center text-xs text-slate-500">Navstar AI is an assistant. Verify important academic, financial and administrative decisions with the responsible Navstar office.</p>
       </div>
     </main>
