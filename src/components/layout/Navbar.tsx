@@ -39,7 +39,7 @@ export function Navbar() {
   const navigate = useNavigate();
 
   const signOut = async () => {
-    await fetch('/api/customer/logout', { method: 'POST' }).catch(() => undefined);
+    await Promise.all(['/api/customer/logout','/api/auth/logout'].map(url => fetch(url, { method: 'POST', credentials: 'same-origin' }).catch(() => undefined)));
     setSignedInUser(null);
     window.dispatchEvent(new Event('navstar:customer-auth-changed'));
     navigate('/');
@@ -49,15 +49,21 @@ export function Navbar() {
     let active = true;
     const loadHeaderData = async () => {
       try {
-        const sessionResponse = await fetch('/api/customer/me');
+        const staffResponse = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
+        if (staffResponse.ok) {
+          const staff = await staffResponse.json() as { user?: { name?: string; role?: string } };
+          if (active && staff.user?.name) {
+            setSignedInUser({ name: staff.user.name, role: staff.user.role });
+            return;
+          }
+        }
+        const sessionResponse = await fetch('/api/customer/me', { credentials: 'same-origin', cache: 'no-store' });
         if (!sessionResponse.ok) {
           if (active) setSignedInUser(null);
           return;
         }
         const session = await sessionResponse.json() as { customer?: { fullName?: string } };
-        if (active && session.customer?.fullName) {
-          setSignedInUser({ name: session.customer.fullName });
-        }
+        if (active && session.customer?.fullName) setSignedInUser({ name: session.customer.fullName, role: 'customer' });
       } catch {
         // Public navigation remains available when the account service is offline.
       }
