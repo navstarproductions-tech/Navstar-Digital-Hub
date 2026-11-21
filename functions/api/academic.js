@@ -53,7 +53,7 @@ async function getCentralMarksPolicy(db){
  const grading=config.grading||{},lines=String(grading.gradeScale||'').split(/\r?\n/);
  const gradingScale=lines.map(line=>line.split('|').map(part=>part.trim())).filter(parts=>parts[0]&&parts[2]!==''&&parts[3]!==''&&parts[2]!=='—'&&parts[3]!=='—'&&Number.isFinite(Number(parts[2]))&&Number.isFinite(Number(parts[3]))).map(parts=>({grade:parts[0],classification:parts[1]||'',min:Number(parts[2]),max:Number(parts[3]),remarks:parts.slice(4).join(' | ')}));
  const maximum=Number(grading.publishedMaximum);
- return {publishedMaximum:Number.isFinite(maximum)&&maximum>0?maximum:100,gradingScale};
+ return {publishedMaximum:Number.isFinite(maximum)&&maximum>0?maximum:100,gradingScale:gradingScale.length?gradingScale:[{grade:'A',min:80,max:100,remarks:'Exceptional performance'},{grade:'B+',min:70,max:79,remarks:'Strong technical skills'},{grade:'B',min:60,max:69,remarks:'Competent work'},{grade:'C',min:50,max:59,remarks:'Satisfactory work'},{grade:'D',min:40,max:49,remarks:'Developing'},{grade:'F',min:0,max:39,remarks:'Essential requirements not met'}]};
 }
 function publishedMaximum(type,settings={}){const value=Number(settings?.publishedMaximum);return Number.isFinite(value)&&value>0?value:100;}
 
