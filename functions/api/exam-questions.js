@@ -101,9 +101,8 @@ export async function onRequestPost({request,env}){
   const supportedTypes=['single_choice','multiple_choice','true_false','short_answer','essay'];
   if(normalized.some(q=>!safeString(q.questionText||q.question,2000)||!supportedTypes.includes(safeString(q.questionType||q.type,24))))return error('The AI returned a question with missing text or an unsupported type. Please retry.');
   if(normalized.some(q=>['single_choice','multiple_choice','true_false'].includes(safeString(q.questionType||q.type,24))&&(!Array.isArray(q.options)||!q.options.length||q.correctAnswer===undefined||q.correctAnswer===null||q.correctAnswer==='')))return error('The AI returned an objective question without options or an answer key. Please retry.');
-  const result=await importQuestions(env.DB,user,assessmentId,normalized,{replaceAll});
-
-  return result;
+  try{return await importQuestions(env.DB,user,assessmentId,normalized,{replaceAll});}
+  catch(e){console.error('Navstar AI question persistence failed',e?.name||'Error',safeString(e?.message,500));return error('AI created the questions, but Navstar could not save them to this paper. Your existing questions have been preserved. Please retry.','500');}
  }
  if(action==='save_question'||action==='import_questions'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
