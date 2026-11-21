@@ -245,7 +245,7 @@ export async function onRequestPost({request,env}){
     if(!Number.isSafeInteger(maxPoints)||maxPoints<1||maxPoints>10000||!Number.isSafeInteger(duration)||duration<1||duration>600||!Number.isSafeInteger(passMark)||passMark<0||passMark>maxPoints||!Number.isSafeInteger(attempts)||attempts<1||attempts>10)return error('Check total marks, duration, pass mark and attempts.');
     const type=safeString(body.assessmentType,20);
     if(!['test','exam','practical','cat'].includes(type))return error('Choose a valid exam type.');
-    const generatedTitle=selectedModule.title+' — '+({cat:'CAT',exam:'Final Examination',practical:'Practical Assessment',test:'Test'}[type]);
+    const generatedTitle=selectedModule.title+' — '+({cat:'CAT',exam:'Final Examination',practical:'Practical Assessment',test:'CAT'}[type]);
     await env.DB.prepare('UPDATE course_assessments SET course_id=?,module_id=?,title=?,assessment_type=?,description=?,instructions=?,starts_at=?,due_at=?,max_points=?,duration_minutes=?,pass_mark=?,max_attempts=?,require_full_fee_payment=?,require_assignment_submission=?,allow_result_review=?,shuffle_questions=?,disable_copy_paste=?,strict_time_limit=?,require_admin_approval=? WHERE id=?')
       .bind(courseId,moduleId,generatedTitle,type,safeString(body.description,3000),safeString(body.instructions,5000),startsAt,endsAt,maxPoints,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.shuffleQuestions?1:0,body.disableCopyPaste?1:0,body.strictTimeLimit===false?0:1,body.requireAdminApproval?1:0,assessmentId).run();
     await audit('assessment_updated','assessment',assessmentId);
