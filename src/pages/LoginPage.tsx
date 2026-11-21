@@ -26,6 +26,9 @@ export function LoginPage() {
   const role = allowedRoles.includes(requestedRole) ? requestedRole : 'student';
   const isStaff = staffRoles.includes(role);
   const roleLabel = role === 'admin' ? 'Admin' : role.charAt(0).toUpperCase() + role.slice(1);
+  const requestedReturnTo = searchParams.get('returnTo') || '';
+  const safeReturnTo = requestedReturnTo.startsWith('/') && !requestedReturnTo.startsWith('//') ? requestedReturnTo : '';
+  const destination = (fallback: string) => safeReturnTo || fallback;
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -41,8 +44,8 @@ export function LoginPage() {
       const result = await response.json() as { user?: { role?: string; mustChangePassword?: boolean } };
       const signedInRole = result.user?.role;
       if (!active || !signedInRole || !allowedRoles.includes(signedInRole)) return;
-      const destination = result.user?.mustChangePassword ? '/change-password' : signedInRole === 'admin' ? '/admin' : signedInRole === 'student' ? '/student-portal' : `/portals/${signedInRole}`;
-      navigate(destination, { replace: true });
+      const fallback = result.user?.mustChangePassword ? '/change-password' : signedInRole === 'admin' ? '/admin' : signedInRole === 'student' ? '/student-portal' : `/portals/${signedInRole}`;
+      navigate(result.user?.mustChangePassword ? fallback : destination(fallback), { replace: true });
     }).catch(() => undefined);
     return () => { active = false; };
   }, [navigate]);
@@ -58,7 +61,7 @@ export function LoginPage() {
       });
       const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Sign-in could not be completed. Check your details or contact Navstar.');
-      navigate(result.user.mustChangePassword ? '/change-password' : '/student-portal', { replace: true });
+      navigate(result.user.mustChangePassword ? '/change-password' : destination('/student-portal'), { replace: true });
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Sign-in could not be completed.'); }
     finally { setLoading(false); }
   };
@@ -71,7 +74,8 @@ export function LoginPage() {
       const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role, email: formData.get('email'), password: formData.get('password') }) });
       const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
       if (!result.user) throw new Error(result.error || 'Sign-in could not be completed.');
-      navigate(result.user.mustChangePassword ? '/change-password' : result.user.role === 'admin' ? '/admin' : result.user.role === 'student' ? '/student-portal' : `/portals/${result.user.role}`, { replace: true });
+      const fallback = result.user.role === 'admin' ? '/admin' : result.user.role === 'student' ? '/student-portal' : `/portals/${result.user.role}`;
+      navigate(result.user.mustChangePassword ? '/change-password' : destination(fallback), { replace: true });
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Sign-in could not be completed.'); }
     finally { setLoading(false); }
   };
@@ -102,7 +106,8 @@ export function LoginPage() {
       });
       const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Identity confirmation failed.');
-      navigate(result.user.mustChangePassword ? '/change-password' : result.user.role === 'admin' ? '/admin' : `/portals/${result.user.role}`, { replace: true });
+      const fallback = result.user.role === 'admin' ? '/admin' : `/portals/${result.user.role}`;
+      navigate(result.user.mustChangePassword ? '/change-password' : destination(fallback), { replace: true });
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Identity confirmation failed.'); }
     finally { setLoading(false); }
   };
