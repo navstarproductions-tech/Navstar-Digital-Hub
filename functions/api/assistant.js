@@ -96,6 +96,30 @@ export async function onRequestPost({ request, env }) {
       return json({ error: 'Invalid message format. Please refresh and try again.', code: 'AI_INVALID_JSON', requestId }, 400, requestId);
     }
 
+    const context = clean(body.context, 24) || 'public';
+    let aiSettings = {};
+    let siteSettings = {};
+    if (env.DB) {
+      const settingsRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first().catch(() => null);
+      try {
+        const saved = JSON.parse(settingsRow?.value || '{}');
+        aiSettings = saved?.['ai-assistant'] || {};
+        siteSettings = saved || {};
+      } catch { /* Keep safe default behaviour if saved settings are malformed. */ }
+    }
+    if (aiSettings.aiEnabled === false) {
+      return json({ error: 'Navstar AI is temporarily disabled by the administrator.', code: 'AI_DISABLED', requestId }, 503, requestId);
+    }
+    if (context === 'admin' && aiSettings.aiAdminAssistance === false) {
+      return json({ error: 'Administrator AI assistance is disabled in Admin Settings → Navstar AI.', code: 'AI_ADMIN_DISABLED', requestId }, 403, requestId);
+    }
+    if (context === 'student' && aiSettings.aiStudentLearning === false) {
+      return json({ error: 'Student learning assistance is disabled in Admin Settings → Navstar AI.', code: 'AI_STUDENT_DISABLED', requestId }, 403, requestId);
+    }
+    if (context === 'public' && aiSettings.aiPublicAssistant === false) {
+      return json({ error: 'Public Navstar AI guidance is currently disabled.', code: 'AI_PUBLIC_DISABLED', requestId }, 403, requestId);
+    }
+
     const incoming = Array.isArray(body.messages) ? body.messages.slice(-10) : [];
     const messages = incoming
       .filter(item => item && (item.role === 'user' || item.role === 'assistant'))
@@ -106,6 +130,9 @@ export async function onRequestPost({ request, env }) {
     }
 
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+    if (attachments.length && aiSettings.aiDocumentAnalysis === false) {
+      return json({ error: 'Document and image analysis is disabled in Admin Settings → Navstar AI.', code: 'AI_DOCUMENTS_DISABLED', requestId }, 403, requestId);
+    }
     if (attachments.length > 5) {
       return json({ error: 'Please attach no more than five files per message.', code: 'AI_TOO_MANY_FILES', requestId }, 400, requestId);
     }
@@ -143,8 +170,34 @@ export async function onRequestPost({ request, env }) {
 
     stage = 'cloudflare_ai_inference';
     const model = clean(env?.NAVSTAR_AI_MODEL, 120) || DEFAULT_MODEL;
+    let liveContext = '';
+    if (env.DB && (context === 'public' || context === 'student')) {
+      try {
+        const courseRows = await env.DB.prepare("SELECT title, description, duration, category, price FROM courses WHERE status = 'active' ORDER BY title LIMIT 40").all();
+        const courses = (courseRows.results || []).map(course => ({
+          title: clean(course.title, 120), description: clean(course.description, 360),
+          duration: clean(course.duration, 60), category: clean(course.category, 80),
+          feeKsh: Number(course.price || 0)
+        }));
+        if (courses.length) liveContext += '\\nPublished active course catalogue (read-only): ' + JSON.stringify(courses);
+      } catch (error) {
+        logAI('course_context_unavailable', { requestId, errorMessage: clean(error?.message, 120) });
+      }
+      const intakeSettings = siteSettings?.['academic-intakes'] || {};
+      if (typeof intakeSettings.intakes === 'string' && intakeSettings.intakes.trim()) {
+        liveContext += '\\nConfigured intake calendar (read-only; dates are YYYY-MM-DD): ' + clean(intakeSettings.intakes, 5000);
+      }
+      if (typeof intakeSettings.intakeStatusMessage === 'string' && intakeSettings.intakeStatusMessage.trim()) {
+        liveContext += '\\nOfficial public intake notice: ' + clean(intakeSettings.intakeStatusMessage, 1000);
+      }
+    }
+    const contextInstructions = context === 'admin'
+      ? 'You are assisting an authenticated Navstar administrator. Help plan exams, assessment questions, grading, timetables, settings, reports and operational workflows. You cannot change settings, publish exams, edit records or perform transactions from this chat. Give exact navigation guidance and clearly state when an administrator must save or confirm an action. Never invent student, staff, payment or private account records.'
+      : context === 'student'
+        ? 'You are supporting a Navstar learner. Teach step by step, show workings for Mathematics and Physics, explain ICT and programming clearly, and guide assignment planning without falsely claiming to submit work or alter marks.'
+        : 'You are the public Navstar guide. Use the supplied published catalogue and configured intake notice when answering course and admissions questions. Do not invent admission status, available seats, fees, deadlines or personal application results. Direct personal status checks to secure sign-in.';
     const aiMessages = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: SYSTEM_PROMPT + '\\n\\n' + contextInstructions + liveContext },
       ...messages.slice(0, -1),
       { role: 'user', content: contentParts }
     ];
