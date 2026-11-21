@@ -38,7 +38,7 @@ export async function onRequestPost({request,env}){
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not found or access denied.',404);
  if(action==='delete_all'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
-  await env.DB.prepare('DELETE FROM course_exam_questions WHERE assessment_id=?').bind(assessmentId).run();
+  await env.DB.prepare("UPDATE course_exam_questions SET status='archived' WHERE assessment_id=?").bind(assessmentId).run();
   return json({deleted:true});
  }
  if(action==='generate_ai'){
@@ -87,7 +87,7 @@ export async function onRequestPost({request,env}){
   const normalized=generated.slice(0,count).map(q=>({...q,points:pointsPerQuestion}));
   const totalMarks=normalized.reduce((n,q)=>n+Number(q.points||0),0);
   if(totalMarks>Number(assessment.max_points))return error('Generated questions exceed the paper maximum.');
-  if(replaceAll)await env.DB.prepare('DELETE FROM course_exam_questions WHERE assessment_id=?').bind(assessmentId).run();
+  if(replaceAll)await env.DB.prepare("UPDATE course_exam_questions SET status='archived' WHERE assessment_id=? AND status='active'").bind(assessmentId).run();
   const result=await importQuestions(env.DB,user,assessmentId,normalized);
 
   return result;
