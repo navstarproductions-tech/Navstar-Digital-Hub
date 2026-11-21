@@ -222,7 +222,7 @@ export async function onRequestPost({ request, env }) {
     stage = 'cloudflare_ai_inference';
     const model = clean(env?.NAVSTAR_AI_MODEL, 120) || DEFAULT_MODEL;
     let liveContext = '';
-    if (env.DB && (context === 'public' || context === 'student')) {
+    if (env.DB && (context === 'public' || context === 'student' || context === 'staff')) {
       try {
         const courseRows = await env.DB.prepare("SELECT title, description, duration, category, price FROM courses WHERE status = 'active' ORDER BY title LIMIT 40").all();
         const courses = (courseRows.results || []).map(course => ({
@@ -240,6 +240,16 @@ export async function onRequestPost({ request, env }) {
       }
       if (typeof intakeSettings.intakeStatusMessage === 'string' && intakeSettings.intakeStatusMessage.trim()) {
         liveContext += '\nOfficial public intake notice: ' + clean(intakeSettings.intakeStatusMessage, 1000);
+      }
+      const policySettings = siteSettings?.['privacy-policies'] || {};
+      if (policySettings.publishPoliciesToPublicAI === true) {
+        for (const [label, key] of [['Approved privacy policy', 'privacyPolicy'], ['Approved website and service terms', 'termsConditions'], ['Approved acceptable-use policy', 'acceptableUsePolicy']]) {
+          if (typeof policySettings[key] === 'string' && policySettings[key].trim()) liveContext += '\\n' + label + ': ' + clean(policySettings[key], 5000);
+        }
+        if (context === 'student' && typeof policySettings.studentDataPrivacyNotice === 'string' && policySettings.studentDataPrivacyNotice.trim()) {
+          liveContext += '\\nApproved student data privacy notice: ' + clean(policySettings.studentDataPrivacyNotice, 4000);
+        }
+        if (typeof policySettings.aiDataUseNotice === 'string' && policySettings.aiDataUseNotice.trim()) liveContext += '\\nApproved Navstar AI data-use notice: ' + clean(policySettings.aiDataUseNotice, 3000);
       }
     }
     const contextInstructions = context === 'admin'
