@@ -15,6 +15,7 @@ const exploreLinks = [
   ['About Us', '/about'],
   ['Courses', '/courses'],
   ['Services', '/services'],
+  ['Navstar AI', '/ai'],
   ['Gallery', '/gallery'],
   ['Fee Structures', '/fees'],
   ['Pay for Services', '/pay'],
