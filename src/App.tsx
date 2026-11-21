@@ -51,7 +51,7 @@ function IdleSessionGuard() {
     if (!protectedPath) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let timeoutMs = 8 * 60 * 60 * 1000;
-    let role = pathname === '/student-portal' ? 'student' : pathname.startsWith('/admin') ? 'admin' : pathname.startsWith('/portals/') && pathname.split('/')[2] !== 'notifications' ? pathname.split('/')[2] : '';
+    let role = pathname === '/student-portal' ? 'student' : pathname.startsWith('/admin') ? 'admin' : pathname.startsWith('/portals/') && pathname.split('/')[2] !== 'notifications' ? pathname.split('/')[2] : (localStorage.getItem('navstar:lastRole') || '');
     const returnTo = pathname + search + hash;
     const loginGate = () => role ? '/login?role=' + encodeURIComponent(role) + '&returnTo=' + encodeURIComponent(returnTo) : '/portals';
     let lastPing = 0;
