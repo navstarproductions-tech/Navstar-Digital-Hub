@@ -1,4 +1,5 @@
 import { getSession } from '../_shared/auth.js';
+import { getCustomerSession } from '../_shared/customer-auth.js';
 const MODEL = '@cf/black-forest-labs/flux-2-klein-4b';
 const MAX_PROMPT = 4000;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -33,6 +34,7 @@ export async function onRequestPost({ request, env }) {
     if (!env?.AI || typeof env.AI.run !== 'function') return json({ error: 'Cloudflare Workers AI is not connected to this deployment.' }, 503);
     if (!env.DB) return json({ error: 'Navstar AI usage controls are temporarily unavailable. Please try again later.' }, 503);
     const sessionUser = await getSession(request, env).catch(() => null);
+    const customerUser = !sessionUser ? await getCustomerSession(request, env).catch(() => null) : null;
     let body;
     try { body = await request.json(); } catch { return json({ error: 'Invalid image request.' }, 400); }
     const settingsRow = env.DB ? await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first().catch(() => null) : null;
@@ -43,7 +45,7 @@ export async function onRequestPost({ request, env }) {
     if (!prompt) return json({ error: 'Describe the image you want to create or edit.' }, 400);
     if (Array.isArray(body.images) && body.images.length > 4) return json({ error: 'Attach no more than four reference images per generation.' }, 400);
     const references = Array.isArray(body.images) ? body.images : [];
-    const identityHash = await usageIdentity(request, sessionUser);
+    const identityHash = await usageIdentity(request, sessionUser || customerUser);
     const generationLimit = Math.max(1, Math.min(20, Number(settings.aiDailyImageGenerations) || 5));
     const usageStart = eatDayStart();
     const usedRow = await env.DB.prepare("SELECT COUNT(*) AS total FROM api_rate_limits WHERE scope = 'ai-image-generation-day' AND key_hash = ? AND created_at >= ?").bind(identityHash, usageStart).first();
