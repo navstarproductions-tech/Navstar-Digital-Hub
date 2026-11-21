@@ -52,6 +52,22 @@ const sections: Section[] = [
   {title:'Branch directory',fields:[{key:'campusDirectory',label:'Branches (one per line: branch name | town | status)',type:'textarea',help:'Example: Main, Bungoma Branch | Bungoma | Active'}]},
   {title:'Staff assignment',fields:[{key:'campusStaffRules',label:'Campus staff assignment notes / rules',type:'textarea'}]},
   {title:'Kenya local administration directory',fields:[{key:'locationOptions',label:'Locations (one per line: Ward | Location)',type:'textarea',help:'Use the exact ward name from the national directory, then the location name. Example: Township | Nambale Township.'},{key:'subLocationOptions',label:'Sub-locations (one per line: Location | Sub-location)',type:'textarea',help:'Link each sub-location to its parent location. Example: Nambale Township | Nambale Central.'}]}]},
+ {id:'privacy-policies',label:'Privacy, Policies & Terms',description:'Prepare the institution’s privacy notices, acceptable-use rules, safeguarding guidance and terms. AI drafts are editable working documents and must be reviewed and approved before publication.',groups:[
+  {title:'Privacy and data protection',description:'Explain what information is collected, why it is used, who can access it, how long it is retained and how people can exercise their rights.',fields:[
+   {key:'privacyPolicy',label:'Privacy policy',type:'textarea',help:'Describe data collected, purpose, lawful basis, access controls, retention, sharing, user rights and contact for privacy requests.'},
+   {key:'studentDataPrivacyNotice',label:'Student and learner data notice',type:'textarea',help:'Cover learner records, marks, attendance, guardian contacts, portal access and appropriate disclosure.'},
+   {key:'aiDataUseNotice',label:'AI assistant data-use notice',type:'textarea',help:'Explain prompts, uploaded documents, image processing, AI limitations, review and retention. Do not promise that AI outputs are always correct.'},
+   {key:'cookiesNotice',label:'Cookies and session notice',type:'textarea'},
+  ]},
+  {title:'Terms, safety and institutional policies',fields:[
+   {key:'termsConditions',label:'Website and service terms and conditions',type:'textarea'},
+   {key:'acceptableUsePolicy',label:'Acceptable use and digital safety policy',type:'textarea'},
+   {key:'childSafeguardingPolicy',label:'Child and learner safeguarding policy',type:'textarea'},
+   {key:'informationSecurityPolicy',label:'Information security policy',type:'textarea'},
+   {key:'dataRetentionPolicy',label:'Data retention and deletion schedule',type:'textarea'},
+   {key:'complaintsAndAppealsPolicy',label:'Complaints, feedback and appeals procedure',type:'textarea'},
+  ]},
+ ]},
  {id:'rules',label:'Rules & Regulations',description:'Maintain institution rules, categories and effective status.',groups:[
   {title:'Rules register',fields:[{key:'rulesRegister',label:'Rules (one per line: category | rule | effective status)',type:'textarea',help:'Add one rule per line. Use Active or Archived as the final value.'}]}]},
  {id:'grading',label:'Marks & Grading',description:'Configure the grading scale. Conditional grades such as ABS, MM and I are not percentage-based.',groups:[
