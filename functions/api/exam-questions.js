@@ -211,10 +211,11 @@ async function importQuestions(db,user,assessmentId,items,options={}){
   normalized.push({id:uuid(),question,type,options,answer,explanation:safeString(q.explanation,1500),points,sortOrder:Number.isInteger(Number(q.sortOrder))?Number(q.sortOrder):index});
  }
  const incoming=normalized.reduce((sum,q)=>sum+q.points,0);
- if(!Number.isFinite(incoming)||Number(current?.total||0)+incoming>Number(assessment.max_points))return error('Imported questions would exceed the paper maximum of '+assessment.max_points+' marks.');
+ const paperMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
+ if(!Number.isFinite(incoming)||Number(current?.total||0)+incoming>paperMaximum)return error('Imported questions would exceed the paper maximum of '+paperMaximum+' marks.');
  const statements=[];
  if(replaceAll)statements.push(db.prepare("UPDATE course_exam_questions SET status='archived' WHERE assessment_id=? AND status='active'").bind(assessmentId));
  for(const q of normalized)statements.push(db.prepare('INSERT INTO course_exam_questions(id,assessment_id,question_text,question_type,options_json,correct_answer_json,explanation,points,sort_order,created_by) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(q.id,assessmentId,q.question,q.type,JSON.stringify(q.options),q.answer===null?null:JSON.stringify(q.answer),q.explanation,q.points,q.sortOrder,user.id));
- await db.batch(statements);
+ try{await db.batch(statements);}catch(e){console.error('Navstar exam question save failed',e?.name||'Error',safeString(e?.message,500));throw new Error('The generated questions could not be written to the exam question table. Existing questions were not changed. Please retry or contact Navstar support.');}
  return json({imported:normalized.length,replaced:replaceAll});
 }
