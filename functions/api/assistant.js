@@ -167,7 +167,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const identityHash = await usageIdentity(request, sessionUser || customerUser);
-    const textLimit = Math.max(1, Math.min(500, Number(aiSettings[context === 'admin' ? 'aiAdminDailyRequests' : context === 'student' ? 'aiStudentDailyRequests' : 'aiPublicDailyRequests']) || (context === 'admin' ? 100 : context === 'student' ? 60 : 20));
+    const textLimit = Math.max(1, Math.min(500, Number(aiSettings[context === 'admin' ? 'aiAdminDailyRequests' : context === 'student' ? 'aiStudentDailyRequests' : 'aiPublicDailyRequests']) || (context === 'admin' ? 100 : context === 'student' ? 60 : 20)));
     const textUsed = await usageCount(env.DB, 'ai-text-day', identityHash);
     if (textUsed >= textLimit) return json({ error: 'You have reached today’s Navstar AI message limit (' + textLimit + '). Please try again tomorrow or contact an administrator.', code: 'AI_DAILY_LIMIT', limit: textLimit, used: textUsed }, 429, requestId);
     const imageUploads = attachments.filter(file => clean(file?.kind, 20) === 'image').length;
