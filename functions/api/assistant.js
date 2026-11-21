@@ -184,7 +184,7 @@ export async function onRequestPost({ request, env }) {
 
     stage = 'process_attachments';
     const currentUser = messages[messages.length - 1];
-    if (context === 'admin' && aiSettings.aiExamQuestionGeneration === false && /\b(exam|examination|CAT|test paper|question paper|marking scheme|assessment questions)\b/i.test(currentUser.content)) {
+    if ((context === 'admin' || context === 'staff') && aiSettings.aiExamQuestionGeneration === false && /\b(exam|examination|CAT|test paper|question paper|marking scheme|assessment questions)\b/i.test(currentUser.content)) {
       return json({ error: 'AI exam and question generation is disabled in Admin Settings → Navstar AI.', code: 'AI_EXAM_DRAFTING_DISABLED', requestId }, 403, requestId);
     }
     if (context === 'admin' && aiSettings.aiPolicyDrafting === false && /\b(policy|privacy notice|privacy policy|terms and conditions|rules and regulations|code of conduct|institutional rules)\b/i.test(currentUser.content)) {
@@ -256,7 +256,7 @@ export async function onRequestPost({ request, env }) {
     ];
     const result = await env.AI.run(model, {
       messages: aiMessages,
-      max_completion_tokens: Math.max(256, Math.min(900, Number(aiSettings.aiMaxResponseTokens) || (context === 'public' ? 550 : 850))),
+      max_completion_tokens: Math.max(256, Math.min(context === 'public' ? 600 : 900, Number(aiSettings.aiMaxResponseTokens) || (context === 'public' ? 550 : 850))),
       temperature: 0.4,
       chat_template_kwargs: { enable_thinking: false }
     });
