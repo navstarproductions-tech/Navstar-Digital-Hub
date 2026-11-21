@@ -43,6 +43,7 @@ export function LoginPage() {
       if (!response.ok) return;
       const result = await response.json() as { user?: { role?: string; mustChangePassword?: boolean } };
       const signedInRole = result.user?.role;
+      if (signedInRole) { try { localStorage.setItem('navstar:lastRole', signedInRole); } catch { /* Optional routing preference only. */ } }
       if (!active || !signedInRole || !allowedRoles.includes(signedInRole)) return;
       const fallback = result.user?.mustChangePassword ? '/change-password' : signedInRole === 'admin' ? '/admin' : signedInRole === 'student' ? '/student-portal' : `/portals/${signedInRole}`;
       navigate(result.user?.mustChangePassword ? fallback : destination(fallback), { replace: true });
@@ -61,6 +62,7 @@ export function LoginPage() {
       });
       const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
       if (!response.ok || !result.user) throw new Error(result.error ?? 'Sign-in could not be completed. Check your details or contact Navstar.');
+      try { localStorage.setItem('navstar:lastRole', result.user.role); } catch { /* Optional routing preference only. */ }
       navigate(result.user.mustChangePassword ? '/change-password' : destination('/student-portal'), { replace: true });
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Sign-in could not be completed.'); }
     finally { setLoading(false); }
@@ -74,6 +76,7 @@ export function LoginPage() {
       const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role, email: formData.get('email'), password: formData.get('password') }) });
       const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
       if (!result.user) throw new Error(result.error || 'Sign-in could not be completed.');
+      try { localStorage.setItem('navstar:lastRole', result.user.role); } catch { /* Optional routing preference only. */ }
       const fallback = result.user.role === 'admin' ? '/admin' : result.user.role === 'student' ? '/student-portal' : `/portals/${result.user.role}`;
       navigate(result.user.mustChangePassword ? '/change-password' : destination(fallback), { replace: true });
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Sign-in could not be completed.'); }
