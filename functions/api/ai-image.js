@@ -7,7 +7,7 @@ function json(data, status = 200) {
 }
 function clean(value, max = 1000) { return typeof value === 'string' ? value.trim().slice(0, max) : ''; }
 function decodeImage(value) {
-  const match = /^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(value || '');
+  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(value || '');
   if (!match) throw new Error('Use a JPG, PNG or WebP reference image.');
   const binary = atob(match[2]);
   const bytes = new Uint8Array(binary.length);
