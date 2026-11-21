@@ -33,8 +33,7 @@ function extractAnswer(result) {
     ?? '';
   if (typeof value === 'string') return value.trim();
   if (Array.isArray(value)) {
-    return value.map(part => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('\n');
-').trim();
+    return value.map(part => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('\n').trim();
   }
   return '';
 }
@@ -250,9 +249,7 @@ export async function onRequestPost({ request, env }) {
         ? 'You are supporting a Navstar learner. Teach step by step, show workings for Mathematics and Physics, explain ICT and programming clearly, and guide assignment planning without falsely claiming to submit work or alter marks.'
         : 'You are the public Navstar guide. Use the supplied published catalogue and configured intake notice when answering course and admissions questions. Do not invent admission status, available seats, fees, deadlines or personal application results. Direct personal status checks to secure sign-in.';
     const aiMessages = [
-      { role: 'system', content: SYSTEM_PROMPT + '\
-\
-' + contextInstructions + liveContext },
+      { role: 'system', content: SYSTEM_PROMPT + '\n\n' + contextInstructions + liveContext },
       ...messages.slice(0, -1),
       { role: 'user', content: contentParts }
     ];
