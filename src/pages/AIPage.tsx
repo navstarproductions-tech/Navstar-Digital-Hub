@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, BookOpen, Compass, Download, FileText, GraduationCap, Image as ImageIcon, ImagePlus, Library, Loader2, Maximize2, MessageSquarePlus, Minus, Paperclip, PanelLeftClose, PanelLeftOpen, Plus, Search, Send, Sparkles, Trash2, WandSparkles, X, Volume2, ThumbsUp, ThumbsDown, RefreshCw, GitBranch, Settings, Share2, UserRound } from 'lucide-react';
+import { Bot, BookOpen, Compass, Download, FileText, GraduationCap, Image as ImageIcon, ImagePlus, Library, Loader2, Maximize2, MessageSquarePlus, Minus, Paperclip, PanelLeftClose, PanelLeftOpen, Plus, Search, Send, Sparkles, Trash2, WandSparkles, X, Volume2, ThumbsUp, ThumbsDown, RefreshCw, GitBranch, Settings, Share2, UserRound, Pencil } from 'lucide-react';
 
 type ChatMessage={role:'user'|'assistant';content:string;image?:string;files?:string[];feedback?:'like'|'dislike'};
 type ChatAttachment={name:string;mimeType:string;data:string;kind:'image'|'pdf'|'text';size:number};
