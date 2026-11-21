@@ -211,8 +211,8 @@ export async function onRequestPost({request,env}){
     const type=safeString(body.assessmentType,20);
     if(!['test','exam','practical','cat'].includes(type))return error('Choose a valid exam type.');
     const generatedTitle=selectedModule.title+' — '+({cat:'CAT',exam:'Final Examination',practical:'Practical Assessment',test:'Test'}[type]);
-    await env.DB.prepare('UPDATE course_assessments SET course_id=?,module_id=?,title=?,assessment_type=?,description=?,instructions=?,starts_at=?,due_at=?,max_points=?,duration_minutes=?,pass_mark=?,max_attempts=?,require_full_fee_payment=?,require_assignment_submission=?,allow_result_review=?,require_admin_approval=? WHERE id=?')
-      .bind(courseId,moduleId,generatedTitle,type,safeString(body.description,3000),safeString(body.instructions,5000),startsAt,endsAt,maxPoints,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.requireAdminApproval?1:0,assessmentId).run();
+    await env.DB.prepare('UPDATE course_assessments SET course_id=?,module_id=?,title=?,assessment_type=?,description=?,instructions=?,starts_at=?,due_at=?,max_points=?,duration_minutes=?,pass_mark=?,max_attempts=?,require_full_fee_payment=?,require_assignment_submission=?,allow_result_review=?,shuffle_questions=?,disable_copy_paste=?,strict_time_limit=?,require_admin_approval=? WHERE id=?')
+      .bind(courseId,moduleId,generatedTitle,type,safeString(body.description,3000),safeString(body.instructions,5000),startsAt,endsAt,maxPoints,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.shuffleQuestions?1:0,body.disableCopyPaste?1:0,body.strictTimeLimit===false?0:1,body.requireAdminApproval?1:0,assessmentId).run();
     await audit('assessment_updated','assessment',assessmentId);
     return json({id:assessmentId,updated:true});
   }
