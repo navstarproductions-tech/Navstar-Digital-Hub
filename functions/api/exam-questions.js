@@ -20,8 +20,9 @@ export async function onRequestGet({request,env}){
  if(!env.DB)return error('Exam question database is not configured.',503);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  const assessmentId=safeString(new URL(request.url).searchParams.get('assessmentId'),80);
- const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,a.max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.require_admin_approval,a.allow_result_review,c.title AS course_title,m.title AS module_title,m.code AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
+ const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,CASE WHEN a.max_points>0 THEN a.max_points ELSE 100 END AS max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.require_admin_approval,a.allow_result_review,c.title AS course_title,m.title AS module_title,m.code AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not available.',404);
+ const paperMaximum=paperMaximum>0?Number(assessment.max_points):100;
  const student=user.role==='student';
  if(student&&(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())))return error('This examination is not currently open.',403);
  let revealAnswers=!student;
@@ -31,7 +32,7 @@ export async function onRequestGet({request,env}){
  }
  const rows=await env.DB.prepare('SELECT id,question_text AS questionText,question_type AS questionType,options_json AS optionsJson,points,sort_order AS sortOrder,explanation,correct_answer_json AS correctAnswerJson FROM course_exam_questions WHERE assessment_id=? AND status=? ORDER BY sort_order,id').bind(assessmentId,'active').all();
  const questions=(rows.results||[]).map(q=>({id:q.id,questionText:q.questionText,questionType:q.questionType,options:JSON.parse(q.optionsJson||'[]'),points:q.points,sortOrder:q.sortOrder,...(revealAnswers?{correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}:{})}));
- return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:assessment.max_points,durationMinutes:assessment.duration_minutes},questions});
+ return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:paperMaximum,durationMinutes:assessment.duration_minutes},questions});
 }
 export async function onRequestPost({request,env}){
  if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
@@ -41,6 +42,7 @@ export async function onRequestPost({request,env}){
  const action=safeString(body.action,32),assessmentId=safeString(body.assessmentId,80);
  const assessment=await env.DB.prepare('SELECT id,course_id,module_id,title,max_points,status,starts_at,due_at,duration_minutes,max_attempts,require_admin_approval,require_full_fee_payment,require_assignment_submission FROM course_assessments WHERE id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not found or access denied.',404);
+ const paperMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
  if(action==='delete_all'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
   await env.DB.prepare("UPDATE course_exam_questions SET status='archived' WHERE assessment_id=?").bind(assessmentId).run();
@@ -54,9 +56,9 @@ export async function onRequestPost({request,env}){
   if(!module?.title)return error('This exam must be linked to a module before AI can set its questions.',409);
   if(!Number.isInteger(pointsPerQuestion)||pointsPerQuestion<1||pointsPerQuestion>1000)return error('Enter valid marks per question.');
   if(!['multiple_choice','single_choice','true_false','short_answer','mixed'].includes(questionType))return error('Choose a supported AI question type.');
-  if(pointsPerQuestion*count>Number(assessment.max_points))return error('The requested questions exceed the paper maximum of '+assessment.max_points+' marks.');
+  if(pointsPerQuestion*count>Number(assessment.max_points))return error('The requested questions exceed the paper maximum of '+paperMaximum+' marks.');
   const existingTotal=await env.DB.prepare('SELECT COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status=?').bind(assessmentId,'active').first();
-  if(!replaceAll&&Number(existingTotal?.total||0)+pointsPerQuestion*count>Number(assessment.max_points))return error('The new questions would exceed the remaining '+(Number(assessment.max_points)-Number(existingTotal?.total||0))+' marks.');
+  if(!replaceAll&&Number(existingTotal?.total||0)+pointsPerQuestion*count>Number(assessment.max_points))return error('The new questions would exceed the remaining '+(paperMaximum-Number(existingTotal?.total||0))+' marks.');
   if(!topic&& !module.title)return error('Select a module or enter a topic.');
   const settingsRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first().catch(()=>null);
   let aiSettings={};
