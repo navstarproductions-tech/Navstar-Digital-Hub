@@ -187,7 +187,7 @@ export async function onRequestPost({ request, env }) {
     if ((context === 'admin' || context === 'staff') && aiSettings.aiExamQuestionGeneration === false && /\b(exam|examination|CAT|test paper|question paper|marking scheme|assessment questions)\b/i.test(currentUser.content)) {
       return json({ error: 'AI exam and question generation is disabled in Admin Settings → Navstar AI.', code: 'AI_EXAM_DRAFTING_DISABLED', requestId }, 403, requestId);
     }
-    if (context === 'admin' && aiSettings.aiPolicyDrafting === false && /\b(policy|privacy notice|privacy policy|terms and conditions|rules and regulations|\\brules\\b|code of conduct|institutional rules)\b/i.test(currentUser.content)) {
+    if (context === 'admin' && aiSettings.aiPolicyDrafting === false && /\b(policy|privacy notice|privacy policy|terms and conditions|rules and regulations|\brules\b|code of conduct|institutional rules)\b/i.test(currentUser.content)) {
       return json({ error: 'AI policy and rules drafting is disabled in Admin Settings → Navstar AI.', code: 'AI_POLICY_DRAFTING_DISABLED', requestId }, 403, requestId);
     }
     const contentParts = [{ type: 'text', text: currentUser.content || 'Please analyse the attached file(s).' }];
