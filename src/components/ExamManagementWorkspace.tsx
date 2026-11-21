@@ -10,7 +10,7 @@ const field='w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2
 const btn='inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 disabled:opacity-50';
 const soft='inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800';
 const label='mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400';
-const typeName=(t:string)=>({cat:'CAT',exam:'Final Examination',practical:'Practical Assessment',test:'Test'}[t]||t);
+const typeName=(t:string)=>({cat:'CAT',exam:'Final Examination',practical:'Practical Assessment',test:'CAT'}[t]||t);
 const localDate=(value?:string|null)=>value?new Date(value).toLocaleString('en-KE',{timeZone:'Africa/Nairobi',dateStyle:'medium',timeStyle:'short'}):'Not scheduled';
 const eatParts=(value?:string|null)=>{if(!value)return {date:'',time:'09:00'};const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value));const get=(k:string)=>parts.find(p=>p.type===k)?.value||'';return {date:get('year')+'-'+get('month')+'-'+get('day'),time:get('hour')+':'+get('minute')};};
 const autoTitle=(module:Module|undefined,type:string,course:Course|undefined)=>module?module.title+' — '+typeName(type):((course?.title||'Course')+' — '+typeName(type));
