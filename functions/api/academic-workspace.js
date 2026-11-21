@@ -89,7 +89,7 @@ export async function onRequestPost({request,env}){
   }
   const totalMax=components.reduce((n,c)=>n+Number(c.max),0);
   if(total>Number(a.max_points)||totalMax>Number(a.max_points))return error('Component totals cannot exceed the assessment maximum.');
-  const cfg=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();let examConfig={};try{examConfig=JSON.parse(cfg?.settings_json||'{}')}catch{}
+  const cfg=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();let allConfig={};try{allConfig=JSON.parse(cfg?.value||'{}')}catch{}const gradeText=String(allConfig.grading?.gradeScale||'');const examConfig={publishedMaximum:Number(allConfig.grading?.publishedMaximum)||100,gradingScale:gradeText.split(/\r?\n/).map(line=>line.split('|').map(part=>part.trim())).filter(p=>p[0]&&p[2]!==''&&p[3]!==''&&p[2]!=='—'&&p[3]!=='—').map(p=>({grade:p[0],min:Number(p[2]),max:Number(p[3]),remarks:p.slice(4).join(' | ')}))};
   const paper=await env.DB.prepare('SELECT assessment_type FROM course_assessments WHERE id=?').bind(assessmentId).first();
   const targetMax=categoryMaximum(paper?.assessment_type,examConfig),published=scaleScore(total,totalMax,targetMax);
   statements.push(env.DB.prepare('INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points').bind(uuid(),assessmentId,studentId,published,clean(b.feedback,2000),b.publish===true?new Date().toISOString():null,user.id,total,targetMax));
@@ -109,8 +109,8 @@ export async function onRequestPost({request,env}){
    FROM course_modules m LEFT JOIN course_assessments a ON a.module_id=m.id
    LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=? AND r.published_at IS NOT NULL
    WHERE m.course_id=? GROUP BY m.id ORDER BY m.sort_order,m.title`).bind(studentId,courseId).all()).results||[];
-  const cfgRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();
-  let grading=[];try{grading=JSON.parse(cfgRow?.settings_json||'{}').gradingScale||[]}catch{}
+  const cfgRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
+  let allConfig={};try{allConfig=JSON.parse(cfgRow?.value||'{}')}catch{}const gradingText=String(allConfig.grading?.gradeScale||'');const grading=gradingText.split(/\r?\n/).map(line=>line.split('|').map(part=>part.trim())).filter(p=>p[0]&&p[2]!==''&&p[3]!==''&&p[2]!=='—'&&p[3]!=='—').map(p=>({grade:p[0],min:Number(p[2]),max:Number(p[3]),remarks:p.slice(4).join(' | ')}));
   const paid=Number(student.amount_paid||0),fee=Number(student.course_fee||0),balance=Math.max(0,fee-paid);
   const intakeText=clean(student.preferred_intake,60),monthMap={january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12'};const month=Object.keys(monthMap).find(m=>intakeText.toLowerCase().includes(m));const year=(intakeText.match(/20\d{2}/)||[])[0];const intake=month&&year?monthMap[month]+year.slice(-2):(intakeText.replace(/[^a-z0-9]/gi,'').slice(0,4)||'0000').toUpperCase();
   const gradedResults=results.map(x=>{const pct=Number(x.percentage||0),g=grading.find((item)=>pct>=Number(item.min??item.from??0)&&pct<=Number(item.max??item.to??100));return {...x,grade:g?.grade||'—',remarks:g?.remarks||g?.remark||'Recorded result'};});
