@@ -20,13 +20,13 @@ export async function onRequestGet({request,env}){
  if(!env.DB)return error('Exam question database is not configured.',503);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  const assessmentId=safeString(new URL(request.url).searchParams.get('assessmentId'),80);
- const assessment=await env.DB.prepare('SELECT id,course_id,status,starts_at,due_at,duration_minutes,require_admin_approval FROM course_assessments WHERE id=?').bind(assessmentId).first();
+ const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,a.max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.require_admin_approval,c.title AS course_title,m.title AS module_title,m.code AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not available.',404);
  const student=user.role==='student';
  if(student&&(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())))return error('This examination is not currently open.',403);
  const rows=await env.DB.prepare('SELECT id,question_text AS questionText,question_type AS questionType,options_json AS optionsJson,points,sort_order AS sortOrder,explanation,correct_answer_json AS correctAnswerJson FROM course_exam_questions WHERE assessment_id=? AND status=? ORDER BY sort_order,id').bind(assessmentId,'active').all();
  const questions=(rows.results||[]).map(q=>({id:q.id,questionText:q.questionText,questionType:q.questionType,options:JSON.parse(q.optionsJson||'[]'),points:q.points,sortOrder:q.sortOrder,...(!student?{correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}:{})}));
- return json({assessment:{id:assessment.id,durationMinutes:assessment.duration_minutes},questions});
+ return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:assessment.max_points,durationMinutes:assessment.duration_minutes},questions});
 }
 export async function onRequestPost({request,env}){
  if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
@@ -36,17 +36,30 @@ export async function onRequestPost({request,env}){
  const action=safeString(body.action,32),assessmentId=safeString(body.assessmentId,80);
  const assessment=await env.DB.prepare('SELECT id,course_id,status,starts_at,due_at,duration_minutes,max_attempts,require_admin_approval FROM course_assessments WHERE id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not found or access denied.',404);
+ if(action==='delete_all'){
+  const access=await requireRole(request,env,staff);if(access.response)return access.response;
+  await env.DB.prepare('DELETE FROM course_exam_questions WHERE assessment_id=?').bind(assessmentId).run();
+  return json({deleted:true});
+ }
  if(action==='generate_ai'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
-  const topic=safeString(body.topic,500),count=Math.max(1,Math.min(20,Number(body.count)||5)),level=safeString(body.level,40)||'intermediate';
-  if(!topic)return error('Enter a topic or learning outcome for question generation.');
+  const topic=safeString(body.topic,500),count=Math.max(1,Math.min(100,Number(body.count)||5)),level=safeString(body.level,40)||'medium';
+  const questionType=safeString(body.questionType,40)||'multiple_choice',pointsPerQuestion=Number(body.pointsPerQuestion||2),replaceAll=body.replaceAll===true;
+  const module=await env.DB.prepare('SELECT m.title,m.code,c.title AS course_title FROM course_assessments a LEFT JOIN course_modules m ON m.id=a.module_id JOIN courses c ON c.id=a.course_id WHERE a.id=?').bind(assessmentId).first();
+  if(!module?.title)return error('This exam must be linked to a module before AI can set its questions.',409);
+  if(!Number.isInteger(pointsPerQuestion)||pointsPerQuestion<1||pointsPerQuestion>1000)return error('Enter valid marks per question.');
+  if(!['multiple_choice','single_choice','true_false','short_answer','mixed'].includes(questionType))return error('Choose a supported AI question type.');
+  if(pointsPerQuestion*count>Number(assessment.max_points))return error('The requested questions exceed the paper maximum of '+assessment.max_points+' marks.');
+  const existingTotal=await env.DB.prepare('SELECT COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status=?').bind(assessmentId,'active').first();
+  if(!replaceAll&&Number(existingTotal?.total||0)+pointsPerQuestion*count>Number(assessment.max_points))return error('The new questions would exceed the remaining '+(Number(assessment.max_points)-Number(existingTotal?.total||0))+' marks.');
+  if(!topic&& !module.title)return error('Select a module or enter a topic.');
   const settingsRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first().catch(()=>null);
   let aiSettings={};
-  try{const saved=JSON.parse(settingsRow?.value||'{}');aiSettings=saved?.['ai-assistant']||{};}catch{/* Use safe defaults when settings are unavailable. */}
+  try{const saved=JSON.parse(settingsRow?.value||'{}');aiSettings=saved?.['ai-assistant']||{};}catch{/* Safe defaults. */}
   if(aiSettings.aiEnabled===false||aiSettings.aiExamQuestionGeneration===false)return error('AI exam question generation is currently disabled in Admin Settings → Navstar AI.',403);
   if(!env.AI||typeof env.AI.run!=='function')return error('Cloudflare Workers AI is not connected to this deployment. Check the Production AI binding.',503);
   const model=safeString(env.NAVSTAR_AI_MODEL,120)||'@cf/google/gemma-4-26b-a4b-it';
-  const prompt='Create '+count+' original '+level+' assessment questions about: '+topic+'. Return ONLY a valid JSON object with a "questions" array. Each question must contain questionText, questionType (single_choice, multiple_choice, true_false, short_answer, essay), options (array of strings), correctAnswer (string or array), points (integer), and explanation. Include answer keys. Use objective types where suitable and include at least one short answer if count permits. Do not include markdown or text outside the JSON object.';
+  const prompt='Create exactly '+count+' original '+level+' assessment questions for the module "'+module.title+'" ('+(module.code||'no module code')+') in the course "'+module.course_title+'". Exam title: "'+assessment.title+'". '+(topic?'Focus specifically on this topic: '+topic+'.':'Cover the full module syllabus and its key learning outcomes.')+' Question type: '+questionType+'. Each question must carry exactly '+pointsPerQuestion+' marks. Return ONLY a valid JSON object with a "questions" array. Each question must contain questionText, questionType (single_choice, multiple_choice, true_false, short_answer, essay), options (array of strings), correctAnswer (string or array), points exactly '+pointsPerQuestion+', and explanation. For objective questions include unambiguous answer keys. Do not include markdown or text outside JSON.';
   let generated;
   try{
    const result=await env.AI.run(model,{
@@ -70,7 +83,13 @@ export async function onRequestPost({request,env}){
    return error(safeString(e?.message,300)||'Cloudflare AI could not generate questions. Please try again.',502);
   }
   if(!Array.isArray(generated)||!generated.length)return error('Cloudflare AI returned no questions. Try adjusting the topic or question count.',502);
-  const result=await importQuestions(env.DB,user,assessmentId,generated.slice(0,count));
+  if(generated.length<count)return error('AI returned fewer questions than requested. Please try again.');
+  const normalized=generated.slice(0,count).map(q=>({...q,points:pointsPerQuestion}));
+  const totalMarks=normalized.reduce((n,q)=>n+Number(q.points||0),0);
+  if(totalMarks>Number(assessment.max_points))return error('Generated questions exceed the paper maximum.');
+  if(replaceAll)await env.DB.prepare('DELETE FROM course_exam_questions WHERE assessment_id=?').bind(assessmentId).run();
+  const result=await importQuestions(env.DB,user,assessmentId,normalized);
+
   return result;
  }
  if(action==='save_question'||action==='import_questions'){
@@ -84,6 +103,9 @@ export async function onRequestPost({request,env}){
    const correct=q.correctAnswer??q.answer??null;
    if(['single_choice','multiple_choice','true_false'].includes(type)&&(!options.length||correct===null||correct===''))return error('Objective questions need options and a correct answer.');
    const points=Number(q.points||1);if(!Number.isInteger(points)||points<1||points>1000)return error('Question marks must be between 1 and 1000.');
+   const current=await env.DB.prepare("SELECT COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status='active'").bind(assessmentId).first();
+   if(Number(current?.total||0)+points>Number(assessment.max_points))return error('Question marks exceed the paper maximum of '+assessment.max_points+'.');
+
    await env.DB.prepare('INSERT INTO course_exam_questions(id,assessment_id,question_text,question_type,options_json,correct_answer_json,explanation,points,sort_order,created_by) VALUES(?,?,?,?,?,?,?,?,?,?)')
     .bind(uuid(),assessmentId,question,type,JSON.stringify(options),correct===null?null:JSON.stringify(correct),safeString(q.explanation,1500),points,Number.isInteger(Number(q.sortOrder))?Number(q.sortOrder):0,user.id).run();
   }
