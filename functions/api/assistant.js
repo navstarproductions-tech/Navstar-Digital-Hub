@@ -53,7 +53,7 @@ async function convertDocument(env, file, decoded) {
 function eatDayStart() {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return values.year + '-' + values.month + '-' + values.day + 'T00:00:00+03:00';
+  return new Date(values.year + '-' + values.month + '-' + values.day + 'T00:00:00+03:00').toISOString();
 }
 async function usageIdentity(request, user) {
   const raw = user?.id ? 'user:' + user.id : 'ip:' + (request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown');
@@ -164,6 +164,12 @@ export async function onRequestPost({ request, env }) {
 
     stage = 'process_attachments';
     const currentUser = messages[messages.length - 1];
+    if (context === 'admin' && aiSettings.aiExamQuestionGeneration === false && /\b(exam|examination|CAT|test paper|question paper|marking scheme|assessment questions)\b/i.test(currentUser.content)) {
+      return json({ error: 'AI exam and question generation is disabled in Admin Settings → Navstar AI.', code: 'AI_EXAM_DRAFTING_DISABLED', requestId }, 403, requestId);
+    }
+    if (context === 'admin' && aiSettings.aiPolicyDrafting === false && /\b(policy|privacy notice|privacy policy|terms and conditions|rules and regulations|code of conduct|institutional rules)\b/i.test(currentUser.content)) {
+      return json({ error: 'AI policy and rules drafting is disabled in Admin Settings → Navstar AI.', code: 'AI_POLICY_DRAFTING_DISABLED', requestId }, 403, requestId);
+    }
     const contentParts = [{ type: 'text', text: currentUser.content || 'Please analyse the attached file(s).' }];
     for (const file of attachments) {
       const name = clean(file?.name, 180) || 'attachment';
