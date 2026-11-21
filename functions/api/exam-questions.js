@@ -24,7 +24,7 @@ export async function onRequestGet({request,env}){
  if(!env.DB)return error('Exam question database is not configured.',503);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  const assessmentId=safeString(new URL(request.url).searchParams.get('assessmentId'),80);
- const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,CASE WHEN a.max_points>0 THEN a.max_points ELSE 100 END AS max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.require_admin_approval,a.allow_result_review,c.title AS course_title,m.title AS module_title,m.code AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
+ const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,CASE WHEN a.max_points>0 THEN a.max_points ELSE 100 END AS max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.require_admin_approval,a.allow_result_review,c.title AS course_title,m.title AS module_title,NULL AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not available.',404);
  const paperMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
  const student=user.role==='student';
@@ -58,7 +58,7 @@ async function handleQuestionPost({request,env}){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
   const topic=safeString(body.topic,500),count=Math.max(1,Math.min(100,Number(body.count)||5)),level=safeString(body.level,40)||'medium';
   const questionType=safeString(body.questionType,40)||'multiple_choice',pointsPerQuestion=Number(body.pointsPerQuestion||2),replaceAll=body.replaceAll===true;
-  const module=await env.DB.prepare('SELECT m.title,m.code,c.title AS course_title FROM course_assessments a LEFT JOIN course_modules m ON m.id=a.module_id JOIN courses c ON c.id=a.course_id WHERE a.id=?').bind(assessmentId).first();
+  const module=await env.DB.prepare('SELECT m.title,c.title AS course_title FROM course_assessments a LEFT JOIN course_modules m ON m.id=a.module_id JOIN courses c ON c.id=a.course_id WHERE a.id=?').bind(assessmentId).first();
   if(!module?.title)return error('This exam must be linked to a module before AI can set its questions.',409);
   if(!Number.isInteger(pointsPerQuestion)||pointsPerQuestion<1||pointsPerQuestion>1000)return error('Enter valid marks per question.');
   if(!['multiple_choice','single_choice','true_false','short_answer','mixed'].includes(questionType))return error('Choose a supported AI question type.');
