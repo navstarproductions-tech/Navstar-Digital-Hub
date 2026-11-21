@@ -244,13 +244,13 @@ export async function onRequestPost({request,env}){
     if(!ready.length)return error('No course is ready. Each selected course needs active enrolled students and at least one exam paper for every published module.');
     const statements=[],scheduledPapers=[];
     const parseTime=(day,time)=>new Date(day+'T'+time+':00+03:00');
-    const nextWeekday=(date)=>{const d=new Date(date+'T00:00:00+03:00');while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);};
+    const nextWeekday=(date)=>{const d=new Date(date+'T12:00:00Z');while([0,6].includes(d.getUTCDay()))d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10);};
     for(const item of ready){
       let day=nextWeekday(startText),index=0;
       const papers=item.papers;
       while(index<papers.length){
         if(day>endText)return error('The selected end date is too early to schedule all module papers. Extend the date range and try again.');
-        if([0,6].includes(new Date(day+'T00:00:00+03:00').getDay())){const d=new Date(day+'T00:00:00+03:00');d.setDate(d.getDate()+1);day=d.toISOString().slice(0,10);continue;}
+        if([0,6].includes(new Date(day+'T12:00:00Z').getUTCDay())){const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1);day=d.toISOString().slice(0,10);continue;}
         const count=Math.min(perDay,papers.length-index);
         for(let slot=0;slot<count;slot++){
           const paper=papers[index++],startMinutes=Number(morning.slice(0,2))*60+Number(morning.slice(3)),endMinutes=Number(evening.slice(0,2))*60+Number(evening.slice(3));
@@ -260,7 +260,7 @@ export async function onRequestPost({request,env}){
           statements.push(env.DB.prepare("UPDATE course_assessments SET starts_at=?,due_at=?,status='published' WHERE id=?").bind(starts.toISOString(),ends.toISOString(),paper.id));
           scheduledPapers.push({course:item.course.title,title:paper.title,startsAt:starts.toISOString(),endsAt:ends.toISOString()});
         }
-        const d=new Date(day+'T00:00:00+03:00');d.setDate(d.getDate()+1);day=nextWeekday(d.toISOString().slice(0,10));
+        const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1);day=nextWeekday(d.toISOString().slice(0,10));
       }
     }
     if(statements.length)await env.DB.batch(statements);
