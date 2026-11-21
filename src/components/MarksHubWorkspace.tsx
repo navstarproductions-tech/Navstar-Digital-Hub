@@ -5,7 +5,7 @@ import type { FormEvent } from 'react';
 type Course={id:string;title:string};
 type Module={id:string;title:string;course_id:string};
 type Exam={id:string;course_id:string;module_id?:string|null;course_title?:string;module_title?:string;title:string;assessment_type:string;instructions:string;starts_at?:string|null;due_at?:string|null;max_points:number;duration_minutes?:number;pass_mark?:number;max_attempts?:number;status:string;published_at?:string|null;archived_at?:string|null;}
-type Attempt={id:string;assessment_id:string;assessment_title:string;course_id:string;student_name?:string;user_id:string;status:string;points_awarded?:number|null;max_points:number;submitted_at:string;feedback?:string;published_at?:string|null};
+type Attempt={id:string;assessment_id:string;assessment_title:string;course_id:string;student_name?:string;user_id:string;status:string;points_awarded?:number|null;raw_points_awarded?:number|null;published_max_points?:number|null;max_points:number;submitted_at:string;feedback?:string;published_at?:string|null};
 type Props={subtab:string;courses:Course[]};
 const cls='w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900';
 const btn='rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50';
