@@ -32,7 +32,7 @@ function MessageText({content}:{content:string}){
 }
 function readFile(file:File):Promise<string>{return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('Could not read '+file.name));reader.readAsDataURL(file);});}
 
-export function AIChatWidget({embedded=false}:{embedded?:boolean}){
+export function AIChatWidget({embedded=false,context='public'}:{embedded?:boolean;context?:string}){
  const [open,setOpen]=useState(false);
  const [input,setInput]=useState('');
  const [busy,setBusy]=useState(false);
@@ -75,7 +75,7 @@ export function AIChatWidget({embedded=false}:{embedded?:boolean}){
   const next=[...messages,{role:'user' as const,content:question||'Please analyse the attached file(s).',attachments:metadata}];
   setMessages(next);setInput('');setBusy(true);setError('');
   try{
-   const response=await fetch('/api/assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:next.slice(-10).map(({role,content})=>({role,content})),attachments:attachments.map(({name,mimeType,data,kind})=>({name,mimeType,data,kind}))})});
+   const response=await fetch('/api/assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context,messages:next.slice(-10).map(({role,content})=>({role,content})),attachments:attachments.map(({name,mimeType,data,kind})=>({name,mimeType,data,kind}))})});
    const raw=await response.text();let data:{answer?:string;error?:string;code?:string;requestId?:string};
    try{data=JSON.parse(raw) as {answer?:string;error?:string;code?:string;requestId?:string};}
    catch{
