@@ -32,7 +32,8 @@ function extractAnswer(result) {
     ?? '';
   if (typeof value === 'string') return value.trim();
   if (Array.isArray(value)) {
-    return value.map(part => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('\n').trim();
+    return value.map(part => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('
+').trim();
   }
   return '';
 }
@@ -106,7 +107,9 @@ export async function onRequestPost({ request, env }) {
       return json({ error: 'Cloudflare Workers AI is not connected to this Production deployment. Check the AI binding and redeploy.', code: 'AI_BINDING_MISSING', requestId }, 503, requestId);
     }
 
-    if (!env.DB) return json({ error: 'Navstar AI usage controls are temporarily unavailable. Please try again later.', code: 'AI_USAGE_DB_UNAVAILABLE', requestId }, 503, requestId);\n\n    stage = 'read_request';
+    if (!env.DB) return json({ error: 'Navstar AI usage controls are temporarily unavailable. Please try again later.', code: 'AI_USAGE_DB_UNAVAILABLE', requestId }, 503, requestId);
+
+    stage = 'read_request';
     const raw = await request.text();
     if (!raw || raw.length > MAX_REQUEST_CHARS) {
       return json({ error: 'Your message or attachments are too large. Please use files under 8 MB each and try again.', code: 'AI_REQUEST_TOO_LARGE', requestId }, 413, requestId);
@@ -176,7 +179,10 @@ export async function onRequestPost({ request, env }) {
       const kind = clean(file?.kind, 20);
       if (kind === 'text') {
         const textContent = clean(file?.data, 120000);
-        if (textContent) contentParts[0].text += '\n\n[Attached text file: ' + name + ']\n' + textContent;
+        if (textContent) contentParts[0].text += '
+
+[Attached text file: ' + name + ']
+' + textContent;
         continue;
       }
 
@@ -193,7 +199,10 @@ export async function onRequestPost({ request, env }) {
       } else if ((kind === 'pdf' && decoded.mimeType === 'application/pdf') ||
                  (kind === 'image' && decoded.mimeType === 'image/gif')) {
         const extracted = await convertDocument(env, { name }, decoded);
-        contentParts[0].text += '\n\n[Extracted content from ' + name + ']\n' + extracted;
+        contentParts[0].text += '
+
+[Extracted content from ' + name + ']
+' + extracted;
       } else {
         return json({ error: 'Unsupported attachment format: ' + name + '. Use JPEG, PNG, WEBP, GIF, PDF or a text file.', code: 'AI_FILE_FORMAT_UNSUPPORTED', requestId }, 400, requestId);
       }
@@ -210,16 +219,19 @@ export async function onRequestPost({ request, env }) {
           duration: clean(course.duration, 60), category: clean(course.category, 80),
           feeKsh: Number(course.price || 0)
         }));
-        if (courses.length) liveContext += '\\nPublished active course catalogue (read-only): ' + JSON.stringify(courses);
+        if (courses.length) liveContext += '\
+Published active course catalogue (read-only): ' + JSON.stringify(courses);
       } catch (error) {
         logAI('course_context_unavailable', { requestId, errorMessage: clean(error?.message, 120) });
       }
       const intakeSettings = siteSettings?.['academic-intakes'] || {};
       if (typeof intakeSettings.intakes === 'string' && intakeSettings.intakes.trim()) {
-        liveContext += '\\nConfigured intake calendar (read-only; dates are YYYY-MM-DD): ' + clean(intakeSettings.intakes, 5000);
+        liveContext += '\
+Configured intake calendar (read-only; dates are YYYY-MM-DD): ' + clean(intakeSettings.intakes, 5000);
       }
       if (typeof intakeSettings.intakeStatusMessage === 'string' && intakeSettings.intakeStatusMessage.trim()) {
-        liveContext += '\\nOfficial public intake notice: ' + clean(intakeSettings.intakeStatusMessage, 1000);
+        liveContext += '\
+Official public intake notice: ' + clean(intakeSettings.intakeStatusMessage, 1000);
       }
     }
     const contextInstructions = context === 'admin'
@@ -228,7 +240,9 @@ export async function onRequestPost({ request, env }) {
         ? 'You are supporting a Navstar learner. Teach step by step, show workings for Mathematics and Physics, explain ICT and programming clearly, and guide assignment planning without falsely claiming to submit work or alter marks.'
         : 'You are the public Navstar guide. Use the supplied published catalogue and configured intake notice when answering course and admissions questions. Do not invent admission status, available seats, fees, deadlines or personal application results. Direct personal status checks to secure sign-in.';
     const aiMessages = [
-      { role: 'system', content: SYSTEM_PROMPT + '\\n\\n' + contextInstructions + liveContext },
+      { role: 'system', content: SYSTEM_PROMPT + '\
+\
+' + contextInstructions + liveContext },
       ...messages.slice(0, -1),
       { role: 'user', content: contentParts }
     ];
