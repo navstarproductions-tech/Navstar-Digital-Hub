@@ -33,7 +33,7 @@ function extractAnswer(result) {
     ?? '';
   if (typeof value === 'string') return value.trim();
   if (Array.isArray(value)) {
-    return value.map(part => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('
+    return value.map(part => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('\n');
 ').trim();
   }
   return '';
@@ -232,19 +232,16 @@ export async function onRequestPost({ request, env }) {
           duration: clean(course.duration, 60), category: clean(course.category, 80),
           feeKsh: Number(course.price || 0)
         }));
-        if (courses.length) liveContext += '\
-Published active course catalogue (read-only): ' + JSON.stringify(courses);
+        if (courses.length) liveContext += '\nPublished active course catalogue (read-only): ' + JSON.stringify(courses);
       } catch (error) {
         logAI('course_context_unavailable', { requestId, errorMessage: clean(error?.message, 120) });
       }
       const intakeSettings = siteSettings?.['academic-intakes'] || {};
       if (typeof intakeSettings.intakes === 'string' && intakeSettings.intakes.trim()) {
-        liveContext += '\
-Configured intake calendar (read-only; dates are YYYY-MM-DD): ' + clean(intakeSettings.intakes, 5000);
+        liveContext += '\nConfigured intake calendar (read-only; dates are YYYY-MM-DD): ' + clean(intakeSettings.intakes, 5000);
       }
       if (typeof intakeSettings.intakeStatusMessage === 'string' && intakeSettings.intakeStatusMessage.trim()) {
-        liveContext += '\
-Official public intake notice: ' + clean(intakeSettings.intakeStatusMessage, 1000);
+        liveContext += '\nOfficial public intake notice: ' + clean(intakeSettings.intakeStatusMessage, 1000);
       }
     }
     const contextInstructions = context === 'admin'
