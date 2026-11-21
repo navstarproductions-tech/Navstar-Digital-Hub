@@ -10,6 +10,7 @@ const sections: Section[] = [
    {key:'aiEnabled',label:'Enable Navstar AI across the platform',type:'toggle'},
    {key:'aiPublicAssistant',label:'Allow public website guidance',type:'toggle'},
    {key:'aiStudentLearning',label:'Enable student learning support (Mathematics, Physics, ICT and assignments)',type:'toggle'},
+   {key:'aiStaffAssistance',label:'Enable AI assistance for tutor, principal and admissions portals',type:'toggle'},
    {key:'aiDocumentAnalysis',label:'Allow image, PDF and text document analysis',type:'toggle'},
    {key:'aiImageGeneration',label:'Allow AI image generation and poster backgrounds',type:'toggle'},
    {key:'aiImageEditing',label:'Allow AI image editing and reference-image transformations',type:'toggle'},
@@ -20,6 +21,7 @@ const sections: Section[] = [
   {title:'Daily fair-use limits',description:'Server-enforced per-account limits. Counts reset at midnight East Africa Time (EAT).',fields:[
    {key:'aiPublicDailyRequests',label:'Public AI text requests per day',type:'number',min:1,max:200},
    {key:'aiStudentDailyRequests',label:'Student portal AI text requests per day',type:'number',min:1,max:500},
+   {key:'aiStaffDailyRequests',label:'Staff portal AI text requests per day',type:'number',min:1,max:500},
    {key:'aiAdminDailyRequests',label:'Administrator AI text requests per day',type:'number',min:1,max:500},
    {key:'aiDailyImageUploads',label:'Uploaded images per account per day',type:'number',min:1,max:30},
    {key:'aiDailyImageGenerations',label:'Generated images per account per day',type:'number',min:1,max:20},
