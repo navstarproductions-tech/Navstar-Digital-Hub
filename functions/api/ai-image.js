@@ -19,7 +19,7 @@ function decodeImage(value) {
 function eatDayStart() {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return values.year + '-' + values.month + '-' + values.day + 'T00:00:00+03:00';
+  return new Date(values.year + '-' + values.month + '-' + values.day + 'T00:00:00+03:00').toISOString();
 }
 async function usageIdentity(request, user) {
   const raw = user?.id ? 'user:' + user.id : 'ip:' + (request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown');
@@ -51,6 +51,7 @@ export async function onRequestPost({ request, env }) {
     if (references.length && settings.aiImageEditing === false) return json({ error: 'AI image editing is disabled in Admin Settings → Navstar AI.' }, 403);
 
     if (references.length && settings.aiImageEditing === false) return json({ error: 'AI image editing is disabled in Admin Settings → Navstar AI.' }, 403);
+    await env.DB.prepare('INSERT INTO api_rate_limits (id, scope, key_hash, created_at) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), 'ai-image-generation-day', identityHash, new Date().toISOString()).run();
     const form = new FormData();
     form.append('prompt', prompt);
     const width = Math.max(256, Math.min(1536, Number(body.width) || 1024));
