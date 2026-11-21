@@ -165,6 +165,17 @@ export async function onRequestPost({ request, env }) {
       return json({ error: 'Please attach no more than five files per message.', code: 'AI_TOO_MANY_FILES', requestId }, 400, requestId);
     }
 
+    const identityHash = await usageIdentity(request, sessionUser);
+    const textLimit = Math.max(1, Math.min(500, Number(aiSettings[context === 'admin' ? 'aiAdminDailyRequests' : context === 'student' ? 'aiStudentDailyRequests' : 'aiPublicDailyRequests']) || (context === 'admin' ? 100 : context === 'student' ? 60 : 20));
+    const textUsed = await usageCount(env.DB, 'ai-text-day', identityHash);
+    if (textUsed >= textLimit) return json({ error: 'You have reached today’s Navstar AI message limit (' + textLimit + '). Please try again tomorrow or contact an administrator.', code: 'AI_DAILY_LIMIT', limit: textLimit, used: textUsed }, 429, requestId);
+    const imageUploads = attachments.filter(file => clean(file?.kind, 20) === 'image').length;
+    const imageUploadLimit = Math.max(1, Math.min(30, Number(aiSettings.aiDailyImageUploads) || 5));
+    const imageUploadsUsed = await usageCount(env.DB, 'ai-image-upload-day', identityHash);
+    if (imageUploadsUsed + imageUploads > imageUploadLimit) return json({ error: 'Daily image upload limit reached. You may upload ' + imageUploadLimit + ' images per day.', code: 'AI_IMAGE_UPLOAD_DAILY_LIMIT', limit: imageUploadLimit, used: imageUploadsUsed }, 429, requestId);
+    await recordUsage(env.DB, 'ai-text-day', identityHash);
+    if (imageUploads) await recordUsage(env.DB, 'ai-image-upload-day', identityHash, imageUploads);
+
     stage = 'process_attachments';
     const currentUser = messages[messages.length - 1];
     if (context === 'admin' && aiSettings.aiExamQuestionGeneration === false && /\b(exam|examination|CAT|test paper|question paper|marking scheme|assessment questions)\b/i.test(currentUser.content)) {
