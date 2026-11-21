@@ -106,7 +106,7 @@ export async function onRequestPost({ request, env }) {
       return json({ error: 'Cloudflare Workers AI is not connected to this Production deployment. Check the AI binding and redeploy.', code: 'AI_BINDING_MISSING', requestId }, 503, requestId);
     }
 
-    stage = 'read_request';
+    if (!env.DB) return json({ error: 'Navstar AI usage controls are temporarily unavailable. Please try again later.', code: 'AI_USAGE_DB_UNAVAILABLE', requestId }, 503, requestId);\n\n    stage = 'read_request';
     const raw = await request.text();
     if (!raw || raw.length > MAX_REQUEST_CHARS) {
       return json({ error: 'Your message or attachments are too large. Please use files under 8 MB each and try again.', code: 'AI_REQUEST_TOO_LARGE', requestId }, 413, requestId);
