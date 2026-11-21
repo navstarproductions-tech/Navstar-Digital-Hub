@@ -151,7 +151,7 @@ function AppShell() {
             <Route path="*" element={<HomePage />} />
           </Routes>
         </div>
-        {!standalone && <Footer />}
+        {!standalone && pathname !== '/ai' && <Footer />}
       </div>
       <Toaster position="top-center" />
     </>
