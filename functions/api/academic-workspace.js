@@ -104,8 +104,8 @@ export async function onRequestPost({request,env}){
   const course=await env.DB.prepare('SELECT id,title FROM courses WHERE id=?').bind(courseId).first();
   const modules=(await env.DB.prepare('SELECT id,code,title FROM course_modules WHERE course_id=? ORDER BY sort_order,title').bind(courseId).all()).results||[];
   const results=(await env.DB.prepare(`SELECT m.id,m.code,m.title,
-   AVG(r.points_awarded*100.0/a.max_points) AS percentage,
-   SUM(r.points_awarded) AS total_points,SUM(a.max_points) AS max_points
+   AVG(r.points_awarded*100.0/COALESCE(r.published_max_points,a.max_points)) AS percentage,
+   SUM(r.points_awarded) AS total_points,SUM(COALESCE(r.published_max_points,a.max_points)) AS max_points
    FROM course_modules m LEFT JOIN course_assessments a ON a.module_id=m.id
    LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=? AND r.published_at IS NOT NULL
    WHERE m.course_id=? GROUP BY m.id ORDER BY m.sort_order,m.title`).bind(studentId,courseId).all()).results||[];
