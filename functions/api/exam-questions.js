@@ -34,7 +34,7 @@ export async function onRequestPost({request,env}){
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  let body;try{body=await readJson(request,500000);}catch{return error('Invalid question request.');}
  const action=safeString(body.action,32),assessmentId=safeString(body.assessmentId,80);
- const assessment=await env.DB.prepare('SELECT id,course_id,status,starts_at,due_at,duration_minutes,max_attempts,require_admin_approval FROM course_assessments WHERE id=?').bind(assessmentId).first();
+ const assessment=await env.DB.prepare('SELECT id,course_id,module_id,title,max_points,status,starts_at,due_at,duration_minutes,max_attempts,require_admin_approval FROM course_assessments WHERE id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not found or access denied.',404);
  if(action==='delete_all'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
