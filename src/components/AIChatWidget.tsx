@@ -32,7 +32,7 @@ function MessageText({content}:{content:string}){
 }
 function readFile(file:File):Promise<string>{return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('Could not read '+file.name));reader.readAsDataURL(file);});}
 
-export function AIChatWidget(){
+export function AIChatWidget({embedded=false}:{embedded?:boolean}){
  const [open,setOpen]=useState(false);
  const [input,setInput]=useState('');
  const [busy,setBusy]=useState(false);
@@ -86,9 +86,9 @@ export function AIChatWidget(){
   }catch(e){setMessages(current=>[...current,{role:'assistant',content:e instanceof Error?e.message:'The assistant is unavailable right now.'}]);}
   finally{setBusy(false);}
  };
- return <div className="fixed bottom-5 right-4 z-[80] sm:bottom-6 sm:right-6">
-  {open&&<section className="mb-3 flex h-[min(78vh,720px)] w-[min(calc(100vw-1.25rem),460px)] flex-col overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-[0_24px_80px_rgba(2,20,55,.28)]">
-   <header className="flex items-center justify-between bg-gradient-to-r from-[#061a3b] via-[#073b7d] to-[#075a9c] p-4 text-white"><div className="flex items-center gap-3"><span className="rounded-2xl border border-white/15 bg-white/10 p-2.5"><Bot className="h-6 w-6 text-amber-300"/></span><div><p className="font-extrabold tracking-wide">Navstar AI</p><p className="text-[11px] text-blue-100">Your digital assistant · HOME OF TECHNOCRATS</p></div></div><button onClick={()=>setOpen(false)} aria-label="Close assistant" className="rounded-xl p-2 hover:bg-white/10"><X className="h-5 w-5"/></button></header>
+ return <div className={embedded ? "h-full w-full" : "fixed bottom-5 right-4 z-[80] sm:bottom-6 sm:right-6"}>
+  {(open||embedded)&&<section className={embedded ? "flex h-full min-h-[620px] w-full flex-col overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-[0_24px_80px_rgba(2,20,55,.16)]" : "mb-3 flex h-[min(78vh,720px)] w-[min(calc(100vw-1.25rem),460px)] flex-col overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-[0_24px_80px_rgba(2,20,55,.28)]"}>
+   <header className="flex items-center justify-between bg-gradient-to-r from-[#061a3b] via-[#073b7d] to-[#075a9c] p-4 text-white"><div className="flex items-center gap-3"><span className="rounded-2xl border border-white/15 bg-white/10 p-2.5"><Bot className="h-6 w-6 text-amber-300"/></span><div><p className="font-extrabold tracking-wide">Navstar AI</p><p className="text-[11px] text-blue-100">Your digital assistant · HOME OF TECHNOCRATS</p></div></div>{!embedded&&<button onClick={()=>setOpen(false)} aria-label="Close assistant" className="rounded-xl p-2 hover:bg-white/10"><X className="h-5 w-5"/></button>}</header>
    <div className="flex-1 space-y-3 overflow-y-auto bg-gradient-to-b from-slate-50 to-blue-50/50 p-3.5">{messages.map((message,index)=><div key={index} className={message.role==='user'?'ml-7 rounded-2xl rounded-br-md bg-gradient-to-br from-blue-800 to-blue-700 p-3.5 text-sm leading-6 text-white shadow-sm':'mr-4 rounded-2xl rounded-bl-md border border-slate-200 bg-white p-3.5 text-sm leading-6 text-slate-800 shadow-sm'}><MessageText content={message.content}/>{message.attachments?.length? <div className="mt-2 flex flex-wrap gap-1.5">{message.attachments.map(file=><span key={file.name} className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-2 py-1 text-[10px]"><FileText className="h-3 w-3"/>{file.name}</span>)}</div>:null}</div>)}{busy&&<div className="mr-10 flex items-center gap-2 rounded-xl border bg-white p-3 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-blue-700"/>Navstar AI is analysing your request…</div>}</div>
    <div className="border-t border-slate-200 bg-white p-3">
     {attachments.length>0&&<div className="mb-2 flex flex-wrap gap-2">{attachments.map((file,index)=><div key={file.name+index} className="flex max-w-full items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-2 py-1.5 text-xs text-blue-950">{file.kind==='image'?<ImageIcon className="h-4 w-4"/>:<FileText className="h-4 w-4"/>}<span className="max-w-[190px] truncate font-semibold">{file.name}</span><button onClick={()=>setAttachments(current=>current.filter((_,i)=>i!==index))} aria-label={'Remove '+file.name}><Trash2 className="h-3.5 w-3.5 text-rose-600"/></button></div>)}</div>}
@@ -101,6 +101,6 @@ export function AIChatWidget(){
     <div className="mt-2 flex gap-2 overflow-x-auto pb-1">{quickLinks.map(([label,path])=><Link key={path} to={path} onClick={()=>setOpen(false)} className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[10px] font-semibold text-blue-900">{label}</Link>)}</div><p className="mt-1 text-[10px] text-slate-400">Never share passwords, PINs or private payment credentials. Files are sent to the AI provider for analysis.</p>
    </div>
   </section>}
-  <button onClick={()=>setOpen(value=>!value)} aria-label={open?'Close Navstar AI':'Ask Navstar AI'} className="ml-auto flex items-center gap-2 rounded-full border-2 border-amber-300 bg-blue-950 px-4 py-3 text-sm font-black text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-blue-900"><Sparkles className="h-5 w-5 text-amber-300"/><span>Ask Navstar AI</span>{open?<X className="h-4 w-4"/>:<Bot className="h-4 w-4"/>}</button>
+  {!embedded&&<button onClick={()=>setOpen(value=>!value)} aria-label={open?'Close Navstar AI':'Ask Navstar AI'} className="ml-auto flex items-center gap-2 rounded-full border-2 border-amber-300 bg-blue-950 px-4 py-3 text-sm font-black text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-blue-900"><Sparkles className="h-5 w-5 text-amber-300"/><span>Ask Navstar AI</span>{open?<X className="h-4 w-4"/>:<Bot className="h-4 w-4"/>}</button>}
  </div>;
 }
