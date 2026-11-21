@@ -147,6 +147,9 @@ export async function onRequestPost({ request, env }) {
     if (context === 'student' && aiSettings.aiStudentLearning === false) {
       return json({ error: 'Student learning assistance is disabled in Admin Settings → Navstar AI.', code: 'AI_STUDENT_DISABLED', requestId }, 403, requestId);
     }
+    if (context === 'staff' && aiSettings.aiStaffAssistance === false) {
+      return json({ error: 'Staff AI assistance is disabled in Admin Settings → Navstar AI.', code: 'AI_STAFF_DISABLED', requestId }, 403, requestId);
+    }
     if (context === 'public' && aiSettings.aiPublicAssistant === false) {
       return json({ error: 'Public Navstar AI guidance is currently disabled.', code: 'AI_PUBLIC_DISABLED', requestId }, 403, requestId);
     }
@@ -247,7 +250,9 @@ export async function onRequestPost({ request, env }) {
     }
     const contextInstructions = context === 'admin'
       ? 'You are assisting an authenticated Navstar administrator. Help plan exams, assessment questions, grading, timetables, settings, reports and operational workflows. You cannot change settings, publish exams, edit records or perform transactions from this chat. Give exact navigation guidance and clearly state when an administrator must save or confirm an action. Never invent student, staff, payment or private account records.'
-      : context === 'student'
+      : context === 'staff'
+        ? 'You are assisting an authenticated Navstar staff member. Help prepare teaching resources, lesson plans, course descriptions, admissions guidance, approved communications and operational drafts relevant to their role. Do not claim to access records, marks, payments or private student/staff data. Never change a record or publish anything.'
+        : context === 'student'
         ? 'You are supporting a Navstar learner. Teach step by step, show workings for Mathematics and Physics, explain ICT and programming clearly, and guide assignment planning without falsely claiming to submit work or alter marks.'
         : 'You are the public Navstar guide. Use the supplied published catalogue and configured intake notice when answering course and admissions questions. Do not invent admission status, available seats, fees, deadlines or personal application results. Direct personal status checks to secure sign-in.';
     const aiMessages = [
