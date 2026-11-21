@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Bell, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound, LoaderCircle, Search, ArrowLeft, ArrowUpRight, RefreshCw, ChevronDown } from 'lucide-react';
+import { Bell, Bot, BookOpen, BriefcaseBusiness, CircleDollarSign, FileDown, ImagePlus, LayoutDashboard, Pencil, Plus, Save, Settings, ShieldAlert, Trash2, Users, ReceiptText, PanelLeftClose, PanelLeftOpen, LogOut, UserRound, LoaderCircle, Search, ArrowLeft, ArrowUpRight, RefreshCw, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import { formatEATDateTime } from '@/lib/datetime';
 import { parseCsv, downloadCsvTemplate, exportBrandedData } from '@/lib/navstar-data-tools';
 import { GeographyPicker } from '@/components/GeographyPicker';
 import { AdminSettingsCenter } from '@/components/AdminSettingsCenter';
+import { AIChatWidget } from '@/components/AIChatWidget';
 import { AdminDashboard } from '@/components/AdminDashboard';
 import { StudentSubtabWorkspace } from '@/components/StudentSubtabWorkspace';
 import { AdminWorkspaceHub } from '@/components/AdminWorkspaceHub';
@@ -52,6 +53,7 @@ const initialServices: ServiceItem[] = [
 
 const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
   {id:'overview',label:'Dashboard',icon:LayoutDashboard},
+  {id:'ai-assistant',label:'Navstar AI',icon:Bot},
   {id:'courses',label:'Courses',icon:BookOpen},
   {id:'learning',label:'Modules',icon:BookOpen},
   {id:'school',label:'Students',icon:Users},
@@ -1518,7 +1520,9 @@ export function AdminPage() {
           </div>}
           {active === 'analytics-reports' && (selectedSubtab === 'Analytics Dashboard' || !selectedSubtab ? <BusinessOperationsWorkspace subtab="Analytics Dashboard"/> : <AdminWorkspaceHub section="analytics-reports" subtab={selectedSubtab} courses={courses} users={portalUsers} applications={applications} services={services}/>)}
           {active === 'analytics-reports' && selectedSubtab === 'Legacy Overview' && <section className="space-y-4 rounded-2xl border border-cyan-400/20 bg-[#101d31] p-6 text-white"><p className="text-xs font-black uppercase tracking-[.2em] text-cyan-300">Navstar Digital Hub reporting</p><h2 className="text-2xl font-black">Analytics & Reports</h2><p className="max-w-3xl text-sm leading-6 text-slate-300">Operational reporting for Navstar Digital Hub's own computer-school activity and cyber-services business. This is kept separate from the future Navstar Analytics school-management product.</p><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{['Computer-school enrolment','Course and module activity','Cyber-service orders','POS sales and verified payments'].map(item=><div key={item} className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm font-semibold">{item}</div>)}</div></section>}
-          {!['overview','navstar-analytics','analytics-reports','courses','learning','marks-tests','school','services','pos','finance','fees','staff-applications','applications','enrollment-summary','users','employees','student-directory','downloads','documents','gallery','settings','profile','orders','receipts','portal-links'].includes(active) && <AdminWorkspaceHub section={active} subtab={selectedSubtab || sections.find(item=>item.id===active)?.label || 'Workspace'} courses={courses} users={portalUsers} applications={applications} services={services}/ >}
+          {active === 'ai-assistant' && <section className="space-y-4"><div><h2 className="text-2xl font-black text-white">Navstar AI</h2><p className="mt-1 text-sm text-slate-400">AI assistance for academic administration, exams, documents and Navstar operations.</p></div><AIChatWidget embedded/></section>}
+
+          {!['ai-assistant','overview','navstar-analytics','analytics-reports','courses','learning','marks-tests','school','services','pos','finance','fees','staff-applications','applications','enrollment-summary','users','employees','student-directory','downloads','documents','gallery','settings','profile','orders','receipts','portal-links'].includes(active) && <AdminWorkspaceHub section={active} subtab={selectedSubtab || sections.find(item=>item.id===active)?.label || 'Workspace'} courses={courses} users={portalUsers} applications={applications} services={services}/ >}
 
           <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Secure Navstar administration · User accounts, student records, uploads and finance operations are protected.</span><span className="font-semibold text-cyan-300">Powered by Navstar Digital Hub</span></footer>
           </div>
