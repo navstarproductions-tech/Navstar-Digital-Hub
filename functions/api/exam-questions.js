@@ -36,7 +36,9 @@ export async function onRequestGet({request,env}){
  }
  const rows=await env.DB.prepare('SELECT id,question_text AS questionText,question_type AS questionType,options_json AS optionsJson,points,sort_order AS sortOrder,explanation,correct_answer_json AS correctAnswerJson FROM course_exam_questions WHERE assessment_id=? AND status=? ORDER BY sort_order,id').bind(assessmentId,'active').all();
  const questions=(rows.results||[]).map(q=>({id:q.id,questionText:q.questionText,questionType:q.questionType,options:JSON.parse(q.optionsJson||'[]'),points:q.points,sortOrder:q.sortOrder,...(revealAnswers?{correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}:{})}));
- return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:paperMaximum,durationMinutes:assessment.duration_minutes},questions});
+ const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first().catch(()=>null);
+ let securitySettings={};try{securitySettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{securitySettings={};}
+ return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:paperMaximum,durationMinutes:assessment.duration_minutes},questions,...(student?{securitySettings}: {})});
 }
 async function handleQuestionPost({request,env}){
  if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
@@ -171,16 +173,21 @@ async function handleQuestionPost({request,env}){
   if(!attempt)return error('Start the examination before submitting answers.',409);
   if(Date.parse(attempt.expires_at)<=now){await env.DB.prepare("UPDATE exam_runtime_attempts SET status='expired' WHERE id=?").bind(attempt.id).run();return error('Your examination time has expired.',409);}
   const answers=Array.isArray(body.answers)?body.answers.slice(0,500):[];
-  let score=0,autoMarked=true;
+  const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first().catch(()=>null);
+  let securitySettings={};try{securitySettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{securitySettings={};}
+  const negativeEnabled=securitySettings.negativeMarking===true,penaliseUnanswered=securitySettings.penaliseUnanswered===true;
+  const deduction=Math.max(0,Math.min(100,Number(securitySettings.negativeMarkValue)||0));
+  let score=0,autoMarked=true,negativeDeductions=0;
   for(const answer of answers){
    const q=await env.DB.prepare('SELECT id,question_type,correct_answer_json,points FROM course_exam_questions WHERE id=? AND assessment_id=? AND status=?').bind(safeString(answer.questionId,80),assessmentId,'active').first();
    if(!q)continue;
    const submitted=answer.answer??null;let correct=null,points=null;
    if(['single_choice','multiple_choice','true_false'].includes(q.question_type)){
-    const expected=JSON.parse(q.correct_answer_json||'null');correct=JSON.stringify(submitted)===JSON.stringify(expected);points=correct?Number(q.points):0;score+=points;
+    const expected=JSON.parse(q.correct_answer_json||'null');correct=JSON.stringify(submitted)===JSON.stringify(expected);points=correct?Number(q.points):0;if(correct)score+=points;else if(submitted!==null&&submitted!==''&&negativeEnabled){const minus=Math.min(Number(q.points),deduction);score-=minus;negativeDeductions+=minus;}else if((submitted===null||submitted==='')&&penaliseUnanswered&&negativeEnabled){const minus=Math.min(Number(q.points),deduction);score-=minus;negativeDeductions+=minus;}
    }else autoMarked=false;
    await env.DB.prepare('INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct) VALUES(?,?,?,?,?,?) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer_json=excluded.answer_json,points_awarded=excluded.points_awarded,is_correct=excluded.is_correct,updated_at=CURRENT_TIMESTAMP').bind(uuid(),attempt.id,q.id,JSON.stringify(submitted),points,correct===null?null:(correct?1:0)).run();
   }
+  score=Math.max(0,score);
   const expired=Date.parse(attempt.expires_at)<=Date.now();
   await env.DB.prepare("UPDATE exam_runtime_attempts SET status=?,submitted_at=CURRENT_TIMESTAMP,last_activity_at=CURRENT_TIMESTAMP,objective_score=?,total_score=? WHERE id=?").bind(autoMarked?'graded':'submitted',score,autoMarked?score:null,attempt.id).run();
   let publishedResult=null;
@@ -190,7 +197,7 @@ async function handleQuestionPost({request,env}){
    await env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points").bind(uuid(),assessmentId,user.id,scaled,'Automatically marked from the submitted examination.',visible?new Date().toISOString():null,user.id,score,targetMaximum).run();
    publishedResult={rawScore:score,rawMaximum,publishedScore:scaled,publishedMaximum:targetMaximum,published:visible};
   }
-  return json({submitted:true,attemptId:attempt.id,objectiveScore:score,autoMarked,manualMarkingRequired:!autoMarked,expired,publishedResult});
+  return json({submitted:true,attemptId:attempt.id,objectiveScore:score,negativeDeductions,autoMarked,manualMarkingRequired:!autoMarked,expired,publishedResult});
  }
  return error('Unsupported examination action.');
 }
