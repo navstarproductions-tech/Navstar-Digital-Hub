@@ -41,7 +41,8 @@ export async function onRequestPost({ request, env }) {
     if (settings.aiEnabled === false || settings.aiImageGeneration === false) return json({ error: 'AI image generation is disabled in Admin Settings → Navstar AI.' }, 403);
     const prompt = clean(body.prompt, MAX_PROMPT);
     if (!prompt) return json({ error: 'Describe the image you want to create or edit.' }, 400);
-    const references = Array.isArray(body.images) ? body.images.slice(0, 4) : [];
+    if (Array.isArray(body.images) && body.images.length > 4) return json({ error: 'Attach no more than four reference images per generation.' }, 400);
+    const references = Array.isArray(body.images) ? body.images : [];
     const identityHash = await usageIdentity(request, sessionUser);
     const generationLimit = Math.max(1, Math.min(20, Number(settings.aiDailyImageGenerations) || 5));
     const usageStart = eatDayStart();
@@ -49,6 +50,15 @@ export async function onRequestPost({ request, env }) {
     const used = Number(usedRow?.total || 0);
     if (used >= generationLimit) return json({ error: 'You have reached today’s image-generation limit (' + generationLimit + '). Please try again tomorrow.', code: 'AI_IMAGE_GENERATION_DAILY_LIMIT', limit: generationLimit, used }, 429);
     if (references.length && settings.aiImageEditing === false) return json({ error: 'AI image editing is disabled in Admin Settings → Navstar AI.' }, 403);
+    for (const reference of references) decodeImage(reference);
+    const uploadLimit = Math.max(1, Math.min(30, Number(settings.aiDailyImageUploads) || 5));
+    const uploadRow = await env.DB.prepare("SELECT COUNT(*) AS total FROM api_rate_limits WHERE scope = 'ai-image-upload-day' AND key_hash = ? AND created_at >= ?").bind(identityHash, usageStart).first();
+    const uploadsUsed = Number(uploadRow?.total || 0);
+    if (uploadsUsed + references.length > uploadLimit) return json({ error: 'Daily image upload limit reached. You may upload ' + uploadLimit + ' images per day across chat and image editing.', code: 'AI_IMAGE_UPLOAD_DAILY_LIMIT', limit: uploadLimit, used: uploadsUsed }, 429);
+    if (references.length) {
+      const uploadEvents = references.map(() => env.DB.prepare('INSERT INTO api_rate_limits (id, scope, key_hash, created_at) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), 'ai-image-upload-day', identityHash, new Date().toISOString()));
+      await env.DB.batch(uploadEvents);
+    }
     await env.DB.prepare('INSERT INTO api_rate_limits (id, scope, key_hash, created_at) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), 'ai-image-generation-day', identityHash, new Date().toISOString()).run();
     const form = new FormData();
     form.append('prompt', prompt);
