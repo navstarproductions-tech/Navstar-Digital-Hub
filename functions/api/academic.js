@@ -211,8 +211,8 @@ export async function onRequestPost({request,env}){
     const type=safeString(body.assessmentType,20);
     if(!['test','exam','practical','cat'].includes(type))return error('Choose a valid exam type.');
     const generatedTitle=selectedModule.title+' — '+({cat:'CAT',exam:'Final Examination',practical:'Practical Assessment',test:'Test'}[type]);
-    await env.DB.prepare('UPDATE course_assessments SET course_id=?,module_id=?,title=?,assessment_type=?,instructions=?,starts_at=?,due_at=?,max_points=?,duration_minutes=?,pass_mark=?,max_attempts=?,require_full_fee_payment=?,require_assignment_submission=?,allow_result_review=?,require_admin_approval=? WHERE id=?')
-      .bind(courseId,moduleId,generatedTitle,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.requireAdminApproval?1:0,assessmentId).run();
+    await env.DB.prepare('UPDATE course_assessments SET course_id=?,module_id=?,title=?,assessment_type=?,description=?,instructions=?,starts_at=?,due_at=?,max_points=?,duration_minutes=?,pass_mark=?,max_attempts=?,require_full_fee_payment=?,require_assignment_submission=?,allow_result_review=?,require_admin_approval=? WHERE id=?')
+      .bind(courseId,moduleId,generatedTitle,type,safeString(body.description,3000),safeString(body.instructions,5000),startsAt,endsAt,maxPoints,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.requireAdminApproval?1:0,assessmentId).run();
     await audit('assessment_updated','assessment',assessmentId);
     return json({id:assessmentId,updated:true});
   }
@@ -221,7 +221,7 @@ export async function onRequestPost({request,env}){
     const assessmentId=safeString(body.assessmentId,80);
     const existing=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
-    await env.DB.prepare("UPDATE course_assessments SET status='archived' WHERE id=?").bind(assessmentId).run();
+    await env.DB.prepare("UPDATE course_assessments SET archived_at=CURRENT_TIMESTAMP WHERE id=?").bind(assessmentId).run();
     await audit('assessment_archived','assessment',assessmentId);
     return json({archived:true});
   }
@@ -242,7 +242,7 @@ export async function onRequestPost({request,env}){
       if(Number(active?.n||0)<1)continue;
       const modules=(await env.DB.prepare("SELECT id,title FROM course_modules WHERE course_id=? AND status='published' ORDER BY sort_order,title").bind(course.id).all()).results||[];
       if(!modules.length)continue;
-      const papers=(await env.DB.prepare("SELECT id,module_id,duration_minutes,title FROM course_assessments WHERE course_id=? AND status!='archived' AND module_id IS NOT NULL ORDER BY title").bind(course.id).all()).results||[];
+      const papers=(await env.DB.prepare("SELECT id,module_id,duration_minutes,title FROM course_assessments WHERE course_id=? AND archived_at IS NULL AND module_id IS NOT NULL ORDER BY title").bind(course.id).all()).results||[];
       if(modules.some(m=>!papers.some(p=>p.module_id===m.id)))continue;
       ready.push({course,papers});
     }
@@ -296,7 +296,7 @@ export async function onRequestPost({request,env}){
       const duration=Number(body.durationMinutes??60),passMark=Number(body.passMark??Math.floor(maxPoints/2)),attempts=Number(body.maxAttempts??1);
       if(!Number.isSafeInteger(duration)||duration<1||duration>600||!Number.isSafeInteger(passMark)||passMark<0||passMark>maxPoints||!Number.isSafeInteger(attempts)||attempts<1||attempts>10)return error('Check the exam duration, pass mark and attempt limit.');
       const generatedTitle=module.title+' — '+({cat:'CAT',exam:'Final Examination',practical:'Practical Assessment',test:'Test'}[type]);
-      await env.DB.prepare('INSERT INTO course_assessments(id,course_id,module_id,title,assessment_type,instructions,starts_at,due_at,max_points,status,created_by,duration_minutes,pass_mark,max_attempts,require_full_fee_payment,require_assignment_submission,allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit,require_admin_approval) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,courseId,moduleId||null,generatedTitle,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,'published',user.id,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.shuffleQuestions?1:0,body.disableCopyPaste?1:0,body.strictTimeLimit===false?0:1,body.requireAdminApproval?1:0).run();
+      await env.DB.prepare('INSERT INTO course_assessments(id,course_id,module_id,title,assessment_type,description,instructions,starts_at,due_at,max_points,status,created_by,duration_minutes,pass_mark,max_attempts,require_full_fee_payment,require_assignment_submission,allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit,require_admin_approval) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,courseId,moduleId||null,generatedTitle,type,safeString(body.description,3000),safeString(body.instructions,5000),startsAt,endsAt,maxPoints,'published',user.id,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.shuffleQuestions?1:0,body.disableCopyPaste?1:0,body.strictTimeLimit===false?0:1,body.requireAdminApproval?1:0).run();
     }
     await audit(action,'course',courseId);
     return json({id,created:true},201);
