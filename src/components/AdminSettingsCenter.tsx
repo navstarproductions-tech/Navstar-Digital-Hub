@@ -11,6 +11,8 @@ const sections: Section[] = [
    {key:'aiPublicAssistant',label:'Allow public website guidance',type:'toggle'},
    {key:'aiStudentLearning',label:'Enable student learning support (Mathematics, Physics, ICT and assignments)',type:'toggle'},
    {key:'aiDocumentAnalysis',label:'Allow image, PDF and text document analysis',type:'toggle'},
+   {key:'aiImageGeneration',label:'Allow AI image generation and poster backgrounds',type:'toggle'},
+   {key:'aiImageEditing',label:'Allow AI image editing and reference-image transformations',type:'toggle'},
    {key:'aiExamQuestionGeneration',label:'Allow AI exam and question generation',type:'toggle'},
    {key:'aiAdminAssistance',label:'Enable administrator workflow assistance',type:'toggle'},
   ]}]},
@@ -84,7 +86,7 @@ const sections: Section[] = [
 ];
 
 const defaults: Record<string, Record<string, string|number|boolean>> = {
- 'ai-assistant': {aiEnabled:true,aiPublicAssistant:true,aiStudentLearning:true,aiDocumentAnalysis:true,aiExamQuestionGeneration:true,aiAdminAssistance:true},
+ 'ai-assistant': {aiEnabled:true,aiPublicAssistant:true,aiStudentLearning:true,aiDocumentAnalysis:true,aiImageGeneration:true,aiImageEditing:true,aiExamQuestionGeneration:true,aiAdminAssistance:true},
  'home-content': {homeSlideSeconds:6.5,homeFadeSeconds:1.1,marqueeEnabled:true,marqueeDirection:'Left',marqueeText:''},
  'academic-intakes': {intakes:'September 2026 Intake | 2026-09-01 | 2026-09-20 | | |',showEnrollmentStatus:true,intakeStatusMessage:''},
  'institute-profile': {institutionName:'NAVSTAR DIGITAL HUB',motto:'HOME OF TECHNOCRATS',email:'navstardigitalhub@gmail.com',phone:'+254797688576',whatsapp:'+254797688576',admissionsContact:'+254797688576',financeContact:'+254797688576',supportContact:'+254797688576',postalAddress:'P.O. BOX 546-50200 BUNGOMA (K)',website:'https://navstardigitalhub.base44.app',principalName:'SIMIYU SIFUNA HARON',yearEstablished:2023,institutionCategory:'Digital & Technical Skills Training',registrationNumber:'BN-J9S6J7AB',institutionCode:'NAV-039',physicalAddress:'Bungoma, Kenya',requireEnrollmentDocuments:true},
