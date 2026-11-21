@@ -38,7 +38,7 @@ export async function onRequestGet({request,env}){
  const questions=(rows.results||[]).map(q=>({id:q.id,questionText:q.questionText,questionType:q.questionType,options:JSON.parse(q.optionsJson||'[]'),points:q.points,sortOrder:q.sortOrder,...(revealAnswers?{correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}:{})}));
  return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:paperMaximum,durationMinutes:assessment.duration_minutes},questions});
 }
-export async function onRequestPost({request,env}){
+async function handleQuestionPost({request,env}){
  if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
  if(!env.DB)return error('Exam question database is not configured.',503);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
@@ -102,7 +102,7 @@ export async function onRequestPost({request,env}){
   if(normalized.some(q=>!safeString(q.questionText||q.question,2000)||!supportedTypes.includes(safeString(q.questionType||q.type,24))))return error('The AI returned a question with missing text or an unsupported type. Please retry.');
   if(normalized.some(q=>['single_choice','multiple_choice','true_false'].includes(safeString(q.questionType||q.type,24))&&(!Array.isArray(q.options)||!q.options.length||q.correctAnswer===undefined||q.correctAnswer===null||q.correctAnswer==='')))return error('The AI returned an objective question without options or an answer key. Please retry.');
   try{return await importQuestions(env.DB,user,assessmentId,normalized,{replaceAll});}
-  catch(e){console.error('Navstar AI question persistence failed',e?.name||'Error',safeString(e?.message,500));return error('AI created the questions, but Navstar could not save them to this paper. Your existing questions have been preserved. Please retry.',500);}
+  catch(e){const reference=uuid();console.error('Navstar AI question persistence failed',reference,e?.name||'Error',safeString(e?.message,500));return json({error:'AI created the questions, but Navstar could not save them to this paper. Your existing questions have been preserved. Please retry.',code:'QUESTION_SAVE_FAILED',reference},500);}
  }
  if(action==='save_question'||action==='import_questions'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
@@ -218,3 +218,4 @@ async function importQuestions(db,user,assessmentId,items,options={}){
  try{await db.batch(statements);}catch(e){console.error('Navstar exam question save failed',e?.name||'Error',safeString(e?.message,500));throw new Error('The generated questions could not be written to the exam question table. Existing questions were not changed. Please retry or contact Navstar support.');}
  return json({imported:normalized.length,replaced:replaceAll});
 }
+export async function onRequestPost(context){try{return await handleQuestionPost(context);}catch(e){const reference=uuid();console.error('Navstar exam question API failed',reference,e?.name||'Error',safeString(e?.message,700));return json({error:'Navstar could not complete this question action. Existing saved questions have been left untouched. Please retry and share the reference with Navstar support.',code:'EXAM_QUESTION_API_FAILED',reference},500);}}
