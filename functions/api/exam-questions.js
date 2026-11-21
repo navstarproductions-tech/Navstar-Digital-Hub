@@ -69,7 +69,7 @@ export async function onRequestPost({request,env}){
    console.error('Cloudflare AI exam question generation failed',e?.name||'Error',safeString(e?.message,240));
    return error(safeString(e?.message,300)||'Cloudflare AI could not generate questions. Please try again.',502);
   }
-  if(!Array.isArray(generated)||!generated.length)return error('Google Gemini returned no questions. Try adjusting the topic or question count.',502);
+  if(!Array.isArray(generated)||!generated.length)return error('Cloudflare AI returned no questions. Try adjusting the topic or question count.',502);
   const result=await importQuestions(env.DB,user,assessmentId,generated.slice(0,count));
   return result;
  }
