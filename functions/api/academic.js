@@ -130,6 +130,13 @@ export async function onRequestPost({request,env}){
   if(action==='save_exam_settings'){
     const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
     const settings=body.settings&&typeof body.settings==='object'?body.settings:{};
+    const scales=settings.categoryScales||{};
+    for(const key of ['practical','cat','final']){const value=Number(scales[key]);if(!Number.isFinite(value)||value<=0||value>1000)return error('Set valid positive published maximums for Practical, CAT and Final in Exam Settings.');}
+    const bands=Array.isArray(settings.gradingScale)?settings.gradingScale:[];
+    if(!bands.length)return error('Add the complete final grading scale before saving Exam Settings.');
+    const ordered=[...bands].sort((a,b)=>Number(a.min)-Number(b.min));
+    if(Number(ordered[0].min)!==0||Number(ordered[ordered.length-1].max)!==100)return error('Final grading bands must cover the complete range from 0% to 100%.');
+    for(let i=0;i<ordered.length;i++){const min=Number(ordered[i].min),max=Number(ordered[i].max);if(!Number.isInteger(min)||!Number.isInteger(max)||min<0||max>100||min>max||!safeString(ordered[i].grade,12))return error('Check every grading band: minimum, maximum and grade are required.');if(i&&min!==Number(ordered[i-1].max)+1)return error('Final grading bands must be continuous, without gaps or overlaps.');}
     await env.DB.prepare("INSERT INTO exam_institute_settings(id,settings_json,updated_by,updated_at) VALUES('default',?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET settings_json=excluded.settings_json,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(settings),user.id).run();
     await audit('exam_institute_settings_updated','exam_settings','default');
     return json({saved:true});
