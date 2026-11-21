@@ -1,3 +1,4 @@
+import { getSession } from '../_shared/auth.js';
 const MODEL = '@cf/black-forest-labs/flux-2-klein-4b';
 const MAX_PROMPT = 4000;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -15,11 +16,23 @@ function decodeImage(value) {
   if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error('Each reference image must be 5 MB or smaller.');
   return { mime: match[1], bytes };
 }
+function eatDayStart() {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return values.year + '-' + values.month + '-' + values.day + 'T00:00:00+03:00';
+}
+async function usageIdentity(request, user) {
+  const raw = user?.id ? 'user:' + user.id : 'ip:' + (request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown');
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
 export async function onRequestPost({ request, env }) {
   try {
     const origin = request.headers.get('Origin');
     if (origin && new URL(origin).origin !== new URL(request.url).origin) return json({ error: 'Cross-origin request rejected.' }, 403);
     if (!env?.AI || typeof env.AI.run !== 'function') return json({ error: 'Cloudflare Workers AI is not connected to this deployment.' }, 503);
+    if (!env.DB) return json({ error: 'Navstar AI usage controls are temporarily unavailable. Please try again later.' }, 503);
+    const sessionUser = await getSession(request, env).catch(() => null);
     let body;
     try { body = await request.json(); } catch { return json({ error: 'Invalid image request.' }, 400); }
     const settingsRow = env.DB ? await env.DB.prepare("SELECT value FROM system_state WHERE key = 'admin-configuration'").first().catch(() => null) : null;
@@ -29,6 +42,14 @@ export async function onRequestPost({ request, env }) {
     const prompt = clean(body.prompt, MAX_PROMPT);
     if (!prompt) return json({ error: 'Describe the image you want to create or edit.' }, 400);
     const references = Array.isArray(body.images) ? body.images.slice(0, 4) : [];
+    const identityHash = await usageIdentity(request, sessionUser);
+    const generationLimit = Math.max(1, Math.min(20, Number(settings.aiDailyImageGenerations) || 5));
+    const usageStart = eatDayStart();
+    const usedRow = await env.DB.prepare("SELECT COUNT(*) AS total FROM api_rate_limits WHERE scope = 'ai-image-generation-day' AND key_hash = ? AND created_at >= ?").bind(identityHash, usageStart).first();
+    const used = Number(usedRow?.total || 0);
+    if (used >= generationLimit) return json({ error: 'You have reached today’s image-generation limit (' + generationLimit + '). Please try again tomorrow.', code: 'AI_IMAGE_GENERATION_DAILY_LIMIT', limit: generationLimit, used }, 429);
+    if (references.length && settings.aiImageEditing === false) return json({ error: 'AI image editing is disabled in Admin Settings → Navstar AI.' }, 403);
+
     if (references.length && settings.aiImageEditing === false) return json({ error: 'AI image editing is disabled in Admin Settings → Navstar AI.' }, 403);
     const form = new FormData();
     form.append('prompt', prompt);
@@ -43,6 +64,7 @@ export async function onRequestPost({ request, env }) {
     }
     const serialized = new Response(form);
     const result = await env.AI.run(MODEL, { multipart: { body: serialized.body, contentType: serialized.headers.get('content-type') } });
+    await env.DB.prepare('INSERT INTO api_rate_limits (id, scope, key_hash, created_at) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), 'ai-image-generation-day', identityHash, new Date().toISOString()).run();
     const encoded = typeof result?.image === 'string' ? result.image : '';
     if (!encoded) {
       console.error('[navstar-ai-image] Empty model output', JSON.stringify({ keys: Object.keys(result || {}) }));
