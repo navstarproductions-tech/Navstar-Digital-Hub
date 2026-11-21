@@ -113,7 +113,7 @@ const sections: Section[] = [
 ];
 
 const defaults: Record<string, Record<string, string|number|boolean>> = {
- 'ai-assistant': {aiEnabled:true,aiPublicAssistant:true,aiStudentLearning:true,aiDocumentAnalysis:true,aiImageGeneration:true,aiImageEditing:true,aiExamQuestionGeneration:true,aiAdminAssistance:true},
+ 'ai-assistant': {aiEnabled:true,aiPublicAssistant:true,aiStudentLearning:true,aiStaffAssistance:true,aiDocumentAnalysis:true,aiImageGeneration:true,aiImageEditing:true,aiExamQuestionGeneration:true,aiPolicyDrafting:true,aiAdminAssistance:true,aiPublicDailyRequests:20,aiStudentDailyRequests:60,aiStaffDailyRequests:60,aiAdminDailyRequests:100,aiDailyImageUploads:5,aiDailyImageGenerations:5,aiMaxResponseTokens:850},
  'home-content': {homeSlideSeconds:6.5,homeFadeSeconds:1.1,marqueeEnabled:true,marqueeDirection:'Left',marqueeText:''},
  'academic-intakes': {intakes:'September 2026 Intake | 2026-09-01 | 2026-09-20 | | |',showEnrollmentStatus:true,intakeStatusMessage:''},
  'institute-profile': {institutionName:'NAVSTAR DIGITAL HUB',motto:'HOME OF TECHNOCRATS',email:'navstardigitalhub@gmail.com',phone:'+254797688576',whatsapp:'+254797688576',admissionsContact:'+254797688576',financeContact:'+254797688576',supportContact:'+254797688576',postalAddress:'P.O. BOX 546-50200 BUNGOMA (K)',website:'https://navstardigitalhub.base44.app',principalName:'SIMIYU SIFUNA HARON',yearEstablished:2023,institutionCategory:'Digital & Technical Skills Training',registrationNumber:'BN-J9S6J7AB',institutionCode:'NAV-039',physicalAddress:'Bungoma, Kenya',requireEnrollmentDocuments:true},
