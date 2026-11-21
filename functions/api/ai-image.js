@@ -75,7 +75,7 @@ export async function onRequestPost({ request, env }) {
     }
     const serialized = new Response(form);
     const result = await env.AI.run(MODEL, { multipart: { body: serialized.body, contentType: serialized.headers.get('content-type') } });
-    await env.DB.prepare('INSERT INTO api_rate_limits (id, scope, key_hash, created_at) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), 'ai-image-generation-day', identityHash, new Date().toISOString()).run();
+
     const encoded = typeof result?.image === 'string' ? result.image : '';
     if (!encoded) {
       console.error('[navstar-ai-image] Empty model output', JSON.stringify({ keys: Object.keys(result || {}) }));
