@@ -34,7 +34,7 @@ export async function onRequestPost({request,env}){
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  let body;try{body=await readJson(request,500000);}catch{return error('Invalid question request.');}
  const action=safeString(body.action,32),assessmentId=safeString(body.assessmentId,80);
- const assessment=await env.DB.prepare('SELECT id,course_id,module_id,title,max_points,status,starts_at,due_at,duration_minutes,max_attempts,require_admin_approval FROM course_assessments WHERE id=?').bind(assessmentId).first();
+ const assessment=await env.DB.prepare('SELECT id,course_id,module_id,title,max_points,status,starts_at,due_at,duration_minutes,max_attempts,require_admin_approval,require_full_fee_payment,require_assignment_submission FROM course_assessments WHERE id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not found or access denied.',404);
  if(action==='delete_all'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
@@ -123,6 +123,16 @@ export async function onRequestPost({request,env}){
  }
  if(action==='start_runtime'){
   if(user.role!=='student')return error('Only enrolled students can start an examination.',403);
+  if(assessment.require_full_fee_payment){
+   const enrollment=await env.DB.prepare("SELECT e.course_fee,e.amount_paid FROM enrollments e WHERE e.course_id=? AND lower(e.email)=lower(?) AND e.status='accepted'").bind(assessment.course_id,user.email).first();
+   if(!enrollment||Number(enrollment.amount_paid||0)<Number(enrollment.course_fee||0))return error('This exam requires 100% fee payment. Please clear your fee balance before starting.',403);
+  }
+  if(assessment.require_assignment_submission){
+   if(!assessment.module_id)return error('This exam has no linked module, so assignment eligibility cannot be verified.',409);
+   const assignment=await env.DB.prepare("SELECT a.id FROM course_assignments a JOIN course_assignment_submissions s ON s.assignment_id=a.id WHERE a.module_id=? AND a.status='published' AND s.user_id=? AND s.status IN ('submitted','graded','approved') LIMIT 1").bind(assessment.module_id,user.id).first();
+   if(!assignment)return error('Submit the module assignment before starting this exam.',403);
+  }
+
   if(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now()))return error('This examination is not open.',409);if(assessment.require_admin_approval){const approval=await env.DB.prepare('SELECT status FROM exam_attempt_approvals WHERE assessment_id=? AND user_id=?').bind(assessmentId,user.id).first();if(approval?.status!=='approved')return error(approval?.status==='rejected'?'Your examination access was declined. Contact the administrator.':'Your examination attempt is awaiting administrator approval.',403);}
   const active=await env.DB.prepare("SELECT id,expires_at,attempt_number FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status='in_progress' ORDER BY attempt_number DESC LIMIT 1").bind(assessmentId,user.id).first();
   if(active){if(Date.parse(active.expires_at)<=Date.now()){await env.DB.prepare("UPDATE exam_runtime_attempts SET status='expired' WHERE id=?").bind(active.id).run();return error('Your examination time has expired.',409);}return json({started:true,attemptId:active.id,expiresAt:active.expires_at,attemptNumber:active.attempt_number,resumed:true});}
