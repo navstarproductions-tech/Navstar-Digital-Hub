@@ -47,11 +47,8 @@ async function visibleCourseIds(db,user){
   }
   return [];
 }
-function publishedMaximum(type,settings={}){
- const key=type==='practical'?'practical':(type==='cat'||type==='test')?'cat':'final';
- const configured=Number(settings?.categoryScales?.[key]);
- return Number.isFinite(configured)&&configured>0?configured:(key==='practical'?30:key==='cat'?50:70);
-}
+function publishedMaximum(type,settings={}){const value=Number(settings?.publishedMaximum);return Number.isFinite(value)&&value>0?value:100;}
+
 function scaledPoints(raw,rawMaximum,publishedMaximumValue){
  const denominator=Number(rawMaximum)>0?Number(rawMaximum):100;
  return Math.round((Number(raw||0)/denominator)*Number(publishedMaximumValue)*100)/100;
@@ -82,6 +79,7 @@ export async function onRequestGet({request,env}){
   const assessments=(await env.DB.prepare(`SELECT a.*,c.title AS course_title,m.title AS module_title,r.points_awarded,r.raw_points_awarded,r.published_max_points,r.feedback,r.published_at FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=? WHERE a.course_id IN (${marks}) AND a.status!='draft' ORDER BY a.due_at`).bind(user.id,...ids).all()).results||[];
   const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();
   let examSettings={};try{examSettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{examSettings={};}
+  const marksPolicy=await getCentralMarksPolicy(env.DB);examSettings={...examSettings,...marksPolicy};
   const graduation=user.role==='student'?(await env.DB.prepare(`SELECT g.*,c.title AS course_title FROM student_graduation_records g JOIN courses c ON c.id=g.course_id WHERE g.user_id=?`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT g.*,c.title AS course_title,u.name AS student_name FROM student_graduation_records g JOIN courses c ON c.id=g.course_id JOIN users u ON u.id=g.user_id WHERE g.course_id IN (${marks}) ORDER BY c.title,u.name`).bind(...ids).all()).results||[];
   const reportCards=user.role==='student'?(await env.DB.prepare('SELECT r.*,c.title AS course_title FROM student_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY r.issued_at DESC').bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT r.*,c.title AS course_title,u.name AS student_name FROM student_report_cards r JOIN courses c ON c.id=r.course_id JOIN users u ON u.id=r.user_id WHERE r.course_id IN (${marks}) ORDER BY r.issued_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const assessmentResults=user.role==='student'?[]:(await env.DB.prepare(`SELECT r.*,a.title AS assessment_title,a.course_id,a.max_points AS paper_max_points,COALESCE(r.published_max_points,a.max_points) AS max_points,u.name AS student_name,c.title AS course_title FROM course_assessment_results r JOIN course_assessments a ON a.id=r.assessment_id JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=a.course_id WHERE a.course_id IN (${marks}) ORDER BY r.marked_at DESC LIMIT 500`).bind(...ids).all()).results||[];
@@ -130,13 +128,7 @@ export async function onRequestPost({request,env}){
   if(action==='save_exam_settings'){
     const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
     const settings=body.settings&&typeof body.settings==='object'?body.settings:{};
-    const scales=settings.categoryScales||{};
-    for(const key of ['practical','cat','final']){const value=Number(scales[key]);if(!Number.isFinite(value)||value<=0||value>1000)return error('Set valid positive published maximums for Practical, CAT and Final in Exam Settings.');}
-    const bands=Array.isArray(settings.gradingScale)?settings.gradingScale:[];
-    if(!bands.length)return error('Add the complete final grading scale before saving Exam Settings.');
-    const ordered=[...bands].sort((a,b)=>Number(a.min)-Number(b.min));
-    if(Number(ordered[0].min)!==0||Number(ordered[ordered.length-1].max)!==100)return error('Final grading bands must cover the complete range from 0% to 100%.');
-    for(let i=0;i<ordered.length;i++){const min=Number(ordered[i].min),max=Number(ordered[i].max);if(!Number.isInteger(min)||!Number.isInteger(max)||min<0||max>100||min>max||!safeString(ordered[i].grade,12))return error('Check every grading band: minimum, maximum and grade are required.');if(i&&min!==Number(ordered[i-1].max)+1)return error('Final grading bands must be continuous, without gaps or overlaps.');}
+    delete settings.categoryScales;delete settings.gradingScale;delete settings.publishedMaximum;
     await env.DB.prepare("INSERT INTO exam_institute_settings(id,settings_json,updated_by,updated_at) VALUES('default',?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET settings_json=excluded.settings_json,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(settings),user.id).run();
     await audit('exam_institute_settings_updated','exam_settings','default');
     return json({saved:true});
@@ -186,7 +178,7 @@ export async function onRequestPost({request,env}){
     if(!enrolled||!Number.isFinite(raw)||raw<0||raw>rawMaximum)return error('Enter a valid mark for an enrolled student, within the paper maximum.',409);
     const cfg=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();
     let examConfig={};try{examConfig=JSON.parse(cfg?.settings_json||'{}')}catch{}
-    const targetMaximum=publishedMaximum(assessment.assessment_type,examConfig),published=scaledPoints(raw,rawMaximum,targetMaximum);
+    const policy=await getCentralMarksPolicy(env.DB);const targetMaximum=policy.publishedMaximum,published=scaledPoints(raw,rawMaximum,targetMaximum);
     await env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points").bind(uuid(),assessmentId,studentId,published,feedbackText,body.publish===false?null:new Date().toISOString(),user.id,raw,targetMaximum).run();
     await audit('manual_assessment_mark_saved','assessment_result',assessmentId+':'+studentId);
     return json({saved:true,rawPoints:raw,rawMaximum,publishedPoints:published,publishedMaximum:targetMaximum});
