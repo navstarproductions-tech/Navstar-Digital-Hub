@@ -169,6 +169,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   maintenance: makeTabs(['Maintenance Status','Enable / Disable Maintenance','Maintenance Notices'],'maintenance'),
   'ict-portal': makeTabs(['ICT Service Requests','ICT Services & Pricing','Student Gateway','Tutor Portal','Finance Portal','Principal Portal','Deputy Principal'],'ict-portal'),
   settings: [
+    {label:"Navstar AI",target:'settings',settingsTab:'complete'},
     {label:"Institute Profile",target:'settings',settingsTab:'complete'},
     {label:"Fee Structures (PDFs)",target:'settings',settingsTab:'complete'},
     {label:"Enrollment Settings",target:'settings',settingsTab:'complete'},
