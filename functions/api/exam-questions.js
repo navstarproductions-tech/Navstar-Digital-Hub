@@ -20,12 +20,17 @@ export async function onRequestGet({request,env}){
  if(!env.DB)return error('Exam question database is not configured.',503);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  const assessmentId=safeString(new URL(request.url).searchParams.get('assessmentId'),80);
- const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,a.max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.require_admin_approval,c.title AS course_title,m.title AS module_title,m.code AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
+ const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,a.max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.require_admin_approval,a.allow_result_review,c.title AS course_title,m.title AS module_title,m.code AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not available.',404);
  const student=user.role==='student';
  if(student&&(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())))return error('This examination is not currently open.',403);
+ let revealAnswers=!student;
+ if(student&&assessment.allow_result_review){
+  const submitted=await env.DB.prepare("SELECT id FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status IN ('submitted','graded') ORDER BY attempt_number DESC LIMIT 1").bind(assessmentId,user.id).first();
+  revealAnswers=Boolean(submitted);
+ }
  const rows=await env.DB.prepare('SELECT id,question_text AS questionText,question_type AS questionType,options_json AS optionsJson,points,sort_order AS sortOrder,explanation,correct_answer_json AS correctAnswerJson FROM course_exam_questions WHERE assessment_id=? AND status=? ORDER BY sort_order,id').bind(assessmentId,'active').all();
- const questions=(rows.results||[]).map(q=>({id:q.id,questionText:q.questionText,questionType:q.questionType,options:JSON.parse(q.optionsJson||'[]'),points:q.points,sortOrder:q.sortOrder,...(!student?{correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}:{})}));
+ const questions=(rows.results||[]).map(q=>({id:q.id,questionText:q.questionText,questionType:q.questionType,options:JSON.parse(q.optionsJson||'[]'),points:q.points,sortOrder:q.sortOrder,...(revealAnswers?{correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}:{})}));
  return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:assessment.max_points,durationMinutes:assessment.duration_minutes},questions});
 }
 export async function onRequestPost({request,env}){
