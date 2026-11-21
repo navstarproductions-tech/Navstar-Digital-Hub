@@ -54,6 +54,30 @@ const sections: Section[] = [
   {title:'Branch directory',fields:[{key:'campusDirectory',label:'Branches (one per line: branch name | town | status)',type:'textarea',help:'Example: Main, Bungoma Branch | Bungoma | Active'}]},
   {title:'Staff assignment',fields:[{key:'campusStaffRules',label:'Campus staff assignment notes / rules',type:'textarea'}]},
   {title:'Kenya local administration directory',fields:[{key:'locationOptions',label:'Locations (one per line: Ward | Location)',type:'textarea',help:'Use the exact ward name from the national directory, then the location name. Example: Township | Nambale Township.'},{key:'subLocationOptions',label:'Sub-locations (one per line: Location | Sub-location)',type:'textarea',help:'Link each sub-location to its parent location. Example: Nambale Township | Nambale Central.'}]}]},
+ {id:'leadership-profile',label:'Navstar Leadership & Background',description:'Maintain verified background, leadership information, business principles and approved public biography used by Navstar AI. Keep confidential notes separate from public-approved content.',groups:[
+  {title:'Founder and leadership identity',description:'Enter only verified facts. AI must not infer personal details or disclose confidential notes.',fields:[
+   {key:'ceoOwnerName',label:'CEO / Owner full name',type:'text'},
+   {key:'ceoPublicTitle',label:'Approved leadership title',type:'text',placeholder:'CEO, Founder and Owner'},
+   {key:'ceoPublicBiography',label:'Approved public CEO biography',type:'textarea'},
+   {key:'ceoBackground',label:'Professional and educational background (verified)',type:'textarea'},
+   {key:'ceoFounderStory',label:'Navstar founding story and business background',type:'textarea'},
+   {key:'ceoExpertise',label:'Areas of expertise and responsibilities',type:'textarea'},
+  ]},
+  {title:'Navstar Digital Hub profile',fields:[
+   {key:'navstarAbout',label:'Official organisation background',type:'textarea'},
+   {key:'navstarVision',label:'Vision',type:'textarea'},
+   {key:'navstarMission',label:'Mission',type:'textarea'},
+   {key:'navstarCoreValues',label:'Core values',type:'textarea'},
+   {key:'navstarServicesPolicy',label:'Service principles and customer-care policy',type:'textarea'},
+   {key:'navstarTrainingPolicy',label:'Training, assessment and certification principles',type:'textarea'},
+   {key:'navstarLeadershipPolicy',label:'Leadership and decision-making principles',type:'textarea'},
+   {key:'navstarOfficialPolicies',label:'Other approved institutional principles',type:'textarea'},
+  ]},
+  {title:'AI access and confidentiality',fields:[
+   {key:'publishLeadershipBioToAI',label:'Allow public AI to use the approved CEO biography and public Navstar profile',type:'toggle'},
+   {key:'ceoInternalConfidentialNotes',label:'Confidential administrator-only context (never share with public or students)',type:'textarea',help:'Internal planning notes only. Do not store passwords, identity numbers, private financial information or sensitive personal data.'},
+  ]},
+ ]},
  {id:'privacy-policies',label:'Privacy, Policies & Terms',description:'Prepare the institution’s privacy notices, acceptable-use rules, safeguarding guidance and terms. AI drafts are editable working documents and must be reviewed and approved before publication.',groups:[
   {title:'Publication control',description:'Drafts stay private in Admin Settings. Turn this on only after an administrator has reviewed and approved the public-facing notices.',fields:[{key:'publishPoliciesToPublicAI',label:'Allow Navstar AI to answer public questions using approved privacy and terms notices',type:'toggle'}]},
 
