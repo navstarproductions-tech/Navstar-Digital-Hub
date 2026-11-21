@@ -191,6 +191,82 @@ export async function onRequestPost({request,env}){
     return json({submitted:true});
   }
 
+  if(action==='update_assessment'){
+    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const assessmentId=safeString(body.assessmentId,80);
+    const existing=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
+    if(!(await requireCourse(env.DB,user,courseId)))return error('You are not assigned to the selected course.',403);
+    if(title.length<2)return error('Select a course, module and exam type to generate the title.');
+    const selectedModule=moduleId?await env.DB.prepare('SELECT id FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
+    if(!selectedModule)return error('Select a valid module belonging to the selected course.');
+    const startsAt=safeString(body.startsAt,40),endsAt=safeString(body.endsAt,40);
+    const maxPoints=Number(body.maxPoints),duration=Number(body.durationMinutes),passMark=Number(body.passMark),attempts=Number(body.maxAttempts);
+    if(!validDate(startsAt)||!validDate(endsAt)||Date.parse(endsAt)<=Date.parse(startsAt))return error('Enter a valid scheduled date and expiry time.');
+    if(!Number.isSafeInteger(maxPoints)||maxPoints<1||maxPoints>10000||!Number.isSafeInteger(duration)||duration<1||duration>600||!Number.isSafeInteger(passMark)||passMark<0||passMark>maxPoints||!Number.isSafeInteger(attempts)||attempts<1||attempts>10)return error('Check total marks, duration, pass mark and attempts.');
+    const type=safeString(body.assessmentType,20);
+    if(!['test','exam','practical','cat'].includes(type))return error('Choose a valid exam type.');
+    await env.DB.prepare('UPDATE course_assessments SET course_id=?,module_id=?,title=?,assessment_type=?,instructions=?,starts_at=?,due_at=?,max_points=?,duration_minutes=?,pass_mark=?,max_attempts=?,require_full_fee_payment=?,require_assignment_submission=?,allow_result_review=?,require_admin_approval=? WHERE id=?')
+      .bind(courseId,moduleId,title,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.requireAdminApproval?1:0,assessmentId).run();
+    await audit('assessment_updated','assessment',assessmentId);
+    return json({id:assessmentId,updated:true});
+  }
+  if(action==='archive_assessment'){
+    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const assessmentId=safeString(body.assessmentId,80);
+    const existing=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
+    await env.DB.prepare("UPDATE course_assessments SET status='archived' WHERE id=?").bind(assessmentId).run();
+    await audit('assessment_archived','assessment',assessmentId);
+    return json({archived:true});
+  }
+  if(action==='generate_exam_timetable'){
+    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const rules=body.rules&&typeof body.rules==='object'?body.rules:{};
+    const startText=safeString(rules.startDate,10),endText=safeString(rules.endDate,10);
+    const perDay=Number(rules.papersPerDay),morning=safeString(rules.morningTime,5),evening=safeString(rules.eveningTime,5);
+    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(startText)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(endText)||endText<startText||!Number.isInteger(perDay)||perDay<1||perDay>30||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(morning)||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(evening))return error('Enter valid timetable dates, papers per day and EAT paper times.');
+    const selectedCourse=safeString(body.courseId,80);
+    const allCourses=(await env.DB.prepare("SELECT id,title FROM courses WHERE status='active' ORDER BY title").all()).results||[];
+    const targetCourses=selectedCourse?allCourses.filter(c=>c.id===selectedCourse):allCourses;
+    if(selectedCourse&&!targetCourses.length)return error('Selected course was not found or is not active.',404);
+    const ready=[];
+    for(const course of targetCourses){
+      if(!(await requireCourse(env.DB,user,course.id)))continue;
+      const active=await env.DB.prepare("SELECT COUNT(*) AS n FROM enrollments WHERE course_id=? AND status='accepted'").bind(course.id).first();
+      if(Number(active?.n||0)<1)continue;
+      const modules=(await env.DB.prepare("SELECT id,title FROM course_modules WHERE course_id=? AND status='published' ORDER BY sort_order,title").bind(course.id).all()).results||[];
+      if(!modules.length)continue;
+      const papers=(await env.DB.prepare("SELECT id,module_id,duration_minutes,title FROM course_assessments WHERE course_id=? AND status!='archived' AND module_id IS NOT NULL ORDER BY title").bind(course.id).all()).results||[];
+      if(modules.some(m=>!papers.some(p=>p.module_id===m.id)))continue;
+      ready.push({course,papers});
+    }
+    if(!ready.length)return error('No course is ready. Each selected course needs active enrolled students and at least one exam paper for every published module.');
+    const statements=[],scheduledPapers=[];
+    const parseTime=(day,time)=>new Date(day+'T'+time+':00+03:00');
+    const nextWeekday=(date)=>{const d=new Date(date+'T00:00:00+03:00');while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);};
+    for(const item of ready){
+      let day=nextWeekday(startText),index=0;
+      const papers=item.papers;
+      while(index<papers.length){
+        if(day>endText)return error('The selected end date is too early to schedule all module papers. Extend the date range and try again.');
+        if([0,6].includes(new Date(day+'T00:00:00+03:00').getDay())){const d=new Date(day+'T00:00:00+03:00');d.setDate(d.getDate()+1);day=d.toISOString().slice(0,10);continue;}
+        const count=Math.min(perDay,papers.length-index);
+        for(let slot=0;slot<count;slot++){
+          const paper=papers[index++],startMinutes=Number(morning.slice(0,2))*60+Number(morning.slice(3)),endMinutes=Number(evening.slice(0,2))*60+Number(evening.slice(3));
+          const mins=count===1?startMinutes:Math.round(startMinutes+(endMinutes-startMinutes)*slot/(count-1));
+          const time=String(Math.floor(mins/60)%24).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
+          const starts=parseTime(day,time),ends=new Date(starts.getTime()+Math.max(1,Number(paper.duration_minutes||60))*60000);
+          statements.push(env.DB.prepare("UPDATE course_assessments SET starts_at=?,due_at=?,status='published' WHERE id=?").bind(starts.toISOString(),ends.toISOString(),paper.id));
+          scheduledPapers.push({course:item.course.title,title:paper.title,startsAt:starts.toISOString(),endsAt:ends.toISOString()});
+        }
+        const d=new Date(day+'T00:00:00+03:00');d.setDate(d.getDate()+1);day=nextWeekday(d.toISOString().slice(0,10));
+      }
+    }
+    if(statements.length)await env.DB.batch(statements);
+    await audit('exam_timetable_generated','exam_timetable',selectedCourse||'all');
+    return json({generated:scheduledPapers.length,courses:ready.map(x=>x.course.title),papers:scheduledPapers});
+  }
   if(action==='create_timetable'||action==='create_live_class'||action==='create_assessment'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     if(!(await requireCourse(env.DB,user,courseId)))return error('You are not assigned to this course.',403);
@@ -212,7 +288,7 @@ export async function onRequestPost({request,env}){
       if(!Number.isSafeInteger(maxPoints)||maxPoints<1||maxPoints>10000||!['test','exam','practical','cat'].includes(type))return error('Choose a valid assessment type and maximum score.');
       const duration=Number(body.durationMinutes??60),passMark=Number(body.passMark??Math.floor(maxPoints/2)),attempts=Number(body.maxAttempts??1);
       if(!Number.isSafeInteger(duration)||duration<1||duration>600||!Number.isSafeInteger(passMark)||passMark<0||passMark>maxPoints||!Number.isSafeInteger(attempts)||attempts<1||attempts>10)return error('Check the exam duration, pass mark and attempt limit.');
-      await env.DB.prepare('INSERT INTO course_assessments(id,course_id,module_id,title,assessment_type,instructions,starts_at,due_at,max_points,status,created_by,duration_minutes,pass_mark,max_attempts,require_full_fee_payment,require_assignment_submission,allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit,require_admin_approval) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,courseId,moduleId||null,title,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,'published',user.id,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.shuffleQuestions?1:0,body.disableCopyPaste?1:0,body.strictTimeLimit===false?0:1,1).run();
+      await env.DB.prepare('INSERT INTO course_assessments(id,course_id,module_id,title,assessment_type,instructions,starts_at,due_at,max_points,status,created_by,duration_minutes,pass_mark,max_attempts,require_full_fee_payment,require_assignment_submission,allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit,require_admin_approval) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,courseId,moduleId||null,title,type,safeString(body.instructions,5000),startsAt,endsAt,maxPoints,'published',user.id,duration,passMark,attempts,body.requireFullFeePayment?1:0,body.requireAssignmentSubmission?1:0,body.allowResultReview===false?0:1,body.shuffleQuestions?1:0,body.disableCopyPaste?1:0,body.strictTimeLimit===false?0:1,body.requireAdminApproval?1:0).run();
     }
     await audit(action,'course',courseId);
     return json({id,created:true},201);
