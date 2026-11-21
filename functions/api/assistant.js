@@ -196,10 +196,7 @@ export async function onRequestPost({ request, env }) {
       const kind = clean(file?.kind, 20);
       if (kind === 'text') {
         const textContent = clean(file?.data, 120000);
-        if (textContent) contentParts[0].text += '
-
-[Attached text file: ' + name + ']
-' + textContent;
+        if (textContent) contentParts[0].text += '\n\n[Attached text file: ' + name + ']\n' + textContent;
         continue;
       }
 
@@ -216,10 +213,7 @@ export async function onRequestPost({ request, env }) {
       } else if ((kind === 'pdf' && decoded.mimeType === 'application/pdf') ||
                  (kind === 'image' && decoded.mimeType === 'image/gif')) {
         const extracted = await convertDocument(env, { name }, decoded);
-        contentParts[0].text += '
-
-[Extracted content from ' + name + ']
-' + extracted;
+        contentParts[0].text += '\n\n[Extracted content from ' + name + ']\n' + extracted;
       } else {
         return json({ error: 'Unsupported attachment format: ' + name + '. Use JPEG, PNG, WEBP, GIF, PDF or a text file.', code: 'AI_FILE_FORMAT_UNSUPPORTED', requestId }, 400, requestId);
       }
