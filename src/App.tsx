@@ -79,7 +79,7 @@ function IdleSessionGuard() {
       }
     };
     void fetch('/api/auth/me').then(async response => {
-      if (!response.ok) { if (active) navigate('/login?role=' + encodeURIComponent(role), { replace: true }); return; }
+      if (!response.ok) { if (active) navigate(loginGate(), { replace: true }); return; }
       const result = await response.json() as { user?: { role?: string }; sessionTimeoutMinutes?: number };
       if (result.user?.role) role = result.user.role;
       if (result.sessionTimeoutMinutes) timeoutMs = Math.max(5, Math.min(480, result.sessionTimeoutMinutes)) * 60000;
@@ -92,7 +92,7 @@ function IdleSessionGuard() {
       if (timer) clearTimeout(timer);
       events.forEach(event => window.removeEventListener(event, resetIdleTimer));
     };
-  }, [pathname, navigate]);
+  }, [pathname, search, hash, navigate]);
 
   return null;
 }
