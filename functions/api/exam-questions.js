@@ -177,6 +177,11 @@ export async function onRequestPost({request,env}){
 }
 async function importQuestions(db,user,assessmentId,items){
  if(!items.length||items.length>500)return error('No valid questions to import.');
+ const assessment=await db.prepare('SELECT max_points FROM course_assessments WHERE id=?').bind(assessmentId).first();
+ if(!assessment)return error('Exam not found.',404);
+ const current=await db.prepare("SELECT COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status='active'").bind(assessmentId).first();
+ const incoming=items.reduce((sum,q)=>sum+Number(q.points||1),0);
+ if(!Number.isFinite(incoming)||Number(current?.total||0)+incoming>Number(assessment.max_points))return error('Imported questions would exceed the paper maximum of '+assessment.max_points+' marks.');
  for(const q of items){
   const question=safeString(q.questionText||q.question,2000),type=safeString(q.type||q.questionType,24),options=Array.isArray(q.options)?q.options:[],answer=q.correctAnswer??q.answer??null;
   if(!question||!['single_choice','multiple_choice','true_false','short_answer','essay'].includes(type))return error('CSV contains an invalid question or type.');
