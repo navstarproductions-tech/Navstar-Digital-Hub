@@ -36,6 +36,12 @@ async function hasModuleAccess(db,user,moduleId,courseId){
   return hasCourseAccess(db,user,courseId);
 }
 
+async function getPublishedMarksPolicy(db){
+ const row=await db.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();let config={};try{config=JSON.parse(row?.value||'{}')}catch{}
+ const grading=config.grading||{},maximum=Number(grading.publishedMaximum)||100;
+ const bands=String(grading.gradeScale||'').split(/\r?\n/).map(line=>line.split('|').map(part=>part.trim())).filter(p=>p[0]&&p[2]!==''&&p[3]!==''&&p[2]!=='—'&&p[3]!=='—'&&Number.isFinite(Number(p[2]))&&Number.isFinite(Number(p[3]))).map(p=>({grade:p[0],min:Number(p[2]),max:Number(p[3])}));
+ return {maximum,bands:bands.length?bands:[{grade:'A',min:80,max:100},{grade:'B+',min:70,max:79},{grade:'B',min:60,max:69},{grade:'C',min:50,max:59},{grade:'D',min:40,max:49},{grade:'F',min:0,max:39}]};
+}
 async function writeAudit(db, userId, action, entityType, entityId) {
   await db.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
     .bind(uuid(), userId, action, entityType, entityId).run();
@@ -63,6 +69,7 @@ export async function onRequestGet({ request, env }) {
     courses = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, level, course_code FROM courses WHERE (? IN ('admin','principal') OR status = 'active') ORDER BY title").bind(user.role).all();
   }
   const courseRows = courses.results ?? [];
+  const marksPolicy=await getPublishedMarksPolicy(env.DB);
   const courseIds = courseRows.map((course) => course.id);
   if (!courseIds.length) return json({ courses: [], role: user.role, message: user.role === 'student' ? 'No accepted course enrolments are linked to this account yet.' : 'No active courses are available.' });
 
@@ -97,7 +104,7 @@ export async function onRequestGet({ request, env }) {
     : { results: [] };
   const submissionSql = `
     SELECT s.id, s.assignment_id, s.user_id, u.name AS learner_name, s.response_text, s.attachment_url,
-      s.status, s.points_awarded, s.feedback, s.submitted_at
+      s.status, s.points_awarded, s.feedback, s.submitted_at, a.max_points
     FROM course_assignment_submissions s
     JOIN course_assignments a ON a.id = s.assignment_id
     JOIN users u ON u.id = s.user_id
@@ -113,8 +120,12 @@ export async function onRequestGet({ request, env }) {
   const progressByLesson = new Map((progressResult.results ?? []).map((item) => [item.lesson_id, item]));
   const submissionsByAssignment = new Map();
   for (const submission of submissionResult.results ?? []) {
+    const raw=Number(submission.points_awarded),rawMax=Number(submission.max_points)||100;
+    const percentage=submission.points_awarded===null||submission.points_awarded===undefined?null:Math.round(raw/rawMax*10000)/100;
+    const grade=percentage===null?null:marksPolicy.bands.find(b=>percentage>=b.min&&percentage<=b.max)?.grade||'—';
+    const enriched={...submission,percentage,published_maximum:marksPolicy.maximum,published_points_awarded:percentage===null?null:Math.round(percentage*marksPolicy.maximum)/100,grade};
     const current = submissionsByAssignment.get(submission.assignment_id) ?? [];
-    current.push(submission);
+    current.push(enriched);
     submissionsByAssignment.set(submission.assignment_id, current);
   }
   const resultCourses = courseRows.map((course) => ({
