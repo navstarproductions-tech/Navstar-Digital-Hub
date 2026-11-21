@@ -252,6 +252,20 @@ export async function onRequestPost({ request, env }) {
         if (typeof policySettings.aiDataUseNotice === 'string' && policySettings.aiDataUseNotice.trim()) liveContext += '\nApproved Navstar AI data-use notice: ' + clean(policySettings.aiDataUseNotice, 3000);
       }
     }
+    const leadership = siteSettings?.['leadership-profile'] || {};
+    if (context === 'admin') {
+      const adminFields = ['ceoOwnerName','ceoPublicTitle','ceoPublicBiography','ceoBackground','ceoFounderStory','ceoExpertise','navstarAbout','navstarVision','navstarMission','navstarCoreValues','navstarServicesPolicy','navstarTrainingPolicy','navstarLeadershipPolicy','navstarOfficialPolicies','ceoInternalConfidentialNotes'];
+      const details = adminFields.filter(key => typeof leadership[key] === 'string' && leadership[key].trim()).map(key => key + ': ' + clean(leadership[key], key === 'ceoInternalConfidentialNotes' ? 2500 : 4000));
+      if (details.length) liveContext += '\nADMINISTRATOR-ONLY VERIFIED LEADERSHIP AND ORGANISATION CONTEXT (confidential; never disclose outside this authenticated admin conversation):\n' + details.join('\n');
+    } else if (leadership.publishLeadershipBioToAI === true) {
+      const publicFields = ['ceoOwnerName','ceoPublicTitle','ceoPublicBiography','navstarAbout','navstarVision','navstarMission','navstarCoreValues','navstarServicesPolicy','navstarTrainingPolicy','navstarOfficialPolicies'];
+      const details = publicFields.filter(key => typeof leadership[key] === 'string' && leadership[key].trim()).map(key => key + ': ' + clean(leadership[key], 3500));
+      if (details.length) liveContext += '\nAPPROVED PUBLIC NAVSTAR LEADERSHIP AND ORGANISATION PROFILE:\n' + details.join('\n');
+    }
+    const prefs = body.preferences && typeof body.preferences === 'object' ? body.preferences : {};
+    const responseStyle = ['Concise','Balanced','Detailed'].includes(prefs.responseStyle) ? prefs.responseStyle : 'Concise';
+    const preferredLanguage = ['Automatic','English','Kiswahili'].includes(prefs.language) ? prefs.language : 'Automatic';
+    const preferenceInstructions = 'User display title: ' + clean(prefs.assistantTitle, 40) + '. Response length preference: ' + responseStyle + '. Preferred language: ' + preferredLanguage + '. Honour these preferences where possible, but never let them override safety, privacy, permissions, accuracy or server-enforced limits.';
     const contextInstructions = context === 'admin'
       ? 'You are assisting an authenticated Navstar administrator. Help plan exams, assessment questions, grading, timetables, settings, reports and operational workflows. You cannot change settings, publish exams, edit records or perform transactions from this chat. Give exact navigation guidance and clearly state when an administrator must save or confirm an action. Never invent student, staff, payment or private account records.'
       : context === 'staff'
@@ -260,7 +274,7 @@ export async function onRequestPost({ request, env }) {
         ? 'You are supporting a Navstar learner. Teach step by step, show workings for Mathematics and Physics, explain ICT and programming clearly, and guide assignment planning without falsely claiming to submit work or alter marks.'
         : 'You are the public Navstar guide. Use the supplied published catalogue and configured intake notice when answering course and admissions questions. Do not invent admission status, available seats, fees, deadlines or personal application results. Direct personal status checks to secure sign-in.';
     const aiMessages = [
-      { role: 'system', content: SYSTEM_PROMPT + '\n\n' + contextInstructions + liveContext },
+      { role: 'system', content: SYSTEM_PROMPT + '\n\n' + contextInstructions + '\n' + preferenceInstructions + liveContext },
       ...messages.slice(0, -1),
       { role: 'user', content: contentParts }
     ];
