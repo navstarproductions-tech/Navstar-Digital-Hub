@@ -29,7 +29,7 @@ import { PayPage } from '@/pages/PayPage';
 import { MusicPage } from '@/pages/MusicPage';
 import { PortalNotificationsPage } from '@/pages/PortalNotificationsPage';
 import { MyAccountPage } from '@/pages/MyAccountPage';
-import { AIChatWidget } from '@/components/AIChatWidget';
+import { AIPage } from '@/pages/AIPage';
 import { PortalMaintenanceGate } from '@/components/PortalMaintenanceGate';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -121,6 +121,7 @@ function AppShell() {
             <Route path="/enrollment" element={<PublicEnrollmentPage />} />\n            <Route path="/staff-application" element={<StaffApplicationPage />} />
             <Route path="/learning" element={<LearningPage />} />
             <Route path="/services" element={<ServicesPage />} />
+            <Route path="/ai" element={<AIPage />} />
             <Route path="/pay" element={<PayPage />} />
             <Route path="/donations" element={<DonationsPage />} />
             <Route path="/portals" element={<PortalsPage />} />
