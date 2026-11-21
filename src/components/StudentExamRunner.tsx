@@ -2,7 +2,7 @@ import { useEffect,useState } from 'react';
 type Exam={id:string;title:string;course_id:string;course_title?:string;instructions?:string;starts_at?:string|null;due_at?:string|null;duration_minutes?:number;max_points:number;status:string};
 type Question={id:string;questionText:string;questionType:string;options:string[];points:number};
 export function StudentExamRunner({exams}:{exams:Exam[]}){
- const [examId,setExamId]=useState(''),[questions,setQuestions]=useState<Question[]>([]),[answers,setAnswers]=useState<Record<string,any>>({}),[attempt,setAttempt]=useState(''),[expires,setExpires]=useState(''),[index,setIndex]=useState(0),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[remaining,setRemaining]=useState('');
+ const [examId,setExamId]=useState(''),[questions,setQuestions]=useState<Question[]>([]),[answers,setAnswers]=useState<Record<string,any>>({}),[attempt,setAttempt]=useState(''),[expires,setExpires]=useState(''),[index,setIndex]=useState(0),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[remaining,setRemaining]=useState(''),[security,setSecurity]=useState<Record<string,boolean>>({});
  const selected=exams.find(x=>x.id===examId),question=questions[index];
  useEffect(()=>{if(!exams.length){setExamId('');return;}if(!examId||!exams.some(x=>x.id===examId))setExamId(exams[0].id);},[exams]);
  useEffect(()=>{if(!attempt||!expires)return;const update=()=>{const ms=Math.max(0,Date.parse(expires)-Date.now());setRemaining(Math.floor(ms/60000)+'m '+Math.floor((ms%60000)/1000)+'s');};update();const timer=setInterval(update,1000);return()=>clearInterval(timer);},[attempt,expires]);
