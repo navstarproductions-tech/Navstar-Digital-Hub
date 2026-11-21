@@ -47,6 +47,14 @@ async function visibleCourseIds(db,user){
   }
   return [];
 }
+async function getCentralMarksPolicy(db){
+ const row=await db.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
+ let config={};try{config=JSON.parse(row?.value||'{}')}catch{}
+ const grading=config.grading||{},lines=String(grading.gradeScale||'').split(/\r?\n/);
+ const gradingScale=lines.map(line=>line.split('|').map(part=>part.trim())).filter(parts=>parts[0]&&parts[2]!==''&&parts[3]!==''&&parts[2]!=='—'&&parts[3]!=='—'&&Number.isFinite(Number(parts[2]))&&Number.isFinite(Number(parts[3]))).map(parts=>({grade:parts[0],classification:parts[1]||'',min:Number(parts[2]),max:Number(parts[3]),remarks:parts.slice(4).join(' | ')}));
+ const maximum=Number(grading.publishedMaximum);
+ return {publishedMaximum:Number.isFinite(maximum)&&maximum>0?maximum:100,gradingScale};
+}
 function publishedMaximum(type,settings={}){const value=Number(settings?.publishedMaximum);return Number.isFinite(value)&&value>0?value:100;}
 
 function scaledPoints(raw,rawMaximum,publishedMaximumValue){
