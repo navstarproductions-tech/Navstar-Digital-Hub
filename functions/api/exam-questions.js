@@ -95,8 +95,7 @@ export async function onRequestPost({request,env}){
   const supportedTypes=['single_choice','multiple_choice','true_false','short_answer','essay'];
   if(normalized.some(q=>!safeString(q.questionText||q.question,2000)||!supportedTypes.includes(safeString(q.questionType||q.type,24))))return error('The AI returned a question with missing text or an unsupported type. Please retry.');
   if(normalized.some(q=>['single_choice','multiple_choice','true_false'].includes(safeString(q.questionType||q.type,24))&&(!Array.isArray(q.options)||!q.options.length||q.correctAnswer===undefined||q.correctAnswer===null||q.correctAnswer==='')))return error('The AI returned an objective question without options or an answer key. Please retry.');
-  if(replaceAll)await env.DB.prepare("UPDATE course_exam_questions SET status='archived' WHERE assessment_id=? AND status='active'").bind(assessmentId).run();
-  const result=await importQuestions(env.DB,user,assessmentId,normalized);
+  const result=await importQuestions(env.DB,user,assessmentId,normalized,{replaceAll});
 
   return result;
  }
@@ -183,19 +182,26 @@ export async function onRequestPost({request,env}){
  }
  return error('Unsupported examination action.');
 }
-async function importQuestions(db,user,assessmentId,items){
- if(!items.length||items.length>500)return error('No valid questions to import.');
+async function importQuestions(db,user,assessmentId,items,options={}){
+ if(!Array.isArray(items)||!items.length||items.length>500)return error('No valid questions to import.');
  const assessment=await db.prepare('SELECT max_points FROM course_assessments WHERE id=?').bind(assessmentId).first();
  if(!assessment)return error('Exam not found.',404);
- const current=await db.prepare("SELECT COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status='active'").bind(assessmentId).first();
- const incoming=items.reduce((sum,q)=>sum+Number(q.points||1),0);
- if(!Number.isFinite(incoming)||Number(current?.total||0)+incoming>Number(assessment.max_points))return error('Imported questions would exceed the paper maximum of '+assessment.max_points+' marks.');
- for(const q of items){
-  const question=safeString(q.questionText||q.question,2000),type=safeString(q.type||q.questionType,24),options=Array.isArray(q.options)?q.options:[],answer=q.correctAnswer??q.answer??null;
-  if(!question||!['single_choice','multiple_choice','true_false','short_answer','essay'].includes(type))return error('CSV contains an invalid question or type.');
-  if(['single_choice','multiple_choice','true_false'].includes(type)&&(!options.length||answer===null||answer===''))return error('Objective questions require options and a correct answer.');
-  const points=Number(q.points||1);if(!Number.isInteger(points)||points<1||points>1000)return error('Invalid question marks.');
-  await db.prepare('INSERT INTO course_exam_questions(id,assessment_id,question_text,question_type,options_json,correct_answer_json,explanation,points,created_by) VALUES(?,?,?,?,?,?,?,?,?)').bind(uuid(),assessmentId,question,type,JSON.stringify(options),JSON.stringify(answer),safeString(q.explanation,1500),points,user.id).run();
+ const replaceAll=options.replaceAll===true;
+ const current=replaceAll?{total:0}:await db.prepare("SELECT COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status='active'").bind(assessmentId).first();
+ const normalized=[];
+ for(let index=0;index<items.length;index++){
+  const q=items[index]||{},question=safeString(q.questionText||q.question,2000),type=safeString(q.type||q.questionType,24),options=Array.isArray(q.options)?q.options.slice(0,12).map(x=>safeString(x,300)):[];
+  const answer=q.correctAnswer??q.answer??null;
+  if(!question||!['single_choice','multiple_choice','true_false','short_answer','essay'].includes(type))return error('Question '+(index+1)+' has invalid text or question type.');
+  if(['single_choice','multiple_choice','true_false'].includes(type)&&(!options.length||answer===null||answer===''))return error('Objective question '+(index+1)+' requires options and a correct answer.');
+  const points=Number(q.points||1);if(!Number.isInteger(points)||points<1||points>1000)return error('Question '+(index+1)+' has invalid marks.');
+  normalized.push({id:uuid(),question,type,options,answer,explanation:safeString(q.explanation,1500),points,sortOrder:Number.isInteger(Number(q.sortOrder))?Number(q.sortOrder):index});
  }
- return json({imported:items.length});
+ const incoming=normalized.reduce((sum,q)=>sum+q.points,0);
+ if(!Number.isFinite(incoming)||Number(current?.total||0)+incoming>Number(assessment.max_points))return error('Imported questions would exceed the paper maximum of '+assessment.max_points+' marks.');
+ const statements=[];
+ if(replaceAll)statements.push(db.prepare("UPDATE course_exam_questions SET status='archived' WHERE assessment_id=? AND status='active'").bind(assessmentId));
+ for(const q of normalized)statements.push(db.prepare('INSERT INTO course_exam_questions(id,assessment_id,question_text,question_type,options_json,correct_answer_json,explanation,points,sort_order,created_by) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(q.id,assessmentId,q.question,q.type,JSON.stringify(q.options),q.answer===null?null:JSON.stringify(q.answer),q.explanation,q.points,q.sortOrder,user.id));
+ await db.batch(statements);
+ return json({imported:normalized.length,replaced:replaceAll});
 }
