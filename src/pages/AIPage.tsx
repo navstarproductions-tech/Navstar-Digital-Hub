@@ -33,6 +33,7 @@ export function AIPage(){
  useEffect(()=>{scrollRef.current?.scrollTo({top:scrollRef.current.scrollHeight,behavior:'smooth'});},[activeChat?.messages.length,busy]);
  useEffect(()=>{const reset=()=>{setUserKey('guest');setChats([]);setActiveId('');};window.addEventListener('navstar:customer-auth-changed',reset);return()=>window.removeEventListener('navstar:customer-auth-changed',reset);},[]);
  const filteredChats=useMemo(()=>chats.filter(chat=>chat.title.toLowerCase().includes(query.toLowerCase())),[chats,query]);
+ const renameChat=(id:string,title:string)=>updateChat(id,chat=>({...chat,title:title.trim().slice(0,60)||'New chat'}));
  const newChat=()=>{const chat:Chat={id:makeId(),title:'New chat',updatedAt:Date.now(),messages:[{role:'assistant' as const,content:HELLO}]};setChats(current=>[chat,...current]);setActiveId(chat.id);setMinimized(current=>current.filter(id=>id!==chat.id));setSection('chat');setPrompt('');setChatAttachments([]);setError('');};
  const updateChat=(id:string,fn:(chat:Chat)=>Chat)=>setChats(current=>current.map(chat=>chat.id===id?fn(chat):chat));
  const removeChat=(id:string)=>{setChats(current=>current.filter(chat=>chat.id!==id));setMinimized(current=>current.filter(item=>item!==id));if(activeId===id){const next=chats.find(chat=>chat.id!==id);setActiveId(next?.id||'');}};
