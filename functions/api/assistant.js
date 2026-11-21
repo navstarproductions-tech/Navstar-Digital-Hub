@@ -255,7 +255,7 @@ export async function onRequestPost({ request, env }) {
     ];
     const result = await env.AI.run(model, {
       messages: aiMessages,
-      max_completion_tokens: Math.max(256, Math.min(900, Number(aiSettings.aiMaxResponseTokens) || 650)),
+      max_completion_tokens: Math.max(256, Math.min(900, Number(aiSettings.aiMaxResponseTokens) || (context === 'public' ? 550 : 850))),
       temperature: 0.4,
       chat_template_kwargs: { enable_thinking: false }
     });
