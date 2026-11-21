@@ -5,6 +5,17 @@ type Group = { title: string; description?: string; fields: Field[] };
 type Section = { id: string; label: string; description: string; groups: Group[] };
 
 const sections: Section[] = [
+ {id:'ai-assistant',label:'Navstar AI',description:'Control AI availability and the assistance features used across public, student and administrator workspaces. Changes apply only after saving.',groups:[
+  {title:'AI availability',description:'The platform uses Cloudflare Workers AI. Turning the assistant off blocks new public and portal AI requests.',fields:[
+   {key:'aiEnabled',label:'Enable Navstar AI across the platform',type:'toggle'},
+   {key:'aiPublicAssistant',label:'Allow public website guidance',type:'toggle'},
+   {key:'aiStudentLearning',label:'Enable student learning support (Mathematics, Physics, ICT and assignments)',type:'toggle'},
+   {key:'aiDocumentAnalysis',label:'Allow image, PDF and text document analysis',type:'toggle'},
+   {key:'aiExamQuestionGeneration',label:'Allow AI exam and question generation',type:'toggle'},
+   {key:'aiAdminAssistance',label:'Enable administrator workflow assistance',type:'toggle'},
+   {key:'aiCustomerGuidance',label:'Enable customer services and admissions guidance',type:'toggle'},
+   {key:'aiConversationRetention',label:'Conversation retention on this device',type:'select',options:['Off','Current browser only','30 days','90 days']}
+  ]}]},
  {id:'notifications',label:'Notifications',description:'Set which system events trigger administrator notifications.',groups:[
   {title:'Notification preferences',fields:[{key:'notifyNewApplication',label:'Notify on new student applications',type:'toggle'},{key:'notifyPaymentUpdate',label:'Notify on payment status updates',type:'toggle'},{key:'notifyDonation',label:'Notify when a donation is received',type:'toggle'}]}]},
  {id:'institute-profile',label:'Institute Profile',description:'Official institution identity and contact details used across Navstar.',groups:[
