@@ -3,6 +3,13 @@ import { error,isSameOrigin,json,readJson,safeString,uuid } from '../_shared/htt
 
 const staff=['admin','principal','tutor'];
 const admin=['admin','principal'];
+function categoryMaximum(type,settings={}){
+ const key=type==='practical'?'practical':(type==='cat'||type==='test')?'cat':'final';
+ const configured=Number(settings?.categoryScales?.[key]);
+ return Number.isFinite(configured)&&configured>0?configured:(key==='practical'?30:key==='cat'?50:70);
+}
+function scaleScore(raw,rawMax,target){return Math.round((Number(raw||0)/(Number(rawMax)>0?Number(rawMax):100))*Number(target)*100)/100;}
+
 function parseCsv(text){
  const rows=[];let row=[],cell='',quoted=false;
  for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'&&quoted&&text[i+1]==='"'){cell+='"';i++;}else if(c==='"')quoted=!quoted;else if(c===','&&!quoted){row.push(cell);cell='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(x=>x.trim()))rows.push(row);row=[];cell='';}else cell+=c;}
@@ -180,7 +187,14 @@ export async function onRequestPost({request,env}){
   }
   const expired=Date.parse(attempt.expires_at)<=Date.now();
   await env.DB.prepare("UPDATE exam_runtime_attempts SET status=?,submitted_at=CURRENT_TIMESTAMP,last_activity_at=CURRENT_TIMESTAMP,objective_score=?,total_score=? WHERE id=?").bind(autoMarked?'graded':'submitted',score,autoMarked?score:null,attempt.id).run();
-  return json({submitted:true,attemptId:attempt.id,objectiveScore:score,autoMarked,manualMarkingRequired:!autoMarked,expired});
+  let publishedResult=null;
+  if(autoMarked){
+   const cfg=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();let settings={};try{settings=JSON.parse(cfg?.settings_json||'{}')}catch{}
+   const rawMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100,targetMaximum=categoryMaximum(assessment.assessment_type,settings),scaled=scaleScore(score,rawMaximum,targetMaximum),visible=settings.publishResultsAutomatically===true;
+   await env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points").bind(uuid(),assessmentId,user.id,scaled,'Automatically marked from the submitted examination.',visible?new Date().toISOString():null,user.id,score,targetMaximum).run();
+   publishedResult={rawScore:score,rawMaximum,publishedScore:scaled,publishedMaximum:targetMaximum,published:visible};
+  }
+  return json({submitted:true,attemptId:attempt.id,objectiveScore:score,autoMarked,manualMarkingRequired:!autoMarked,expired,publishedResult});
  }
  return error('Unsupported examination action.');
 }
