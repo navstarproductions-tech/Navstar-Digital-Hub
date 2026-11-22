@@ -12,7 +12,7 @@ async function findParcel(env, token) {
   return env.DB.prepare(`
     SELECT p.id,p.parcel_ref AS parcelRef,p.customer_type AS customerType,
       p.customer_name AS customerName,p.recipient_name AS recipientName,
-      p.recipient_address AS recipientAddress,p.contents_json AS contentsJson,
+      p.recipient_address AS recipientAddress,p.recipient_phone AS recipientPhone,p.contents_json AS contentsJson,
       p.quantity,p.amount,p.payment_mode AS paymentMode,p.delivery_status AS deliveryStatus,
       p.recipient_confirmed_at AS confirmedAt,p.recipient_confirmation_name AS confirmedBy,
       r.id AS serviceRequestId,
@@ -76,6 +76,7 @@ export async function onRequestPost(context) {
     const confirmationName = safeString(body.name, 140);
     const confirmationPhone = normalizePhone(body.phone);
     if (confirmationName.length < 2 || !/^254\d{9}$/.test(confirmationPhone)) return error('Enter your name and a valid phone number to confirm receipt.');
+    if (parcel.recipientPhone && confirmationPhone !== parcel.recipientPhone) return error('Use the recipient phone number registered for this parcel.', 403);
     const result = await env.DB.prepare(`UPDATE parcels SET delivery_status='delivered',recipient_confirmed_at=CURRENT_TIMESTAMP,
       recipient_confirmation_name=?,recipient_confirmation_phone=?,updated_at=CURRENT_TIMESTAMP
       WHERE id=? AND delivery_status!='delivered' AND token_hash=?`)
