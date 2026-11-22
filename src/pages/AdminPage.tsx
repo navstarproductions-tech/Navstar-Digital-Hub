@@ -1256,6 +1256,13 @@ export function AdminPage() {
             <button type="button" onClick={()=>void signOut()} title="Log out" aria-label="Log out" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-500/10 hover:text-rose-300"><LogOut className="h-4 w-4"/></button>
           </header>
 
+          {(sectionSubtabs[expandedSection]||[]).length>0 && <nav aria-label={` ${sections.find(item=>item.id===expandedSection)?.label||'Admin'} subtabs`} className="sticky top-[58px] z-20 border-b border-cyan-400/20 bg-[#101b2e]/95 px-3 py-2 shadow-lg backdrop-blur-xl sm:px-5 lg:px-6">
+            <div className="mb-1 flex items-center justify-between gap-3"><p className="shrink-0 text-[10px] font-black uppercase tracking-[.16em] text-cyan-300">{sections.find(item=>item.id===expandedSection)?.label||'Workspace'} · SUBTABS</p><span className="text-[10px] text-slate-400">Swipe or scroll to see all</span></div>
+            <div className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin]">
+              {(sectionSubtabs[expandedSection]||[]).map(tab=><button key={tab.label} type="button" aria-current={selectedSubtab===tab.label?'page':undefined} onClick={()=>{setActive(tab.target);setSelectedSubtab(tab.label);if(tab.settingsTab)setSettingsTab(tab.settingsTab);if(tab.coursesTab)setCoursesSubTab(tab.coursesTab);if(tab.learningTab)setLearningSubTab(tab.learningTab);setNotice('');setSubtabMenuOpen(false);}} className={`min-h-9 shrink-0 rounded-xl border px-3 py-2 text-xs font-bold transition ${selectedSubtab===tab.label?'border-cyan-300 bg-cyan-400/20 text-cyan-100 shadow-md':'border-white/10 bg-white/5 text-slate-300 hover:border-cyan-400/40 hover:bg-white/10 hover:text-white'}`}>{tab.label}</button>)}
+            </div>
+          </nav>}
+
           <div className="px-4 py-4 sm:px-6 lg:px-7">
           {notice && <p role="status" className="mb-5 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</p>}
 
