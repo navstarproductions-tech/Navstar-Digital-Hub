@@ -123,7 +123,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   'ai-intake-advisor': makeTabs(['AI Intake Advisor','Review Recommendations','Intake Forecasts'],'ai-intake-advisor'),
   'enrollment-summary': makeTabs(['Intake Summary','Enrollment by Course','Enrollment by Year','Enrollment Status'],'enrollments'),
   services: makeTabs(['Manage Services','Customer Carts','Service Orders'],'services'),
-  pos: [{label:'POS Dashboard',target:'pos'},{label:'New Sale',target:'pos'},{label:'Packing & Delivery',target:'orders'},{label:'Payment Approvals',target:'finance'},{label:'Sales History',target:'pos'},{label:'Scan & Sells',target:'pos'},{label:'Print Barcode Labels',target:'pos-tools'},{label:'Generate Missing Barcodes',target:'pos-tools'}],
+  pos: [{label:'POS Dashboard',target:'pos'},{label:'New Sale',target:'pos'},{label:'Packing & Delivery',target:'orders'},{label:'Payment Approvals',target:'finance'},{label:'Sales History',target:'pos'},{label:'Scan & Sells',target:'pos'},{label:'Print Barcode Labels',target:'pos'},{label:'Generate Missing Barcodes',target:'pos'}],
   finance: makeTabs(['Accounts Overview','Transactions','Payment Receipts','Cashouts','Financial Reports'],'finance'),
   fees: makeTabs(['Collect Fees','Receipts','Fee Statements','Fee Defaulters','Enrollment Fee Offers'],'finance'),
   'marks-tests': makeTabs(['Marks Hub','Component Marks Entry','Exam Management (AI)','Export Exam as PDF','Exam Room (Live Monitor)','Exam Settings','Results Moderation','Results Visibility','Approve Changes'],'marks-tests'),
