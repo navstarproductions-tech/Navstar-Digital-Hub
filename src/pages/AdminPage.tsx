@@ -200,6 +200,22 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   receipts: makeTabs(['Payment Receipts','Verified Receipts','Receipt Search'],'receipts'),
 };
 
+
+type AdminNavGroup = { id: string; label: string; icon: typeof LayoutDashboard; sectionIds: Section[] };
+const adminNavGroups: AdminNavGroup[] = [
+  { id:'dashboard', label:'Dashboard & Intelligence', icon:LayoutDashboard, sectionIds:['overview','ai-assistant','navstar-analytics','ai-intake-advisor'] },
+  { id:'admissions', label:'Admissions & Enrolment', icon:FileDown, sectionIds:['applications','online-forms','enrollment-summary'] },
+  { id:'academics', label:'Academic Management', icon:BookOpen, sectionIds:['courses','learning','marks-tests','timetable','online-classes','eclass-meetings','upload-notes','student-projects'] },
+  { id:'students', label:'Student Management', icon:Users, sectionIds:['school','student-status','attendance','fingerprint','class-rating','scholarships'] },
+  { id:'fees', label:'Fees & Student Finance', icon:CircleDollarSign, sectionIds:['fees'] },
+  { id:'business', label:'Business & POS', icon:BriefcaseBusiness, sectionIds:['services','pos','finance','customer-accounts','orders','receipts'] },
+  { id:'staff', label:'Staff & Human Resources', icon:Users, sectionIds:['employees'] },
+  { id:'graduation', label:'Graduation & Certification', icon:FileDown, sectionIds:['certificates','alumni','report-cards','auto-reports'] },
+  { id:'communication', label:'Communication & Support', icon:Bell, sectionIds:['student-chat','support-tickets','send-notification','broadcast-social','sms-alerts','birthday-center','events'] },
+  { id:'website', label:'Website & Digital Content', icon:ImagePlus, sectionIds:['about-us','campus-history','gallery','news-updates','downloads','songs-music','demo-previews','cv-builder'] },
+  { id:'system', label:'Reports & System Administration', icon:Settings, sectionIds:['reports','analytics-reports','profile','users','device-management','admin-access','maintenance','ict-portal','settings'] },
+];
+
 export function AdminPage() {
   const navigate = useNavigate();
   const [active, setActive] = useState<Section>('overview');
@@ -1201,18 +1217,59 @@ export function AdminPage() {
           </div>
           <div className="mx-3 mt-3 hidden h-1 rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 md:block"/>
           <nav aria-label="Admin sections" className="flex min-w-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto p-2 md:min-h-0 md:space-y-1 md:p-3">
-            {sections.map(({id,label,icon:Icon}) => {
-              const selected = expandedSection === id;
-              const children = sectionSubtabs[id] || [];
-              return <div key={id} className="min-w-0 shrink-0 md:w-full">
-                <button type="button" onClick={() => { setExpandedSection(id); setActive(id); setSelectedSubtab(children[0]?.label || ''); if(children[0]?.settingsTab)setSettingsTab(children[0].settingsTab); else if(id==='settings')setSettingsTab('complete'); if(children[0]?.coursesTab)setCoursesSubTab(children[0].coursesTab); if(children[0]?.learningTab)setLearningSubTab(children[0].learningTab); setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false); }} aria-current={selected ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
-                  <Icon className="h-4 w-4 shrink-0"/><span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 truncate"}>{label}</span>
-                  {children.length>0 && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${selected ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>}
+            {adminNavGroups.map((group) => {
+              const GroupIcon = group.icon;
+              const groupIsActive = group.sectionIds.includes(expandedSection);
+              const groupOpen = groupIsActive;
+              return <div key={group.id} className="min-w-0 shrink-0 md:w-full">
+                <button type="button" onClick={() => {
+                  const firstId = group.sectionIds[0];
+                  const firstSection = sections.find(item => item.id === firstId);
+                  const firstChildren = sectionSubtabs[firstId] || [];
+                  setExpandedSection(firstId);
+                  setActive(firstId);
+                  setSelectedSubtab(firstChildren[0]?.label || '');
+                  if(firstChildren[0]?.settingsTab)setSettingsTab(firstChildren[0].settingsTab);
+                  if(firstChildren[0]?.coursesTab)setCoursesSubTab(firstChildren[0].coursesTab);
+                  if(firstChildren[0]?.learningTab)setLearningSubTab(firstChildren[0].learningTab);
+                  setNotice('');
+                  setMobileNavOpen(false);
+                  setSubtabMenuOpen(false);
+                  contentRef.current?.scrollTo({top:0,behavior:'smooth'});
+                }} aria-current={groupIsActive ? 'page' : undefined} aria-expanded={groupOpen && !sidebarCollapsed} className={`flex min-h-11 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${groupIsActive ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+                  <GroupIcon className="h-4 w-4 shrink-0"/>
+                  <span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 text-left leading-4"}>{group.label}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${groupOpen ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>
                 </button>
-                {selected && !sidebarCollapsed && children.length>0 && <div className={`mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3 ${id==='pos'?'ml-2 flex w-[calc(100%-0.5rem)] flex-col':'ml-5'}`}>
-                  {children.map((tab) => {
-                    const isCurrent = expandedSection === id && selectedSubtab === tab.label && active === tab.target;
-                    return <button key={tab.label} type="button" onClick={() => { setExpandedSection(id); setActive(tab.target); setSelectedSubtab(tab.label); if(id==='pos' && tab.label==='New Sale'){setPosPendingMode('');setPosChooserOpen(true);} if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false); contentRef.current?.scrollTo({top:0,behavior:'smooth'}); }} aria-current={isCurrent?'page':undefined} className={`navstar-subtab flex min-h-9 w-full items-center justify-start rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-70"/><span className="min-w-0 text-left">{tab.label}</span></button>;
+                {groupOpen && !sidebarCollapsed && <div className="ml-3 mt-1 space-y-2 border-l border-cyan-400/25 py-2 pl-3">
+                  {group.sectionIds.map((sectionId) => {
+                    const section = sections.find(item => item.id === sectionId);
+                    if (!section) return null;
+                    const children = sectionSubtabs[sectionId] || [];
+                    const sectionIsActive = expandedSection === sectionId;
+                    return <div key={sectionId} className="min-w-0">
+                      {children.length > 0
+                        ? <p className={`px-2 pb-1 pt-1 text-[10px] font-extrabold uppercase tracking-[.12em] ${sectionIsActive ? 'text-cyan-200' : 'text-slate-500'}`}>{section.label}</p>
+                        : <button type="button" onClick={() => {
+                            setExpandedSection(sectionId); setActive(sectionId); setSelectedSubtab('');
+                            setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false);
+                            contentRef.current?.scrollTo({top:0,behavior:'smooth'});
+                          }} className={`mb-1 flex min-h-9 w-full items-center rounded-lg px-2 text-left text-xs font-bold transition ${sectionIsActive ? 'bg-cyan-400/15 text-cyan-200' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>{section.label}</button>}
+                      {children.map((tab) => {
+                        const isCurrent = sectionIsActive && selectedSubtab === tab.label && active === tab.target;
+                        return <button key={sectionId+'-'+tab.label} type="button" onClick={() => {
+                          setExpandedSection(sectionId); setActive(tab.target); setSelectedSubtab(tab.label);
+                          if(sectionId==='pos' && tab.label==='New Sale'){setPosPendingMode('');setPosChooserOpen(true);}
+                          if(tab.settingsTab)setSettingsTab(tab.settingsTab);
+                          if(tab.coursesTab)setCoursesSubTab(tab.coursesTab);
+                          if(tab.learningTab)setLearningSubTab(tab.learningTab);
+                          setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false);
+                          contentRef.current?.scrollTo({top:0,behavior:'smooth'});
+                        }} aria-current={isCurrent?'page':undefined} className={`navstar-subtab flex min-h-8 w-full items-center justify-start rounded-lg px-2 py-1.5 text-left text-[11px] font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-100 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+                          <span className="mr-2 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-70"/><span className="min-w-0 text-left">{tab.label}</span>
+                        </button>;
+                      })}
+                    </div>;
                   })}
                 </div>}
               </div>;
@@ -1234,7 +1291,7 @@ export function AdminPage() {
             </div>
             <div className="hidden w-full max-w-[290px] items-center gap-2 rounded-xl border border-white/10 bg-[#111a2b] px-3 py-2 md:flex">
               <Search className="h-4 w-4 shrink-0 text-slate-500"/>
-              <input aria-label="Search admin sections" placeholder="Search students, courses, fees..." className="w-full min-w-0 bg-transparent text-xs text-white outline-none placeholder:text-slate-500" onKeyDown={event=>{if(event.key==='Enter'){const q=event.currentTarget.value.trim().toLowerCase();const match=sections.find(item=>item.label.toLowerCase().includes(q));if(match){setExpandedSection(match.id);setActive(match.id);setSelectedSubtab('');setNotice('');}}}}/>
+              <input aria-label="Search admin sections" placeholder="Search students, courses, fees..." className="w-full min-w-0 bg-transparent text-xs text-white outline-none placeholder:text-slate-500" onKeyDown={event=>{if(event.key==='Enter'){const q=event.currentTarget.value.trim().toLowerCase();const match=sections.find(item=>item.label.toLowerCase().includes(q)) || adminNavGroups.map(group=>({id:group.sectionIds[0],label:group.label})).find(item=>item.label.toLowerCase().includes(q));if(match){setExpandedSection(match.id);setActive(match.id);setSelectedSubtab('');setNotice('');}}}}/>
             </div>
             <button type="button" onClick={()=>window.location.reload()} title="Refresh workspace" aria-label="Refresh workspace" className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white sm:inline-flex"><RefreshCw className="h-4 w-4"/></button>
             <div className="relative">
