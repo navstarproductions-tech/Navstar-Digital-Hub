@@ -1,6 +1,6 @@
-import { requireRole } from '../_shared/auth.js';
-import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../_shared/http.js';
-import { nextReference } from '../_shared/references.js';
+import { requireRole } from '../../_shared/auth.js';
+import { error, isSameOrigin, json, normalizePhone, readJson, safeString, uuid } from '../../_shared/http.js';
+import { nextReference } from '../../_shared/references.js';
 
 function randomToken() {
   const bytes = new Uint8Array(32);
@@ -52,7 +52,8 @@ export async function onRequestPost({ request, env }) {
   if (!recipientName || contents.length < 2 || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000 ||
       !Number.isSafeInteger(amount) || amount < 1 || amount > 150000) return error('Enter recipient, parcel contents, quantity and a valid amount.');
   if (recipientPhone && !/^254\d{9}$/.test(recipientPhone)) return error('Enter a valid Kenyan recipient phone number.');
-  const requestedServiceId = safeString(body.serviceId, 80);\n  const service = requestedServiceId\n    ? await env.DB.prepare("SELECT id, name FROM services WHERE id=? AND status='active'").bind(requestedServiceId).first()\n    : await env.DB.prepare("SELECT id, name FROM services WHERE status='active' ORDER BY name LIMIT 1").first();
+  const requestedServiceId = safeString(body.serviceId, 80);
+  const service = requestedServiceId\n    ? await env.DB.prepare("SELECT id, name FROM services WHERE id=? AND status='active'").bind(requestedServiceId).first()\n    : await env.DB.prepare("SELECT id, name FROM services WHERE status='active' ORDER BY name LIMIT 1").first();
   if (!service) return error('The service catalogue is unavailable. Please contact support.', 503);
 
   const parcelId = uuid();
