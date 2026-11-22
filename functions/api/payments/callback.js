@@ -58,6 +58,8 @@ export async function onRequestPost({ request, env }) {
   } else if (payment.purpose === 'service') {
     await env.DB.prepare('UPDATE service_requests SET status = ? WHERE id = ?')
       .bind(paid ? 'paid' : 'failed', payment.reference_id).run();
+    if (paid) await env.DB.prepare("UPDATE parcels SET delivery_status='ready', updated_at=CURRENT_TIMESTAMP WHERE service_request_id=? AND delivery_status='awaiting_payment' AND amount <= (SELECT COALESCE(SUM(amount),0) FROM payments WHERE purpose='service' AND reference_id=? AND status='paid')")
+      .bind(payment.reference_id, payment.reference_id).run();
   }
 
   let customer = { email: '', phone: payment.phone, name: 'Customer' };
