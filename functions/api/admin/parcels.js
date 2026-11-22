@@ -39,8 +39,9 @@ export async function onRequestPost({ request, env }) {
   if (access.response) return access.response;
   let body;
   try { body = await readJson(request, 12000); } catch { return error('Invalid parcel details.'); }
-  const customerType = ['individual','organisation'].includes(body.customerType) ? body.customerType : 'walk_in';
-  const customerName = safeString(body.customerName, 140) || 'Walk-in Customer';
+  const suppliedCustomerName = safeString(body.customerName, 140);
+  const customerType = suppliedCustomerName ? (['individual','organisation'].includes(body.customerType) ? body.customerType : 'individual') : 'walk_in';
+  const customerName = suppliedCustomerName || 'Walk-in Customer';
   const recipientName = safeString(body.recipientName, 140);
   const recipientPhone = normalizePhone(body.recipientPhone);
   const recipientAddress = safeString(body.recipientAddress, 300);
