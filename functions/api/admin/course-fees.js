@@ -63,5 +63,5 @@ export async function onRequestPut({request,env}) {
   await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
     .bind(uuid(),access.user.id,'course_fee_structure_published_final','course',courseId).run();
   const rows=await env.DB.prepare('SELECT id,item_name AS itemName,amount,due_stage AS dueStage,required,sort_order AS sortOrder,active FROM course_fee_items WHERE course_id=? AND active=1 ORDER BY sort_order,item_name').bind(courseId).all();
-  return json({items:rows.results||[],saved:true});
+  return json({items:rows.results||[],saved:true,publishedTotal:total,courseId});
 }
