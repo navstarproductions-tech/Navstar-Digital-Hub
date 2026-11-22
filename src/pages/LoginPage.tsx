@@ -35,7 +35,9 @@ export function LoginPage() {
   const [staffId, setStaffId] = useState('');
   const [nationalId, setNationalId] = useState('');
   const [staffPreview, setStaffPreview] = useState<StaffPreview | null>(null);
-  const [useEmailLogin, setUseEmailLogin] = useState(false);\n  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'found' | 'notFound'>('idle');\n  const [celebrating, setCelebrating] = useState(false);
+  const [useEmailLogin, setUseEmailLogin] = useState(false);
+  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'found' | 'notFound'>('idle');
+  const [celebrating, setCelebrating] = useState(false);
 
   useEffect(() => {
     let active = true;
