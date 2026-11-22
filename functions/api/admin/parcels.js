@@ -53,11 +53,14 @@ export async function onRequestPost({ request, env }) {
       !Number.isSafeInteger(amount) || amount < 1 || amount > 150000) return error('Enter recipient, parcel contents, quantity and a valid amount.');
   if (recipientPhone && !/^254\d{9}$/.test(recipientPhone)) return error('Enter a valid Kenyan recipient phone number.');
   const requestedServiceId = safeString(body.serviceId, 80);
-  const service = requestedServiceId\n    ? await env.DB.prepare("SELECT id, name FROM services WHERE id=? AND status='active'").bind(requestedServiceId).first()\n    : await env.DB.prepare("SELECT id, name FROM services WHERE status='active' ORDER BY name LIMIT 1").first();
+  const service = requestedServiceId
+    ? await env.DB.prepare("SELECT id, name FROM services WHERE id=? AND status='active'").bind(requestedServiceId).first()
+    : await env.DB.prepare("SELECT id, name FROM services WHERE status='active' ORDER BY name LIMIT 1").first();
   if (!service) return error('The service catalogue is unavailable. Please contact support.', 503);
 
   const parcelId = uuid();
-  const serviceRequestId = uuid();\n  const payerPhone = normalizePhone(body.payerPhone) || recipientPhone || '254700000000';
+  const serviceRequestId = uuid();
+  const payerPhone = normalizePhone(body.payerPhone) || recipientPhone || '254700000000';
   const parcelRef = await nextReference(env.DB, 'PKG');
   const serviceRef = await nextReference(env.DB, 'SRV');
   const token = randomToken();
