@@ -58,7 +58,6 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   {id:'learning',label:'Modules',icon:BookOpen},
   {id:'school',label:'Students',icon:Users},
   {id:'employees',label:'Employees',icon:Users},
-  {id:'staff-applications',label:'Staff Applications',icon:Users},
   {id:'navstar-analytics',label:'Navstar Analytics',icon:LayoutDashboard},
   {id:'ai-intake-advisor',label:'AI Intake Advisor',icon:LayoutDashboard},
   {id:'enrollment-summary',label:'Enrollment Summary',icon:LayoutDashboard},
@@ -117,7 +116,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   courses: [{label:'Course Catalogue',target:'courses',coursesTab:'catalogue'},{label:'Manage Courses',target:'courses',coursesTab:'manage'},{label:'Course Codes & Intakes',target:'courses',coursesTab:'manage'},{label:'Fee Structures',target:'courses'},{label:'Course Modules',target:'learning',learningTab:'modules'}],
   learning: [{label:'View Modules',target:'learning',learningTab:'modules'},{label:'Module Catalogue',target:'learning',learningTab:'modules'},{label:'Lessons & Resources',target:'learning',learningTab:'modules'},{label:'Assignments',target:'learning',learningTab:'modules'},{label:'Tests & Exams',target:'learning',learningTab:'modules'},{label:'Tutor Allocation',target:'learning',learningTab:'modules'},{label:'Bulk Module Import',target:'learning',learningTab:'bulk'},{label:'Assign Modules',target:'learning',learningTab:'modules'},{label:'Auto-Assign Modules',target:'learning',learningTab:'bulk'}],
   school: [{label:'Active Students',target:'school'},{label:'Add New Student',target:'student-directory'},...makeTabs(['Bulk Enrollment','Completed → Graduates','Edit Student Details','Assign Intakes & Years','Detail Edit Requests','Print Basic List','Students List PDF (Filters & Select)','Manage Logins','Deleted Students & Recovery','Enrollment Links','Generate Bulk PDFs','Student Detail PDF'],'school')],
-  employees: makeTabs(['Employee Directory','Add Employee','Edit Employee Details','Staff Roles & Departments','Staff Attendance','Employee Documents'],'users'),
+  employees: makeTabs(['Employee Directory','Add Employee','Edit Employee Details','Staff Roles & Departments','Staff Attendance','Employee Documents'],'employees'),
   'staff-applications': makeTabs(['All Applications','Pending Review','Approved Applications','Rejected Applications','Application Documents'],'staff-applications'),
   'navstar-analytics': makeTabs(['Overview','Student Analytics','Course Analytics','Revenue Analytics','Attendance Analytics'],'navstar-analytics'),
   'ai-intake-advisor': makeTabs(['AI Intake Advisor','Review Recommendations','Intake Forecasts'],'ai-intake-advisor'),
@@ -133,11 +132,11 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   alumni: makeTabs(['Alumni Directory','Graduate Records','Alumni Updates','Alumni Events'],'alumni'),
   'report-cards': makeTabs(['Report Card Dashboard','Create Report Cards','Preview & Approve','Transcripts','Print & Export'],'report-cards'),
   'auto-reports': makeTabs(['Document Generator','Report Templates','Bulk Generate','Generated Documents'],'auto-reports'),
-  'student-status': makeTabs(['All Students','Active Students','Inactive','Completed','Graduation Cohorts','Deferred','Suspended','Removed Students'],'student-status'),
+  'student-status': [],
   attendance: makeTabs(['Attendance Register','Record Attendance','Attendance Summary','Attendance Reports'],'attendance'),
   'class-rating': makeTabs(['Rating Forms','Create Rating Form','Responses & Analysis'],'class-rating'),
   fingerprint: makeTabs(['Register Fingerprint','Scan & Verify','Fingerprint Records'],'fingerprint'),
-  applications: makeTabs(['All Applications','New Applications','Review Applications','Application Status'],'enrollments'),
+  applications: makeTabs(['All Applications','New Applications','Review Applications','Application Status','Staff Applications'],'applications'),
   'online-forms': makeTabs(['Form Builder','Published Forms','Form Responses'],'online-forms'),
   reports: makeTabs(['Operational Reports','Student Reports','Finance Reports','Export Reports'],'reports'),
   'analytics-reports': makeTabs(['Analytics Dashboard','Student Trends','Service Performance','Financial Performance'],'analytics-reports'),
@@ -1287,15 +1286,15 @@ export function AdminPage() {
           {active === 'learning' && selectedSubtab === 'Tests & Exams' && <MarksHubWorkspace subtab="Exam Management (AI)" courses={courses}/ >}
           {active === 'learning' && selectedSubtab !== 'Tests & Exams' && (selectedSubtab === 'Auto-Assign' ? <TutorSpecialisationWorkspace/> : <LearningAdminSubtab subtab={selectedSubtab || 'View Modules'} courses={courses}/>)}
 
-          {active === 'student-status' && <StudentStatusWorkspace students={portalUsers} courses={courses} applications={applications} subtab={selectedSubtab || 'Active Students'}/ >}
+          {active === 'student-status' && <StudentStatusWorkspace students={portalUsers} courses={courses} applications={applications}/ >}
 
-          {active === 'staff-applications' && <StaffApplicationsWorkspace subtab={selectedSubtab || 'All Applications'}/ >}
+          {active === 'applications' && selectedSubtab === 'Staff Applications' && <StaffApplicationsWorkspace subtab="All Applications"/>}
           {active === 'staff-applications' && selectedSubtab === 'Legacy Staff Applications' && <section className="space-y-4 rounded-2xl border border-cyan-400/20 bg-[#101d31] p-5 text-white">
             <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-cyan-300">Human resources · Staff recruitment</p><h3 className="mt-1 text-xl font-extrabold">{selectedSubtab || 'All Applications'}</h3><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">This is the staff recruitment register. It is kept separate from student course-enrollment applications.</p></div>
             <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs text-slate-400">Staff applications received</p><p className="mt-1 text-2xl font-black">0</p></div><div className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs text-slate-400">Pending review</p><p className="mt-1 text-2xl font-black">0</p></div><div className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs text-slate-400">Recruitment decisions</p><p className="mt-1 text-2xl font-black">0</p></div></div>
             <div className="rounded-xl border border-amber-300/25 bg-amber-400/10 p-4 text-sm leading-6 text-amber-100"><strong>Staff application records are not connected yet.</strong> The current backend has student enrollment applications, but no separate staff-application submission/register API. No student applications are shown here as staff applications, and no sample staff records have been invented.</div>
           </section>}
-          {(active === 'enrollments' || active === 'applications' || active === 'enrollment-summary') && <div className="space-y-5">
+          {(active === 'enrollments' || active === 'applications' || active === 'enrollment-summary') && selectedSubtab !== 'Staff Applications' && <div className="space-y-5">
             {active === 'enrollment-summary' && (!selectedSubtab || selectedSubtab === 'Intake Summary') && <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
                 ['Total applications',applications.length],
