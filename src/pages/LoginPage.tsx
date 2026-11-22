@@ -8,7 +8,7 @@ import { readApiResponse } from '@/lib/api';
 
 const staffRoles = ['admin', 'tutor', 'admissions', 'principal', 'finance'];
 const allowedRoles = ['student', ...staffRoles];
-type StaffPreview = { name: string; staffId: string; role: string; department: string; jobTitle: string };
+type StaffPreview = { name: string; staffId: string; role: string; department: string; jobTitle: string; profilePicture?: string; photoUrl?: string; avatarUrl?: string };
 const loginBackgrounds: Record<string, string> = {
   student: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1400&q=85',
   admin: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1400&q=85',
@@ -35,7 +35,7 @@ export function LoginPage() {
   const [staffId, setStaffId] = useState('');
   const [nationalId, setNationalId] = useState('');
   const [staffPreview, setStaffPreview] = useState<StaffPreview | null>(null);
-  const [useEmailLogin, setUseEmailLogin] = useState(false);
+  const [useEmailLogin, setUseEmailLogin] = useState(false);\n  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'found' | 'notFound'>('idle');\n  const [celebrating, setCelebrating] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -121,7 +121,7 @@ export function LoginPage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_12%,rgba(18,116,235,.25),transparent_45%),radial-gradient(ellipse_at_92%_82%,rgba(0,255,120,.18),transparent_40%)]" />
         <div className="absolute inset-0 opacity-25" style={{backgroundImage:'url("/navstar-admin-hero.webp")',backgroundSize:'cover',backgroundPosition:'center'}} />
         <div className="absolute inset-0 bg-gradient-to-br from-[#03112b]/35 via-[#051b40]/65 to-[#03112b]/85" />
-        <div className="relative z-10 mx-auto flex min-h-screen max-w-[1180px] flex-col">
+        {celebrating && <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#04142b]/35"><div className="animate-[pop_1s_ease-out] rounded-2xl border border-yellow-300/60 bg-white px-5 py-4 text-center text-blue-950 shadow-2xl"><div className="text-3xl">🌸 💐 🌼 🌺</div><p className="mt-1 text-lg font-black">Welcome back, {staffPreview?.name?.split(' ')[0] || 'Administrator'}!</p><p className="text-xs font-semibold text-green-700">Identity verified • Opening dashboard</p></div></div>}\n        <div className="relative z-10 mx-auto flex min-h-screen max-w-[1180px] flex-col">
           <div className="grid flex-1 grid-cols-1 lg:grid-cols-[.9fr_1.1fr]">
             <aside className="relative flex flex-col justify-between overflow-hidden border-b border-green-400/40 px-4 py-5 sm:px-6 lg:border-b-0 lg:border-r lg:px-7 lg:py-7">
               <div className="relative z-10">
@@ -145,17 +145,18 @@ export function LoginPage() {
                 <div className="mt-3 flex items-center justify-center gap-2 text-[10px] font-bold text-green-700"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-green-500"/><span>SYSTEM ONLINE</span><span className="text-blue-900/50">•</span><span>AUTHORIZED ACCESS ONLY</span></div>
                 {!staffPreview ? (
                   <form onSubmit={lookupStaff} className="mt-3 space-y-3">
-                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm leading-5 text-blue-900">Enter your official Staff ID to securely validate your administrator account.</div>
-                    <div className="space-y-2"><Label htmlFor="staffId" className="font-bold text-blue-950">Administrator Staff ID</Label><Input id="staffId" value={staffId} onChange={event=>setStaffId(event.target.value.toUpperCase())} autoComplete="username" placeholder="Enter your Staff ID" required className="h-11 rounded-lg border-blue-200 bg-slate-50 text-blue-950 placeholder:text-slate-400 focus-visible:ring-blue-500"/></div>
-                    <Button type="submit" disabled={loading||!staffId.trim()} className="h-11 w-full rounded-full bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-base font-extrabold text-white shadow-lg shadow-blue-900/15 hover:brightness-110">{loading?<><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Checking staff ID…</>:'Validate Staff ID'}</Button>
-                    <Link to="/student-recovery" className="block text-center text-sm font-semibold text-blue-700 hover:text-green-700">Forgot password / Need help accessing your account?</Link>
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5 text-xs leading-4 text-blue-900">Enter your Staff ID. The scanner checks it against the staff register.</div>
+                    <div className="space-y-1.5"><Label htmlFor="staffId" className="font-bold text-blue-950">Staff ID</Label><Input id="staffId" value={staffId} onChange={event=>{setStaffId(event.target.value.toUpperCase());setScanState('idle');setStatus('');}} autoComplete="username" placeholder="Enter Staff ID" required className="h-10 rounded-lg border-blue-200 bg-slate-50 text-blue-950 placeholder:text-slate-400 focus-visible:ring-blue-500"/></div>
+                    {scanState !== 'idle' && <div className={`relative overflow-hidden rounded-lg border p-2.5 text-xs ${scanState==='found'?'border-green-300 bg-green-50 text-green-800':scanState==='notFound'?'border-red-300 bg-red-50 text-red-800':'border-blue-200 bg-blue-50 text-blue-800'}`} role="status"><div className="flex items-center gap-2">{scanState==='scanning'?<><Fingerprint className="h-5 w-5 animate-pulse"/><span className="font-semibold">Scanning staff register…</span></>:scanState==='found'?<><ShieldCheck className="h-5 w-5 text-green-600"/><span className="font-bold">STAFF ID FOUND ✓</span></>:<><span className="text-lg font-black text-red-600">✕</span><span className="font-bold">STAFF ID NOT FOUND</span></>}</div>{scanState==='scanning'&&<div className="mt-2 h-1 overflow-hidden rounded-full bg-blue-200"><div className="h-full w-1/3 animate-[scan_1.1s_ease-in-out_infinite] rounded-full bg-blue-600"/></div>}</div>}
+                    <Button type="submit" disabled={loading||!staffId.trim()} className="h-10 w-full rounded-full bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-sm font-extrabold text-white shadow-lg shadow-blue-900/15 hover:brightness-110">{loading?<><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Scanning & validating…</>:'Scan & Validate Staff ID'}</Button>
+                    <Link to="/student-recovery" className="block text-center text-xs font-semibold text-blue-700 hover:text-green-700">Forgot password / Need help accessing your account?</Link>
                   </form>
                 ) : (
                   <form onSubmit={verifyStaff} className="mt-5 space-y-4">
-                    <div className="rounded-2xl border border-green-200 bg-green-50 p-4"><div className="flex items-center gap-2 text-green-700"><UserRoundCheck className="h-5 w-5"/><span className="font-bold">Staff record found</span></div><p className="mt-2 text-lg font-black text-blue-950">{staffPreview.name}</p><p className="text-sm text-blue-800">{staffPreview.staffId} · {roleLabel}</p>{staffPreview.jobTitle&&<p className="mt-1 text-xs text-blue-700">{staffPreview.jobTitle}{staffPreview.department?' · '+staffPreview.department:''}</p>}<p className="mt-2 text-xs text-blue-800">Confirm your National ID to complete secure access.</p></div>
+                    <div className="rounded-2xl border border-green-200 bg-green-50 p-3"><div className="flex items-center gap-2 text-green-700"><UserRoundCheck className="h-5 w-5"/><span className="font-bold">Staff record found ✓</span></div><div className="mt-2 flex items-center gap-3">{(staffPreview.profilePicture||staffPreview.photoUrl||staffPreview.avatarUrl)?<img src={staffPreview.profilePicture||staffPreview.photoUrl||staffPreview.avatarUrl} alt="Staff profile" className="h-14 w-14 rounded-full border-2 border-green-300 object-cover"/>:<div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-green-300 bg-white text-lg font-black text-blue-900">{staffPreview.name.split(' ').map(part=>part[0]).slice(0,2).join('').toUpperCase()}</div>}<div><p className="text-base font-black text-blue-950">{staffPreview.name}</p><p className="text-xs text-blue-800">{staffPreview.staffId} · {roleLabel}</p></div></div>{staffPreview.jobTitle&&<p className="mt-1 text-xs text-blue-700">{staffPreview.jobTitle}{staffPreview.department?' · '+staffPreview.department:''}</p>}<p className="mt-2 text-xs text-blue-800">Confirm your National ID to complete secure access.</p></div>
                     <div className="space-y-2"><Label htmlFor="nationalId" className="font-bold text-blue-950">National ID confirmation</Label><Input id="nationalId" type="password" inputMode="numeric" autoComplete="off" value={nationalId} onChange={event=>setNationalId(event.target.value)} placeholder="Enter your National ID" required className="h-14 rounded-xl border-blue-200 bg-slate-50 text-blue-950 placeholder:text-slate-400"/></div>
                     <Button type="submit" disabled={loading||!nationalId.trim()} className="h-14 w-full rounded-full bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-base font-extrabold text-white shadow-lg">{loading?<><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Verifying identity…</>:<><Fingerprint className="mr-2 h-5 w-5"/>Confirm & Open Admin Dashboard</>}</Button>
-                    <button type="button" onClick={()=>{setStaffPreview(null);setNationalId('');setStatus('');}} className="w-full text-sm font-semibold text-blue-700 hover:text-green-700">Back · Use a different Staff ID</button>
+                    <button type="button" onClick={()=>{setStaffPreview(null);setNationalId('');setStatus('');setScanState('idle');setCelebrating(false);}} className="w-full text-sm font-semibold text-blue-700 hover:text-green-700">Back · Use a different Staff ID</button>
                   </form>
                 )}
                 {status&&<div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{status}</div>}
