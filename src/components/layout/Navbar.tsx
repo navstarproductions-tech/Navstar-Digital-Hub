@@ -10,7 +10,6 @@ const navigation = [
   { label: 'Services', to: '/services' },
   { label: 'Navstar AI', to: '/ai' },
   { label: 'Courses', to: '/courses' },
-  { label: 'Enrollment', to: '/enrollment' },
   { label: 'About', to: '/about' },
   { label: 'Campus Life', to: '/campus-life' },
   { label: 'Forum', to: '/forum' },
