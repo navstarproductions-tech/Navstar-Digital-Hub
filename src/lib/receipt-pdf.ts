@@ -118,7 +118,7 @@ export async function downloadReceiptHtmlPdf(html:string,filename:string):Promis
 
 /** Generate a true, selectable-text PDF register with the same Navstar letterhead used on receipts. */
 export async function downloadNavstarTablePdf(title: string, headers: string[], rows: Array<Array<string | number | boolean | null | undefined>>, filename: string): Promise<void> {
- const C=await getPdf(),d=new C({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+ const C=await getPdf(),d=new C({orientation:'portrait',unit:'mm',format:'a4',compress:true});
  const W=d.internal.pageSize.getWidth(),H=d.internal.pageSize.getHeight(),m=10;
  const logo=await dataUrl('/Navstar_Official_Logo.jpg');
  const drawPageHeader=()=>{
