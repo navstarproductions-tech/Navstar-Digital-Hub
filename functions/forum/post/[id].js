@@ -21,6 +21,6 @@ export async function onRequestGet({request,env,params}){
  <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}">
  <meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${escapeHtml(image)}">
  `;
- html=html.replace(/<title>[\s\S]*?<\/title>/i,'').replace(/<meta[^>]+(?:property|name)=["'](?:og:|twitter:)[^>]*>/gi,'').replace('</head>',meta+'</head>');
+ html=html.replace(/<title>[\s\S]*?<\/title>/i,'').replace(/<meta[^>]+(?:property|name)=["'](?:og:|twitter:)[^>]*>/gi,'').replace(/<meta[^>]+name=["']description["'][^>]*>/gi,'').replace(/<link[^>]+rel=["']canonical["'][^>]*>/gi,'').replace('</head>',meta+'</head>');
  return new Response(html,{status:200,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'public, max-age=300','X-Content-Type-Options':'nosniff'}});
 }
