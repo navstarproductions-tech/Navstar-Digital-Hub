@@ -33,7 +33,7 @@ export async function onRequestPut({request,env}) {
   const courseId=safeString(body.courseId,80);
   const items=Array.isArray(body.items)?body.items:[];
   if(!courseId||!items.length||items.length>40)return error('Choose a course and provide between 1 and 40 fee items.');
-  const course=await env.DB.prepare('SELECT id,price FROM courses WHERE id=?').bind(courseId).first();
+  const course=await env.DB.prepare('SELECT id,price,title,course_code FROM courses WHERE id=?').bind(courseId).first();
   if(!course)return error('Course not found.',404);
   const names=new Set();
   const normalized=[];
@@ -49,16 +49,19 @@ export async function onRequestPut({request,env}) {
   const admission=normalized.find(item=>item.itemName.toLowerCase()==='admission fee'&&item.active===1);
   if(!admission||admission.amount<100||admission.required!==1||admission.dueStage!=='enrollment')return error('Keep an active, required Admission fee of at least KSh 100, due at enrolment. It must be included in the published course fee total.');
   const total=normalized.filter(item=>item.active===1).reduce((sum,item)=>sum+item.amount,0);
-  if(total!==Number(course.price))return error('Active fee items must total the published course fee of KSh '+Number(course.price).toLocaleString('en-KE')+'. Adjust the fee items or update the course fee first.');
+  if(total<0||total>1000000)return error('The final course fee must be between KSh 0 and KSh 1,000,000.');
   const statements=[env.DB.prepare('UPDATE course_fee_items SET active=0,updated_at=CURRENT_TIMESTAMP WHERE course_id=?').bind(courseId),...normalized.map(item=>env.DB.prepare(`
     INSERT INTO course_fee_items(id,course_id,item_name,amount,due_stage,required,sort_order,active)
     VALUES(?,?,?,?,?,?,?,?)
     ON CONFLICT(course_id,item_name) DO UPDATE SET amount=excluded.amount,due_stage=excluded.due_stage,required=excluded.required,sort_order=excluded.sort_order,active=excluded.active,updated_at=CURRENT_TIMESTAMP
   `).bind(item.id,courseId,item.itemName,item.amount,item.dueStage,item.required,item.sortOrder,item.active))];
+  // Publish this structure as the final master fee: its active-item total replaces
+  // the course catalogue price, which is the central price consumed by public pages
+  // and downstream enrollment/payment flows. Historical payment records are untouched.
+  statements.push(env.DB.prepare('UPDATE courses SET price=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(total,courseId));
   await env.DB.batch(statements);
-  // Existing student fee snapshots are immutable; this edit applies to future enrolments only.
   await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
-    .bind(uuid(),access.user.id,'course_fee_structure_updated','course',courseId).run();
+    .bind(uuid(),access.user.id,'course_fee_structure_published_final','course',courseId).run();
   const rows=await env.DB.prepare('SELECT id,item_name AS itemName,amount,due_stage AS dueStage,required,sort_order AS sortOrder,active FROM course_fee_items WHERE course_id=? AND active=1 ORDER BY sort_order,item_name').bind(courseId).all();
   return json({items:rows.results||[],saved:true});
 }
