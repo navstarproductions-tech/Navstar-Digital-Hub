@@ -3,7 +3,7 @@ import { error, isSameOrigin, json, readJson, safeString } from '../../_shared/h
 
 const staffRoles = ['admin', 'tutor', 'admissions', 'principal', 'finance'];
 const normalizeStaffId = value => safeString(value, 20).toUpperCase().replace(/[^A-Z0-9]/g, '');
-const normalizeNationalId = value => safeString(value, 32).trim().replace(/\\.0+$/, '').replace(/[^0-9]/g, '');
+const normalizeNationalId = value => safeString(value, 32).trim().replace(/\.0+$/, '').replace(/[^0-9]/g, '');
 
 async function getNationalIdColumn(db) {
   const result = await db.prepare('PRAGMA table_info(user_profiles)').all();
@@ -46,14 +46,14 @@ export async function onRequestPost({ request, env }) {
 
   const staff = await env.DB.prepare(`
     SELECT u.id, u.name, u.email, u.status,
-      COALESCE(p.portal_role, u.role) AS role, p.staff_id AS staffId,
+      CASE WHEN lower(trim(u.role)) IN ('admin','tutor','admissions','principal','finance') THEN lower(trim(u.role)) ELSE lower(trim(COALESCE(NULLIF(p.portal_role, ''), u.role))) END AS role, p.staff_id AS staffId,
       p.national_id AS nationalId, p.department, p.job_title AS jobTitle
     FROM user_profiles p JOIN users u ON u.id = p.user_id
     WHERE REPLACE(UPPER(p.staff_id), '-', '') = ? AND u.status = 'active'
     LIMIT 1
   `).bind(staffId).first();
 
-  if (!staff || staff.role !== role) {
+  if (!staff || staff.role !== role.toLowerCase()) {
     await recordAttempt(env.DB, attempts.staffHash, ipHash);
     return error('We could not match that Staff ID to the selected portal. Check the ID and portal, then try again.', 404);
   }
