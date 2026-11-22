@@ -5,7 +5,7 @@ export async function onRequestGet({request,env}){
  if(!env.DB)return error('Community database is not configured.',503);
  const access=await requireRole(request,env,roles);if(access.response)return access.response;
  const [posts,comments,published]=await Promise.all([
-  env.DB.prepare("SELECT p.id,p.title,p.body,p.category,p.created_at AS createdAt,c.full_name AS author FROM forum_posts p JOIN customer_accounts c ON c.id=p.customer_id WHERE p.moderation_status='pending' ORDER BY p.created_at ASC LIMIT 100").all(),
+  env.DB.prepare("SELECT p.id,p.title,p.body,p.category,p.image_url AS imageUrl,p.created_at AS createdAt,c.full_name AS author FROM forum_posts p JOIN customer_accounts c ON c.id=p.customer_id WHERE p.moderation_status='pending' ORDER BY p.created_at ASC LIMIT 100").all(),
   env.DB.prepare("SELECT c.id,c.post_id AS postId,c.body,c.created_at AS createdAt,a.full_name AS author,p.title AS postTitle FROM forum_comments c JOIN customer_accounts a ON a.id=c.customer_id JOIN forum_posts p ON p.id=c.post_id WHERE c.moderation_status='pending' ORDER BY c.created_at ASC LIMIT 150").all(),
   env.DB.prepare("SELECT p.id,p.title,p.body,p.category,p.featured,p.created_at AS createdAt,c.full_name AS author FROM forum_posts p JOIN customer_accounts c ON c.id=p.customer_id WHERE p.status='published' AND p.moderation_status='approved' ORDER BY p.created_at DESC LIMIT 60").all()
  ]);
