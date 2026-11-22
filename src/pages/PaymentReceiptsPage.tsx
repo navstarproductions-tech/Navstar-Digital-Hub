@@ -27,6 +27,30 @@ function ReceiptDocument({receipt,elementRef}:{receipt:Receipt;elementRef:{curre
  </div>
 }
 
+export function AdminReceiptPreview({id,onClose}:{id:string;onClose:()=>void}){
+ const [receipt,setReceipt]=useState<Receipt|null>(null);
+ const [loading,setLoading]=useState(true);
+ const [error,setError]=useState('');
+ const receiptElement=useRef<HTMLDivElement>(null);
+ useEffect(()=>{let active=true;setLoading(true);setError('');setReceipt(null);
+  fetch('/api/payments/receipt?id='+encodeURIComponent(id),{credentials:'same-origin'})
+   .then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not load receipt.');if(active)setReceipt(data.receipt||null);})
+   .catch(reason=>{if(active)setError(reason instanceof Error?reason.message:'Could not load receipt.');})
+   .finally(()=>{if(active)setLoading(false);});
+  return ()=>{active=false;};
+ },[id]);
+ const download=()=>{if(!receipt||!receiptElement.current)return;void downloadReceiptElementPdf(receiptElement.current,`Navstar-Payment-Receipt-${receipt.receiptNumber}.pdf`).catch(reason=>window.alert(reason instanceof Error?reason.message:'The PDF could not be downloaded.'));};
+ return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/75 p-2 sm:p-5" role="dialog" aria-modal="true" aria-label="Official payment receipt">
+  <div className="flex max-h-[96vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-slate-100 shadow-2xl">
+   <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-white px-4 py-3">
+    <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-700">Navstar Digital Hub · Admin Portal</p><h2 className="font-black text-slate-950">Receipt preview {receipt?.receiptNumber?· ${receipt.receiptNumber}:''}</h2></div>
+    <div className="flex items-center gap-2"><button type="button" onClick={download} disabled={!receipt||loading} className="inline-flex items-center gap-2 rounded-lg bg-blue-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><Download className="h-4 w-4"/>Download PDF</button><button type="button" onClick={onClose} className="rounded-lg border px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Close</button></div>
+   </div>
+   <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">{loading?<p className="p-10 text-center text-sm text-slate-600">Loading official receipt…</p>:error?<p role="alert" className="rounded-xl bg-rose-50 p-5 text-sm text-rose-800">{error}</p>:receipt?<ReceiptDocument receipt={receipt} elementRef={receiptElement}/>:<p className="p-8 text-center text-sm text-slate-600">Receipt details are unavailable.</p>}</div>
+  </div>
+ </div>;
+}
+
 export function PaymentReceiptsPage(){
  const {id}=useParams();
  const [payments,setPayments]=useState<PaymentRow[]>([]);
