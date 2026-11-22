@@ -49,9 +49,9 @@ export async function onRequestPost({ request, env }) {
   const quantity = Number(body.quantity || 1);
   const amount = Number(body.amount);
   const paymentMode = body.paymentMode === 'pay_on_delivery' ? 'pay_on_delivery' : 'pay_now';
-  if (!recipientName || contents.length < 2 || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000 ||
+  if (!recipientName || !recipientPhone || contents.length < 2 || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000 ||
       !Number.isSafeInteger(amount) || amount < 1 || amount > 150000) return error('Enter recipient, parcel contents, quantity and a valid amount.');
-  if (recipientPhone && !/^254\d{9}$/.test(recipientPhone)) return error('Enter a valid Kenyan recipient phone number.');
+  if (!/^254\d{9}$/.test(recipientPhone)) return error('Enter a valid Kenyan recipient phone number.');
   const requestedServiceId = safeString(body.serviceId, 80);
   const service = requestedServiceId
     ? await env.DB.prepare("SELECT id, name FROM services WHERE id=? AND status='active'").bind(requestedServiceId).first()
