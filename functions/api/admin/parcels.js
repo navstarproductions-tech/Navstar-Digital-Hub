@@ -45,11 +45,25 @@ export async function onRequestPost({ request, env }) {
   const recipientName = safeString(body.recipientName, 140);
   const recipientPhone = normalizePhone(body.recipientPhone);
   const recipientAddress = safeString(body.recipientAddress, 300);
-  const contents = safeString(body.contents, 1200);
+  const rawContents = safeString(body.contents, 5000);
+  let contentsItems = [];
+  try {
+    const parsed = JSON.parse(rawContents);
+    if (Array.isArray(parsed)) contentsItems = parsed.map((item) => ({
+      description: safeString(item?.description, 300),
+      kind: ['original', 'photocopy', 'bonus'].includes(item?.kind) ? item.kind : 'original',
+      quantity: Number(item?.quantity || 0),
+    }));
+    else contentsItems = [{ description: rawContents, kind: 'original', quantity: Number(body.quantity || 1) }];
+  } catch {
+    contentsItems = [{ description: rawContents, kind: 'original', quantity: Number(body.quantity || 1) }];
+  }
+  const contents = contentsItems.map((item) => `${item.description} (${item.kind} x${item.quantity})`).join('; ');
   const quantity = Number(body.quantity || 1);
+  const itemQuantity = contentsItems.reduce((sum, item) => sum + item.quantity, 0);
   const amount = Number(body.amount);
   const paymentMode = body.paymentMode === 'pay_on_delivery' ? 'pay_on_delivery' : 'pay_now';
-  if (!recipientName || !recipientPhone || contents.length < 2 || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000 ||
+  if (!recipientName || !recipientPhone || !contentsItems.length || contentsItems.some((item) => !item.description || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || item.quantity > 1000) || itemQuantity !== quantity || contents.length < 2 || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000 ||
       !Number.isSafeInteger(amount) || amount < 1 || amount > 150000) return error('Enter recipient, parcel contents, quantity and a valid amount.');
   if (!/^254\d{9}$/.test(recipientPhone)) return error('Enter a valid Kenyan recipient phone number.');
   const requestedServiceId = safeString(body.serviceId, 80);
@@ -72,7 +86,7 @@ export async function onRequestPost({ request, env }) {
     env.DB.prepare(`INSERT INTO parcels
       (id,service_request_id,parcel_ref,token_hash,customer_type,customer_name,recipient_name,recipient_phone,recipient_address,contents_json,quantity,amount,payment_mode,delivery_status,created_by)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(parcelId, serviceRequestId, parcelRef, tokenHash, customerType, customerName, recipientName, recipientPhone || null, recipientAddress || null, JSON.stringify([{description:contents,quantity}]), quantity, amount, paymentMode, 'awaiting_payment', access.user.id),
+      .bind(parcelId, serviceRequestId, parcelRef, tokenHash, customerType, customerName, recipientName, recipientPhone || null, recipientAddress || null, JSON.stringify(contentsItems), quantity, amount, paymentMode, 'awaiting_payment', access.user.id),
     env.DB.prepare('INSERT INTO parcel_delivery_tokens (parcel_id,delivery_token) VALUES (?,?)').bind(parcelId, token),
     env.DB.prepare('INSERT INTO audit_logs (id,actor_id,action,entity_type,entity_id) VALUES (?,?,?,?,?)')
       .bind(uuid(), access.user.id, 'parcel_created', 'parcel', parcelId)
