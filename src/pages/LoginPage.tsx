@@ -115,7 +115,7 @@ export function LoginPage() {
     finally { setLoading(false); }
   };
 
-  if (isAdmin) {
+  if (role === 'admin') {
     return (
       <main className="relative isolate min-h-screen overflow-hidden bg-[#031331] text-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_12%,rgba(18,116,235,.25),transparent_45%),radial-gradient(ellipse_at_92%_82%,rgba(0,255,120,.18),transparent_40%)]" />
