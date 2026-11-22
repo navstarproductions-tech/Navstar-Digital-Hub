@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, BookOpen, Lightbulb, Rocket, Sparkles, GraduationCap, Heart, Users, Globe, Search, Zap } from 'lucide-react';
+import { ArrowUpRight, Lightbulb, Rocket, Sparkles, GraduationCap, Heart, Users } from 'lucide-react';
 
 type AboutPhoto = { id: string; url: string; altText: string; createdAt?: string };
 const categories = ['CEO','Moments','Journey','Family','Education','Navstar Milestones'];
