@@ -17,7 +17,7 @@ export async function onRequestGet({ request, env }) {
   const access = await requireRole(request, env, ['admin', 'principal', 'finance']);
   if (access.response) return access.response;
   const result = await env.DB.prepare(`
-    SELECT p.id, p.delivery_token AS deliveryToken, p.parcel_ref AS parcelRef, p.customer_type AS customerType,
+    SELECT p.id, pt.delivery_token AS deliveryToken, p.parcel_ref AS parcelRef, p.customer_type AS customerType,
       p.customer_name AS customerName, p.recipient_name AS recipientName,
       p.recipient_phone AS recipientPhone, p.recipient_address AS recipientAddress,
       p.contents_json AS contentsJson, p.quantity, p.amount, p.payment_mode AS paymentMode,
@@ -26,7 +26,7 @@ export async function onRequestGet({ request, env }) {
       r.display_ref AS serviceReference,
       COALESCE((SELECT SUM(amount) FROM payments WHERE purpose='service' AND reference_id=r.id AND status='paid'),0) AS paidAmount,
       (SELECT receipt_number FROM payments WHERE purpose='service' AND reference_id=r.id AND status='paid' ORDER BY updated_at DESC LIMIT 1) AS mpesaReceipt
-    FROM parcels p JOIN service_requests r ON r.id=p.service_request_id
+    FROM parcels p JOIN parcel_delivery_tokens pt ON pt.parcel_id=p.id JOIN service_requests r ON r.id=p.service_request_id
     ORDER BY p.created_at DESC LIMIT 200
   `).all();
   return json({ parcels: result.results ?? [] });
@@ -72,7 +72,8 @@ export async function onRequestPost({ request, env }) {
     env.DB.prepare(`INSERT INTO parcels
       (id,service_request_id,parcel_ref,token_hash,customer_type,customer_name,recipient_name,recipient_phone,recipient_address,contents_json,quantity,amount,payment_mode,delivery_status,created_by)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(parcelId, serviceRequestId, parcelRef, tokenHash, token, customerType, customerName, recipientName, recipientPhone || null, recipientAddress || null, JSON.stringify([{description:contents,quantity}]), quantity, amount, paymentMode, 'awaiting_payment', access.user.id),
+      .bind(parcelId, serviceRequestId, parcelRef, tokenHash, customerType, customerName, recipientName, recipientPhone || null, recipientAddress || null, JSON.stringify([{description:contents,quantity}]), quantity, amount, paymentMode, 'awaiting_payment', access.user.id),
+    env.DB.prepare('INSERT INTO parcel_delivery_tokens (parcel_id,delivery_token) VALUES (?,?)').bind(parcelId, token),
     env.DB.prepare('INSERT INTO audit_logs (id,actor_id,action,entity_type,entity_id) VALUES (?,?,?,?,?)')
       .bind(uuid(), access.user.id, 'parcel_created', 'parcel', parcelId)
   ]);
