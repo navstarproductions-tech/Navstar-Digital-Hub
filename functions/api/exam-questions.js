@@ -49,6 +49,30 @@ async function handleQuestionPost({request,env}){
  const assessment=await env.DB.prepare('SELECT id,course_id,module_id,title,assessment_type,max_points,status,starts_at,due_at,duration_minutes,max_attempts,require_admin_approval,require_full_fee_payment,require_assignment_submission FROM course_assessments WHERE id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not found or access denied.',404);
  const paperMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
+ if(action==='delete_question'){
+  const access=await requireRole(request,env,staff);if(access.response)return access.response;
+  const questionId=safeString(body.questionId,80);
+  const result=await env.DB.prepare("UPDATE course_exam_questions SET status='archived' WHERE id=? AND assessment_id=? AND status='active'").bind(questionId,assessmentId).run();
+  if(!result.meta?.changes)return error('Question not found or already archived.',404);
+  return json({deleted:true});
+ }
+ if(action==='update_question'){
+  const access=await requireRole(request,env,staff);if(access.response)return access.response;
+  const q=body.question||{},questionId=safeString(body.questionId,80),question=safeString(q.questionText,2000),type=safeString(q.questionType,24);
+  if(!question||!['single_choice','multiple_choice','true_false','short_answer','essay'].includes(type))return error('Enter valid question text and type.');
+  let options=Array.isArray(q.options)?q.options.slice(0,12).map(x=>safeString(x,300)).filter(Boolean):[];
+  const correct=q.correctAnswer??null;
+  if(type==='true_false')options=['True','False'];
+  if(['single_choice','multiple_choice','true_false'].includes(type)&&(!options.length||correct===null||correct===''))return error('Objective questions need options and a correct answer.');
+  if(type==='single_choice'&&!options.includes(String(correct)))return error('Select one of the listed answer options.');
+  if(type==='true_false'&&!['True','False'].includes(String(correct)))return error('Select True or False as the correct answer.');
+  const points=Number(q.points||1);if(!Number.isInteger(points)||points<1||points>1000)return error('Question marks must be between 1 and 1000.');
+  const other=await env.DB.prepare("SELECT COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status='active' AND id<>?").bind(assessmentId,questionId).first();
+  if(Number(other?.total||0)+points>paperMaximum)return error('Question marks would exceed the paper maximum of '+paperMaximum+'.');
+  const saved=await env.DB.prepare("UPDATE course_exam_questions SET question_text=?,question_type=?,options_json=?,correct_answer_json=?,explanation=?,points=? WHERE id=? AND assessment_id=? AND status='active'").bind(question,type,JSON.stringify(options),JSON.stringify(correct),safeString(q.explanation,1500),points,questionId,assessmentId).run();
+  if(!saved.meta?.changes)return error('Question not found or already archived.',404);
+  return json({updated:true});
+ }
  if(action==='delete_all'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
   await env.DB.prepare("UPDATE course_exam_questions SET status='archived' WHERE assessment_id=?").bind(assessmentId).run();
