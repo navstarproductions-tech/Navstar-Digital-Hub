@@ -33,6 +33,12 @@ const contactTicker = [
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setIsOpen(false); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isOpen]);
   const [donationOpen, setDonationOpen] = useState(false);
   const brandName = 'NAVSTAR DIGITAL HUB';
   const [signedInUser, setSignedInUser] = useState<{ name: string; role?: string } | null>(null);
@@ -76,7 +82,7 @@ export function Navbar() {
   const closeMenu = () => setIsOpen(false);
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-t-2 border-amber-400 border-b-2 border-green-500 bg-blue-950 text-white shadow-sm">
+    <nav className="relative sticky top-0 z-50 w-full border-t-2 border-amber-400 border-b-2 border-green-500 bg-blue-950 text-white shadow-sm">
       <div className="w-full px-2 sm:px-3 lg:px-4 2xl:px-6">
         <div className="flex min-h-16 w-full items-center justify-between gap-2 xl:gap-3">
           <Link to="/" className="flex min-w-0 shrink items-center gap-2 xl:gap-2.5" aria-label="NAVSTAR DIGITAL HUB home">
@@ -96,7 +102,7 @@ export function Navbar() {
               <ShoppingCart className="h-5 w-5" />
             </Link>
             {signedInUser && <Button size="sm" variant="ghost" className="hidden xl:inline-flex rounded-xl text-white hover:bg-white/10 hover:text-amber-300" onClick={signOut}><LogOut className="mr-1.5 h-4 w-4"/>Log out</Button>}
-            <button onClick={() => setIsOpen(!isOpen)} aria-label={isOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={isOpen} className="inline-flex items-center justify-center rounded-lg border border-white/30 p-2 text-white hover:bg-white/10 xl:hidden">
+            <button onClick={() => setIsOpen(!isOpen)} aria-label={isOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={isOpen} aria-controls="navstar-public-navigation-menu" className="inline-flex items-center justify-center rounded-lg border border-amber-300/70 bg-white/5 p-2 text-white hover:bg-white/10 xl:hidden">
               {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
@@ -119,12 +125,16 @@ export function Navbar() {
 
       <AnimatePresence>
         {isOpen && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="xl:hidden border-b-2 border-green-500 bg-blue-950 shadow-lg">
-            <div className="grid grid-cols-2 gap-1 px-3 pb-4 pt-3 sm:grid-cols-3 sm:px-5">
-              {navigation.map((item) => item.to === '#donate' ? <button key={item.to} type="button" onClick={() => { closeMenu(); setDonationOpen(true); }} className="rounded-lg bg-amber-300 px-3 py-3 text-left text-sm font-extrabold text-blue-950">Donate</button> : <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `rounded-lg px-3 py-3 text-sm font-bold ${isActive ? 'bg-amber-300 text-blue-950 shadow-md' : 'text-blue-100 hover:bg-white/10'}`} onClick={closeMenu}>{item.label}</NavLink>)}
-              {signedInUser ? <div className="col-span-2 rounded-lg border border-amber-300/50 bg-white/10 px-3 py-3 text-sm font-bold text-white">Hi, {signedInUser.name}</div> : <Link to="/account" className="rounded-lg bg-amber-300 px-3 py-3 text-sm font-extrabold text-blue-950" onClick={closeMenu}>Log in / Sign up</Link>}
-              <Link to="/services#service-cart" className="rounded-lg px-3 py-3 text-sm font-bold text-blue-100 hover:bg-white/10" onClick={closeMenu}>Your orders / Cart</Link>
-              {signedInUser && <button onClick={() => { closeMenu(); void signOut(); }} className="rounded-lg px-3 py-3 text-left text-sm font-bold text-amber-200 hover:bg-white/10">Log out</button>}
+          <motion.div id="navstar-public-navigation-menu" initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }} transition={{ duration: 0.16 }} className="absolute right-2 top-full z-[60] max-h-[min(75svh,640px)] w-[min(92vw,380px)] overflow-y-auto overscroll-contain rounded-2xl border border-amber-300/70 bg-blue-950 p-3 shadow-2xl shadow-blue-950/40 xl:hidden">
+            <div className="mb-2 flex items-center justify-between border-b border-white/15 px-1 pb-2">
+              <span className="text-xs font-black uppercase tracking-[.16em] text-amber-300">Public navigation</span>
+              <button type="button" onClick={closeMenu} aria-label="Close navigation menu" className="rounded-lg p-1.5 text-blue-100 hover:bg-white/10"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {navigation.map((item) => item.to === '#donate' ? <button key={item.to} type="button" onClick={() => { closeMenu(); setDonationOpen(true); }} className="rounded-xl bg-amber-300 px-3 py-3 text-left text-sm font-extrabold text-blue-950 transition hover:bg-amber-200">Donate</button> : <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => isActive ? "rounded-xl bg-amber-300 px-3 py-3 text-sm font-bold text-blue-950 shadow-md" : "rounded-xl px-3 py-3 text-sm font-bold text-blue-100 transition-colors hover:bg-white/10 hover:text-white"} onClick={closeMenu}>{item.label}</NavLink>)}
+              {signedInUser ? <div className="rounded-xl border border-amber-300/50 bg-white/10 px-3 py-3 text-sm font-bold text-white sm:col-span-2">Hi, {signedInUser.name}</div> : <Link to="/account" className="rounded-xl bg-amber-300 px-3 py-3 text-sm font-extrabold text-blue-950" onClick={closeMenu}>Log in / Sign up</Link>}
+              <Link to="/services#service-cart" className="rounded-xl px-3 py-3 text-sm font-bold text-blue-100 hover:bg-white/10" onClick={closeMenu}>Your orders / Cart</Link>
+              {signedInUser && <button onClick={() => { closeMenu(); void signOut(); }} className="rounded-xl px-3 py-3 text-left text-sm font-bold text-amber-200 hover:bg-white/10">Log out</button>}
             </div>
           </motion.div>
         )}
