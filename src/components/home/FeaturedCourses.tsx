@@ -6,6 +6,7 @@ import { INITIAL_COURSES } from '@/data/courses';
 import { Link } from 'react-router-dom';
 import { Clock, GraduationCap } from 'lucide-react';
 import type { Course } from '@/types';
+import { CourseEnrollmentAction } from '@/components/CourseEnrollmentAction';
 
 export function FeaturedCourses() {
   const [courses, setCourses] = useState(INITIAL_COURSES);
@@ -71,9 +72,7 @@ export function FeaturedCourses() {
                 </div>
               </CardContent>
               <CardFooter className="pt-0">
-                <Button asChild className="w-full">
-                  <Link to="/enrollment">Enrollment information</Link>
-                </Button>
+                <CourseEnrollmentAction courseId={course.id} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-blue-800"/>
               </CardFooter>
             </Card>
           ))}
