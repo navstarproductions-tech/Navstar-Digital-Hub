@@ -1204,10 +1204,10 @@ export function AdminPage() {
                   <Icon className="h-4 w-4 shrink-0"/><span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 truncate"}>{label}</span>
                   {children.length>0 && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${selected ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>}
                 </button>
-                {false && selected && !sidebarCollapsed && children.length>0 && <div className="ml-5 mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3">
-                  {children.map((tab,index) => {
-                    const isCurrent = expandedSection === id && selectedSubtab === tab.label && (tab.label !== 'Add New Student' || active === 'student-directory');
-                    return <button key={tab.label} type="button" onClick={() => { setActive(tab.label === 'Add New Student' ? 'student-directory' : expandedSection); setSelectedSubtab(tab.label); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false); }} aria-current={isCurrent?'page':undefined} className={`navstar-subtab flex min-h-8 w-full items-center justify-start rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 rounded-full bg-current opacity-70"/>{tab.label}</button>;
+                {selected && !sidebarCollapsed && children.length>0 && <div className="ml-5 mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3">
+                  {children.map((tab) => {
+                    const isCurrent = expandedSection === id && selectedSubtab === tab.label && active === tab.target;
+                    return <button key={tab.label} type="button" onClick={() => { setExpandedSection(id); setActive(tab.target); setSelectedSubtab(tab.label); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false); contentRef.current?.scrollTo({top:0,behavior:'smooth'}); }} aria-current={isCurrent?'page':undefined} className={`navstar-subtab flex min-h-9 w-full items-center justify-start rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-70"/><span className="min-w-0 text-left">{tab.label}</span></button>;
                   })}
                 </div>}
               </div>;
