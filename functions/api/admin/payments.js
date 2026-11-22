@@ -7,7 +7,7 @@ export async function onRequestGet({ request, env }) {
   if (access.response) return access.response;
 
   const ledger=new URL(request.url).searchParams.get('ledger')==='fees'?'fees':'business';
-  const where=ledger==='fees'?"WHERE p.purpose='enrollment'":"WHERE p.purpose IN ('service','donation')";
+  const where=ledger==='fees'?"WHERE p.purpose='enrollment' AND p.status='paid'":"WHERE p.purpose IN ('service','donation') AND p.status='paid'";
   try {
     const [rows, totals, balance] = await Promise.all([
       env.DB.prepare(`
