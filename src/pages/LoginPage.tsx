@@ -121,8 +121,8 @@ export function LoginPage() {
     return (
       <main className="relative isolate min-h-screen overflow-hidden bg-[#031331] text-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_12%,rgba(18,116,235,.25),transparent_45%),radial-gradient(ellipse_at_92%_82%,rgba(0,255,120,.18),transparent_40%)]" />
-        <div className="absolute inset-0 opacity-25" style={{backgroundImage:'url("/navstar-admin-hero.webp")',backgroundSize:'cover',backgroundPosition:'center'}} />
-        <div className="absolute inset-0 bg-gradient-to-br from-[#03112b]/35 via-[#051b40]/65 to-[#03112b]/85" />
+        <div className="absolute inset-0 opacity-75" style={{backgroundImage:'url("/navstar-admin-hero.webp")',backgroundSize:'cover',backgroundPosition:'center'}} />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#03112b]/15 via-[#051b40]/35 to-[#03112b]/55" />
         {celebrating && <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#04142b]/35"><div className="animate-bounce rounded-2xl border border-yellow-300/60 bg-white px-5 py-4 text-center text-blue-950 shadow-2xl"><div className="text-3xl">🌸 💐 🌼 🌺</div><p className="mt-1 text-lg font-black">Welcome back, {staffPreview?.name?.split(' ')[0] || 'Administrator'}!</p><p className="text-xs font-semibold text-green-700">Identity verified • Opening dashboard</p></div></div>}
         <div className="relative z-10 mx-auto flex min-h-screen max-w-[1180px] flex-col">
           <div className="grid flex-1 grid-cols-1 lg:grid-cols-[.9fr_1.1fr]">
