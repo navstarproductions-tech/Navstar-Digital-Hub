@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Clock3, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, PhoneCall, X } from 'lucide-react';
 
 type Intake = {
   name?: string;
@@ -32,12 +33,18 @@ export function CourseEnrollmentAction({ courseId, className }: { courseId: stri
   const enrollmentOpen = Boolean(opensAt && closesAt && Date.now() >= opensAt && Date.now() <= closesAt);
   const buttonClass = className || 'inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200';
 
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', onKeyDown); };
+  }, [open]);
+
   const handleEnroll = () => {
-    if (!loaded) {
-      setOpen(true);
-      return;
-    }
-    if (enrollmentOpen) navigate('/enroll/' + courseId);
+    const currentlyOpen = Boolean(opensAt && closesAt && Date.now() >= opensAt && Date.now() <= closesAt);
+    if (loaded && currentlyOpen) navigate('/enroll/' + courseId);
     else setOpen(true);
   };
 
@@ -47,53 +54,27 @@ export function CourseEnrollmentAction({ courseId, className }: { courseId: stri
         Enroll <ArrowRight className="h-4 w-4" />
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-950/75 px-4 py-8 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="navstar-enrollment-title"
-          onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}
-        >
-          <section className="relative my-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-white/20 bg-white shadow-[0_30px_100px_rgba(2,6,23,.45)]">
-            <div className="relative overflow-hidden bg-gradient-to-br from-[#06152d] via-[#0b3474] to-[#087eae] px-7 pb-8 pt-9 text-white">
-              <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full border-[28px] border-cyan-300/10" />
-              <button type="button" onClick={() => setOpen(false)} aria-label="Close enrollment notice" className="absolute right-4 top-4 rounded-full border border-white/20 bg-white/10 p-2 text-white transition hover:bg-white/20">
-                <X className="h-5 w-5" />
-              </button>
-              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-300/30 bg-amber-300/15 text-amber-200 shadow-lg">
-                {loaded ? <Clock3 className="h-7 w-7" /> : <Clock3 className="h-7 w-7 animate-pulse" />}
-              </div>
-              <p className="text-xs font-extrabold uppercase tracking-[.24em] text-cyan-200">Navstar Digital Hub</p>
-              <h2 id="navstar-enrollment-title" className="mt-2 text-3xl font-black leading-tight">
-                {!loaded ? 'Checking enrollment' : enrollmentOpen ? 'Enrollment is open' : 'Enrollment is currently closed'}
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-blue-100">
-                {!loaded
-                  ? 'Please wait while we confirm the current application period.'
-                  : enrollmentOpen
-                    ? 'Applications are being accepted. Continue to complete your course application.'
-                    : intake?.notice || 'Thank you for your interest in training with Navstar Digital Hub. Applications for the current intake are not being accepted at the moment.'}
-              </p>
-            </div>
-            <div className="space-y-5 px-7 py-7">
-              {loaded && !enrollmentOpen && intake?.name && (
-                <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" />
-                  <div>
-                    <p className="text-sm font-extrabold text-slate-900">{intake.name}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">Please contact our team for information about the next application opportunity.</p>
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <a href="tel:+254797688576" className="inline-flex items-center justify-center rounded-xl bg-blue-800 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-900">Call Navstar</a>
-                <button type="button" onClick={() => setOpen(false)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Close</button>
-              </div>
-              <p className="text-center text-[10px] font-black tracking-[.22em] text-amber-600">HOME OF TECHNOCRATS</p>
-            </div>
-          </section>
-        </div>
+      {open && createPortal(
+        <div className="fixed inset-0 z-[99999] flex h-[100dvh] min-h-screen w-screen flex-col overflow-y-auto bg-[#06152d] text-white" role="dialog" aria-modal="true" aria-labelledby="navstar-enrollment-title">
+          <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-white/10 bg-[#06152d]/95 px-4 py-4 backdrop-blur-xl sm:px-8">
+            <div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 font-black">N</div><div><p className="text-sm font-black tracking-wide">NAVSTAR DIGITAL HUB</p><p className="text-[10px] font-bold uppercase tracking-[.2em] text-cyan-300">HOME OF TECHNOCRATS</p></div></div>
+            <div className="flex items-center gap-2"><button type="button" onClick={() => setOpen(false)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-3 py-2.5 text-sm font-bold text-slate-200 hover:bg-white/10"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">Go back</span></button><button type="button" onClick={() => setOpen(false)} aria-label="Exit enrollment notice" className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-sm font-black text-slate-900 hover:bg-cyan-100"><X className="h-4 w-4" /><span className="hidden sm:inline">Exit</span></button></div>
+          </header>
+          <main className="relative flex flex-1 items-center justify-center overflow-hidden px-5 py-12 sm:px-8">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_20%,rgba(37,99,235,.35),transparent_42%),radial-gradient(ellipse_at_85%_80%,rgba(6,182,212,.22),transparent_40%)]" />
+            <section className="relative mx-auto w-full max-w-3xl text-center">
+              <div className="mx-auto mb-7 flex h-20 w-20 items-center justify-center rounded-3xl border border-amber-300/30 bg-amber-300/10 text-amber-200"><Clock3 className="h-10 w-10" /></div>
+              <p className="text-xs font-black uppercase tracking-[.3em] text-cyan-300">Course enrolment information</p>
+              <h2 id="navstar-enrollment-title" className="mx-auto mt-4 max-w-2xl text-4xl font-black leading-tight tracking-tight sm:text-6xl">{!loaded ? 'Checking enrolment' : enrollmentOpen ? 'Enrolment is open' : 'Enrolment is currently closed'}</h2>
+              <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-blue-100 sm:text-lg">{!loaded ? 'Please wait while we confirm the current application period.' : enrollmentOpen ? 'Applications are being accepted. Continue to complete your course application.' : intake?.notice || 'Thank you for your interest in training with Navstar Digital Hub. Applications for the current intake are not being accepted at the moment. Please contact our team for guidance on the next opportunity.'}</p>
+              {loaded && !enrollmentOpen && intake?.name && <div className="mx-auto mt-8 flex max-w-xl items-center justify-center gap-3 rounded-2xl border border-cyan-300/20 bg-white/[.07] px-5 py-4 text-left"><CheckCircle2 className="h-6 w-6 shrink-0 text-cyan-300" /><div><p className="text-sm font-extrabold text-white">{intake.name}</p><p className="mt-1 text-xs leading-5 text-blue-200">Contact Navstar for information about the next application opportunity.</p></div></div>}
+              <div className="mx-auto mt-9 flex max-w-xl flex-col justify-center gap-3 sm:flex-row"><a href="tel:+254797688576" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-7 py-4 text-sm font-black text-slate-950 hover:bg-cyan-300"><PhoneCall className="h-4 w-4" /> Call Navstar</a><button type="button" onClick={() => setOpen(false)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-7 py-4 text-sm font-bold text-white hover:bg-white/10"><ArrowLeft className="h-4 w-4" /> Back to courses</button></div>
+              <p className="mt-12 text-[10px] font-black tracking-[.32em] text-amber-300">LEARN · CREATE · INNOVATE</p>
+            </section>
+          </main>
+          <footer className="shrink-0 border-t border-white/10 px-5 py-4 text-center text-xs text-blue-200/70">© {new Date().getFullYear()} Navstar Digital Hub · HOME OF TECHNOCRATS</footer>
+        </div>,
+        document.body
       )}
     </>
   );
