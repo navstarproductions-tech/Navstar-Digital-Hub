@@ -25,12 +25,27 @@ export async function onRequestPost({ request, env }) {
   `).bind(emailHash, ipHash).first();
   if (Number(attempt?.count ?? 0) >= 8) return error('Too many sign-in attempts. Try again later.', 429);
 
-  const user = await env.DB.prepare('SELECT users.id, users.name, users.email, COALESCE(user_profiles.portal_role, users.role) AS role, users.password_hash, users.password_salt, users.must_change_password FROM users LEFT JOIN user_profiles ON user_profiles.user_id = users.id WHERE users.email = ? AND users.status = ?')
-    .bind(email, 'active').first();
-  const valid = user && user.role === requestedRole && await verifyPassword(password, user.password_salt, user.password_hash);
-  if (!valid) {
+  const user = await env.DB.prepare(`
+    SELECT users.id, users.name, users.email, users.role AS base_role,
+      CASE WHEN users.role = 'student' THEN 'student'
+           ELSE COALESCE(NULLIF(user_profiles.portal_role, ''), users.role)
+      END AS role,
+      users.password_hash, users.password_salt, users.must_change_password
+    FROM users
+    LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+    WHERE lower(trim(users.email)) = ? AND users.status = 'active'
+    LIMIT 1
+  `).bind(email).first();
+
+  // Verify credentials before reporting a portal mismatch. Student is the canonical
+  // base role, so an outdated profile-role value cannot lock a genuine student out.
+  const passwordValid = user && await verifyPassword(password, user.password_salt, user.password_hash);
+  if (!passwordValid) {
     await env.DB.prepare('INSERT INTO login_attempts (id, email_hash, ip_hash) VALUES (?, ?, ?)').bind(uuid(), emailHash, ipHash).run();
-    return error('Email, password, or portal is incorrect.', 401);
+    return error('The email or password is incorrect. If you recently reset your password, use the new password and the email registered on your Navstar account.', 401);
+  }
+  if (user.role !== requestedRole) {
+    return error(`Your credentials are valid, but this account is registered for the ${user.role} portal. Please select that portal to continue.`, 403);
   }
 
   await env.DB.prepare('DELETE FROM login_attempts WHERE email_hash = ? AND ip_hash = ?').bind(emailHash, ipHash).run();
