@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS parcels (
   id TEXT PRIMARY KEY,
   service_request_id TEXT NOT NULL UNIQUE REFERENCES service_requests(id),
   parcel_ref TEXT NOT NULL UNIQUE,
-  token_hash TEXT NOT NULL UNIQUE,\n  delivery_token TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
   customer_type TEXT NOT NULL CHECK (customer_type IN ('individual','organisation','walk_in')),
   customer_name TEXT NOT NULL,
   recipient_name TEXT NOT NULL,
