@@ -1,22 +1,106 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowRight, CalendarDays, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowRight, CheckCircle2, Clock3, X } from 'lucide-react';
 
-type Intake = {name:string;enrollmentOpen:string;enrollmentClose:string;trainingStart?:string;notice?:string;status:'open'|'upcoming'|'closed'|'not-configured'} | null;
-function dateLabel(value?:string){return value?new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Nairobi',day:'numeric',month:'long',year:'numeric'}).format(new Date(value+'T12:00:00+03:00')):'To be announced';}
+type Intake = {
+  name?: string;
+  enrollmentOpen?: string;
+  enrollmentClose?: string;
+  trainingStart?: string;
+  notice?: string;
+  status?: 'open' | 'upcoming' | 'closed' | 'not-configured';
+} | null;
 
-export function CourseEnrollmentAction({courseId,className}:{courseId:string;className?:string}){
- const [intake,setIntake]=useState<Intake>(null);
- const [loaded,setLoaded]=useState(false);
- const [now,setNow]=useState(Date.now());
- const [open,setOpen]=useState(false);
- useEffect(()=>{let active=true;fetch('/api/intake',{cache:'no-store'}).then(async r=>r.ok?r.json() as Promise<{intake?:Intake}>:null).then(d=>{if(active)setIntake(d?.intake||null);}).catch(()=>{if(active)setIntake(null);}).finally(()=>{if(active)setLoaded(true);});return()=>{active=false};},[]);
- useEffect(()=>{const t=window.setInterval(()=>setNow(Date.now()),15000);return()=>window.clearInterval(t);},[]);
- const start=intake?.enrollmentOpen?new Date(intake.enrollmentOpen+'T00:00:00+03:00').getTime():0;
- const end=intake?.enrollmentClose?new Date(intake.enrollmentClose+'T23:59:59+03:00').getTime():0;
- const isOpen=Boolean(start&&end&&now>=start&&now<=end);
- const isUpcoming=Boolean(start&&now<start);
- const buttonClass=className||'inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-800';
- return <>{isOpen?<Link to={'/enroll/'+courseId} className={buttonClass}>Enroll Now <ArrowRight className="h-4 w-4"/></Link>:<button type="button" disabled={!loaded} onClick={()=>setOpen(true)} className={buttonClass}>{loaded?(isUpcoming?'View intake dates':'Enrollment information'):'Checking intake…'} <CalendarDays className="h-4 w-4"/></button>}
- {open&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-labelledby="enrollment-notice-title" onMouseDown={e=>{if(e.target===e.currentTarget)setOpen(false);}}><section className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl"><div className="bg-gradient-to-br from-[#07172f] via-blue-950 to-blue-700 px-6 py-7 text-white"><button type="button" onClick={()=>setOpen(false)} aria-label="Close" className="absolute right-4 top-4 rounded-full bg-white/10 p-2 hover:bg-white/20"><X className="h-5 w-5"/></button><div className="inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-300/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-200"><CalendarDays className="h-4 w-4"/>{isUpcoming?'Upcoming intake':'Enrollment update'}</div><h2 id="enrollment-notice-title" className="mt-4 text-2xl font-black">{isUpcoming?'Enrollment has not opened yet':'Enrollment period has ended'}</h2><p className="mt-2 text-sm leading-6 text-blue-100">{intake?.notice|| (isUpcoming?'You can submit your application when the published enrollment window opens.':'The application window for this intake has closed. Please check the next intake dates below.')}</p></div><div className="space-y-4 p-6"><div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Intake</p><p className="mt-1 text-lg font-black text-slate-950">{intake?.name||'Next intake dates pending'}</p><p className="mt-2 text-sm text-slate-600">Enrollment: <strong>{dateLabel(intake?.enrollmentOpen)}</strong> – <strong>{dateLabel(intake?.enrollmentClose)}</strong></p>{intake?.trainingStart&&<p className="mt-1 text-sm text-slate-600">Training starts: <strong>{dateLabel(intake.trainingStart)}</strong></p>}</div><p className="text-xs leading-5 text-slate-500">All dates and times follow East Africa Time (EAT). Visit our Courses page for programme details and return when enrollment opens.</p><div className="flex flex-wrap gap-2"><Link to="/courses" onClick={()=>setOpen(false)} className="inline-flex flex-1 items-center justify-center rounded-xl bg-blue-800 px-4 py-3 text-sm font-bold text-white hover:bg-blue-900">Explore courses</Link><button type="button" onClick={()=>setOpen(false)} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Close</button></div><p className="text-center text-[10px] font-black tracking-[.2em] text-amber-600">NAVSTAR DIGITAL HUB · HOME OF TECHNOCRATS</p></div></section></div>}</>;
+export function CourseEnrollmentAction({ courseId, className }: { courseId: string; className?: string }) {
+  const navigate = useNavigate();
+  const [intake, setIntake] = useState<Intake>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/intake', { cache: 'no-store' })
+      .then(async (response) => response.ok ? response.json() as Promise<{ intake?: Intake }> : null)
+      .then((data) => { if (active) setIntake(data?.intake || null); })
+      .catch(() => { if (active) setIntake(null); })
+      .finally(() => { if (active) setLoaded(true); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 15000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const opensAt = intake?.enrollmentOpen ? new Date(intake.enrollmentOpen + 'T00:00:00+03:00').getTime() : 0;
+  const closesAt = intake?.enrollmentClose ? new Date(intake.enrollmentClose + 'T23:59:59+03:00').getTime() : 0;
+  const enrollmentOpen = Boolean(opensAt && closesAt && now >= opensAt && now <= closesAt);
+  const buttonClass = className || 'inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200';
+
+  const handleEnroll = () => {
+    if (!loaded) {
+      setOpen(true);
+      return;
+    }
+    if (enrollmentOpen) navigate('/enroll/' + courseId);
+    else setOpen(true);
+  };
+
+  return (
+    <>
+      <button type="button" onClick={handleEnroll} className={buttonClass}>
+        Enroll <ArrowRight className="h-4 w-4" />
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-950/75 px-4 py-8 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="navstar-enrollment-title"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}
+        >
+          <section className="relative my-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-white/20 bg-white shadow-[0_30px_100px_rgba(2,6,23,.45)]">
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#06152d] via-[#0b3474] to-[#087eae] px-7 pb-8 pt-9 text-white">
+              <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full border-[28px] border-cyan-300/10" />
+              <button type="button" onClick={() => setOpen(false)} aria-label="Close enrollment notice" className="absolute right-4 top-4 rounded-full border border-white/20 bg-white/10 p-2 text-white transition hover:bg-white/20">
+                <X className="h-5 w-5" />
+              </button>
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-300/30 bg-amber-300/15 text-amber-200 shadow-lg">
+                {loaded ? <Clock3 className="h-7 w-7" /> : <Clock3 className="h-7 w-7 animate-pulse" />}
+              </div>
+              <p className="text-xs font-extrabold uppercase tracking-[.24em] text-cyan-200">Navstar Digital Hub</p>
+              <h2 id="navstar-enrollment-title" className="mt-2 text-3xl font-black leading-tight">
+                {!loaded ? 'Checking enrollment' : enrollmentOpen ? 'Enrollment is open' : 'Enrollment is currently closed'}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-blue-100">
+                {!loaded
+                  ? 'Please wait while we confirm the current application period.'
+                  : enrollmentOpen
+                    ? 'Applications are being accepted. Continue to complete your course application.'
+                    : intake?.notice || 'Thank you for your interest in training with Navstar Digital Hub. Applications for the current intake are not being accepted at the moment.'}
+              </p>
+            </div>
+            <div className="space-y-5 px-7 py-7">
+              {loaded && !enrollmentOpen && intake?.name && (
+                <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" />
+                  <div>
+                    <p className="text-sm font-extrabold text-slate-900">{intake.name}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">Please contact our team for information about the next application opportunity.</p>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <a href="tel:+254797688576" className="inline-flex items-center justify-center rounded-xl bg-blue-800 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-900">Call Navstar</a>
+                <button type="button" onClick={() => setOpen(false)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Close</button>
+              </div>
+              <p className="text-center text-[10px] font-black tracking-[.22em] text-amber-600">HOME OF TECHNOCRATS</p>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
+  );
 }
