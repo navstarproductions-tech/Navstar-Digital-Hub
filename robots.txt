@@ -1,2 +1,11 @@
 User-agent: *
-Disallow: /
+Allow: /
+Disallow: /admin
+Disallow: /student-portal
+Disallow: /portals/
+Disallow: /my-account
+Disallow: /account
+Disallow: /login
+Disallow: /setup
+Disallow: /change-password
+Sitemap: https://navstardigitalhub.co.ke/sitemap.xml
