@@ -15,7 +15,6 @@ export function CourseEnrollmentAction({ courseId, className }: { courseId: stri
   const navigate = useNavigate();
   const [intake, setIntake] = useState<Intake>(null);
   const [loaded, setLoaded] = useState(false);
-  const [now, setNow] = useState(Date.now());
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -28,14 +27,9 @@ export function CourseEnrollmentAction({ courseId, className }: { courseId: stri
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 15000);
-    return () => window.clearInterval(timer);
-  }, []);
-
   const opensAt = intake?.enrollmentOpen ? new Date(intake.enrollmentOpen + 'T00:00:00+03:00').getTime() : 0;
   const closesAt = intake?.enrollmentClose ? new Date(intake.enrollmentClose + 'T23:59:59+03:00').getTime() : 0;
-  const enrollmentOpen = Boolean(opensAt && closesAt && now >= opensAt && now <= closesAt);
+  const enrollmentOpen = Boolean(opensAt && closesAt && Date.now() >= opensAt && Date.now() <= closesAt);
   const buttonClass = className || 'inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200';
 
   const handleEnroll = () => {
