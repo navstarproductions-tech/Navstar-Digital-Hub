@@ -11,10 +11,9 @@ export function CoursesPage() {
   const [search, setSearch] = useState('');
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [intake, setIntake] = useState<{name:string; enrollmentOpen:string; enrollmentClose:string; trainingStart?:string; trainingEnd?:string; graduationDate?:string; notice?:string; status:'open'|'upcoming'|'closed'|'not-configured'} | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const now = Date.now();
   const opensAt = intake?.enrollmentOpen ? new Date(`${intake.enrollmentOpen}T00:00:00+03:00`).getTime() : 0;
   const closesAt = intake?.enrollmentClose ? new Date(`${intake.enrollmentClose}T23:59:59+03:00`).getTime() : 0;
-  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
   useEffect(() => { let active = true; fetch('/api/intake').then(async response => response.ok ? response.json() as Promise<{intake?: typeof intake}> : null).then(result => { if(active) setIntake(result?.intake || null); }).catch(() => { if(active) setIntake(null); }); return () => {active=false}; }, []);
   const enrollmentOpen = Boolean(intake && opensAt > 0 && closesAt > 0 && now >= opensAt && now <= closesAt);
   const intakeUpcoming = Boolean(intake && opensAt > now);
