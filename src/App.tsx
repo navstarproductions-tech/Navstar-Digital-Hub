@@ -137,7 +137,7 @@ function AppShell() {
             <Route path="/student-recovery" element={<StudentRecoveryPage />} />
             <Route path="/account" element={<CustomerAccountPage />} />
             <Route path="/my-account" element={<MyAccountPage />} />
-            <Route path="/campus-life" element={<DigitalHubPage />} />
+            <Route path="/campus-life" element={<Navigate to="/forum#campus-life" replace />} />
             <Route path="/admissions-letters" element={<DigitalHubPage />} />
             <Route path="/analytics" element={<DigitalHubPage />} />
             <Route path="/forum" element={<ForumPage />} />
