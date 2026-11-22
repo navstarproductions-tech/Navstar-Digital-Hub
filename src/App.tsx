@@ -23,6 +23,7 @@ import { FirstAdminSetupPage } from '@/pages/FirstAdminSetupPage';
 import { CustomerAccountPage } from '@/pages/CustomerAccountPage';
 import { DigitalHubPage } from '@/pages/DigitalHubPage';
 import { ForumPage } from '@/pages/ForumPage';
+import { AdminCommunityPage } from '@/pages/AdminCommunityPage';
 import { PaymentReceiptsPage } from '@/pages/PaymentReceiptsPage';
 import { PublicResultVerificationPage } from '@/pages/PublicResultVerificationPage';
 import { PayPage } from '@/pages/PayPage';
@@ -148,6 +149,7 @@ function AppShell() {
             <Route path="/admin-reset" element={<Navigate to="/student-recovery" replace />} />
             <Route path="/enroll/:id" element={<EnrollmentPage />} />
             <Route path="/admin" element={<PortalMaintenanceGate role="admin"><AdminPage /></PortalMaintenanceGate>} />
+            <Route path="/admin/community" element={<PortalMaintenanceGate role="admin"><AdminCommunityPage /></PortalMaintenanceGate>} />
             <Route path="/admin/receipts" element={<PortalMaintenanceGate role="admin"><PaymentReceiptsPage /></PortalMaintenanceGate>} />
             <Route path="/payment-receipt/:id" element={<PaymentReceiptsPage />} />
             <Route path="/verify-result/:token" element={<PublicResultVerificationPage />} />
