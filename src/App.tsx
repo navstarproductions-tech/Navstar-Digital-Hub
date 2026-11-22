@@ -121,7 +121,8 @@ function AppShell() {
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/gallery" element={<Navigate to="/about" replace />} />
-            <Route path="/enrollment" element={<PublicEnrollmentPage />} />\n            <Route path="/staff-application" element={<StaffApplicationPage />} />
+            <Route path="/enrollment" element={<PublicEnrollmentPage />} />
+            <Route path="/staff-application" element={<StaffApplicationPage />} />
             <Route path="/learning" element={<LearningPage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/ai" element={<AIPage />} />
