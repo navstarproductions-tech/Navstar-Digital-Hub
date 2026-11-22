@@ -143,6 +143,7 @@ function AppShell() {
             <Route path="/analytics" element={<DigitalHubPage />} />
             <Route path="/forum" element={<ForumPage />} />
             <Route path="/forum/post/:id" element={<ForumPage />} />
+            <Route path="/:id" element={<ForumPage />} />
             <Route path="/music" element={<MusicPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
             <Route path="/set-password" element={<StudentPasswordSetupPage />} />
