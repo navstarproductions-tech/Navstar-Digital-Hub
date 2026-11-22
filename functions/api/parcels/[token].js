@@ -17,7 +17,8 @@ async function findParcel(env, token) {
       p.recipient_confirmed_at AS confirmedAt,p.recipient_confirmation_name AS confirmedBy,
       r.id AS serviceRequestId,
       COALESCE((SELECT SUM(amount) FROM payments WHERE purpose='service' AND reference_id=r.id AND status='paid'),0) AS paidAmount,
-      (SELECT receipt_number FROM payments WHERE purpose='service' AND reference_id=r.id AND status='paid' ORDER BY updated_at DESC LIMIT 1) AS mpesaReceipt
+      (SELECT receipt_number FROM payments WHERE purpose='service' AND reference_id=r.id AND status='paid' ORDER BY updated_at DESC LIMIT 1) AS mpesaReceipt,
+      (SELECT phone FROM payments WHERE purpose='service' AND reference_id=r.id AND status='paid' ORDER BY updated_at DESC LIMIT 1) AS paidPhone
     FROM parcels p JOIN service_requests r ON r.id=p.service_request_id WHERE p.token_hash=?
   `).bind(tokenHash).first();
 }
@@ -76,7 +77,7 @@ export async function onRequestPost(context) {
     const confirmationName = safeString(body.name, 140);
     const confirmationPhone = normalizePhone(body.phone);
     if (confirmationName.length < 2 || !/^254\d{9}$/.test(confirmationPhone)) return error('Enter your name and a valid phone number to confirm receipt.');
-    if (parcel.recipientPhone && confirmationPhone !== parcel.recipientPhone) return error('Use the recipient phone number registered for this parcel.', 403);
+    if (confirmationPhone !== parcel.recipientPhone && confirmationPhone !== parcel.paidPhone) return error('Use the registered recipient number or the M-Pesa number that paid for this parcel.', 403);
     const result = await env.DB.prepare(`UPDATE parcels SET delivery_status='delivered',recipient_confirmed_at=CURRENT_TIMESTAMP,
       recipient_confirmation_name=?,recipient_confirmation_phone=?,updated_at=CURRENT_TIMESTAMP
       WHERE id=? AND delivery_status!='delivered' AND token_hash=?`)
