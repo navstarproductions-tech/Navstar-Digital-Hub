@@ -17,7 +17,7 @@ export async function onRequestPost({request,env}){
  const title=safeString(body.title,140),content=safeString(body.body,5000),category=['campus','forum','news'].includes(body.category)?body.category:'forum',imageUrl=safeString(body.imageUrl,160);
  if(title.length<4||content.length<10)return error('A title of at least 4 characters and a post of at least 10 characters are required.');
  let imageId='';
- if(imageUrl){const match=imageUrl.match(/^\\/api\\/forum\\/image\\/([A-Za-z0-9-]{8,80})$/);if(!match)return error('Upload the photo again before submitting.');imageId=match[1];const owned=await env.DB.prepare('SELECT id FROM forum_media_assets WHERE id=? AND customer_id=?').bind(imageId,customer.id).first();if(!owned)return error('That photo is not available for this account. Please upload it again.',403);}
+ if(imageUrl){const prefix='/api/forum/image/';if(!imageUrl.startsWith(prefix))return error('Upload the photo again before submitting.');imageId=imageUrl.slice(prefix.length);if(!/^[A-Za-z0-9-]{8,80}$/.test(imageId))return error('Upload the photo again before submitting.');const owned=await env.DB.prepare('SELECT id FROM forum_media_assets WHERE id=? AND customer_id=?').bind(imageId,customer.id).first();if(!owned)return error('That photo is not available for this account. Please upload it again.',403);}
  const id=uuid();
  await env.DB.prepare("INSERT INTO forum_posts (id,customer_id,title,body,category,moderation_status,image_url) VALUES (?,?,?,?,?,'pending',?)").bind(id,customer.id,title,content,category,imageUrl||null).run();
  return json({id,title,body:content,author:customer.fullName,category,imageUrl:imageUrl||null,moderationStatus:'pending',commentCount:0,reactionCount:0},201);
