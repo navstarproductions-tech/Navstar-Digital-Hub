@@ -111,7 +111,8 @@ function AppShell() {
     || pathname === '/admin-reset'
     || pathname === '/change-password'
     || pathname === '/my-account'
-    || pathname === '/staff-application';
+    || pathname === '/staff-application'
+    || pathname.startsWith('/delivery/');
 
   return (
     <>
