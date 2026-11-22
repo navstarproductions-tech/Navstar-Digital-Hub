@@ -17,7 +17,7 @@ export function StudentStatusWorkspace({students,courses,applications,subtab}:Pr
  statusKey.includes('suspended')?s.status.toLowerCase()==='suspended':
  statusKey.includes('deferred')?s.status.toLowerCase()==='deferred':
  statusKey.includes('removed')?s.status.toLowerCase()==='deleted':
- statusKey.includes('graduated')?s.status.toLowerCase()==='graduated':
+ (statusKey.includes('graduated')||statusKey.includes('graduation'))?s.status.toLowerCase()==='graduated':
  statusKey.includes('completed')?s.status.toLowerCase()==='completed':true)),[students,statusKey]);
  const sourceStudents=students.filter(s=>s.role==='student'&&s.status.toLowerCase()==='active'&&(!sourceCourseId||courseFor(s)===sourceCourseId));
  const transfer=async()=>{setBusy(true);setNotice('');setFailure('');try{const r=await fetch('/api/admin/student-course-transfer',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({studentIds:selected,sourceCourseId,targetCourseId,reason,notificationChannel:channel})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Student course transfer failed.');setNotice(`${j.transferred} student(s) transferred to ${j.destinationCourse}. Notification requests sent through ${channel.toUpperCase()} where configured.`);setSelected([]);setReason('');window.location.reload();}catch(e){setFailure(e instanceof Error?e.message:'Student transfer failed.');}finally{setBusy(false);}};
