@@ -51,19 +51,19 @@ export async function onRequestPost({ request, env }) {
   if (!recipientName || contents.length < 2 || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000 ||
       !Number.isSafeInteger(amount) || amount < 1 || amount > 150000) return error('Enter recipient, parcel contents, quantity and a valid amount.');
   if (recipientPhone && !/^254\d{9}$/.test(recipientPhone)) return error('Enter a valid Kenyan recipient phone number.');
-  const service = await env.DB.prepare("SELECT id FROM services WHERE status='active' ORDER BY name LIMIT 1").first();
+  const requestedServiceId = safeString(body.serviceId, 80);\n  const service = requestedServiceId\n    ? await env.DB.prepare("SELECT id, name FROM services WHERE id=? AND status='active'").bind(requestedServiceId).first()\n    : await env.DB.prepare("SELECT id, name FROM services WHERE status='active' ORDER BY name LIMIT 1").first();
   if (!service) return error('The service catalogue is unavailable. Please contact support.', 503);
 
   const parcelId = uuid();
-  const serviceRequestId = uuid();
+  const serviceRequestId = uuid();\n  const payerPhone = normalizePhone(body.payerPhone) || recipientPhone || '254700000000';
   const parcelRef = await nextReference(env.DB, 'PKG');
   const serviceRef = await nextReference(env.DB, 'SRV');
   const token = randomToken();
   const tokenHash = await hashToken(token);
-  const notes = JSON.stringify({ parcel: true, contents, quantity, recipientName, recipientAddress });
+  const notes = JSON.stringify({ parcel: true, serviceName: service.name, contents, quantity, recipientName, recipientAddress });
   await env.DB.batch([
     env.DB.prepare('INSERT INTO service_requests (id,display_ref,service_id,customer_name,phone,amount,notes,email,status) VALUES (?,?,?,?,?,?,?,?,?)')
-      .bind(serviceRequestId, serviceRef, service.id, customerName, recipientPhone || '254700000000', amount, notes, null, 'pending'),
+      .bind(serviceRequestId, serviceRef, service.id, customerName, payerPhone, amount, notes, null, 'pending'),
     env.DB.prepare(`INSERT INTO parcels
       (id,service_request_id,parcel_ref,token_hash,customer_type,customer_name,recipient_name,recipient_phone,recipient_address,contents_json,quantity,amount,payment_mode,delivery_status,created_by)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -72,5 +72,5 @@ export async function onRequestPost({ request, env }) {
       .bind(uuid(), access.user.id, 'parcel_created', 'parcel', parcelId)
   ]);
   const base = new URL(request.url).origin;
-  return json({ id: parcelId, parcelRef, serviceReference: serviceRef, amount, paymentMode, status: 'awaiting_payment', deliveryUrl: base + '/delivery/' + token, token }, 201);
+  return json({ id: parcelId, serviceRequestId, parcelRef, serviceReference: serviceRef, serviceName: service.name, amount, paymentMode, status: 'awaiting_payment', deliveryUrl: base + '/delivery/' + token, token }, 201);
 }
