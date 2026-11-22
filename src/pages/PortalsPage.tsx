@@ -196,6 +196,14 @@ export function PortalsPage() {
               </article>
             ))}
           </div>
+          <section className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-extrabold uppercase tracking-[.22em] text-cyan-700">Public Navstar destinations</p>
+            <h2 className="mt-2 text-2xl font-black text-slate-950">Explore the public website</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">These pages are open to visitors. You do not need a portal account to browse courses, learn about Navstar, request digital services or support our work.</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[{to:'/',title:'Public listing & Home',detail:'Discover Navstar Digital Hub, announcements and featured information.'},{to:'/courses',title:'Courses & Training',detail:'Browse available ICT and professional training programmes.'},{to:'/services',title:'Digital Services',detail:'Explore cyber, design, technology and online service support.'},{to:'/donations',title:'Donations & Support',detail:'View ways to support Navstar initiatives and community projects.'},{to:'/learning',title:'Learning Resources',detail:'Explore public learning information and available resources.'},{to:'/forum',title:'Community Forum',detail:'Visit community discussions and support channels.'}].map(item=><Link key={item.to} to={item.to} className="rounded-2xl border border-slate-200 p-4 transition hover:border-cyan-400 hover:bg-cyan-50/50"><span className="font-bold text-slate-900">{item.title}</span><span className="mt-1 block text-xs leading-5 text-slate-600">{item.detail}</span><span className="mt-3 inline-flex items-center text-xs font-bold text-blue-700">Open page <ArrowRight className="ml-1 h-3.5 w-3.5"/></span></Link>)}
+            </div>
+          </section>
           <div className="mt-8 flex flex-col items-start gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-cyan-50 p-5 sm:flex-row sm:items-center">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm"><UsersRound className="h-5 w-5" /></span>
             <div className="flex-1"><p className="font-bold text-slate-900">Need help accessing your account?</p><p className="mt-1 text-sm text-slate-600">Contact the Navstar Digital Hub team for account assistance. Never share your password with anyone.</p></div>
