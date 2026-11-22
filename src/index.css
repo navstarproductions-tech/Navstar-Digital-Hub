@@ -354,3 +354,27 @@ body::-webkit-scrollbar,
 @media (prefers-reduced-motion: reduce) {
   .navstar-login-orbit::before,.navstar-login-orbit::after,.navstar-login-bubble,.navstar-login-star,.navstar-login-triangle { animation:none !important; }
 }
+
+
+/* Stable mobile viewport sizing: prevent automatic text inflation and iOS
+   input-focus zoom while keeping user-controlled browser zoom accessible. */
+@media (max-width: 767px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  input,
+  select,
+  textarea,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+  }
+  .navstar-admin,
+  .navstar-admin-content {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .navstar-admin-content {
+    overflow-x: hidden;
+  }
+}
