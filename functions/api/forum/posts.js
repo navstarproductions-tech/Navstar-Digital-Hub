@@ -5,7 +5,7 @@ export async function onRequestGet({env}){
  const result=await env.DB.prepare(`SELECT p.id,p.title,p.body,p.created_at AS createdAt,c.full_name AS author,
  (SELECT COUNT(*) FROM forum_comments x WHERE x.post_id=p.id AND x.status='published' AND x.moderation_status='approved') AS commentCount,
  ((SELECT COUNT(*) FROM forum_reactions r WHERE r.post_id=p.id)+(SELECT COUNT(*) FROM forum_sticker_reactions sr WHERE sr.post_id=p.id)) AS reactionCount,
- p.category,p.featured
+ p.category,p.featured,p.image_url AS imageUrl
  FROM forum_posts p JOIN customer_accounts c ON c.id=p.customer_id WHERE p.status='published' AND p.moderation_status='approved' ORDER BY p.featured DESC,p.created_at DESC LIMIT 80`).all();
  return json({posts:result.results||[]});
 }
@@ -14,9 +14,11 @@ export async function onRequestPost({request,env}){
  if(!env.DB)return error('Community service is not configured.',503);
  const customer=await getCustomerSession(request,env);if(!customer)return error('Sign in to publish a community post.',401);
  let body;try{body=await readJson(request,12000)}catch{return error('Invalid post.')}
- const title=safeString(body.title,140),content=safeString(body.body,5000),category=['campus','forum','news'].includes(body.category)?body.category:'forum';
+ const title=safeString(body.title,140),content=safeString(body.body,5000),category=['campus','forum','news'].includes(body.category)?body.category:'forum',imageUrl=safeString(body.imageUrl,160);
  if(title.length<4||content.length<10)return error('A title of at least 4 characters and a post of at least 10 characters are required.');
+ let imageId='';
+ if(imageUrl){const match=imageUrl.match(/^\\/api\\/forum\\/image\\/([A-Za-z0-9-]{8,80})$/);if(!match)return error('Upload the photo again before submitting.');imageId=match[1];const owned=await env.DB.prepare('SELECT id FROM forum_media_assets WHERE id=? AND customer_id=?').bind(imageId,customer.id).first();if(!owned)return error('That photo is not available for this account. Please upload it again.',403);}
  const id=uuid();
- await env.DB.prepare("INSERT INTO forum_posts (id,customer_id,title,body,category,moderation_status) VALUES (?,?,?,?,?,'pending')").bind(id,customer.id,title,content,category).run();
- return json({id,title,body:content,author:customer.fullName,category,moderationStatus:'pending',commentCount:0,reactionCount:0},201);
+ await env.DB.prepare("INSERT INTO forum_posts (id,customer_id,title,body,category,moderation_status,image_url) VALUES (?,?,?,?,?,'pending',?)").bind(id,customer.id,title,content,category,imageUrl||null).run();
+ return json({id,title,body:content,author:customer.fullName,category,imageUrl:imageUrl||null,moderationStatus:'pending',commentCount:0,reactionCount:0},201);
 }
