@@ -219,6 +219,7 @@ export function AdminPage() {
   const [adminPhotoUploading, setAdminPhotoUploading] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [subtabMenuOpen, setSubtabMenuOpen] = useState(false);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [services, setServices] = useState(initialServices);
   const [serviceName, setServiceName] = useState('');
@@ -1199,14 +1200,14 @@ export function AdminPage() {
               const selected = expandedSection === id;
               const children = sectionSubtabs[id] || [];
               return <div key={id} className="min-w-0 shrink-0 md:w-full">
-                <button type="button" onClick={() => { setExpandedSection(id); setActive(id); setSelectedSubtab(children[0]?.label || ''); if(children[0]?.settingsTab)setSettingsTab(children[0].settingsTab); else if(id==='settings')setSettingsTab('complete'); if(children[0]?.coursesTab)setCoursesSubTab(children[0].coursesTab); if(children[0]?.learningTab)setLearningSubTab(children[0].learningTab); setNotice(''); if(children.length===0)setMobileNavOpen(false); }} aria-current={selected ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+                <button type="button" onClick={() => { setExpandedSection(id); setActive(id); setSelectedSubtab(children[0]?.label || ''); if(children[0]?.settingsTab)setSettingsTab(children[0].settingsTab); else if(id==='settings')setSettingsTab('complete'); if(children[0]?.coursesTab)setCoursesSubTab(children[0].coursesTab); if(children[0]?.learningTab)setLearningSubTab(children[0].learningTab); setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false); }} aria-current={selected ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
                   <Icon className="h-4 w-4 shrink-0"/><span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 truncate"}>{label}</span>
                   {children.length>0 && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${selected ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>}
                 </button>
-                {selected && !sidebarCollapsed && children.length>0 && <div className="ml-5 mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3">
+                {false && selected && !sidebarCollapsed && children.length>0 && <div className="ml-5 mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3">
                   {children.map((tab,index) => {
                     const isCurrent = expandedSection === id && selectedSubtab === tab.label && (tab.label !== 'Add New Student' || active === 'student-directory');
-                    return <button key={tab.label} type="button" onClick={() => { setActive(tab.label === 'Add New Student' ? 'student-directory' : expandedSection); setSelectedSubtab(tab.label); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); setMobileNavOpen(false); }} aria-current={isCurrent?'page':undefined} className={`navstar-subtab flex min-h-8 w-full items-center justify-start rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 rounded-full bg-current opacity-70"/>{tab.label}</button>;
+                    return <button key={tab.label} type="button" onClick={() => { setActive(tab.label === 'Add New Student' ? 'student-directory' : expandedSection); setSelectedSubtab(tab.label); if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false); }} aria-current={isCurrent?'page':undefined} className={`navstar-subtab flex min-h-8 w-full items-center justify-start rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 rounded-full bg-current opacity-70"/>{tab.label}</button>;
                   })}
                 </div>}
               </div>;
@@ -1239,7 +1240,18 @@ export function AdminPage() {
                 <Link to="/portals/notifications" className="block border-t border-white/10 px-4 py-3 text-center text-xs font-bold text-cyan-300 hover:bg-white/5">View all notifications</Link>
               </div>}
             </div>
-            <button type="button" onClick={()=>{setSettingsTab('my-profile');setActive('settings');setNotice('');}} title="My profile" aria-label="My profile" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-950/30"><UserRound className="h-4 w-4"/></button>
+            {(sectionSubtabs[expandedSection]||[]).length>0 && <div className="relative ml-auto shrink-0">
+              <button type="button" onClick={()=>{setSubtabMenuOpen(value=>!value);setNotificationOpen(false);}} aria-haspopup="menu" aria-expanded={subtabMenuOpen} className="flex max-w-[min(46vw,15rem)] items-center gap-2 rounded-xl border border-cyan-400/30 bg-[#102344] px-3 py-2 text-left text-xs font-bold text-cyan-100 shadow-lg hover:bg-[#17315a]">
+                <span className="min-w-0 truncate">{selectedSubtab || 'Choose section tab'}</span><ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${subtabMenuOpen?'rotate-180':''}`}/>
+              </button>
+              {subtabMenuOpen && <div role="menu" aria-label={`Tabs for ${sections.find(item=>item.id===expandedSection)?.label||'current section'}`} className="absolute right-0 top-full z-[60] mt-2 max-h-[min(70vh,32rem)] w-[min(21rem,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-slate-700 bg-[#101b2e] p-2 shadow-2xl shadow-black/50">
+                <p className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-cyan-300">{sections.find(item=>item.id===expandedSection)?.label||'Section'} · Select one tab</p>
+                {(sectionSubtabs[expandedSection]||[]).map(tab=><button key={tab.label} type="button" role="menuitem" onClick={()=>{setActive(tab.label==='Add New Student'?'student-directory':expandedSection);setSelectedSubtab(tab.label);if(tab.settingsTab)setSettingsTab(tab.settingsTab);if(tab.coursesTab)setCoursesSubTab(tab.coursesTab);if(tab.learningTab)setLearningSubTab(tab.learningTab);setNotice('');setMobileNavOpen(false);setSubtabMenuOpen(false);}} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${selectedSubtab===tab.label?'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/30':'text-slate-200 hover:bg-white/10'}`}>
+                  <span className="min-w-0">{tab.label}</span>{selectedSubtab===tab.label&&<span className="shrink-0 text-[10px] font-black uppercase tracking-wide text-emerald-300">Selected</span>}
+                </button>)}
+              </div>}
+            </div>}
+            <button type="button" onClick={()=>{setSettingsTab('my-profile');setActive('settings');setExpandedSection('settings');setSelectedSubtab('Account Details');setSubtabMenuOpen(false);setNotice('');}} title="My profile" aria-label="My profile" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-950/30"><UserRound className="h-4 w-4"/></button>
             <div className="hidden min-w-0 max-w-[150px] lg:block"><p className="truncate text-[11px] font-extrabold uppercase text-white">{user.name}</p><p className="text-[9px] font-bold uppercase tracking-wide text-cyan-300">Admin · Secure session</p></div>
             <button type="button" onClick={()=>void signOut()} title="Log out" aria-label="Log out" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-500/10 hover:text-rose-300"><LogOut className="h-4 w-4"/></button>
           </header>
