@@ -121,9 +121,9 @@ export function LoginPage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_12%,rgba(18,116,235,.25),transparent_45%),radial-gradient(ellipse_at_92%_82%,rgba(0,255,120,.18),transparent_40%)]" />
         <div className="absolute inset-0 opacity-25" style={{backgroundImage:'url("/navstar-admin-hero.webp")',backgroundSize:'cover',backgroundPosition:'center'}} />
         <div className="absolute inset-0 bg-gradient-to-br from-[#03112b]/35 via-[#051b40]/65 to-[#03112b]/85" />
-        <div className="relative z-10 mx-auto flex min-h-screen max-w-[1600px] flex-col">
-          <div className="grid flex-1 grid-cols-1 lg:grid-cols-[1.04fr_.96fr]">
-            <aside className="relative flex flex-col justify-between overflow-hidden border-b border-green-400/40 px-5 py-7 sm:px-10 lg:border-b-0 lg:border-r lg:px-12 lg:py-10">
+        <div className="relative z-10 mx-auto flex min-h-screen max-w-[1180px] flex-col">
+          <div className="grid flex-1 grid-cols-1 lg:grid-cols-[.9fr_1.1fr]">
+            <aside className="relative flex flex-col justify-between overflow-hidden border-b border-green-400/40 px-4 py-5 sm:px-6 lg:border-b-0 lg:border-r lg:px-7 lg:py-7">
               <div className="relative z-10">
                 <div className="inline-flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur-sm">
                   <img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub official logo" className="h-16 w-36 object-contain sm:h-20 sm:w-48" />
@@ -131,23 +131,23 @@ export function LoginPage() {
                 </div>
                 <div className="mt-5 flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-wide text-green-300 sm:text-sm"><span>✦ Innovate</span><span className="text-white/30">|</span><span>⌘ Create</span><span className="text-white/30">|</span><span>⚙ Automate</span><span className="text-white/30">|</span><span>🚀 Grow</span></div>
               </div>
-              <div className="relative z-10 my-7 max-w-xl lg:my-0">
-                <p className="text-2xl font-black leading-tight sm:text-4xl"><span className="text-white">Smart Systems.</span><br/><span className="text-white">Better Solutions.</span><br/><span className="text-yellow-300">Greater Impact.</span></p>
-                <p className="mt-4 max-w-md text-sm leading-6 text-blue-50 sm:text-base">Empowering learners, businesses and communities through digital innovation and technology.</p>
-                <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-1">{['E-Learning Management','Student & Tutor Portals','Analytics & Reports','Cloud Services','Secure & Reliable'].map((item,i)=><div key={item} className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full border border-lime-400 text-lime-300">{['⌑','♟','▥','☁','⛨'][i]}</span><span>{item}</span></div>)}</div>
+              <div className="relative z-10 my-4 max-w-md lg:my-0">
+                <p className="text-xl font-black leading-tight sm:text-3xl"><span className="text-white">Smart Systems.</span><br/><span className="text-white">Better Solutions.</span><br/><span className="text-yellow-300">Greater Impact.</span></p>
+                <p className="mt-2 max-w-sm text-xs leading-5 text-blue-50 sm:text-sm">Empowering learners, businesses and communities through digital innovation and technology.</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-1">{['E-Learning Management','Student & Tutor Portals','Analytics & Reports','Cloud Services','Secure & Reliable'].map((item,i)=><div key={item} className="flex items-center gap-3"><span className="flex h-7 w-7 items-center justify-center rounded-full border border-lime-400 text-lime-300">{['⌑','♟','▥','☁','⛨'][i]}</span><span>{item}</span></div>)}</div>
               </div>
-              <div className="relative z-10 inline-flex w-fit flex-col rounded-2xl border border-green-400/40 bg-gradient-to-r from-green-900/80 via-[#031b43]/80 to-blue-900/70 px-5 py-3 shadow-xl"><span className="font-serif text-2xl italic text-white">Welcome Back!</span><span className="font-serif text-sm italic text-yellow-300">Admin Portal</span></div>
+              <div className="relative z-10 inline-flex w-fit flex-col rounded-2xl border border-green-400/40 bg-gradient-to-r from-green-900/80 via-[#031b43]/80 to-blue-900/70 px-4 py-2 shadow-lg"><span className="font-serif text-xl italic text-white">Welcome Back!</span><span className="font-serif text-xs italic text-yellow-300">Admin Portal</span></div>
             </aside>
-            <section className="flex items-center justify-center px-4 py-8 sm:px-8 lg:px-10">
-              <div className="w-full max-w-[560px] rounded-[28px] border border-green-500/60 bg-white p-5 text-[#071a42] shadow-[0_0_0_5px_rgba(0,120,255,.12),0_20px_70px_rgba(0,0,0,.4)] sm:p-8">
-                <div className="mb-5 flex justify-center"><img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub official logo" className="h-20 w-64 object-contain sm:h-24" /></div>
-                <div className="text-center"><h1 className="text-2xl font-black tracking-tight sm:text-3xl">Admin Login</h1><p className="mt-2 text-sm text-blue-950">Access your dashboard and manage the system.</p></div>
-                <div className="mt-6 flex items-center justify-center gap-2 text-xs font-bold text-green-700"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-green-500"/><span>SYSTEM ONLINE</span><span className="text-blue-900/50">•</span><span>AUTHORIZED ACCESS ONLY</span></div>
+            <section className="flex items-center justify-center px-3 py-5 sm:px-5 lg:px-7">
+              <div className="w-full max-w-[420px] rounded-2xl border border-green-500/50 bg-white p-4 text-[#071a42] shadow-[0_0_0_3px_rgba(0,120,255,.10),0_14px_40px_rgba(0,0,0,.35)] sm:p-5">
+                <div className="mb-3 flex justify-center"><img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub official logo" className="h-14 w-44 object-contain sm:h-16 sm:w-48" /></div>
+                <div className="text-center"><h1 className="text-xl font-black tracking-tight sm:text-2xl">Admin Login</h1><p className="mt-1 text-xs text-blue-950">Access your dashboard and manage the system.</p></div>
+                <div className="mt-3 flex items-center justify-center gap-2 text-[10px] font-bold text-green-700"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-green-500"/><span>SYSTEM ONLINE</span><span className="text-blue-900/50">•</span><span>AUTHORIZED ACCESS ONLY</span></div>
                 {!staffPreview ? (
-                  <form onSubmit={lookupStaff} className="mt-5 space-y-4">
+                  <form onSubmit={lookupStaff} className="mt-3 space-y-3">
                     <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm leading-5 text-blue-900">Enter your official Staff ID to securely validate your administrator account.</div>
-                    <div className="space-y-2"><Label htmlFor="staffId" className="font-bold text-blue-950">Administrator Staff ID</Label><Input id="staffId" value={staffId} onChange={event=>setStaffId(event.target.value.toUpperCase())} autoComplete="username" placeholder="Enter your Staff ID" required className="h-14 rounded-xl border-blue-200 bg-slate-50 text-blue-950 placeholder:text-slate-400 focus-visible:ring-blue-500"/></div>
-                    <Button type="submit" disabled={loading||!staffId.trim()} className="h-14 w-full rounded-full bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-base font-extrabold text-white shadow-lg shadow-blue-900/15 hover:brightness-110">{loading?<><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Checking staff ID…</>:'Validate Staff ID'}</Button>
+                    <div className="space-y-2"><Label htmlFor="staffId" className="font-bold text-blue-950">Administrator Staff ID</Label><Input id="staffId" value={staffId} onChange={event=>setStaffId(event.target.value.toUpperCase())} autoComplete="username" placeholder="Enter your Staff ID" required className="h-11 rounded-lg border-blue-200 bg-slate-50 text-blue-950 placeholder:text-slate-400 focus-visible:ring-blue-500"/></div>
+                    <Button type="submit" disabled={loading||!staffId.trim()} className="h-11 w-full rounded-full bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-base font-extrabold text-white shadow-lg shadow-blue-900/15 hover:brightness-110">{loading?<><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Checking staff ID…</>:'Validate Staff ID'}</Button>
                     <Link to="/student-recovery" className="block text-center text-sm font-semibold text-blue-700 hover:text-green-700">Forgot password / Need help accessing your account?</Link>
                   </form>
                 ) : (
@@ -159,16 +159,16 @@ export function LoginPage() {
                   </form>
                 )}
                 {status&&<div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{status}</div>}
-                <div className="mt-5 flex items-center justify-center gap-2 border-t border-blue-100 pt-4 text-xs text-blue-800"><ShieldCheck className="h-4 w-4 text-blue-700"/><span>Secure Login</span><span>|</span><span>Authorized Access Only</span></div>
-                <div className="mt-4 rounded-2xl bg-blue-50 px-4 py-3 text-center"><div className="flex items-center justify-center gap-2 font-bold text-blue-800"><ShieldCheck className="h-5 w-5"/>Your security is our priority</div><p className="mt-1 text-xs text-blue-700">Protected by Navstar Digital Hub</p></div>
+                <div className="mt-3 flex items-center justify-center gap-2 border-t border-blue-100 pt-3 text-[10px] text-blue-800"><ShieldCheck className="h-4 w-4 text-blue-700"/><span>Secure Login</span><span>|</span><span>Authorized Access Only</span></div>
+                <div className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-center"><div className="flex items-center justify-center gap-2 font-bold text-blue-800"><ShieldCheck className="h-5 w-5"/>Your security is our priority</div><p className="mt-1 text-[10px] text-blue-700">Protected by Navstar Digital Hub</p></div>
               </div>
             </section>
           </div>
-          <footer className="grid grid-cols-1 gap-4 border-t border-green-500/30 bg-[#02102b]/90 px-5 py-5 text-xs text-white sm:grid-cols-2 lg:grid-cols-4 lg:px-10">
-            <div className="flex gap-2"><span className="text-xl text-yellow-300">⌖</span><div><b>Navstar digital Hub</b><p className="mt-1 text-blue-100">Opposite Shaban Medical Clinic, after ABC Medical Clinic, off Agorom–Busia Road, 200m from ACK Nambale Hostels, Raphael Estates, Room 3 (Green).</p></div></div>
-            <div className="flex gap-2"><span className="text-xl text-yellow-300">☎</span><div><b>Call / WhatsApp</b><p className="mt-1 text-blue-100">0797 688 576 · 0706 637 485</p></div></div>
-            <div className="flex gap-2"><span className="text-xl text-yellow-300">✉</span><div><b>Email</b><p className="mt-1 text-blue-100">navstardigitalhub@gmail.com</p><b className="mt-2 block">Website</b><p className="text-blue-100">navstardigitalhub.base44.app</p></div></div>
-            <div className="flex items-center justify-center text-center"><p className="font-serif text-xl italic text-yellow-300">Home of Technocrats ✦</p></div>
+          <footer className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-t border-green-500/30 bg-[#02102b]/90 px-4 py-3 text-[10px] text-white sm:text-xs">
+            <span className="font-semibold text-yellow-300">NAVSTAR DIGITAL HUB</span>
+            <span className="text-blue-100">Admin Control Centre · System Management · Secure Access</span>
+            <a href="https://navstardigitalhub.co.ke" target="_blank" rel="noreferrer" className="text-cyan-200 hover:text-yellow-300">navstardigitalhub.co.ke</a>
+            <span className="text-blue-100">Home of Technocrats</span>
           </footer>
         </div>
       </main>
