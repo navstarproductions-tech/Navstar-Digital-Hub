@@ -32,6 +32,7 @@ import { PortalNotificationsPage } from '@/pages/PortalNotificationsPage';
 import { MyAccountPage } from '@/pages/MyAccountPage';
 import { AIPage } from '@/pages/AIPage';
 import { PublicFeeStructurePage } from '@/pages/PublicFeeStructurePage';
+import { ParcelDeliveryPage } from '@/pages/ParcelDeliveryPage';
 import { PortalMaintenanceGate } from '@/components/PortalMaintenanceGate';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -155,6 +156,7 @@ function AppShell() {
             <Route path="/admin/receipts" element={<PortalMaintenanceGate role="admin"><PaymentReceiptsPage /></PortalMaintenanceGate>} />
             <Route path="/payment-receipt/:id" element={<PaymentReceiptsPage />} />
             <Route path="/verify-result/:token" element={<PublicResultVerificationPage />} />
+            <Route path="/delivery/:token" element={<ParcelDeliveryPage />} />
             <Route path="/fee-structure" element={<PublicFeeStructurePage />} />
             <Route path="*" element={<HomePage />} />
           </Routes>
