@@ -43,6 +43,7 @@ import { CVBuilderWorkspace } from '@/components/CVBuilderWorkspace';
 import { BroadcastSocialWorkspace } from '@/components/BroadcastSocialWorkspace';
 import { DemoPreviewsWorkspace } from '@/components/DemoPreviewsWorkspace';
 import { SMSAlertsWorkspace } from '@/components/SMSAlertsWorkspace';
+import { ClassRatingWorkspace } from '@/components/ClassRatingWorkspace';
 import { AdminFinancePanel } from '@/components/admin/AdminFinancePanel';
 import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
@@ -1328,6 +1329,7 @@ export function AdminPage() {
           {active === 'broadcast-social' && <BroadcastSocialWorkspace subtab={selectedSubtab || 'Broadcast Message'}/ >}
           {active === 'demo-previews' && <DemoPreviewsWorkspace subtab={selectedSubtab || 'Available Demos'}/ >}
           {active === 'sms-alerts' && <SMSAlertsWorkspace/>}
+          {active === 'class-rating' && <ClassRatingWorkspace/>}
           {active === 'student-status' && <StudentStatusWorkspace students={portalUsers} courses={courses} applications={applications}/ >}
 
           {active === 'applications' && selectedSubtab === 'Staff Applications' && <StaffApplicationsWorkspace subtab="All Applications"/>}
