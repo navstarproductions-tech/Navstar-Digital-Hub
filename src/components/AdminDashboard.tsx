@@ -54,7 +54,7 @@ export function AdminDashboard({ metrics, applications, courses, users, onNaviga
     { label: 'Applications', value: pendingApplications, note: 'Awaiting admissions action', icon: FileText, tone: 'violet' },
     { label: 'Courses', value: number(metrics.courses) || courses.length, note: 'Available course catalogue', icon: BookOpen, tone: 'cyan' },
     { label: 'Total Employees', value: staffCount, note: 'Staff and management accounts', icon: Users, tone: 'gold' },
-    { label: 'Verified Payments (KES)', value: 'KES ' + money(revenue), note: 'Confirmed payment transactions only', icon: Wallet, tone: 'green' },
+    { label: 'Verified Fees & Service Payments (KES)', value: 'KES ' + money(revenue), note: 'Verified enrolment and service payments; donations shown separately', icon: Wallet, tone: 'green' },
     { label: 'Pending Fee Records', value: pendingFees, note: 'Unpaid or pending applications', icon: CircleDollarSign, tone: 'rose' },
     { label: 'Services', value: number(metrics.services), note: 'Active service catalogue', icon: BriefcaseBusiness, tone: 'indigo' },
     { label: 'Donations (KES)', value: 'KES ' + money(metrics.verifiedDonations), note: 'Verified donations only', icon: CheckCircle2, tone: 'teal' },
