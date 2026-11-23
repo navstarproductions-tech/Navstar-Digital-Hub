@@ -6,11 +6,11 @@ export async function onRequestGet({ request, env }) {
   const access = await requireRole(request, env, ['admin', 'principal', 'finance']);
   if (access.response) return access.response;
   const [students, employees, applications, pendingFeeApplications, payments, donations, courses, services] = await Promise.all([
-    env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'student' AND status = 'active'").first(),
-    env.DB.prepare("SELECT COUNT(*) AS count FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE COALESCE(p.portal_role, u.role) <> 'student' AND u.status = 'active'").first(),
+    env.DB.prepare("SELECT COUNT(*) AS count FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE COALESCE(p.portal_role, u.role) = 'student' AND u.status = 'active'").first(),
+    env.DB.prepare("SELECT COUNT(*) AS count FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE COALESCE(p.portal_role, u.role) IN ('admin','principal','finance','admissions','tutor') AND u.status = 'active'").first(),
     env.DB.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE status IN ('submitted', 'under_review')").first(),
     env.DB.prepare("SELECT COUNT(*) AS count FROM enrollments WHERE payment_status IN ('unpaid', 'pending')").first(),
-    env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE status = 'paid'").first(),
+    env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE status = 'paid' AND purpose IN ('enrollment','service')").first(),
     env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM donations WHERE status = 'paid'").first(),
     env.DB.prepare("SELECT COUNT(*) AS count FROM courses WHERE status = 'active'").first(),
     env.DB.prepare("SELECT COUNT(*) AS count FROM services WHERE status = 'active'").first(),
