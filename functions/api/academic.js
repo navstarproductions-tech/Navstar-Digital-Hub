@@ -213,12 +213,14 @@ export async function onRequestPost({request,env}){
     if(!['approved','rejected','pending'].includes(status))return error('Choose an allowed scholarship decision.');
     const application=await env.DB.prepare('SELECT user_id FROM scholarship_applications WHERE id=?').bind(applicationId).first();
     if(!application)return error('Scholarship application not found.',404);
-    await env.DB.prepare('UPDATE scholarship_applications SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,user.id,applicationId).run();
-    await env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)')
-      .bind(uuid(),application.user_id,'Scholarship application update',
-        status==='approved'?'Your Navstar scholarship application has been approved. Contact the Finance/Admissions Office for the next steps and confirmation of your award.':status==='rejected'?'Your Navstar scholarship application was not approved. Contact the Admissions Office if you need clarification.':'Your Navstar scholarship application has been returned to pending review.')
-      .run();
-    await audit('scholarship_application_reviewed','scholarship_application',applicationId);
+    await env.DB.batch([
+      env.DB.prepare('UPDATE scholarship_applications SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=?').bind(status,user.id,applicationId),
+      env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)')
+        .bind(uuid(),application.user_id,'Scholarship application update',
+          status==='approved'?'Your Navstar scholarship application has been approved. Contact the Finance/Admissions Office for the next steps and confirmation of your award.':status==='rejected'?'Your Navstar scholarship application was not approved. Contact the Admissions Office if you need clarification.':'Your Navstar scholarship application has been returned to pending review.'),
+      env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
+        .bind(uuid(),user.id,'scholarship_application_reviewed','scholarship_application',applicationId)
+    ]);
     return json({saved:true,status});
   }
 
