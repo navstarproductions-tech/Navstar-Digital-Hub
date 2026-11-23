@@ -56,6 +56,12 @@ export async function onRequestPatch({ request, env }) {
   }
   statements.push(env.DB.prepare('UPDATE student_profile_change_requests SET status=?,review_note=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=? AND status=\'pending\'')
     .bind(action === 'approve' ? 'approved' : 'rejected', reviewNote, access.user.id, id));
+  statements.push(env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)')
+    .bind(uuid(), row.user_id,
+      action === 'approve' ? 'Profile correction approved' : 'Profile correction request reviewed',
+      action === 'approve'
+        ? 'Navstar Administration approved your profile correction request. The approved details are now reflected in your official student profile.'
+        : 'Navstar Administration did not approve your profile correction request. ' + (reviewNote || 'Please contact Admissions for clarification.')));
   statements.push(env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
     .bind(uuid(), access.user.id, 'student_profile_change_' + action, 'student_profile_change_request', id));
   await env.DB.batch(statements);
