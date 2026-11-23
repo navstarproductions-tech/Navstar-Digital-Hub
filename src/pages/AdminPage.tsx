@@ -39,6 +39,7 @@ import { StudentProjectsWorkspace } from '@/components/StudentProjectsWorkspace'
 import { MaintenanceWorkspace } from '@/components/MaintenanceWorkspace';
 import { AdminReportsWorkspace } from '@/components/AdminReportsWorkspace';
 import { DeviceManagementWorkspace } from '@/components/DeviceManagementWorkspace';
+import { CVBuilderWorkspace } from '@/components/CVBuilderWorkspace';
 import { AdminFinancePanel } from '@/components/admin/AdminFinancePanel';
 import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
@@ -1320,6 +1321,7 @@ export function AdminPage() {
           {active === 'maintenance' && <MaintenanceWorkspace onOpenSettings={()=>{setSettingsTab('complete');setActive('settings');setExpandedSection('settings');setSelectedSubtab('Maintenance Mode');}}/>}
           {active === 'auto-reports' && <AdminReportsWorkspace/>}
           {active === 'device-management' && <DeviceManagementWorkspace/>}
+          {active === 'cv-builder' && <CVBuilderWorkspace/>}
           {active === 'student-status' && <StudentStatusWorkspace students={portalUsers} courses={courses} applications={applications}/ >}
 
           {active === 'applications' && selectedSubtab === 'Staff Applications' && <StaffApplicationsWorkspace subtab="All Applications"/>}
