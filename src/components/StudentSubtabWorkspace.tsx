@@ -32,6 +32,9 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
   const [detailId, setDetailId] = useState('');
   const [csvRows, setCsvRows] = useState<string[][]>([]);
   const [csvError, setCsvError] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkConsent, setBulkConsent] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState('');
   const [pdfError, setPdfError] = useState('');
   const [admissionBusy, setAdmissionBusy] = useState('');
   const [generatedAdmissions, setGeneratedAdmissions] = useState<Record<string,string>>({});
@@ -97,7 +100,7 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
   };
 
   const downloadTemplate = () => {
-    const csv = 'fullName,email,phone,dateOfBirth,identityNumber,courseId,studyMode,educationLevel,county,town,emergencyContactName,emergencyContactPhone\nJane Doe,jane@example.com,0712345678,2000-01-01,,COURSE_ID,On campus,Secondary,Bungoma,Bungoma,John Doe,0712345679';
+    const csv = 'fullName,email,phone,dateOfBirth,identityType,identityNumber,gender,nationality,courseId,studyMode,educationLevel,preferredIntake,experience,county,town,address,subCounty,ward,location,subLocation,emergencyContactName,emergencyContactPhone,emergencyContactRelationship,supportNeeds,consent\nJane Doe,jane@example.com,0712345678,2000-01-01,national-id,12345678,Female,Kenyan,COURSE_ID,On campus,Secondary,September 2026,,Bungoma,Bungoma,,Bumula,Bumula,Bunambobi,,John Doe,0712345679,Parent,,yes';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -122,7 +125,13 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
       const expectedColumns = rows[0].length;
       const invalidRow = rows.slice(1).findIndex(row => row.length !== expectedColumns);
       if (invalidRow >= 0) throw new Error(`CSV row ${invalidRow + 2} has ${rows[invalidRow + 1].length} columns; expected ${expectedColumns}. Check commas and quotation marks.`);
-      setCsvRows(rows.slice(0, 101));
+      const requiredHeaders = ['fullName','email','phone','dateOfBirth','identityType','identityNumber','courseId','studyMode','educationLevel','preferredIntake','county','town','emergencyContactName','emergencyContactPhone','consent'];
+      const headers = rows[0].map(value => value.trim());
+      const missing = requiredHeaders.filter(header => !headers.includes(header));
+      if (missing.length) throw new Error('Missing required CSV columns: ' + missing.join(', '));
+      setCsvRows(rows);
+      setBulkConsent(false);
+      setBulkMessage('');
     } catch (error) {
       setCsvError(error instanceof Error ? error.message : 'The CSV file could not be read. Check its formatting and try again.');
       event.target.value = '';
@@ -160,6 +169,25 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
     } finally { setRequestBusy(''); }
   };
 
+  const submitBulkEnrollment = async () => {
+    if (!bulkConsent) { setBulkMessage('Confirm that you have checked the applicants’ details and recorded their consent.'); return; }
+    const headers = csvRows[0]?.map(value => value.trim()) || [];
+    const records = csvRows.slice(1).filter(row => row.some(value => value.trim())).map(row => Object.fromEntries(headers.map((header,index) => [header,row[index] ?? ''])));
+    if (!records.length) { setBulkMessage('There are no student rows to submit.'); return; }
+    if (records.length > 40) { setBulkMessage('This import contains ' + records.length + ' rows. Submit no more than 40 applications per batch.'); return; }
+    if (!window.confirm('Submit ' + records.length + ' student application(s) to Admissions? Existing records will be checked for duplicates. No portal accounts or passwords will be created.')) return;
+    setBulkBusy(true); setBulkMessage('');
+    try {
+      const response = await fetch('/api/admin/bulk-enrollment', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ adminConsent:true, rows:records }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Bulk applications could not be submitted.');
+      setBulkMessage(result.message || (result.submitted + ' applications submitted.'));
+      setCsvRows([]); setBulkConsent(false);
+    } catch (error) {
+      setBulkMessage(error instanceof Error ? error.message : 'Bulk applications could not be submitted.');
+    } finally { setBulkBusy(false); }
+  };
+
   const pageTitle = selectedSubtab || 'Active Students';
   const header = (
     <section className="overflow-hidden rounded-2xl border border-cyan-200/20 bg-gradient-to-r from-[#09234a] via-[#123e78] to-[#0b2854] text-white shadow-xl">
@@ -178,7 +206,7 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
       {activeStudents.filter(student => !courses.some(course => course.id === courseId(student))).length > 0 && <section className="rounded-xl border border-amber-200 bg-white text-slate-900"><div className="border-b bg-amber-50 p-4"><h4 className="font-bold text-amber-950">Course not assigned</h4><p className="text-xs text-amber-800">These active accounts have no matching course application.</p></div>{activeStudents.filter(student => !courses.some(course => course.id === courseId(student))).map(student => <div key={student.id} className="border-b p-3 text-sm"><strong>{student.name}</strong><p className="text-xs text-slate-500">{student.email}</p></div>)}</section>}
     </div>}
 
-    {pageTitle === 'Bulk Enrollment' && <section className="space-y-4 rounded-xl border bg-white p-5 text-slate-900"><div><h3 className="font-bold">Bulk enrollment preparation</h3><p className="mt-1 text-sm text-slate-600">Download the official column template and preview a completed CSV before import.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={downloadTemplate}>Download CSV template</Button><label className="inline-flex cursor-pointer items-center rounded-lg bg-blue-800 px-4 py-2 text-sm font-semibold text-white">Choose CSV file<input type="file" accept=".csv,text/csv" className="sr-only" onChange={previewCsv}/></label></div>{csvError && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{csvError}</p>}{csvRows.length > 0 && <div className="overflow-x-auto rounded-lg border"><p className="border-b bg-slate-50 p-3 text-xs font-semibold">{csvRows.length - 1} rows previewed (first 100 rows)</p><table className="min-w-full text-xs"><tbody>{csvRows.slice(0, 8).map((row, index) => <tr key={index} className="border-b">{row.map((cell, column) => <td key={column} className="whitespace-nowrap px-3 py-2">{cell}</td>)}</tr>)}</tbody></table></div>}<p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Import submission is not enabled yet. This preview does not create accounts or alter existing records.</p></section>}
+    {pageTitle === 'Bulk Enrollment' && <section className="space-y-4 rounded-xl border bg-white p-5 text-slate-900"><div><h3 className="font-bold">Bulk student application import</h3><p className="mt-1 text-sm text-slate-600">Upload a completed CSV to submit up to 40 applications per batch to the Admissions review queue. Every row is validated before any record is created.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={downloadTemplate}>Download full CSV template</Button><label className="inline-flex cursor-pointer items-center rounded-lg bg-blue-800 px-4 py-2 text-sm font-semibold text-white">Choose CSV file<input type="file" accept=".csv,text/csv" className="sr-only" onChange={previewCsv}/></label></div>{csvError && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{csvError}</p>}{csvRows.length > 0 && <div className="overflow-x-auto rounded-lg border"><p className="border-b bg-slate-50 p-3 text-xs font-semibold">{csvRows.length - 1} application row(s) loaded · previewing up to 8 rows · maximum 40 per submission</p><table className="min-w-full text-xs"><tbody>{csvRows.slice(0, 8).map((row, index) => <tr key={index} className="border-b">{row.map((cell, column) => <td key={column} className="whitespace-nowrap px-3 py-2">{cell}</td>)}</tr>)}</tbody></table></div>}{csvRows.length > 1 && <label className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950"><input type="checkbox" className="mt-1" checked={bulkConsent} onChange={event=>setBulkConsent(event.target.checked)}/><span><strong>Administrator verification:</strong> I confirm that I have checked the applicants’ identity and contact details and recorded their consent to the applications. I understand that these records enter Admissions as submitted/unpaid applications and do not create student portal accounts or passwords.</span></label>}{bulkMessage && <p role="status" className="rounded-lg bg-cyan-50 p-3 text-sm text-cyan-900">{bulkMessage}</p>}<div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-500">Required: adult applicants, valid Kenyan mobile numbers, identity document, active course with configured Admission fee, intake and emergency contact. Duplicate applications are rejected.</p><Button disabled={bulkBusy||csvRows.length<2||csvRows.length>41||!bulkConsent} onClick={()=>void submitBulkEnrollment()}>{bulkBusy?'Submitting applications…':'Validate & submit applications'}</Button></div><p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-900">No password is invented and no student account is created during import. Admissions creates or activates portal access only through the existing approved admission workflow after the configured payment or authorised payment exception is confirmed.</p></section>}
 
     {pageTitle === 'Completed → Graduates' && <section className="rounded-xl border bg-white text-slate-900"><div className="border-b bg-slate-50 p-4"><h3 className="font-bold">Completed learners and graduates</h3><p className="text-xs text-slate-500">Student accounts currently marked completed or graduated.</p></div><div className="divide-y">{allStudents.filter(student => ['completed', 'graduated'].includes(student.status.toLowerCase())).map(student => <div key={student.id} className="flex items-center justify-between gap-3 p-4"><div><strong>{student.name}</strong><p className="text-xs text-slate-500">{student.staffId || 'ID pending'} · {student.email}</p></div><span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-800">{student.status}</span></div>)}{allStudents.filter(student => ['completed', 'graduated'].includes(student.status.toLowerCase())).length === 0 && <p className="p-5 text-sm text-slate-500">No student accounts are currently marked completed or graduated.</p>}</div></section>}
 
