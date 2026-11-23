@@ -62,10 +62,10 @@ export async function onRequestPost({ request, env }) {
     env.DB.prepare('INSERT INTO student_certificates(id,user_id,course_id,certificate_no,public_token,snapshot_json,issued_by,issued_at) VALUES(?,?,?,?,?,?,?,?)')
       .bind(id,studentId,courseId,certificateNo,publicToken,JSON.stringify(snapshot),access.user.id,issuedAt),
     env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
-      .bind(uuid(),access.user.id,'student_certificate_issued','student_certificate',id)
+      .bind(uuid(),access.user.id,'student_certificate_issued','student_certificate',id),
+    env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)')
+      .bind(uuid(),studentId,'Course completion certificate issued','Your Navstar Digital Hub completion certificate '+certificateNo+' is ready. Open your student portal or use the public verification link shared by Administration.')
   ]);
-  await env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)')
-    .bind(uuid(),studentId,'Course completion certificate issued','Your Navstar Digital Hub completion certificate '+certificateNo+' is ready. Open your student portal or use the public verification link shared by Administration.').run();
   return json({ issued:true,id,certificateNo,publicToken,verificationUrl:'/verify-certificate/'+encodeURIComponent(publicToken),snapshot },201);
 }
 
