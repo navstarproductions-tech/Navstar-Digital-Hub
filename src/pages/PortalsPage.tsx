@@ -15,6 +15,12 @@ const portals = [
 
 ];
 
+const portalEntryUrls: Record<string, string> = {
+  admin: 'https://admin.navstardigitalhub.co.ke/',
+  student: 'https://student.navstardigitalhub.co.ke/',
+  tutor: 'https://tutor.navstardigitalhub.co.ke/',
+};
+
 const portalStyles: Record<string, { page: string; hero: string; eyebrow: string }> = {
   student: { page: 'bg-[#f3f7fc]', hero: 'bg-gradient-to-r from-[#061631] via-[#0b3470] to-[#087eaa]', eyebrow: 'text-amber-300' },
   tutor: { page: 'bg-violet-50', hero: 'bg-gradient-to-r from-violet-950 via-indigo-900 to-slate-900', eyebrow: 'text-violet-200' },
@@ -189,7 +195,7 @@ export function PortalsPage() {
                   <h3 className="mt-6 text-xl font-black text-slate-950">{title}</h3>
                   <p className="mt-2 flex-1 text-sm leading-7 text-slate-600">{summary}</p>
                   <div className="mt-6 flex items-center gap-3">
-                    <Button asChild className={`flex-1 rounded-xl bg-gradient-to-r ${accent} text-white shadow-sm hover:opacity-90`}><Link to={id === 'customer' ? '/services' : `/login?role=${id}`}>{id === 'customer' ? 'Browse & order' : 'Sign in'} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                    <Button asChild className={`flex-1 rounded-xl bg-gradient-to-r ${accent} text-white shadow-sm hover:opacity-90`}>{id === 'customer' ? <Link to="/services">Browse & order <ArrowRight className="ml-2 h-4 w-4" /></Link> : <a href={portalEntryUrls[id] || `/login?role=${id}`}>Sign in <ArrowRight className="ml-2 h-4 w-4" /></a>}</Button>
 
                   </div>
                 </div>
