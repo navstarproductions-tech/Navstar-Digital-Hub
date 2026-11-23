@@ -38,7 +38,8 @@ export async function createSession(env, userId, request = null) {
   const tokenHash = await sha256(token);
   const sessionSeconds = await configuredSessionSeconds(env).catch(() => defaultSessionSeconds);
   const expiresAt = new Date(Date.now() + sessionSeconds * 1000).toISOString();
-  const userAgent = (request?.headers.get('User-Agent') || '').slice(0, 500);\n  await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at, user_agent, last_seen_at) VALUES (?, ?, ?, ?, ?)').bind(tokenHash, userId, expiresAt, userAgent, new Date().toISOString()).run();
+  const userAgent = (request?.headers.get('User-Agent') || '').slice(0, 500);
+  await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at, user_agent, last_seen_at) VALUES (?, ?, ?, ?, ?)').bind(tokenHash, userId, expiresAt, userAgent, new Date().toISOString()).run();
   return `${cookieName}=${token}; Path=/; Max-Age=${defaultSessionSeconds}; HttpOnly; Secure; SameSite=Strict`;
 }
 
