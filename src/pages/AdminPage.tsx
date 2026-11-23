@@ -36,6 +36,7 @@ import { LiveClassesWorkspace } from '@/components/LiveClassesWorkspace';
 import { SupportTicketsWorkspace } from '@/components/SupportTicketsWorkspace';
 import { AlumniWorkspace } from '@/components/AlumniWorkspace';
 import { StudentProjectsWorkspace } from '@/components/StudentProjectsWorkspace';
+import { MaintenanceWorkspace } from '@/components/MaintenanceWorkspace';
 import { AdminFinancePanel } from '@/components/admin/AdminFinancePanel';
 import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
@@ -1314,6 +1315,7 @@ export function AdminPage() {
           {active === 'support-tickets' && <SupportTicketsWorkspace/>}
           {active === 'alumni' && <AlumniWorkspace/>}
           {active === 'student-projects' && <StudentProjectsWorkspace/>}
+          {active === 'maintenance' && <MaintenanceWorkspace onOpenSettings={()=>{setSettingsTab('maintenance');setActive('settings');setExpandedSection('settings');setSelectedSubtab('Maintenance Mode');}}/>}
           {active === 'student-status' && <StudentStatusWorkspace students={portalUsers} courses={courses} applications={applications}/ >}
 
           {active === 'applications' && selectedSubtab === 'Staff Applications' && <StaffApplicationsWorkspace subtab="All Applications"/>}
@@ -1562,7 +1564,7 @@ export function AdminPage() {
           {active === 'ai-intake-advisor' && <section className="mb-5 space-y-3"><div><h2 className="text-xl font-black text-white">AI Intake Advisor</h2><p className="text-sm text-slate-400">Ask Navstar AI to analyse intake planning, course demand, application trends and admissions communication. Verify recommendations against live records before acting.</p></div><AIChatWidget embedded context="admin"/></section>}
           {active === 'timetable' && selectedSubtab === 'AI Timetable Generator' && <section className="mb-5 space-y-3"><div><h2 className="text-xl font-black text-white">AI Timetable Assistant</h2><p className="text-sm text-slate-400">Generate draft timetable structures and resolve scheduling conflicts with AI. Review and save the approved timetable in the timetable workspace.</p></div><AIChatWidget embedded context="admin"/></section>}
 
-          {!['ai-assistant','overview','navstar-analytics','analytics-reports','courses','learning','marks-tests','school','attendance','scholarships','certificates','online-forms','news-updates','events','customer-carts','online-classes','eclass-meetings','support-tickets','alumni','student-projects','services','pos','finance','fees','staff-applications','applications','enrollment-summary','users','employees','student-directory','downloads','documents','gallery','settings','profile','orders','receipts','portal-links'].includes(active) && <AdminWorkspaceHub section={active} subtab={selectedSubtab || sections.find(item=>item.id===active)?.label || 'Workspace'} courses={courses} users={portalUsers} applications={applications} services={services}/ >}
+          {!['ai-assistant','overview','navstar-analytics','analytics-reports','courses','learning','marks-tests','school','attendance','scholarships','certificates','online-forms','news-updates','events','customer-carts','online-classes','eclass-meetings','support-tickets','alumni','student-projects','maintenance','services','pos','finance','fees','staff-applications','applications','enrollment-summary','users','employees','student-directory','downloads','documents','gallery','settings','profile','orders','receipts','portal-links'].includes(active) && <AdminWorkspaceHub section={active} subtab={selectedSubtab || sections.find(item=>item.id===active)?.label || 'Workspace'} courses={courses} users={portalUsers} applications={applications} services={services}/ >}
 
           <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Secure Navstar administration · User accounts, student records, uploads and finance operations are protected.</span><span className="font-semibold text-cyan-300">Powered by Navstar Digital Hub</span></footer>
           </div>
