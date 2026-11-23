@@ -34,20 +34,26 @@ export async function onRequestPost({request,env}){
   const phone=normalizePhone(recipient.phone);
   if(!phone)return error('This account does not have a valid Kenyan mobile number on its profile.',409);
   const id=uuid();
+  let providerResult;
   try{
-    const result=await sendTextSms(env,phone,title+'\n'+message);
-    await env.DB.batch([
-      env.DB.prepare(`INSERT INTO admin_sms_delivery_logs(id,user_id,recipient_phone,title,message,status,provider_message_id,provider_response,sent_by) VALUES(?,?,?,?,?,'sent',?,?,?)`)
-        .bind(id,recipient.id,phone,title,message,safeString(result.messageId,160)||null,safeString(result.responseDescription,300),access.user.id),
-      env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)').bind(uuid(),recipient.id,title,message),
-      env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),access.user.id,'admin_sms_sent','sms_delivery',id)
-    ]);
-    return json({sent:true,id,recipient:recipient.name,phone,provider:result.provider,messageId:result.messageId||null});
+    providerResult=await sendTextSms(env,phone,title+'\\n'+message);
   }catch(cause){
     const reason=safeString(cause instanceof Error?cause.message:'SMS provider rejected the message.',500);
     await env.DB.prepare(`INSERT INTO admin_sms_delivery_logs(id,user_id,recipient_phone,title,message,status,provider_response,sent_by) VALUES(?,?,?,?,?,'failed',?,?)`)
       .bind(id,recipient.id,phone,title,message,reason,access.user.id).run().catch(()=>{});
     console.error('Admin SMS delivery failed:',reason);
-    return error('SMS was not confirmed as sent. Provider response: '+reason,502);
+    return error('The SMS provider did not accept this message. '+reason,502);
   }
+  try{
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO admin_sms_delivery_logs(id,user_id,recipient_phone,title,message,status,provider_message_id,provider_response,sent_by) VALUES(?,?,?,?,?,'sent',?,?,?)`)
+        .bind(id,recipient.id,phone,title,message,safeString(providerResult.messageId,160)||null,safeString(providerResult.responseDescription,300),access.user.id),
+      env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)').bind(uuid(),recipient.id,title,message),
+      env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),access.user.id,'admin_sms_sent','sms_delivery',id)
+    ]);
+  }catch(cause){
+    console.error('SMS was accepted by provider but local delivery logging failed:',String(cause?.message||cause));
+    return error('The SMS provider accepted this message, but Navstar could not save its local delivery record. Do not resend automatically. Provider reference: '+safeString(providerResult.messageId,160),503);
+  }
+  return json({sent:true,id,recipient:recipient.name,phone,provider:providerResult.provider,messageId:providerResult.messageId||null});
 }
