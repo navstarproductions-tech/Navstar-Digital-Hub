@@ -33,6 +33,7 @@ export async function onRequestPost({request,env,params}){
     const empty=text===undefined||text===null||text==='';
     if(field.required&&(empty||(field.type==='checkbox'&&text!==true)))return error('Complete the required field: '+field.label+'.');
     if(empty){cleaned[field.id]='';continue;}
+    if(['text','textarea','email','phone','date','select'].includes(field.type)&&typeof text!=='string')return error('Enter a text response for '+field.label+'.');
     if(field.type==='email'&&(!emailPattern.test(String(text))||String(text).length>254))return error('Enter a valid email address for '+field.label+'.');
     if(field.type==='phone'){const phone=normalizePhone(text);if(!phone)return error('Enter a valid phone number for '+field.label+'.');cleaned[field.id]=phone;continue;}
     if(field.type==='number'){const number=Number(text);if(!Number.isFinite(number))return error('Enter a valid number for '+field.label+'.');cleaned[field.id]=number;continue;}
@@ -43,6 +44,7 @@ export async function onRequestPost({request,env,params}){
   }
   const respondentName=access.user?.name||access.customer?.fullName||safeString(body.respondentName,120);
   const respondentEmail=access.user?.email||access.customer?.email||safeString(body.respondentEmail,254).toLowerCase();
+  if(respondentEmail&&!emailPattern.test(respondentEmail))return error('Enter a valid respondent email address.');
   await env.DB.prepare('INSERT INTO online_form_submissions(id,form_id,respondent_user_id,respondent_email,respondent_name,answers_json) VALUES(?,?,?,?,?,?)')
     .bind(uuid(),form.id,access.user?.id||access.customer?.id||null,respondentEmail,respondentName,JSON.stringify(cleaned)).run();
   return json({submitted:true,message:'Your response has been submitted successfully.'},201);
