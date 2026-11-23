@@ -1,4 +1,4 @@
-import { error, json } from '../../../_shared/http.js';
+import { error, json } from '../../_shared/http.js';
 
 export async function onRequestGet({ request, env }) {
   if (!env.DB) return error('Certificate verification is unavailable.',503);
