@@ -40,9 +40,9 @@ export async function onRequestPost({ request, env }) {
     WHERE u.id=? AND COALESCE(p.portal_role,u.role)='student'
     ORDER BY e.created_at DESC LIMIT 1
   `).bind(courseId,studentId).first();
-  if (!eligible) return error('A certificate can only be issued to an active student with an accepted enrolment and a recorded Graduated decision for this course.',409);
+  if (!eligible) return error('A certificate can only be issued to a student with an accepted enrolment and a recorded Graduated decision for this course.',409);
   const duplicate = await env.DB.prepare('SELECT certificate_no FROM student_certificates WHERE user_id=? AND course_id=?').bind(studentId,courseId).first();
-  if (duplicate) return error('A certificate has already been issued for this student and course: '+duplicate.certificate_no,409);
+  if (duplicate) return error('A certificate record already exists for this student and course: '+duplicate.certificate_no,409);
   const year = String(new Date().getFullYear());
   const sequence = await env.DB.prepare(`INSERT INTO certificate_sequences(year,last_number) VALUES(?,1)
     ON CONFLICT(year) DO UPDATE SET last_number=last_number+1 RETURNING last_number`).bind(year).first();
