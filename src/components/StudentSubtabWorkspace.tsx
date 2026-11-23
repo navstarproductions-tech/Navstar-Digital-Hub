@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Course } from '@/types';
 import { downloadNavstarTablePdf } from '@/lib/receipt-pdf';
+import { parseCsv } from '@/lib/navstar-data-tools';
 
 type StudentAccount = {
   id: string; name: string; email: string; role: string; status: string;
@@ -87,14 +88,23 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
     const file = event.target.files?.[0];
     if (!file) return;
     setCsvError('');
+    setCsvRows([]);
     if (!file.name.toLowerCase().endsWith('.csv') || file.size > 2 * 1024 * 1024) {
-      setCsvRows([]);
       setCsvError('Choose a CSV file no larger than 2 MB.');
+      event.target.value = '';
       return;
     }
-    const text = await file.text();
-    const rows = text.split(/\r?\n/).filter(Boolean).slice(0, 101).map(line => line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
-    setCsvRows(rows);
+    try {
+      const rows = parseCsv(await file.text());
+      if (rows.length < 2) throw new Error('The CSV must contain a header row and at least one student record.');
+      const expectedColumns = rows[0].length;
+      const invalidRow = rows.slice(1).findIndex(row => row.length !== expectedColumns);
+      if (invalidRow >= 0) throw new Error(`CSV row ${invalidRow + 2} has ${rows[invalidRow + 1].length} columns; expected ${expectedColumns}. Check commas and quotation marks.`);
+      setCsvRows(rows.slice(0, 101));
+    } catch (error) {
+      setCsvError(error instanceof Error ? error.message : 'The CSV file could not be read. Check its formatting and try again.');
+      event.target.value = '';
+    }
   };
 
   const pageTitle = selectedSubtab || 'Active Students';
