@@ -36,6 +36,8 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
   const [generatedAdmissions, setGeneratedAdmissions] = useState<Record<string,string>>({});
   const [admissionIntakes, setAdmissionIntakes] = useState<Record<string,string>>({});
   const [admissionMessage, setAdmissionMessage] = useState('');
+  const [recoveryBusy, setRecoveryBusy] = useState('');
+  const [recoveryMessage, setRecoveryMessage] = useState('');
 
   const activeStudents = useMemo(() => students.filter(student => student.role === 'student' && student.status.toLowerCase() === 'active'), [students]);
   const allStudents = useMemo(() => students.filter(student => student.role === 'student'), [students]);
@@ -64,6 +66,20 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
     } catch (error) { setAdmissionMessage(error instanceof Error ? error.message : 'Admission number could not be generated.'); }
     finally { setAdmissionBusy(''); }
   };
+  const restoreStudent = async (student: StudentAccount) => {
+    if (!window.confirm('Restore portal access for ' + student.name + '? Their existing enrolments, marks and payment history will remain unchanged.')) return;
+    setRecoveryBusy(student.id); setRecoveryMessage('');
+    try {
+      const response = await fetch('/api/admin/users/' + encodeURIComponent(student.id), { method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'active' }) });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'The student account could not be restored.');
+      setRecoveryMessage(student.name + ' has been restored. Portal sign-in is enabled again.');
+      window.location.reload();
+    } catch (error) {
+      setRecoveryMessage(error instanceof Error ? error.message : 'The student account could not be restored.');
+    } finally { setRecoveryBusy(''); }
+  };
+
   const downloadRegister = async (title: string, records: StudentAccount[], filename: string) => {
     setPdfError('');
     try {
@@ -141,7 +157,7 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
 
     {pageTitle === 'Manage Logins' && <section className="rounded-xl border bg-white text-slate-900"><div className="border-b bg-slate-50 p-4"><h3 className="font-bold">Student portal login directory</h3><p className="text-xs text-slate-500">Account IDs and status only. Passwords are never displayed.</p></div><div className="divide-y">{allStudents.map(student => <div key={student.id} className="flex items-center justify-between gap-3 p-4"><div><strong>{student.name}</strong><p className="text-xs text-slate-500">{student.staffId || 'ID pending'} · {student.email}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{student.status}</span></div>)}</div></section>}
 
-    {pageTitle === 'Deleted Students & Recovery' && <section className="rounded-xl border bg-white p-5 text-slate-900"><h3 className="font-bold">Inactive student accounts</h3><p className="mt-1 text-sm text-slate-600">The current account service does not expose a soft-deleted archive or restore endpoint. This page therefore lists inactive accounts only; it does not label them as deleted.</p><div className="mt-4 divide-y rounded-lg border">{allStudents.filter(student => student.status.toLowerCase() !== 'active').map(student => <div key={student.id} className="p-3"><strong>{student.name}</strong><p className="text-xs text-slate-500">{student.email} · {student.status}</p></div>)}{allStudents.filter(student => student.status.toLowerCase() !== 'active').length === 0 && <p className="p-4 text-sm text-slate-500">No inactive student accounts found.</p>}</div></section>}
+    {pageTitle === 'Deleted Students & Recovery' && <section className="rounded-xl border bg-white p-5 text-slate-900"><h3 className="font-bold">Archived student accounts & recovery</h3><p className="mt-1 text-sm text-slate-600">Archived accounts have portal sign-in disabled. Student enrolments, marks, payments, receipts and audit history are retained. Restore an account to re-enable sign-in; no historical records are recreated or deleted.</p>{recoveryMessage && <p role="status" className="mt-3 rounded-lg bg-cyan-50 p-3 text-sm text-cyan-900">{recoveryMessage}</p>}<div className="mt-4 divide-y rounded-lg border">{allStudents.filter(student => student.status.toLowerCase() === 'disabled').map(student => <div key={student.id} className="flex flex-wrap items-center justify-between gap-3 p-3"><div><strong>{student.name}</strong><p className="text-xs text-slate-500">{student.staffId || 'ID pending'} · {student.email} · Archived</p></div><Button size="sm" variant="outline" disabled={!!recoveryBusy} onClick={() => void restoreStudent(student)}>{recoveryBusy === student.id ? 'Restoring…' : 'Restore portal access'}</Button></div>)}{allStudents.filter(student => student.status.toLowerCase() === 'disabled').length === 0 && <p className="p-4 text-sm text-slate-500">No archived student accounts found.</p>}</div></section>}
 
     {pageTitle === 'Enrollment Links' && <section className="space-y-3 rounded-xl border bg-white p-5 text-slate-900"><h3 className="font-bold">Public course enrollment links</h3><p className="text-sm text-slate-600">Applicants can open the official catalogue, select an available course and complete the public application.</p><div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-slate-50 p-4"><div><strong>Navstar course catalogue</strong><p className="text-xs text-slate-500">{courseLink}</p></div><Button variant="outline" onClick={() => navigator.clipboard.writeText(courseLink)}>Copy link</Button></div>{courses.map(course => <div key={course.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><strong>{course.title}</strong><p className="text-xs text-slate-500">KSh {course.price.toLocaleString()} · {course.duration}</p></div><Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(courseLink)}>Copy catalogue link</Button></div>)}</section>}
 
