@@ -1291,7 +1291,7 @@ export function AdminPage() {
           {active === 'timetable' && <AcademicCompletionWorkspace mode="admin" courses={courses}/>}
           {active === 'marks-tests' && <MarksHubWorkspace subtab={selectedSubtab || 'Marks Hub'} courses={courses}/ >}
           {active === 'learning' && selectedSubtab === 'Tests & Exams' && <MarksHubWorkspace subtab="Exam Management (AI)" courses={courses}/ >}
-          {active === 'learning' && selectedSubtab !== 'Tests & Exams' && (selectedSubtab === 'Auto-Assign' ? <TutorSpecialisationWorkspace/> : <LearningAdminSubtab subtab={selectedSubtab || 'View Modules'} courses={courses}/>)}
+          {active === 'learning' && selectedSubtab !== 'Tests & Exams' && (selectedSubtab === 'Auto-Assign Modules' ? <TutorSpecialisationWorkspace/> : <LearningAdminSubtab subtab={selectedSubtab || 'View Modules'} courses={courses}/>)}
 
           {active === 'student-status' && <StudentStatusWorkspace students={portalUsers} courses={courses} applications={applications}/ >}
 
