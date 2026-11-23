@@ -28,7 +28,12 @@ export async function onRequestGet({ request, env }) {
   const settingsRow = await env.DB.prepare("SELECT value FROM system_state WHERE key = 'site-settings'").first();
   let settings = {};
   try { settings = settingsRow?.value ? JSON.parse(settingsRow.value) : {}; } catch { settings = {}; }
-  return json({ profile, geographyOptions: { locations: Array.isArray(settings.locationOptions) ? settings.locationOptions : [], subLocations: Array.isArray(settings.subLocationOptions) ? settings.subLocationOptions : [] } });
+  let changeRequests = [];
+  if (profile.role === 'student') {
+    const requestRows = await env.DB.prepare("SELECT id,status,review_note AS reviewNote,created_at AS createdAt,reviewed_at AS reviewedAt FROM student_profile_change_requests WHERE user_id=? ORDER BY created_at DESC LIMIT 10").bind(access.user.id).all();
+    changeRequests = requestRows.results || [];
+  }
+  return json({ profile, changeRequests, geographyOptions: { locations: Array.isArray(settings.locationOptions) ? settings.locationOptions : [], subLocations: Array.isArray(settings.subLocationOptions) ? settings.subLocationOptions : [] } });
 }
 
 export async function onRequestPatch({ request, env }) {
@@ -97,6 +102,26 @@ export async function onRequestPatch({ request, env }) {
   };
   if (columns.has('national_id')) profileValues.national_id = nationalId || null;
   if (columns.has('address')) profileValues.address = address || null;
+  if (access.user.role === 'student') {
+    const currentUser = await env.DB.prepare('SELECT name FROM users WHERE id=?').bind(access.user.id).first();
+    const currentProfile = await env.DB.prepare('SELECT * FROM user_profiles WHERE user_id=?').bind(access.user.id).first();
+    const changes = {};
+    if (name !== String(currentUser?.name || '')) changes.name = name;
+    for (const [column, value] of Object.entries(profileValues)) {
+      if (column === 'staff_id' || column === 'portal_role' || !columns.has(column)) continue;
+      if (String(currentProfile?.[column] ?? '') !== String(value ?? '')) changes[column] = value ?? '';
+    }
+    if (!Object.keys(changes).length) return json({ requestSubmitted: false, message: 'There are no profile changes to submit.' });
+    const pending = await env.DB.prepare("SELECT id FROM student_profile_change_requests WHERE user_id=? AND status='pending' LIMIT 1").bind(access.user.id).first();
+    if (pending) return error('You already have a profile correction awaiting administrator review. Wait for that decision before submitting another request.', 409);
+    const requestId = uuid();
+    await env.DB.prepare("INSERT INTO student_profile_change_requests(id,user_id,changes_json) VALUES(?,?,?)")
+      .bind(requestId, access.user.id, JSON.stringify(changes)).run();
+    await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
+      .bind(uuid(), access.user.id, 'student_profile_change_submitted', 'student_profile_change_request', requestId).run();
+    return json({ requestSubmitted: true, requestId, message: 'Your profile correction request has been sent to Navstar Administration for review. Your current profile remains unchanged until it is approved.' }, 201);
+  }
+
   const profileColumns = Object.keys(profileValues);
   const insertColumns = ['user_id', ...profileColumns];
   const placeholders = insertColumns.map(() => '?').join(', ');
