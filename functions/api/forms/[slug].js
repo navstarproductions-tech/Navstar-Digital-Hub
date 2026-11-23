@@ -37,7 +37,7 @@ export async function onRequestPost({request,env,params}){
     if(field.type==='email'&&(!emailPattern.test(String(text))||String(text).length>254))return error('Enter a valid email address for '+field.label+'.');
     if(field.type==='phone'){const phone=normalizePhone(text);if(!phone)return error('Enter a valid phone number for '+field.label+'.');cleaned[field.id]=phone;continue;}
     if(field.type==='number'){const number=Number(text);if(!Number.isFinite(number))return error('Enter a valid number for '+field.label+'.');cleaned[field.id]=number;continue;}
-    if(field.type==='date'&&!/^\d{4}-\d{2}-\d{2}$/.test(String(text)))return error('Enter a valid date for '+field.label+'.');
+    if(field.type==='date'&&(!/^\d{4}-\d{2}-\d{2}$/.test(String(text))||!Number.isFinite(Date.parse(String(text)+'T00:00:00Z'))))return error('Enter a valid date for '+field.label+'.');
     if(field.type==='select'&&!(field.options||[]).includes(String(text)))return error('Choose a valid option for '+field.label+'.');
     if(field.type==='checkbox'&&typeof text!=='boolean')return error('Choose a valid checkbox response for '+field.label+'.');
     cleaned[field.id]=text;
