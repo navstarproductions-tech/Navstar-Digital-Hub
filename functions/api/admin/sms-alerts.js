@@ -36,7 +36,7 @@ export async function onRequestPost({request,env}){
   const id=uuid();
   let providerResult;
   try{
-    providerResult=await sendTextSms(env,phone,title+'\\n'+message);
+    providerResult=await sendTextSms(env,phone,title+'\n'+message);
   }catch(cause){
     const reason=safeString(cause instanceof Error?cause.message:'SMS provider rejected the message.',500);
     await env.DB.prepare(`INSERT INTO admin_sms_delivery_logs(id,user_id,recipient_phone,title,message,status,provider_response,sent_by) VALUES(?,?,?,?,?,'failed',?,?)`)
