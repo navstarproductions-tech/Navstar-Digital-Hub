@@ -12,6 +12,7 @@ const navigation = [
   { label: 'Courses', to: '/courses' },
   { label: 'About', to: '/about' },
   { label: 'Forum', to: '/forum' },
+  { label: 'News & Events', to: '/news' },
   { label: 'Admission Letters', to: '/admissions-letters' },
   { label: 'Analytics', to: 'https://erp.navstardigitalhub.co.ke/login', external: true },
   { label: 'Donate', to: '#donate' },
