@@ -11,7 +11,14 @@ export async function onRequestGet({request,env}){
     FROM admin_broadcast_campaigns c JOIN users u ON u.id=c.created_by
     ORDER BY c.created_at DESC LIMIT 100
   `).all();
-  return json({campaigns:(rows.results||[]).map(row=>({...row,channels:(()=>{try{return JSON.parse(row.channels||'[]')}catch{return []}})()}))});
+  const counts=await env.DB.prepare(`
+    SELECT COUNT(*) AS allCount,
+      SUM(CASE WHEN lower(CASE WHEN lower(u.role)='student' THEN 'student' ELSE COALESCE(NULLIF(p.portal_role,''),u.role) END)='student' THEN 1 ELSE 0 END) AS students,
+      SUM(CASE WHEN lower(CASE WHEN lower(u.role)='student' THEN 'student' ELSE COALESCE(NULLIF(p.portal_role,''),u.role) END)<>'student' THEN 1 ELSE 0 END) AS staff
+    FROM users u LEFT JOIN user_profiles p ON p.user_id=u.id
+    WHERE u.status='active' AND lower(CASE WHEN lower(u.role)='student' THEN 'student' ELSE COALESCE(NULLIF(p.portal_role,''),u.role) END) IN ('student','admin','principal','finance','admissions','tutor')
+  `).first();
+  return json({campaigns:(rows.results||[]).map(row=>({...row,channels:(()=>{try{return JSON.parse(row.channels||'[]')}catch{return []}})()})),audienceCounts:{all:Number(counts?.allCount||0),students:Number(counts?.students||0),staff:Number(counts?.staff||0)}});
 }
 
 export async function onRequestPost({request,env}){
