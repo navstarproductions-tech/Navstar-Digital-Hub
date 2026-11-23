@@ -5,7 +5,7 @@ import { downloadNavstarTablePdf } from '@/lib/receipt-pdf';
 import { AcademicCompletionWorkspace } from '@/components/AcademicCompletionWorkspace';
 import { StudentClassRatingWorkspace } from '@/components/StudentClassRatingWorkspace';
 import { AIChatWidget } from '@/components/AIChatWidget';
-import { Activity, Bell, BookOpen, Bot, CheckCircle2, FileText, GraduationCap, Headphones, Home, LogOut, Menu, NotebookTabs, ShieldCheck, UserRound, Wallet, LoaderCircle, Smartphone, ReceiptText } from 'lucide-react';
+import { Activity, Bell, BookOpen, Bot, CheckCircle2, FileText, GraduationCap, Headphones, Home, LogOut, Menu, NotebookTabs, ShieldCheck, UserRound, Wallet, LoaderCircle, Smartphone, ReceiptText, Star } from 'lucide-react';
 
 type User={id:string;name:string;email:string;role:string;profilePhotoUrl?:string|null;mustChangePassword?:boolean};
 type Profile={name:string;email:string;role:string;staffId?:string;phone?:string|null;dateOfBirth?:string|null;gender?:string|null;citizenship?:string|null;country?:string|null;county?:string|null;subCounty?:string|null;ward?:string|null;location?:string|null;subLocation?:string|null;address?:string|null;profilePhotoUrl?:string|null};
