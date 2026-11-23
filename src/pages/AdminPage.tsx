@@ -1316,7 +1316,7 @@ export function AdminPage() {
           {active === 'support-tickets' && <SupportTicketsWorkspace/>}
           {active === 'alumni' && <AlumniWorkspace/>}
           {active === 'student-projects' && <StudentProjectsWorkspace/>}
-          {active === 'maintenance' && <MaintenanceWorkspace onOpenSettings={()=>{setSettingsTab('maintenance');setActive('settings');setExpandedSection('settings');setSelectedSubtab('Maintenance Mode');}}/>}
+          {active === 'maintenance' && <MaintenanceWorkspace onOpenSettings={()=>{setSettingsTab('complete');setActive('settings');setExpandedSection('settings');setSelectedSubtab('Maintenance Mode');}}/>}
           {active === 'auto-reports' && <AdminReportsWorkspace/>}
           {active === 'student-status' && <StudentStatusWorkspace students={portalUsers} courses={courses} applications={applications}/ >}
 
