@@ -33,12 +33,12 @@ export async function verifyPassword(password, salt, expected) {
   return result.hash === expected;
 }
 
-export async function createSession(env, userId) {
+export async function createSession(env, userId, request = null) {
   const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
   const tokenHash = await sha256(token);
   const sessionSeconds = await configuredSessionSeconds(env).catch(() => defaultSessionSeconds);
   const expiresAt = new Date(Date.now() + sessionSeconds * 1000).toISOString();
-  await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').bind(tokenHash, userId, expiresAt).run();
+  const userAgent = (request?.headers.get('User-Agent') || '').slice(0, 500);\n  await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at, user_agent, last_seen_at) VALUES (?, ?, ?, ?, ?)').bind(tokenHash, userId, expiresAt, userAgent, new Date().toISOString()).run();
   return `${cookieName}=${token}; Path=/; Max-Age=${defaultSessionSeconds}; HttpOnly; Secure; SameSite=Strict`;
 }
 
