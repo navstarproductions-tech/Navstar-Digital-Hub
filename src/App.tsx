@@ -101,7 +101,34 @@ function IdleSessionGuard() {
 }
 
 function AppShell() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const host = window.location.hostname.toLowerCase();
+    const hostEntry: Record<string, string> = {
+      'admin.navstardigitalhub.co.ke': '/login?role=admin&returnTo=%2Fadmin',
+      'student.navstardigitalhub.co.ke': '/login?role=student&returnTo=%2Fstudent-portal',
+      'tutor.navstardigitalhub.co.ke': '/login?role=tutor&returnTo=%2Fportals%2Ftutor',
+      'portals.navstardigitalhub.co.ke': '/portals',
+    };
+    const entry = hostEntry[host];
+    if (!entry) return;
+
+    if (pathname === '/') {
+      navigate(entry, { replace: true });
+      return;
+    }
+
+    const role = host.startsWith('admin.') ? 'admin'
+      : host.startsWith('student.') ? 'student'
+      : host.startsWith('tutor.') ? 'tutor' : '';
+    if (role && pathname === '/login' && new URLSearchParams(search).get('role') !== role) {
+      const returnTo = role === 'admin' ? '/admin' : role === 'student' ? '/student-portal' : '/portals/tutor';
+      navigate('/login?role=' + role + '&returnTo=' + encodeURIComponent(returnTo), { replace: true });
+    }
+  }, [navigate, pathname, search]);
+
   const standalone = pathname.startsWith('/admin')
     || pathname.startsWith('/portals/')
     || pathname === '/student-portal'
