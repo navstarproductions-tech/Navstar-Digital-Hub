@@ -17,7 +17,7 @@ export async function onRequestPatch({request,env}){
  const ticket=await env.DB.prepare('SELECT id,requester_user_id AS requesterUserId,ticket_number AS ticketNumber,subject FROM support_tickets WHERE id=?').bind(id).first();
  if(!ticket)return error('Support ticket not found.',404);
  await env.DB.batch([
-  env.DB.prepare("UPDATE support_tickets SET status=?,admin_response=?,assigned_to=?,updated_at=CURRENT_TIMESTAMP,resolved_at=CASE WHEN ? IN ('resolved','closed') THEN COALESCE(resolved_at,CURRENT_TIMESTAMP) ELSE NULL END WHERE id=?").bind(status,adminResponse,assignedTo||null,status,id),
+  env.DB.prepare("UPDATE support_tickets SET status=?,admin_response=?,assigned_to=COALESCE(?,assigned_to),updated_at=CURRENT_TIMESTAMP,resolved_at=CASE WHEN ? IN ('resolved','closed') THEN COALESCE(resolved_at,CURRENT_TIMESTAMP) ELSE NULL END WHERE id=?").bind(status,adminResponse,assignedTo||null,status,id),
   env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),access.user.id,'support_ticket_updated','support_ticket',id),
   ...(ticket.requesterUserId?[env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)').bind(uuid(),ticket.requesterUserId,'Support ticket update',ticket.ticketNumber+' · '+ticket.subject+' is now '+status+'. '+(adminResponse||''))]:[])
  ]);
