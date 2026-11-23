@@ -28,6 +28,7 @@ import { PaymentReceiptsPage } from '@/pages/PaymentReceiptsPage';
 import { PublicResultVerificationPage } from '@/pages/PublicResultVerificationPage';
 import { CertificateVerificationPage } from '@/pages/CertificateVerificationPage';
 import { OnlineFormPage } from '@/pages/OnlineFormPage';
+import { PublicContentPage } from '@/pages/PublicContentPage';
 import { PayPage } from '@/pages/PayPage';
 import { MusicPage } from '@/pages/MusicPage';
 import { PortalNotificationsPage } from '@/pages/PortalNotificationsPage';
@@ -188,6 +189,8 @@ function AppShell() {
             <Route path="/verify-result/:token" element={<PublicResultVerificationPage />} />
             <Route path="/verify-certificate/:token" element={<CertificateVerificationPage />} />
             <Route path="/forms/:slug" element={<OnlineFormPage />} />
+            <Route path="/news" element={<PublicContentPage type="news" />} />
+            <Route path="/events" element={<PublicContentPage type="event" />} />
             <Route path="/delivery/:token" element={<ParcelDeliveryPage />} />
             <Route path="/fee-structure" element={<PublicFeeStructurePage />} />
             <Route path="*" element={<HomePage />} />
