@@ -27,10 +27,8 @@ export async function onRequestPost({request,env}){
  const id=uuid(),ticketNumber='NDH-TKT-'+id.slice(-8).toUpperCase();
  const statements=[env.DB.prepare('INSERT INTO support_tickets(id,ticket_number,requester_type,requester_user_id,customer_id,requester_name,requester_email,subject,category,priority,description) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
   .bind(id,ticketNumber,access.type,access.user?.id||null,access.customer?.id||null,access.name,access.email,subject,category,priority,description)];
- if(access.type==='student'){
-  const admins=await env.DB.prepare("SELECT id FROM users WHERE status='active' AND role IN ('admin','principal')").all();
-  for(const admin of admins.results||[])statements.push(env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)').bind(uuid(),admin.id,'New student support ticket',ticketNumber+' · '+subject+' · '+access.name));
- }
+ const admins=await env.DB.prepare("SELECT id FROM users WHERE status='active' AND role IN ('admin','principal')").all();
+ for(const admin of admins.results||[])statements.push(env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)').bind(uuid(),admin.id,'New '+access.type+' support ticket',ticketNumber+' · '+subject+' · '+access.name));
  await env.DB.batch(statements);
  return json({submitted:true,ticketNumber,message:'Your support ticket has been submitted. Keep the ticket number for follow-up.'},201);
 }
