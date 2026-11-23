@@ -13,7 +13,7 @@ const demos:Demo[]=[
  {title:'Admin Portal Sign-in',description:'Administrator account login.',path:'/login?role=admin',group:'Portals'},
  {title:'Customer Account',description:'Public customer account and saved selections.',path:'/account',group:'Customer'},
  {title:'Learning Hub',description:'Public learning and training information.',path:'/learning',group:'Learning'},
- {title:'Online Forms',description:'Published public forms can be opened from their unique form links.',path:'/forms',group:'Public website'}
+ 
 ];
 type CustomLink={title:string;description:string;path:string};
 export function DemoPreviewsWorkspace({subtab}:{subtab:string}){
