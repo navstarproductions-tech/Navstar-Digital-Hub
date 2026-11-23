@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
-type Course = { id: string; title: string };
 type Graduate = { user_id: string; course_id: string; student_name: string; course_title: string; status: string; completed_at?: string | null; admission_number?: string | null };
 type Certificate = { id: string; userId: string; courseId: string; certificateNo: string; publicToken: string; status: string; issuedAt: string; studentName: string; studentId?: string; courseTitle: string; snapshot: Record<string,unknown> };
 const panel='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 const escapeHtml=(value:unknown)=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]||char));
 
-export function CertificateManagementWorkspace({courses}:{courses:Course[]}) {
+export function CertificateManagementWorkspace() {
   const [graduates,setGraduates]=useState<Graduate[]>([]);
   const [certificates,setCertificates]=useState<Certificate[]>([]);
   const [selected,setSelected]=useState('');
