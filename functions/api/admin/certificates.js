@@ -37,7 +37,7 @@ export async function onRequestPost({ request, env }) {
     JOIN enrollments e ON lower(e.email)=lower(u.email) AND e.course_id=? AND e.status='accepted'
     JOIN courses co ON co.id=e.course_id
     JOIN student_graduation_records g ON g.user_id=u.id AND g.course_id=e.course_id AND g.status='graduated'
-    WHERE u.id=? AND u.status='active' AND COALESCE(p.portal_role,u.role)='student'
+    WHERE u.id=? AND COALESCE(p.portal_role,u.role)='student'
     ORDER BY e.created_at DESC LIMIT 1
   `).bind(courseId,studentId).first();
   if (!eligible) return error('A certificate can only be issued to an active student with an accepted enrolment and a recorded Graduated decision for this course.',409);
@@ -67,4 +67,25 @@ export async function onRequestPost({ request, env }) {
   await env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)')
     .bind(uuid(),studentId,'Course completion certificate issued','Your Navstar Digital Hub completion certificate '+certificateNo+' is ready. Open your student portal or use the public verification link shared by Administration.').run();
   return json({ issued:true,id,certificateNo,publicToken,verificationUrl:'/verify-certificate/'+encodeURIComponent(publicToken),snapshot },201);
+}
+
+export async function onRequestPatch({ request, env }) {
+  if (!isSameOrigin(request)) return error('Cross-origin request rejected.',403);
+  if (!env.DB) return error('Certificate service is not configured.',503);
+  const access = await requireRole(request,env,['admin']);
+  if (access.response) return access.response;
+  let body;
+  try { body = await readJson(request,4096); } catch { return error('Invalid certificate action.'); }
+  const id = safeString(body.id,80);
+  const reason = safeString(body.reason,1000).trim();
+  if (!id || body.action !== 'revoke' || reason.length < 5) return error('Select a certificate and enter a clear reason for revocation.');
+  const certificate = await env.DB.prepare("SELECT id,user_id,certificate_no,status FROM student_certificates WHERE id=?").bind(id).first();
+  if (!certificate) return error('Certificate not found.',404);
+  if (certificate.status !== 'issued') return error('This certificate has already been revoked.',409);
+  await env.DB.batch([
+    env.DB.prepare("UPDATE student_certificates SET status='revoked',revoked_by=?,revoked_at=CURRENT_TIMESTAMP,revoke_reason=? WHERE id=? AND status='issued'").bind(access.user.id,reason,id),
+    env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),access.user.id,'student_certificate_revoked','student_certificate',id),
+    env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)').bind(uuid(),certificate.user_id,'Completion certificate revoked','Navstar Digital Hub has revoked certificate '+certificate.certificate_no+'. Reason: '+reason)
+  ]);
+  return json({ revoked:true,id,status:'revoked' });
 }
