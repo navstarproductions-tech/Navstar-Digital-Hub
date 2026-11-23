@@ -49,6 +49,6 @@ export async function onRequestPost({ request, env }) {
   }
 
   await env.DB.prepare('DELETE FROM login_attempts WHERE email_hash = ? AND ip_hash = ?').bind(emailHash, ipHash).run();
-  const cookie = await createSession(env, user.id);
+  const cookie = await createSession(env, user.id, request);
   return json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, mustChangePassword: Boolean(user.must_change_password) } }, 200, { 'Set-Cookie': cookie });
 }
