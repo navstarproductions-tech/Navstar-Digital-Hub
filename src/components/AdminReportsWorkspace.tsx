@@ -1,0 +1,35 @@
+import { useEffect,useState } from 'react';
+import { Button } from '@/components/ui/button';
+type Row=Record<string,unknown>;
+const cell=(value:unknown)=>'"'+String(value??'').replace(/"/g,'""')+'"';
+function downloadCsv(filename:string,headers:string[],rows:unknown[][]){const csv=[headers,...rows].map(row=>row.map(cell).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);}
+export function AdminReportsWorkspace(){
+ const [students,setStudents]=useState<Row[]>([]),[staff,setStaff]=useState<Row[]>([]),[fees,setFees]=useState<Row[]>([]),[business,setBusiness]=useState<Row[]>([]),[attendance,setAttendance]=useState<Row[]>([]),[alumni,setAlumni]=useState<Row[]>([]),[assessments,setAssessments]=useState<Row[]>([]);
+ const [loading,setLoading]=useState(true),[error,setError]=useState('');
+ const load=async()=>{
+  setLoading(true);setError('');
+  const requests=await Promise.allSettled([
+   fetch('/api/admin/users',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json().then(d=>({ok:r.ok,d}))),
+   fetch('/api/admin/payments?ledger=fees',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json().then(d=>({ok:r.ok,d}))),
+   fetch('/api/admin/payments?ledger=business',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json().then(d=>({ok:r.ok,d}))),
+   fetch('/api/admin/employee-records',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json().then(d=>({ok:r.ok,d}))),
+   fetch('/api/admin/alumni',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json().then(d=>({ok:r.ok,d}))),
+   fetch('/api/academic',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json().then(d=>({ok:r.ok,d})))
+  ]);
+  const value=(index:number)=>requests[index].status==='fulfilled'&&requests[index].value.ok?requests[index].value.d:{};
+  const users=value(0).users||[];setStudents(users.filter((row:Row)=>row.role==='student'));setStaff(users.filter((row:Row)=>row.role!=='student'));
+  setFees(value(1).payments||[]);setBusiness(value(2).payments||[]);setAttendance(value(3).attendance||[]);setAlumni(value(4).alumni||[]);setAssessments(value(5).assessments||[]);
+  const failures=requests.filter((item,index)=>item.status==='rejected'||(item.status==='fulfilled'&&!item.value.ok)).length;
+  if(failures)setError(failures+' report source(s) could not be refreshed. Available reports remain exportable.');
+  setLoading(false);
+ };
+ useEffect(()=>{void load()},[]);
+ const exportStudents=()=>downloadCsv('navstar-student-register.csv',['Name','Email','Student ID','Phone','Status','Course ID','Created'],students.map(r=>[r.name,r.email,r.staffId,r.phone,r.status,r.activeCourseId,r.created_at]));
+ const exportStaff=()=>downloadCsv('navstar-staff-register.csv',['Name','Email','Staff ID','Role','Department','Job Title','Status'],staff.map(r=>[r.name,r.email,r.staffId,r.role,r.department,r.jobTitle,r.status]));
+ const exportPayments=(rows:Row[],name:string)=>downloadCsv(name,['Payer','Reference','Purpose','Description','Amount KSh','Phone','Status','Date'],rows.map(r=>[r.payer_name,r.display_reference,r.purpose,r.description,r.amount,r.phone,r.status,r.created_at]));
+ const exportAttendance=()=>downloadCsv('navstar-employee-attendance.csv',['Employee','Staff ID','Date','Status','Check In','Check Out','Notes'],attendance.map(r=>[r.employeeName,r.staffId,r.attendanceDate,r.status,r.checkIn,r.checkOut,r.notes]));
+ const exportAlumni=()=>downloadCsv('navstar-alumni-register.csv',['Name','Email','Student ID','Admission Number','Course','Status','Completion Date'],alumni.map(r=>[r.name,r.email,r.studentId,r.admissionNumber,r.courseTitle,r.status,r.completedAt]));
+ const exportAssessments=()=>downloadCsv('navstar-academic-assessments.csv',['Student','Course','Module','Assessment','Type','Marks','Maximum','Published'],assessments.map(r=>[r.student_name,r.course_title,r.module_title,r.title,r.assessment_type,r.points_awarded,r.max_points,r.published_at]));
+ const reports=[{title:'Student Register',count:students.length,description:'Student portal accounts and current course links.',action:exportStudents},{title:'Staff Register',count:staff.length,description:'Active and inactive staff accounts with staff IDs.',action:exportStaff},{title:'Student Fee Ledger',count:fees.length,description:'Verified enrolment payments only; excludes service sales and donations.',action:()=>exportPayments(fees,'navstar-student-fee-ledger.csv')},{title:'Business & Service Ledger',count:business.length,description:'Verified service payments and donations; separate from student fees.',action:()=>exportPayments(business,'navstar-business-service-ledger.csv')},{title:'Employee Attendance',count:attendance.length,description:'Saved employee attendance records with check-in/out details.',action:exportAttendance},{title:'Alumni Register',count:alumni.length,description:'Academic graduation and candidate records.',action:exportAlumni},{title:'Academic Assessments',count:assessments.length,description:'Published and saved assessment marks returned by the academic service.',action:exportAssessments}];
+ return <div className="space-y-5 text-slate-900"><header className="rounded-2xl bg-gradient-to-r from-[#071a35] via-blue-950 to-[#16477e] p-5 text-white"><p className="text-xs font-black uppercase tracking-[.2em] text-cyan-200">NAVSTAR · MANAGEMENT INFORMATION</p><h2 className="mt-1 text-2xl font-black">Auto Reports & Documents</h2><p className="mt-1 text-sm text-blue-100">Generate downloadable CSV reports from the live student, staff, finance, attendance and academic registers.</p><div className="mt-4 flex flex-wrap gap-3 text-sm"><span>{students.length} students</span><span>·</span><span>{staff.length} staff</span><span>·</span><span>{fees.length+business.length} verified payments</span><span>·</span><span>{attendance.length} attendance records</span></div></header>{error&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{reports.map(report=><article key={report.title} className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><h3 className="font-black">{report.title}</h3><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-800">{report.count}</span></div><p className="mt-2 min-h-10 text-sm text-slate-500">{report.description}</p><Button className="mt-4 w-full" variant="outline" disabled={loading||report.count===0} onClick={report.action}>Download CSV report</Button></article>)}</div><div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4"><p className="text-xs text-slate-500">Reports are generated from current records at export time. Financial reports preserve the separate student-fee and business-service ledgers.</p><Button size="sm" variant="outline" disabled={loading} onClick={()=>void load()}>{loading?'Refreshing…':'Refresh all report sources'}</Button></div></div>;
+}
