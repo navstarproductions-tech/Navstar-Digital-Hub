@@ -8,6 +8,7 @@ import { readApiResponse } from '@/lib/api';
 import { GeographyPicker } from '@/components/GeographyPicker';
 import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
+type ChangeRequest = { id: string; status: string; reviewNote?: string; createdAt: string; reviewedAt?: string | null };
 type Profile = {
   id: string; name: string; email: string; role: string; staffId?: string; profilePhotoUrl?: string | null; nationalId?: string | null;
   phone?: string | null; dateOfBirth?: string | null; gender?: string | null; citizenship?: string | null;
@@ -37,14 +38,16 @@ export function MyAccountPage() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
   const [subLocationOptions, setSubLocationOptions] = useState<string[]>([]);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
 
   useEffect(() => {
     let active = true;
     fetch('/api/account/profile').then(async response => {
-      const result = await readApiResponse<{ profile?: Profile; geographyOptions?: { locations?: string[]; subLocations?: string[] }; error?: string }>(response);
+      const result = await readApiResponse<{ profile?: Profile; changeRequests?: ChangeRequest[]; geographyOptions?: { locations?: string[]; subLocations?: string[] }; error?: string }>(response);
       if (!response.ok || !result.profile) throw new Error(result.error || 'Your profile could not be loaded.');
       if (active) {
         setProfile(result.profile);
+        setChangeRequests(result.changeRequests || []);
         setLocationOptions(result.geographyOptions?.locations || []);
         setSubLocationOptions(result.geographyOptions?.subLocations || []);
         const next: Record<string, string> = {};
@@ -76,10 +79,19 @@ export function MyAccountPage() {
     setSaving(true); setStatus('');
     try {
       const response = await fetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
-      const result = await readApiResponse<{ profile?: Profile; error?: string }>(response);
-      if (!response.ok || !result.profile) throw new Error(result.error || 'Profile could not be saved.');
-      setProfile(result.profile);
-      setStatus('Your profile details have been saved.');
+      const result = await readApiResponse<{ profile?: Profile; requestSubmitted?: boolean; message?: string; error?: string }>(response);
+      if (!response.ok) throw new Error(result.error || 'Profile could not be saved.');
+      if (result.requestSubmitted) {
+        setStatus(result.message || 'Your profile correction request has been sent for administrator review.');
+        const refreshed = await fetch('/api/account/profile');
+        const latest = await readApiResponse<{ changeRequests?: ChangeRequest[]; error?: string }>(refreshed);
+        if (refreshed.ok) setChangeRequests(latest.changeRequests || []);
+      } else if (result.profile) {
+        setProfile(result.profile);
+        setStatus(result.message || 'Your profile details have been saved.');
+      } else {
+        setStatus(result.message || 'There are no profile changes to submit.');
+      }
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Profile could not be saved.'); }
     finally { setSaving(false); }
   };
@@ -101,7 +113,7 @@ export function MyAccountPage() {
       </header>
       <section className="mt-6 flex flex-wrap items-center gap-4 rounded-2xl border bg-white p-5 shadow-sm"><div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border bg-slate-100">{profile?.profilePhotoUrl ? <img src={profile.profilePhotoUrl} alt="Profile photo" className="h-full w-full object-cover"/> : <UserRound className="h-8 w-8 text-slate-400"/>}</div><div className="min-w-0 flex-1"><h2 className="font-bold text-slate-950">Profile picture</h2><p className="mt-1 text-xs text-slate-500">Upload a clear JPEG, PNG, WebP or AVIF photo (maximum 3 MB). Visible on your account and supported portal profile views.</p><label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-800 px-3 py-2 text-xs font-bold text-white hover:bg-blue-900"><Camera className="h-4 w-4"/>{photoUploading ? "Uploading…" : "Choose profile photo"}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" disabled={photoUploading} onChange={uploadPhoto}/></label></div></section>
       <form onSubmit={save} className="mt-6 rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
-        <div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-1 h-5 w-5 text-emerald-700"/><div><h2 className="font-bold text-slate-950">Profile information</h2><p className="mt-1 text-sm text-slate-600">Your email, portal role and generated staff ID are managed by the system and cannot be changed here. Your National ID is visible only to authorized administrators and you.</p></div></div>
+        <div className="mb-5 flex items-start gap-3"><ShieldCheck className="mt-1 h-5 w-5 text-emerald-700"/><div><h2 className="font-bold text-slate-950">Profile information</h2><p className="mt-1 text-sm text-slate-600">Your email, portal role and generated staff ID are managed by the system and cannot be changed here. Your National ID is visible only to authorized administrators and you. {profile?.role === 'student' ? 'Student profile corrections are submitted for administrator review before official records change.' : 'Your profile changes are saved directly.'}</p></div></div>
         {loading ? <p className="py-8 text-sm text-slate-500">Loading profile…</p> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {fields.filter(field => !['gender','citizenship','department','jobTitle','employmentType','country','province','county','subCounty','constituency','ward','location','subLocation'].includes(field.key)).map(field => <div key={field.key} className="space-y-2"><Label htmlFor={`profile-${field.key}`}>{field.label}</Label><Input id={`profile-${field.key}`} type={field.type || 'text'} value={values[field.key] || ''} onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))} required={field.key === 'name'} /></div>)}
           <ProfileDropdown id="profile-gender" label="Gender" value={values.gender || ''} options={GENDER_OPTIONS} onChange={value=>setValues(current=>({...current,gender:value}))}/>
@@ -114,6 +126,7 @@ export function MyAccountPage() {
         {status && <p role="status" className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">{status}</p>}
         <div className="mt-6 flex flex-wrap justify-end"><Button type="submit" disabled={loading || saving}><Save className="mr-2 h-4 w-4"/>{saving ? 'Saving…' : 'Save profile'}</Button></div>
       </form>
+      {profile?.role === 'student' && <section className="mt-6 rounded-2xl border bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-950">Profile correction requests</h2><p className="mt-1 text-sm text-slate-600">Track corrections submitted to Navstar Administration. Your official profile changes only after approval.</p><div className="mt-4 divide-y rounded-lg border">{changeRequests.map(request => <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 p-3"><div><p className="text-sm font-semibold capitalize">{request.status}</p><p className="text-xs text-slate-500">Submitted {new Date(request.createdAt).toLocaleString('en-KE',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Nairobi'})}</p>{request.reviewNote && <p className="mt-1 text-xs text-slate-600">Admin note: {request.reviewNote}</p>}</div><span className={request.status==='approved'?'rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700':request.status==='rejected'?'rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700':'rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800'}>{request.status.toUpperCase()}</span></div>)}{changeRequests.length===0 && <p className="p-4 text-sm text-slate-500">You have not submitted any profile correction requests.</p>}</div></section>}
       <footer className="py-6 text-center text-xs text-slate-500">Powered by Navstar Digital Hub · HOME OF TECHNOCRATS</footer>
     </div>
   </main>;
