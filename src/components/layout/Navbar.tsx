@@ -13,7 +13,7 @@ const navigation = [
   { label: 'About', to: '/about' },
   { label: 'Forum', to: '/forum' },
   { label: 'Admission Letters', to: '/admissions-letters' },
-  { label: 'Analytics', to: '/analytics' },
+  { label: 'Analytics', to: 'https://erp.navstardigitalhub.co.ke/login', external: true },
   { label: 'Donate', to: '#donate' },
   { label: 'Student Gateway', to: '/login?role=student' },
 ];
@@ -89,7 +89,7 @@ export function Navbar() {
           </Link>
 
           <div className="hidden xl:flex min-w-0 flex-1 items-center justify-between gap-0.5 px-1 2xl:px-2">
-            {navigation.map((item) => item.to === '#donate' ? <button key={item.to} type="button" onClick={() => setDonationOpen(true)} className="whitespace-nowrap rounded-lg bg-amber-300 px-1.5 py-2 text-xs font-extrabold text-blue-950 shadow-md shadow-amber-400/20 transition-colors hover:bg-amber-200 2xl:px-2" aria-haspopup="dialog">{item.label}</button> : <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-lg px-1.5 py-2 text-xs font-bold transition-colors 2xl:px-2.5 ${isActive ? 'bg-amber-300 text-blue-950 shadow-md shadow-amber-400/20' : 'text-blue-100 hover:bg-white/10 hover:text-white'}`}>{item.label}</NavLink>)}
+            {navigation.map((item) => item.to === '#donate' ? <button key={item.to} type="button" onClick={() => setDonationOpen(true)} className="whitespace-nowrap rounded-lg bg-amber-300 px-1.5 py-2 text-xs font-extrabold text-blue-950 shadow-md shadow-amber-400/20 transition-colors hover:bg-amber-200 2xl:px-2" aria-haspopup="dialog">{item.label}</button> : item.external ? <a key={item.to} href={item.to} className="whitespace-nowrap rounded-lg px-1.5 py-2 text-xs font-bold text-blue-100 transition-colors hover:bg-white/10 hover:text-white 2xl:px-2.5">{item.label}</a> : <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-lg px-1.5 py-2 text-xs font-bold transition-colors 2xl:px-2.5 ${isActive ? 'bg-amber-300 text-blue-950 shadow-md shadow-amber-400/20' : 'text-blue-100 hover:bg-white/10 hover:text-white'}`}>{item.label}</NavLink>)}
           </div>
 
           <div className="flex shrink-0 items-center gap-1 xl:gap-1.5">
@@ -127,7 +127,7 @@ export function Navbar() {
               <button type="button" onClick={closeMenu} aria-label="Close navigation menu" className="rounded-lg p-1.5 text-blue-100 hover:bg-white/10"><X className="h-4 w-4" /></button>
             </div>
             <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {navigation.map((item) => item.to === '#donate' ? <button key={item.to} type="button" onClick={() => { closeMenu(); setDonationOpen(true); }} className="rounded-xl bg-amber-300 px-3 py-3 text-left text-sm font-extrabold text-blue-950 transition hover:bg-amber-200">Donate</button> : <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => isActive ? "rounded-xl bg-amber-300 px-3 py-3 text-sm font-bold text-blue-950 shadow-md" : "rounded-xl px-3 py-3 text-sm font-bold text-blue-100 transition-colors hover:bg-white/10 hover:text-white"} onClick={closeMenu}>{item.label}</NavLink>)}
+              {navigation.map((item) => item.to === '#donate' ? <button key={item.to} type="button" onClick={() => { closeMenu(); setDonationOpen(true); }} className="rounded-xl bg-amber-300 px-3 py-3 text-left text-sm font-extrabold text-blue-950 transition hover:bg-amber-200">Donate</button> : item.external ? <a key={item.to} href={item.to} onClick={closeMenu} className="rounded-xl px-3 py-3 text-sm font-bold text-blue-100 transition-colors hover:bg-white/10 hover:text-white">{item.label}</a> : <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => isActive ? "rounded-xl bg-amber-300 px-3 py-3 text-sm font-bold text-blue-950 shadow-md" : "rounded-xl px-3 py-3 text-sm font-bold text-blue-100 transition-colors hover:bg-white/10 hover:text-white"} onClick={closeMenu}>{item.label}</NavLink>)}
               {signedInUser ? <div className="rounded-xl border border-amber-300/50 bg-white/10 px-3 py-3 text-sm font-bold text-white sm:col-span-2">Hi, {signedInUser.name}</div> : <Link to="/account" className="rounded-xl bg-amber-300 px-3 py-3 text-sm font-extrabold text-blue-950" onClick={closeMenu}>Log in / Sign up</Link>}
               <Link to="/services#service-cart" className="rounded-xl px-3 py-3 text-sm font-bold text-blue-100 hover:bg-white/10" onClick={closeMenu}>Your orders / Cart</Link>
               {signedInUser && <button onClick={() => { closeMenu(); void signOut(); }} className="rounded-xl px-3 py-3 text-left text-sm font-bold text-amber-200 hover:bg-white/10">Log out</button>}
