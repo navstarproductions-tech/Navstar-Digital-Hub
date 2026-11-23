@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ type StudentAccount = {
   staffId?: string; profilePhotoUrl?: string | null; phone?: string; dateOfBirth?: string; county?: string; subCounty?: string; ward?: string; location?: string; subLocation?: string;
 };
 type ApplicationRow = Record<string, unknown>;
+type ProfileChangeRequest = { id: string; userId: string; studentName: string; email: string; studentId?: string; changes: Record<string, unknown>; status: string; reviewNote?: string; createdAt: string; reviewedAt?: string | null };
 
 type Props = {
   students: StudentAccount[];
@@ -38,6 +39,11 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
   const [admissionMessage, setAdmissionMessage] = useState('');
   const [recoveryBusy, setRecoveryBusy] = useState('');
   const [recoveryMessage, setRecoveryMessage] = useState('');
+  const [profileRequests, setProfileRequests] = useState<ProfileChangeRequest[]>([]);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [requestBusy, setRequestBusy] = useState('');
+  const [requestMessage, setRequestMessage] = useState('');
+  const [reviewNotes, setReviewNotes] = useState<Record<string,string>>({});
 
   const activeStudents = useMemo(() => students.filter(student => student.role === 'student' && student.status.toLowerCase() === 'active'), [students]);
   const allStudents = useMemo(() => students.filter(student => student.role === 'student'), [students]);
@@ -123,6 +129,37 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
     }
   };
 
+  useEffect(() => {
+    if (selectedSubtab !== 'Detail Edit Requests') return;
+    let active = true;
+    setRequestLoading(true); setRequestMessage('');
+    fetch('/api/admin/student-profile-requests', { credentials: 'same-origin', cache: 'no-store' })
+      .then(async response => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Student profile requests could not be loaded.');
+        if (active) setProfileRequests(result.requests || []);
+      })
+      .catch(error => { if (active) setRequestMessage(error instanceof Error ? error.message : 'Student profile requests could not be loaded.'); })
+      .finally(() => { if (active) setRequestLoading(false); });
+    return () => { active = false; };
+  }, [selectedSubtab]);
+
+  const reviewProfileRequest = async (requestId: string, action: 'approve' | 'reject') => {
+    const reviewNote = reviewNotes[requestId] || '';
+    if (action === 'reject' && reviewNote.trim().length < 5) { setRequestMessage('Enter at least five characters explaining why the request is being rejected.'); return; }
+    if (!window.confirm(action === 'approve' ? 'Approve these student profile corrections and update the official student record?' : 'Reject this student profile correction request?')) return;
+    setRequestBusy(requestId); setRequestMessage('');
+    try {
+      const response = await fetch('/api/admin/student-profile-requests', { method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: requestId, action, reviewNote }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'The profile request could not be reviewed.');
+      setProfileRequests(current => current.map(item => item.id === requestId ? { ...item, status: result.status, reviewNote } : item));
+      setRequestMessage(action === 'approve' ? 'The profile corrections have been approved and applied.' : 'The request has been rejected. The existing student profile was not changed.');
+    } catch (error) {
+      setRequestMessage(error instanceof Error ? error.message : 'The profile request could not be reviewed.');
+    } finally { setRequestBusy(''); }
+  };
+
   const pageTitle = selectedSubtab || 'Active Students';
   const header = (
     <section className="overflow-hidden rounded-2xl border border-cyan-200/20 bg-gradient-to-r from-[#09234a] via-[#123e78] to-[#0b2854] text-white shadow-xl">
@@ -149,7 +186,7 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
 
     {pageTitle === 'Assign Intakes & Years' && <section className="overflow-hidden rounded-xl border bg-white text-slate-900"><div className="border-b bg-slate-50 p-4"><h3 className="font-bold">Intake and academic-year register</h3><p className="text-xs text-slate-500">Displays intake information already stored on the latest student application.</p></div><div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-100 text-xs uppercase"><tr><th className="p-3">Student</th><th className="p-3">Course</th><th className="p-3">Preferred intake</th><th className="p-3">Application</th></tr></thead><tbody>{activeStudents.map(student => { const app = latestApplication(student); return <tr key={student.id} className="border-t"><td className="p-3 font-semibold">{student.name}</td><td className="p-3">{courseName(student)}</td><td className="p-3">{getText(app?.preferred_intake) || 'Not recorded'}</td><td className="p-3">{getText(app?.status) || 'Account active'}</td></tr>; })}</tbody></table></div></section>}
 
-    {pageTitle === 'Detail Edit Requests' && <section className="rounded-xl border bg-white p-5 text-slate-900"><h3 className="font-bold">Student detail-change requests</h3><p className="mt-1 text-sm text-slate-600">A separate workspace for student-submitted corrections and administrator decisions.</p><div className="mt-4 rounded-xl border border-dashed bg-slate-50 p-6 text-center"><p className="font-semibold">No connected request records</p><p className="mt-1 text-xs text-slate-500">A request-submission and approval API is not yet available. No placeholder requests are invented.</p></div></section>}
+    {pageTitle === 'Detail Edit Requests' && <section className="space-y-4 rounded-xl border bg-white p-5 text-slate-900"><div><h3 className="font-bold">Student detail-change requests</h3><p className="mt-1 text-sm text-slate-600">Review student-submitted corrections. Approving a request updates only the submitted profile fields; rejecting it leaves the existing student record unchanged.</p></div>{requestMessage && <p role="status" className="rounded-lg bg-cyan-50 p-3 text-sm text-cyan-900">{requestMessage}</p>}{requestLoading ? <p className="rounded-lg bg-slate-50 p-5 text-sm text-slate-500">Loading profile correction requests…</p> : <div className="space-y-3">{profileRequests.map(request => <article key={request.id} className="rounded-xl border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h4 className="font-bold">{request.studentName}</h4><p className="text-xs text-slate-500">{request.studentId || 'Student ID not assigned'} · {request.email}</p><p className="mt-1 text-xs text-slate-500">Submitted {new Date(request.createdAt).toLocaleString('en-KE',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Nairobi'})}</p></div><span className={request.status==='approved'?'rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700':request.status==='rejected'?'rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700':'rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800'}>{request.status.toUpperCase()}</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2">{Object.entries(request.changes || {}).map(([key,value]) => <div key={key} className="rounded-lg bg-slate-50 p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{key.replaceAll('_',' ')}</p><p className="mt-1 break-words text-sm font-semibold">{String(value ?? '—') || '—'}</p></div>)}</div>{request.status==='pending' ? <div className="mt-3 space-y-2"><textarea className="w-full rounded-lg border border-slate-300 p-3 text-sm" rows={2} placeholder="Review note (required when rejecting)" value={reviewNotes[request.id] || ''} onChange={event => setReviewNotes(current => ({ ...current, [request.id]: event.target.value }))}/><div className="flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" disabled={!!requestBusy} onClick={() => void reviewProfileRequest(request.id,'reject')}>Reject request</Button><Button size="sm" disabled={!!requestBusy} onClick={() => void reviewProfileRequest(request.id,'approve')}>{requestBusy===request.id?'Saving…':'Approve & apply changes'}</Button></div></div> : request.reviewNote && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Review note: {request.reviewNote}</p>}</article>)}{profileRequests.length===0 && <p className="rounded-xl border border-dashed bg-slate-50 p-6 text-center text-sm text-slate-500">No student profile correction requests have been submitted.</p>}</div>}</section>}
 
     {pageTitle === 'Print Basic List' && <section className="space-y-4 rounded-xl border bg-white p-5 text-slate-900"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold">Printable basic student list</h3><p className="text-xs text-slate-500">Active accounts only. Download a genuine Navstar PDF with the official receipt-style letterhead.</p></div><Button onClick={() => void downloadRegister('ACTIVE STUDENT REGISTER', activeStudents, 'navstar-active-student-register.pdf')}>Download PDF</Button></div><div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-100 text-xs uppercase"><tr><th className="p-3">#</th><th className="p-3">Student</th><th className="p-3">Student ID</th><th className="p-3">Course</th><th className="p-3">Email</th></tr></thead><tbody>{activeStudents.map((student, index) => <tr key={student.id} className="border-t"><td className="p-3">{index + 1}</td><td className="p-3 font-semibold">{student.name}</td><td className="p-3">{student.staffId || '—'}</td><td className="p-3">{courseName(student)}</td><td className="p-3">{student.email}</td></tr>)}</tbody></table></div></section>}
 
