@@ -42,6 +42,11 @@ export function LearningAdminSubtab({subtab,courses:catalogue}:Props){
  const allCourses=data.courses.length?data.courses:catalogue.map(c=>({...c,modules:[],assignments:[]}));
  const selectedCourse=allCourses.find(c=>c.id===courseId)||allCourses[0];
  const modules=selectedCourse?.modules||[];
+ useEffect(()=>{
+  const course=data.courses.find(c=>c.id===courseId)||data.courses[0]||catalogue.find(c=>c.id===courseId)||catalogue[0];
+  const availableModules='modules' in (course||{}) ? (course as LearningData['courses'][number]).modules : [];
+  if(!availableModules.some(m=>m.id===moduleId))setModuleId(availableModules[0]?.id||'');
+ },[courseId,data.courses,catalogue,moduleId]);
  const selectedModule=modules.find(m=>m.id===moduleId)||modules[0];
  const selectedModuleCourse=allCourses.find(c=>c.modules.some(m=>m.id===moduleId));
  const assignments=selectedCourse?.assignments||[];
