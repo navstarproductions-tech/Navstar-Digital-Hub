@@ -40,6 +40,9 @@ export function LearningAdminSubtab({subtab,courses:catalogue}:Props){
  const load=async()=>{const r=await fetch('/api/learning',{cache:'no-store',credentials:'same-origin'});const j=await r.json();if(!r.ok)throw new Error(j.error||'Learning records could not be loaded.');setData({courses:j.courses||[],tutors:j.tutors||[],moduleTutorAssignments:j.moduleTutorAssignments||[]});};
  useEffect(()=>{void load().catch(e=>setFailure(e.message||'Unable to load learning records.'));},[]);
  const allCourses=data.courses.length?data.courses:catalogue.map(c=>({...c,modules:[],assignments:[]}));
+ useEffect(()=>{
+  if(!allCourses.some(c=>c.id===courseId))setCourseId(allCourses[0]?.id||'');
+ },[allCourses,courseId]);
  const selectedCourse=allCourses.find(c=>c.id===courseId)||allCourses[0];
  const modules=selectedCourse?.modules||[];
  useEffect(()=>{
