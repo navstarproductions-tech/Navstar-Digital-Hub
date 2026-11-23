@@ -26,6 +26,7 @@ import { ForumPage } from '@/pages/ForumPage';
 import { AdminCommunityPage } from '@/pages/AdminCommunityPage';
 import { PaymentReceiptsPage } from '@/pages/PaymentReceiptsPage';
 import { PublicResultVerificationPage } from '@/pages/PublicResultVerificationPage';
+import { CertificateVerificationPage } from '@/pages/CertificateVerificationPage';
 import { PayPage } from '@/pages/PayPage';
 import { MusicPage } from '@/pages/MusicPage';
 import { PortalNotificationsPage } from '@/pages/PortalNotificationsPage';
@@ -184,6 +185,7 @@ function AppShell() {
             <Route path="/admin/receipts" element={<PortalMaintenanceGate role="admin"><PaymentReceiptsPage /></PortalMaintenanceGate>} />
             <Route path="/payment-receipt/:id" element={<PaymentReceiptsPage />} />
             <Route path="/verify-result/:token" element={<PublicResultVerificationPage />} />
+            <Route path="/verify-certificate/:token" element={<CertificateVerificationPage />} />
             <Route path="/delivery/:token" element={<ParcelDeliveryPage />} />
             <Route path="/fee-structure" element={<PublicFeeStructurePage />} />
             <Route path="*" element={<HomePage />} />
