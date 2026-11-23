@@ -18,7 +18,8 @@ export async function onRequestPost({ request, env }) {
   if (body.adminConsent !== true) return error('Confirm that you have checked the applicants’ details and recorded their consent before submitting.');
   if (!Array.isArray(body.rows) || body.rows.length < 1 || body.rows.length > 40) return error('Submit between 1 and 40 student applications per import.');
 
-  const seen = new Set();
+  const seenEmails = new Set();
+  const seenIdentities = new Set();
   const preparedRows = [];
   const courseCache = new Map();
   const today = new Date();
@@ -50,9 +51,11 @@ export async function onRequestPost({ request, env }) {
       return error('CSV row ' + rowNumber + ' is incomplete or invalid. Check name, email, Kenyan phone numbers, adult date of birth, identity type/number, course, intake, study mode, education, location, emergency contact and consent.');
     }
 
-    const duplicateKey = courseId + '|' + email + '|' + identityNumber.toLowerCase();
-    if (seen.has(duplicateKey)) return error('CSV row ' + rowNumber + ' duplicates an applicant already included in this import.');
-    seen.add(duplicateKey);
+    const emailKey = courseId + '|' + email;
+    const identityKey = courseId + '|' + identityNumber.toLowerCase();
+    if (seenEmails.has(emailKey) || seenIdentities.has(identityKey)) return error('CSV row ' + rowNumber + ' duplicates an applicant already included in this import.');
+    seenEmails.add(emailKey);
+    seenIdentities.add(identityKey);
 
     if (!courseCache.has(courseId)) {
       const course = await env.DB.prepare("SELECT id,title,price FROM courses WHERE id=? AND status='active'").bind(courseId).first();
