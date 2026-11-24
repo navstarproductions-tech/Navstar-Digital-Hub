@@ -22,13 +22,13 @@ export async function onRequestPost({ request, env }) {
   const phone = body.phone ? normalizePhone(body.phone) : '';
   const password = String(body.password || '');
   const inputProfile = body.profile && typeof body.profile === 'object' ? body.profile : {};
-  const nationalId = safeString(inputProfile.nationalId, 20).replace(/\\s+/g, '');
+  const nationalId = safeString(inputProfile.nationalId, 20).replace(/\s+/g, '');
   const dob = safeString(inputProfile.dob, 20);
   const gender = safeString(inputProfile.gender, 20);
   const profileFields = ['alternativePhone','province','county','subcounty','constituency','ward','district','division','location','sublocation','area'];
   const profile = {};
   for (const field of profileFields) profile[field] = safeString(inputProfile[field], 120);
-  if (!/^\\d{6,12}$/.test(nationalId) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(dob) || !['Male','Female','Other','Prefer not to say'].includes(gender)) {
+  if (!/^\d{6,12}$/.test(nationalId) || !/^\d{4}-\d{2}-\d{2}$/.test(dob) || !['Male','Female','Other','Prefer not to say'].includes(gender)) {
     return error('Enter a valid National ID, date of birth, and gender.');
   }
   if (profile.alternativePhone && !normalizePhone(profile.alternativePhone)) return error('Enter a valid alternative phone number.');
