@@ -17,6 +17,8 @@ export async function onRequestPost({request,env}) {
  const id=pending.id;
  try {
   await env.DB.prepare('INSERT INTO customer_accounts (id,full_name,email,phone,password_hash,password_salt) VALUES (?,?,?,?,?,?)').bind(id,pending.full_name,pending.email,pending.phone,pending.password_hash,pending.password_salt).run();
+  const profileJson = typeof pending.profile_json === 'string' && pending.profile_json ? pending.profile_json : '{}';
+  await env.DB.prepare('INSERT INTO customer_profiles (customer_id,profile_json,updated_at) VALUES (?,?,CURRENT_TIMESTAMP)').bind(id,profileJson).run();
   await env.DB.prepare('DELETE FROM customer_registration_otps WHERE email=?').bind(email).run();
   const cookie=await setCustomerSession(env,id);
   return json({customer:{id,fullName:pending.full_name,email:pending.email,phone:pending.phone},message:'Your email is verified and your Navstar account is ready.'},201,{'Set-Cookie':cookie});
