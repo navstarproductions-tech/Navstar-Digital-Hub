@@ -21,6 +21,22 @@ export async function onRequestPost({ request, env }) {
   const email = safeString(body.email, 254).toLowerCase();
   const phone = body.phone ? normalizePhone(body.phone) : '';
   const password = String(body.password || '');
+  const inputProfile = body.profile && typeof body.profile === 'object' ? body.profile : {};
+  const nationalId = safeString(inputProfile.nationalId, 20).replace(/\\s+/g, '');
+  const dob = safeString(inputProfile.dob, 20);
+  const gender = safeString(inputProfile.gender, 20);
+  const profileFields = ['alternativePhone','province','county','subcounty','constituency','ward','district','division','location','sublocation','area'];
+  const profile = {};
+  for (const field of profileFields) profile[field] = safeString(inputProfile[field], 120);
+  if (!/^\\d{6,12}$/.test(nationalId) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(dob) || !['Male','Female','Other','Prefer not to say'].includes(gender)) {
+    return error('Enter a valid National ID, date of birth, and gender.');
+  }
+  if (profile.alternativePhone && !normalizePhone(profile.alternativePhone)) return error('Enter a valid alternative phone number.');
+  profile.nationalIdHash = await sha256(nationalId);
+  profile.nationalIdLast4 = nationalId.slice(-4);
+  profile.dob = dob;
+  profile.gender = gender;
+  profile.alternativePhone = profile.alternativePhone ? normalizePhone(profile.alternativePhone) : '';
 
   if (fullName.length < 2 || !emailPattern.test(email) || (body.phone && !phone)) {
     return error('Enter your full name, a valid email address, and a valid phone number if supplied.');
@@ -44,14 +60,15 @@ export async function onRequestPost({ request, env }) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     await env.DB.prepare(`INSERT INTO customer_registration_otps
-      (id, email, full_name, phone, password_hash, password_salt, otp_hash, expires_at, attempts)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+      (id, email, full_name, phone, password_hash, password_salt, otp_hash, expires_at, attempts, profile_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
       ON CONFLICT(email) DO UPDATE SET
         id = excluded.id, full_name = excluded.full_name, phone = excluded.phone,
         password_hash = excluded.password_hash, password_salt = excluded.password_salt,
         otp_hash = excluded.otp_hash, expires_at = excluded.expires_at, attempts = 0,
+        profile_json = excluded.profile_json,
         created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`)
-      .bind(id, email, fullName, phone || null, credentials.hash, credentials.salt, otpHash, expiresAt).run();
+      .bind(id, email, fullName, phone || null, credentials.hash, credentials.salt, otpHash, expiresAt, JSON.stringify(profile)).run();
 
     const delivery = await sendBrandedEmail(env, {
       email,
