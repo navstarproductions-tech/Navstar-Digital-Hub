@@ -72,7 +72,7 @@ export async function onRequest({ request, env, params, next }) {
       <meta name="twitter:image" content="${escapeHtml(image)}">
     `;
 
-    html = html.replace(/<title>[\\s\\S]*?<\\/title>/i, '');
+    html = html.replace(/<title>[\s\S]*?<\/title>/i, '');
     html = html.replace('</head>', meta + '</head>');
     return new Response(request.method === 'HEAD' ? null : html, {
       status: 200,
