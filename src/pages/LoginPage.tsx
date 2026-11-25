@@ -8,7 +8,7 @@ import { readApiResponse } from '@/lib/api';
 
 const staffRoles = ['admin', 'tutor', 'admissions', 'principal', 'finance'];
 const allowedRoles = ['student', ...staffRoles];
-type StaffPreview = { name: string; staffId: string; role: string; department: string; jobTitle: string; profilePicture?: string; photoUrl?: string; avatarUrl?: string };
+type StaffPreview = { name: string; role: string; department: string; jobTitle: string; emailMasked?: string; phoneMasked?: string; hasEmail?: boolean; hasPhone?: boolean; profilePicture?: string; photoUrl?: string; avatarUrl?: string };
 const loginBackgrounds: Record<string, string> = {
   student: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1400&q=85',
   admin: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1400&q=85',
@@ -33,7 +33,9 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [staffId, setStaffId] = useState('');
-  const [nationalId, setNationalId] = useState('');
+  const [staffOtp, setStaffOtp] = useState('');
+  const [staffChannel, setStaffChannel] = useState<'email'|'sms'>('email');
+  const [staffCodeSent, setStaffCodeSent] = useState(false);
   const [staffPreview, setStaffPreview] = useState<StaffPreview | null>(null);
   const [useEmailLogin, setUseEmailLogin] = useState(false);
   const [scanState, setScanState] = useState<'idle' | 'scanning' | 'found' | 'notFound'>('idle');
@@ -108,15 +110,14 @@ export function LoginPage() {
     if (!staffPreview) return;
     setLoading(true); setStatus('');
     try {
-      const response = await fetch('/api/auth/staff-login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'verify', role, staffId, nationalId }),
-      });
-      const result = await readApiResponse<{ error?: string; user?: { role: string; mustChangePassword: boolean } }>(response);
-      if (!response.ok || !result.user) throw new Error(result.error ?? 'Identity confirmation failed.');
-      const fallback = result.user.role === 'admin' ? '/admin' : `/portals/${result.user.role}`;
-      navigate(result.user.mustChangePassword ? '/change-password' : destination(fallback), { replace: true });
-    } catch (error) { setStatus(error instanceof Error ? error.message : 'Identity confirmation failed.'); }
+      const response = await fetch('/api/auth/staff-login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:staffCodeSent?'verify':'send',role,staffId,channel:staffChannel,otp:staffOtp}) });
+      const result = await readApiResponse<{error?:string;sent?:boolean;message?:string;user?:{role:string;mustChangePassword:boolean}}>(response);
+      if (!response.ok) throw new Error(result.error || 'Staff verification could not be completed.');
+      if (result.sent) { setStaffCodeSent(true); setStatus(result.message || 'Verification code sent.'); return; }
+      if (!result.user) throw new Error(result.error || 'The verification code could not be confirmed.');
+      const fallback=result.user.role==='admin'?'/admin':`/portals/${result.user.role}`;
+      navigate(result.user.mustChangePassword?'/change-password':destination(fallback),{replace:true});
+    } catch(error) { setStatus(error instanceof Error?error.message:'Staff verification failed.'); }
     finally { setLoading(false); }
   };
 
@@ -163,7 +164,7 @@ export function LoginPage() {
                     <p className="mb-3 text-[11px] font-black uppercase tracking-[.2em] text-green-200">Staff identity located</p>
                     <div className="flex items-center gap-3">
                       {(staffPreview.profilePicture||staffPreview.photoUrl||staffPreview.avatarUrl)?<img src={staffPreview.profilePicture||staffPreview.photoUrl||staffPreview.avatarUrl} alt="Staff profile" className="h-14 w-14 shrink-0 rounded-full border-2 border-green-300 object-cover shadow-lg shadow-green-950/40"/>:<div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-green-300 bg-white text-xl font-black text-blue-950">{staffPreview.name.split(' ').map(part=>part[0]).slice(0,2).join('').toUpperCase()}</div>}
-                      <div className="min-w-0"><p className="truncate text-lg font-black text-white">{staffPreview.name}</p><p className="text-xs font-semibold tracking-wider text-green-100" title="Staff ID partially masked">ID: ****{String(staffPreview.staffId || "").slice(-3)}</p><p className="text-xs text-blue-100">{staffPreview.jobTitle||roleLabel}</p></div>
+                      <div className="min-w-0"><p className="truncate text-lg font-black text-white">{staffPreview.name}</p><p className="text-xs font-semibold tracking-wider text-green-100" title="Staff ID partially masked">Staff account matched</p><p className="text-xs text-blue-100">{staffPreview.jobTitle||roleLabel}</p></div>
                     </div>
                     {staffPreview.department&&<p className="mt-2 text-xs text-blue-100">{staffPreview.department}</p>}
                   </div>
@@ -198,10 +199,14 @@ export function LoginPage() {
                   </form>
                 ) : (
                   <form onSubmit={verifyStaff} className="space-y-4">
-                    <div className="rounded-xl border border-green-300/50 bg-green-950/40 p-3 text-sm text-green-50"><div className="flex items-center gap-2 font-bold text-green-200"><UserRoundCheck className="h-5 w-5"/>Staff record found ✓</div><p className="mt-2 text-xs leading-5 text-green-50">Confirm your identity using the masked National ID field below. Your profile photo and staff details remain visible while you complete verification.</p></div>
-                    <div className="space-y-2"><Label htmlFor="nationalId" className="font-bold text-blue-100">National ID confirmation</Label><Input id="nationalId" type="password" inputMode="numeric" autoComplete="off" value={nationalId} onChange={event=>setNationalId(event.target.value)} placeholder="Enter your National ID" required className="h-12 rounded-xl border-blue-300/50 bg-white text-sm text-blue-950 placeholder:text-slate-400"/></div>
-                    <Button type="submit" disabled={loading||!nationalId.trim()} className="h-12 w-full rounded-xl bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-sm font-extrabold text-white shadow-lg">{loading?<><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Verifying identity…</>:<><Fingerprint className="mr-2 h-5 w-5"/>Confirm & Open Admin Dashboard</>}</Button>
-                    <button type="button" onClick={()=>{setStaffPreview(null);setNationalId('');setStatus('');setScanState('idle');setCelebrating(false);}} className="w-full text-sm font-semibold text-cyan-200 hover:text-yellow-300">Back · Use a different Staff ID</button>
+                    <div className="rounded-xl border border-green-300/50 bg-green-950/40 p-3 text-sm text-green-50"><div className="flex items-center gap-2 font-bold text-green-200"><UserRoundCheck className="h-5 w-5"/>Staff account matched</div><p className="mt-2 text-xs leading-5 text-green-50">Choose a registered contact method. Contact details are masked for privacy.</p></div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" disabled={!staffPreview.hasEmail} onClick={()=>{setStaffChannel('email');setStaffCodeSent(false);setStaffOtp('');setStatus('');}} className={staffChannel==='email'?'rounded-xl border border-cyan-300 bg-cyan-400/15 p-3 text-left text-xs':'rounded-xl border border-white/15 bg-white/5 p-3 text-left text-xs'}><b className="block text-white">Email</b><span className="mt-1 block text-blue-100">{staffPreview.emailMasked||'Not registered'}</span></button>
+                      <button type="button" disabled={!staffPreview.hasPhone} onClick={()=>{setStaffChannel('sms');setStaffCodeSent(false);setStaffOtp('');setStatus('');}} className={staffChannel==='sms'?'rounded-xl border border-cyan-300 bg-cyan-400/15 p-3 text-left text-xs':'rounded-xl border border-white/15 bg-white/5 p-3 text-left text-xs'}><b className="block text-white">SMS</b><span className="mt-1 block text-blue-100">{staffPreview.phoneMasked||'Not registered'}</span></button>
+                    </div>
+                    {staffCodeSent&&<div className="space-y-2"><Label htmlFor="staff-otp" className="font-bold text-blue-100">Six-digit verification code</Label><Input id="staff-otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={staffOtp} onChange={event=>setStaffOtp(event.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Enter code sent to you" className="h-12 rounded-xl border-blue-300/50 bg-white text-center text-xl tracking-[.35em] text-blue-950"/></div>}
+                    <Button type="submit" disabled={loading||(staffCodeSent&&staffOtp.length!==6)||(!staffCodeSent&&((staffChannel==='email'&&!staffPreview.hasEmail)||(staffChannel==='sms'&&!staffPreview.hasPhone)))} className="h-12 w-full rounded-xl bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-sm font-extrabold text-white shadow-lg">{loading?'Please wait…':staffCodeSent?'Verify code & Open Admin Dashboard':'Send secure verification code'}</Button>
+                    <button type="button" onClick={()=>{setStaffPreview(null);setStaffCodeSent(false);setStaffOtp('');setStatus('');setScanState('idle');setCelebrating(false);}} className="w-full text-sm font-semibold text-cyan-200 hover:text-yellow-300">Back · Use a different Staff ID</button>
                   </form>
                 )}
                 {status&&<div role="alert" className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{status}</div>}
@@ -261,7 +266,7 @@ export function LoginPage() {
               <div className="space-y-2"><Label htmlFor="staff-email" className="font-bold text-slate-200">Registered email address</Label><Input id="staff-email" name="email" type="email" autoComplete="username" required placeholder="staff@example.com" className="h-10 rounded-xl border-slate-600 bg-[#0b1425] text-white placeholder:text-slate-500" /></div>
               <div className="space-y-2"><Label htmlFor="staff-password" className="font-bold text-slate-200">Password</Label><Input id="staff-password" name="password" type="password" autoComplete="current-password" required placeholder="Enter your password" className="h-10 rounded-xl border-slate-600 bg-[#0b1425] text-white placeholder:text-slate-500" /></div>
               <Button type="submit" disabled={loading} className="h-10 w-full rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 font-bold">{loading ? 'Signing in…' : `Sign in to ${roleLabel} Portal`}</Button>
-              <button type="button" onClick={() => { setUseEmailLogin(false); setStatus(''); }} className="w-full text-xs font-semibold text-cyan-300 hover:text-white">Use Staff ID and National ID instead</button>
+              <button type="button" onClick={() => { setUseEmailLogin(false); setStatus(''); }} className="w-full text-xs font-semibold text-cyan-300 hover:text-white">Use Staff ID and email/SMS verification instead</button>
             </form>
           ) : !staffPreview ? (
             <form onSubmit={lookupStaff} className="mt-4 space-y-3">
@@ -272,20 +277,18 @@ export function LoginPage() {
             </form>
           ) : (
             <form onSubmit={verifyStaff} className="mt-4 space-y-3">
-              <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
-                <div className="flex items-center gap-2 text-emerald-300"><UserRoundCheck className="h-5 w-5" /><span className="text-sm font-bold">Staff record found</span></div>
-                <p className="mt-3 text-lg font-extrabold text-white">{staffPreview.name}</p>
-                <p className="mt-1 text-sm text-slate-300">{staffPreview.staffId} · {roleLabel}</p>
-                {staffPreview.jobTitle && <p className="mt-1 text-xs text-slate-400">{staffPreview.jobTitle}{staffPreview.department ? ` · ${staffPreview.department}` : ''}</p>}
-                <p className="mt-3 text-xs text-slate-400">National ID is not displayed. Confirm it below to complete sign-in.</p>
-              </div>
-              <div className="space-y-2"><Label htmlFor="nationalId" className="font-bold text-slate-200">National ID confirmation</Label><Input id="nationalId" type="password" inputMode="numeric" autoComplete="off" value={nationalId} onChange={event => setNationalId(event.target.value)} placeholder="Enter your National ID" required className="h-12 rounded-xl border-slate-600 bg-[#0b1425] text-white placeholder:text-slate-500" /></div>
-              <Button type="submit" disabled={loading || !nationalId.trim()} className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 font-bold">{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Confirming identity…</> : <><Fingerprint className="mr-2 h-4 w-4" />Confirm and open {roleLabel} Dashboard</>}</Button>
-              <button type="button" onClick={() => { setStaffPreview(null); setNationalId(''); setStatus(''); }} className="w-full text-sm font-semibold text-cyan-300 hover:text-white">Use a different Staff ID</button>
+              <div className="rounded-xl border border-green-300/50 bg-green-950/40 p-3 text-sm text-green-50"><div className="flex items-center gap-2 font-bold text-green-200"><UserRoundCheck className="h-5 w-5"/>Staff account matched</div><p className="mt-2 text-xs leading-5 text-green-50">Choose a registered contact method. Contact details are masked for privacy.</p></div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" disabled={!staffPreview.hasEmail} onClick={()=>{setStaffChannel('email');setStaffCodeSent(false);setStaffOtp('');setStatus('');}} className={staffChannel==='email'?'rounded-xl border border-cyan-300 bg-cyan-400/15 p-3 text-left text-xs':'rounded-xl border border-white/15 bg-white/5 p-3 text-left text-xs'}><b className="block text-white">Email</b><span className="mt-1 block text-slate-300">{staffPreview.emailMasked||'Not registered'}</span></button>
+                      <button type="button" disabled={!staffPreview.hasPhone} onClick={()=>{setStaffChannel('sms');setStaffCodeSent(false);setStaffOtp('');setStatus('');}} className={staffChannel==='sms'?'rounded-xl border border-cyan-300 bg-cyan-400/15 p-3 text-left text-xs':'rounded-xl border border-white/15 bg-white/5 p-3 text-left text-xs'}><b className="block text-white">SMS</b><span className="mt-1 block text-slate-300">{staffPreview.phoneMasked||'Not registered'}</span></button>
+                    </div>
+                    {staffCodeSent&&<div className="space-y-2"><Label htmlFor="staff-otp" className="font-bold text-slate-300">Six-digit verification code</Label><Input id="staff-otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={staffOtp} onChange={event=>setStaffOtp(event.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Enter code sent to you" className="h-12 rounded-xl border-slate-600 bg-[#0b1425] text-center text-xl tracking-[.35em] text-white"/></div>}
+                    <Button type="submit" disabled={loading||(staffCodeSent&&staffOtp.length!==6)||(!staffCodeSent&&((staffChannel==='email'&&!staffPreview.hasEmail)||(staffChannel==='sms'&&!staffPreview.hasPhone)))} className="h-12 w-full rounded-xl bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-sm font-extrabold text-white shadow-lg">{loading?'Please wait…':staffCodeSent?'Verify code & Open Staff Dashboard':'Send secure verification code'}</Button>
+                    <button type="button" onClick={()=>{setStaffPreview(null);setStaffCodeSent(false);setStaffOtp('');setStatus('');setScanState('idle');setCelebrating(false);}} className="w-full text-sm font-semibold text-cyan-200 hover:text-yellow-300">Back · Use a different Staff ID</button>
             </form>
           )}
-          {status && <div role="alert" className="mt-3 rounded-lg border border-rose-400/40 bg-rose-500/15 p-2.5 text-xs leading-5 text-rose-50"><p>{status}</p>{/no national id is saved/i.test(status) && isStaff && <div className="mt-3 rounded-lg border border-cyan-300/20 bg-cyan-400/5 p-3"><p className="text-xs text-cyan-100">The administrator can add the missing National ID under Admin Portal → System Users → Edit account. You can use your registered email and password while that is being updated.</p><button type="button" onClick={() => { setUseEmailLogin(true); setStatus(''); setStaffPreview(null); setNationalId(''); }} className="mt-3 inline-flex min-h-9 items-center justify-center rounded-lg bg-cyan-500 px-4 py-2 text-xs font-extrabold text-slate-950 hover:bg-cyan-300">Continue with email and password</button></div>}</div>}
-          <p className="mt-3 flex items-start gap-2 rounded-lg bg-white/5 p-2.5 text-[11px] leading-4 text-slate-300"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />{isStaff ? 'Your National ID is used only to confirm your identity and is never displayed on this screen.' : 'Student accounts use email and password. Never share your password or M-Pesa PIN.'}</p>
+          {status && <div role="alert" className="mt-3 rounded-lg border border-rose-400/40 bg-rose-500/15 p-2.5 text-xs leading-5 text-rose-50"><p>{status}</p>{/no national id is saved/i.test(status) && isStaff && <div className="mt-3 rounded-lg border border-cyan-300/20 bg-cyan-400/5 p-3"><p className="text-xs text-cyan-100">The administrator can add the missing National ID under Admin Portal → System Users → Edit account. You can use your registered email and password while that is being updated.</p><button type="button" onClick={() => { setUseEmailLogin(true); setStatus(''); setStaffPreview(null); setStaffOtp(''); }} className="mt-3 inline-flex min-h-9 items-center justify-center rounded-lg bg-cyan-500 px-4 py-2 text-xs font-extrabold text-slate-950 hover:bg-cyan-300">Continue with email and password</button></div>}</div>}
+          <p className="mt-3 flex items-start gap-2 rounded-lg bg-white/5 p-2.5 text-[11px] leading-4 text-slate-300"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />{isStaff ? 'Your sign-in code is sent only to your registered email or mobile number. Never share it.' : 'Student accounts use email and password. Never share your password or M-Pesa PIN.'}</p>
           <Link to="/student-recovery" className="mt-4 inline-flex text-sm font-semibold text-cyan-300 hover:text-white">Forgot password? Recover using email or SMS OTP</Link>
           <p className="mt-4 text-center text-[10px] text-slate-400">© Navstar Digital Hub · HOME OF TECHNOCRATS</p>
         </section>
