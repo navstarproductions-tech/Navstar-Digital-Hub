@@ -126,10 +126,17 @@ export function LoginPage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_12%,rgba(18,116,235,.25),transparent_45%),radial-gradient(ellipse_at_92%_82%,rgba(0,255,120,.18),transparent_40%)]" />
         <div className="absolute inset-0 opacity-100" style={{backgroundImage:gateBackground?`url(${gateBackground})`:'url("/navstar-admin-hero.webp")',backgroundSize:'cover',backgroundPosition:'center'}} />
         <div className="absolute inset-0 bg-[#03112b]/[0.03]" />
+        {/* Blue light-ray accents in two opposite corners */}
+        <div aria-hidden="true" className="pointer-events-none absolute -left-24 -top-24 h-[34rem] w-[34rem] opacity-80" style={{background:'repeating-conic-gradient(from 205deg at 0% 0%, transparent 0deg 8deg, rgba(30,144,255,.18) 8deg 10deg, transparent 10deg 17deg)',maskImage:'radial-gradient(circle at 0% 0%,black,transparent 72%)'}}/>
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 -right-24 h-[34rem] w-[34rem] opacity-70" style={{background:'repeating-conic-gradient(from 25deg at 100% 100%, transparent 0deg 8deg, rgba(0,195,255,.2) 8deg 10deg, transparent 10deg 17deg)',maskImage:'radial-gradient(circle at 100% 100%,black,transparent 72%)'}}/>
         {celebrating && <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#04142b]/35"><div className="animate-bounce rounded-2xl border border-yellow-300/60 bg-white px-5 py-4 text-center text-blue-950 shadow-2xl"><div className="text-3xl">🌸 💐 🌼 🌺</div><p className="mt-1 text-lg font-black">Welcome back, {staffPreview?.name?.split(' ')[0] || 'Administrator'}!</p><p className="text-xs font-semibold text-green-700">Identity verified • Opening dashboard</p></div></div>}
         <div className="relative z-10 mx-auto flex min-h-screen max-w-[1180px] flex-col">
           <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 sm:px-6 sm:py-10">
-
+            <header className="mb-6 text-center drop-shadow-[0_4px_18px_rgba(0,0,0,.55)] sm:mb-8">
+              <p className="text-xs font-black uppercase tracking-[.42em] text-cyan-200 sm:text-sm">NAVSTAR DIGITAL HUB</p>
+              <h2 className="mt-1 text-xl font-black tracking-[.16em] text-white sm:text-2xl">HOME OF TECHNOCRATS</h2>
+              <div className="mx-auto mt-3 h-[2px] w-36 bg-gradient-to-r from-transparent via-cyan-300 to-transparent"/>
+            </header>
             <section className="flex w-full max-w-2xl items-center justify-center">
               <div className="relative w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-cyan-400/80 bg-gradient-to-br from-[#061a3c]/58 via-[#04142e]/62 to-[#03102a]/66 p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,.55),0_0_0_4px_rgba(0,170,255,.14)] backdrop-blur-xl sm:p-7">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-cyan-400 via-blue-500 to-yellow-400"/>
