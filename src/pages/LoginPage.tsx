@@ -130,18 +130,18 @@ export function LoginPage() {
         <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 -right-24 h-[34rem] w-[34rem] opacity-70" style={{background:'repeating-conic-gradient(from 25deg at 100% 100%, transparent 0deg 8deg, rgba(0,195,255,.2) 8deg 10deg, transparent 10deg 17deg)',maskImage:'radial-gradient(circle at 100% 100%,black,transparent 72%)'}}/>
         {celebrating && <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#04142b]/35"><div className="animate-bounce rounded-2xl border border-yellow-300/60 bg-white px-5 py-4 text-center text-blue-950 shadow-2xl"><div className="text-3xl">🌸 💐 🌼 🌺</div><p className="mt-1 text-lg font-black">Welcome back, {staffPreview?.name?.split(' ')[0] || 'Administrator'}!</p><p className="text-xs font-semibold text-green-700">Identity verified • Opening dashboard</p></div></div>}
         <div className="relative z-10 mx-auto flex min-h-screen max-w-[1240px] flex-col">
-          <div className="flex flex-1 flex-col justify-center px-3 py-5 sm:px-7 sm:py-8">
-            <header className="mb-5 flex w-full items-start justify-between gap-5 px-1 drop-shadow-[0_4px_18px_rgba(0,0,0,.7)] sm:mb-7 sm:px-3">
-              <div className="text-left">
-                <p className="text-lg font-black uppercase tracking-[.16em] text-cyan-200 sm:text-2xl lg:text-3xl">NAVSTAR DIGITAL HUB</p>
-                <h2 className="mt-1 text-sm font-extrabold tracking-[.28em] text-white sm:text-lg">HOME OF TECHNOCRATS</h2>
+          <div className="flex flex-1 flex-col justify-center px-3 pb-5 pt-32 sm:px-7 sm:pb-8 sm:pt-40">
+            <header className="pointer-events-none absolute left-0 right-0 top-0 z-20 flex items-start justify-between gap-4 px-4 pt-5 drop-shadow-[0_5px_22px_rgba(0,0,0,.8)] sm:px-8 sm:pt-7 lg:px-12">
+              <div className="max-w-[58%] text-left">
+                <p className="text-base font-black uppercase tracking-[.12em] text-cyan-200 sm:text-2xl sm:tracking-[.18em] lg:text-3xl">NAVSTAR DIGITAL HUB</p>
+                <h2 className="mt-1 text-[10px] font-extrabold tracking-[.2em] text-white sm:text-sm sm:tracking-[.32em] lg:text-base">HOME OF TECHNOCRATS</h2>
               </div>
-              <div className="max-w-[270px] text-right text-xs font-semibold leading-relaxed text-white sm:text-base lg:text-lg">
+              <div className="max-w-[42%] text-right text-[10px] font-bold leading-relaxed text-white sm:text-sm lg:text-base">
                 <p className="text-cyan-100">Build with purpose.</p><p>Lead with knowledge.</p><p className="text-yellow-200">Create the future.</p>
               </div>
             </header>
-            <section className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-[1.8rem] border border-cyan-300/80 bg-[#041631]/85 shadow-[0_28px_85px_rgba(0,0,0,.65),0_0_0_5px_rgba(0,170,255,.13)] backdrop-blur-xl md:grid-cols-[.88fr_1.12fr]">
-              <aside className="relative flex min-h-[360px] flex-col justify-between overflow-hidden border-b border-cyan-300/30 bg-gradient-to-br from-[#063b70]/95 via-[#05264d]/95 to-[#03152f]/95 p-5 sm:p-8 md:border-b-0 md:border-r">
+            <section className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-cyan-200/80 bg-gradient-to-br from-[#061d3b]/95 via-[#04152f]/95 to-[#020d22]/95 shadow-[0_32px_100px_rgba(0,0,0,.72),0_0_0_1px_rgba(255,255,255,.16),0_0_45px_rgba(0,190,255,.22)] backdrop-blur-2xl md:grid-cols-[.88fr_1.12fr]">
+              <aside className="relative flex min-h-[360px] flex-col justify-between overflow-hidden border-b border-cyan-200/40 bg-[radial-gradient(circle_at_15%_10%,rgba(34,211,238,.24),transparent_38%),linear-gradient(145deg,rgba(7,67,119,.98),rgba(4,31,65,.98)_58%,rgba(2,17,40,.99))] p-6 sm:p-9 md:border-b-0 md:border-r md:border-cyan-200/40">
                 <div className="pointer-events-none absolute -right-16 top-10 h-56 w-56 rounded-full bg-cyan-400/20 blur-3xl"/>
                 <div className="relative z-10">
                   <img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub official logo" className="mb-7 h-20 w-56 object-contain object-left drop-shadow-xl sm:h-24 sm:w-64"/>
@@ -165,7 +165,7 @@ export function LoginPage() {
                   </div>
                 )}
               </aside>
-              <section className="relative p-5 sm:p-8">
+              <section className="relative bg-[radial-gradient(circle_at_100%_0%,rgba(14,165,233,.13),transparent_34%)] p-5 sm:p-9">
                 <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-yellow-400"/>
                 <div className="mb-5 flex items-center justify-between gap-3">
                   <div><p className="text-[11px] font-black uppercase tracking-[.24em] text-cyan-300">SECURE SIGN IN</p><h2 className="mt-1 text-2xl font-black text-white sm:text-3xl">Admin Login</h2><p className="mt-1 text-sm text-blue-100">Verify your staff identity to continue.</p></div>
