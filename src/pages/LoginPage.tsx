@@ -39,7 +39,7 @@ export function LoginPage() {
   const [scanState, setScanState] = useState<'idle' | 'scanning' | 'found' | 'notFound'>('idle');
   const [celebrating, setCelebrating] = useState(false);
   const [brandingSettings, setBrandingSettings] = useState<Record<string,string>>({});
-  useEffect(() => { let live=true; fetch('/api/admin/configuration',{cache:'no-store'}).then(async response=>{if(!response.ok)return;const data=await response.json();if(live)setBrandingSettings(data.settings?.branding||data.settings||{});}).catch(()=>{});return()=>{live=false}; },[]);
+  useEffect(() => { let live=true; fetch('/api/public-branding',{cache:'no-store'}).then(async response=>{if(!response.ok)return;const data=await response.json();if(live)setBrandingSettings(data.branding||{});}).catch(()=>{});return()=>{live=false}; },[]);
   const gateBackground = role==='admin' ? (brandingSettings.adminGateBackgroundUrl||brandingSettings.loginBackgroundUrl) : role==='student' ? (brandingSettings.studentGateBackgroundUrl||brandingSettings.loginBackgroundUrl) : role==='tutor' ? (brandingSettings.tutorGateBackgroundUrl||brandingSettings.staffGateBackgroundUrl||brandingSettings.loginBackgroundUrl) : (brandingSettings.staffGateBackgroundUrl||brandingSettings.loginBackgroundUrl);
 
   useEffect(() => {
