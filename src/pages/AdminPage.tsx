@@ -78,7 +78,6 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   {id:'learning',label:'Modules',icon:BookOpen},
   {id:'school',label:'Students',icon:Users},
   {id:'employees',label:'Employees',icon:Users},
-  {id:'navstar-analytics',label:'Navstar Analytics',icon:LayoutDashboard},
   {id:'ai-intake-advisor',label:'AI Intake Advisor',icon:LayoutDashboard},
   {id:'enrollment-summary',label:'Enrollment Summary',icon:LayoutDashboard},
   {id:'services',label:'Services',icon:BriefcaseBusiness},
@@ -138,7 +137,6 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   school: [{label:'Active Students',target:'school'},{label:'Add New Student',target:'student-directory'},...makeTabs(['Bulk Enrollment','Completed → Graduates','Edit Student Details','Assign Intakes & Years','Detail Edit Requests','Print Basic List','Students List PDF (Filters & Select)','Manage Logins','Deleted Students & Recovery','Enrollment Links','Generate Bulk PDFs','Student Detail PDF'],'school')],
   employees: makeTabs(['Employee Directory','Add Employee','Edit Employee Details','Staff Roles & Departments','Staff Attendance','Employee Documents'],'employees'),
   'staff-applications': makeTabs(['All Applications','Pending Review','Approved Applications','Rejected Applications','Application Documents'],'staff-applications'),
-  'navstar-analytics': makeTabs(['Overview','Student Analytics','Course Analytics','Revenue Analytics','Attendance Analytics'],'navstar-analytics'),
   'ai-intake-advisor': makeTabs(['AI Intake Advisor','Review Recommendations','Intake Forecasts'],'ai-intake-advisor'),
   'enrollment-summary': makeTabs(['Intake Summary','Enrollment by Course','Enrollment by Year','Enrollment Status'],'enrollments'),
   services: makeTabs(['Manage Services','Customer Carts','Service Orders'],'services'),
@@ -1223,7 +1221,7 @@ export function AdminPage() {
               const selected = expandedSection === id;
               const children = sectionSubtabs[id] || [];
               return <div key={id} className="min-w-0 shrink-0 md:w-full">
-                <button type="button" onClick={() => { if (id === 'navstar-analytics' || id === 'analytics-reports') { window.location.href = 'https://erp.navstardigitalhub.co.ke/login'; return; } setExpandedSection(id); setActive(id); setSelectedSubtab(children[0]?.label || ''); if(children[0]?.settingsTab)setSettingsTab(children[0].settingsTab); else if(id==='settings')setSettingsTab('complete'); if(children[0]?.coursesTab)setCoursesSubTab(children[0].coursesTab); if(children[0]?.learningTab)setLearningSubTab(children[0].learningTab); setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false); }} aria-current={selected ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+                <button type="button" onClick={() => { if (id === 'analytics-reports') { window.location.href = 'https://erp.navstardigitalhub.co.ke/login'; return; } setExpandedSection(id); setActive(id); setSelectedSubtab(children[0]?.label || ''); if(children[0]?.settingsTab)setSettingsTab(children[0].settingsTab); else if(id==='settings')setSettingsTab('complete'); if(children[0]?.coursesTab)setCoursesSubTab(children[0].coursesTab); if(children[0]?.learningTab)setLearningSubTab(children[0].learningTab); setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false); }} aria-current={selected ? 'page' : undefined} aria-expanded={selected && !sidebarCollapsed} className={`flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition md:w-full ${selected ? 'bg-gradient-to-r from-blue-700/70 to-cyan-700/20 text-white shadow-lg shadow-blue-950/30 ring-1 ring-blue-400/20' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
                   <Icon className="h-4 w-4 shrink-0"/><span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 truncate"}>{label}</span>
                   {children.length>0 && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${selected ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>}
                 </button>
@@ -1562,7 +1560,6 @@ export function AdminPage() {
             </section>}
           </div>}
 
-          {active === 'navstar-analytics' && <AdminWorkspaceHub section="navstar-analytics" subtab={selectedSubtab || 'Overview'} courses={courses} users={portalUsers} applications={applications} services={services}/>}
           {active === 'navstar-analytics' && selectedSubtab === 'Legacy Overview' && <div className="space-y-6">
             <section className="overflow-hidden rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-[#071b3a] via-[#102c55] to-[#071827] p-6 text-white shadow-xl">
               <p className="text-[10px] font-black uppercase tracking-[.28em] text-cyan-300">A separate Navstar product</p>
@@ -1578,7 +1575,7 @@ export function AdminPage() {
           {active === 'ai-intake-advisor' && <section className="mb-5 space-y-3"><div><h2 className="text-xl font-black text-white">AI Intake Advisor</h2><p className="text-sm text-slate-400">Ask Navstar AI to analyse intake planning, course demand, application trends and admissions communication. Verify recommendations against live records before acting.</p></div><AIChatWidget embedded context="admin"/></section>}
           {active === 'timetable' && selectedSubtab === 'AI Timetable Generator' && <section className="mb-5 space-y-3"><div><h2 className="text-xl font-black text-white">AI Timetable Assistant</h2><p className="text-sm text-slate-400">Generate draft timetable structures and resolve scheduling conflicts with AI. Review and save the approved timetable in the timetable workspace.</p></div><AIChatWidget embedded context="admin"/></section>}
 
-          {!['ai-assistant','overview','navstar-analytics','analytics-reports','courses','learning','marks-tests','school','attendance','scholarships','certificates','online-forms','news-updates','events','customer-carts','online-classes','eclass-meetings','support-tickets','alumni','student-projects','maintenance','auto-reports','services','pos','finance','fees','staff-applications','applications','enrollment-summary','users','employees','student-directory','downloads','documents','gallery','settings','profile','orders','receipts','portal-links'].includes(active) && <AdminWorkspaceHub section={active} subtab={selectedSubtab || sections.find(item=>item.id===active)?.label || 'Workspace'} courses={courses} users={portalUsers} applications={applications} services={services}/ >}
+          {!['ai-assistant','overview','analytics-reports','courses','learning','marks-tests','school','attendance','scholarships','certificates','online-forms','news-updates','events','customer-carts','online-classes','eclass-meetings','support-tickets','alumni','student-projects','maintenance','auto-reports','services','pos','finance','fees','staff-applications','applications','enrollment-summary','users','employees','student-directory','downloads','documents','gallery','settings','profile','orders','receipts','portal-links'].includes(active) && <AdminWorkspaceHub section={active} subtab={selectedSubtab || sections.find(item=>item.id===active)?.label || 'Workspace'} courses={courses} users={portalUsers} applications={applications} services={services}/ >}
 
           <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Secure Navstar administration · User accounts, student records, uploads and finance operations are protected.</span><span className="font-semibold text-cyan-300">Powered by Navstar Digital Hub</span></footer>
           </div>
