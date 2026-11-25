@@ -239,10 +239,20 @@ export function LoginPage() {
             <h2 className="mt-2 text-2xl font-black leading-tight drop-shadow-md sm:text-3xl">{roleLabel} Portal</h2>
             <p className="mt-2 max-w-sm text-xs leading-5 text-white drop-shadow-md sm:text-sm">Secure access to your Navstar {roleLabel.toLowerCase()} workspace.</p>
           </div>
-          <div className="relative z-10 mt-4 flex flex-wrap gap-2">
-            <span className="rounded-lg border border-white/25 bg-slate-950/45 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow">Protected access</span>
-            <span className="rounded-lg border border-white/25 bg-slate-950/45 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow">Navstar Digital Hub</span>
-          </div>
+          {staffPreview ? (
+            <div className="relative z-10 mt-4 rounded-2xl border border-emerald-300/50 bg-slate-950/60 p-3 shadow-xl">
+              <p className="mb-3 text-[10px] font-black uppercase tracking-[.18em] text-emerald-200">Staff account matched</p>
+              <div className="flex items-center gap-3">
+                {(staffPreview.profilePicture||staffPreview.photoUrl||staffPreview.avatarUrl) ? <img src={staffPreview.profilePicture||staffPreview.photoUrl||staffPreview.avatarUrl} alt="Staff profile" className="h-14 w-14 shrink-0 rounded-full border-2 border-emerald-300 object-cover"/> : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-emerald-300 bg-white text-lg font-black text-blue-950">{staffPreview.name.split(' ').map(part=>part[0]).slice(0,2).join('').toUpperCase()}</div>}
+                <div className="min-w-0"><p className="truncate text-base font-black text-white">{staffPreview.name}</p><p className="text-xs text-cyan-100">{staffPreview.jobTitle||roleLabel}</p><p className="text-xs text-blue-100">{staffPreview.department||roleLabel}</p></div>
+              </div>
+            </div>
+          ) : (
+            <div className="relative z-10 mt-4 flex flex-wrap gap-2">
+              <span className="rounded-lg border border-white/25 bg-slate-950/45 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow">Protected access</span>
+              <span className="rounded-lg border border-white/25 bg-slate-950/45 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow">Navstar Digital Hub</span>
+            </div>
+          )}
         </aside>
         <section className={`order-2 min-w-0 bg-[#101d31] p-4 text-white sm:min-h-[360px] sm:p-5 ${staffPreview ? 'sm:order-1' : 'sm:order-2'}`}>
           <Link to="/" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300 transition hover:text-cyan-200"><ArrowLeft className="h-3.5 w-3.5" /> Back to Navstar</Link>
