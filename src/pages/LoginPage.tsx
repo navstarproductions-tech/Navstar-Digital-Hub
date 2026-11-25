@@ -124,14 +124,14 @@ export function LoginPage() {
     return (
       <main className="relative isolate min-h-screen overflow-hidden bg-[#031331] text-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_12%,rgba(18,116,235,.25),transparent_45%),radial-gradient(ellipse_at_92%_82%,rgba(0,255,120,.18),transparent_40%)]" />
-        <div className="absolute inset-0 opacity-75" style={{backgroundImage:gateBackground?`url(${gateBackground})`:'url("/navstar-admin-hero.webp")',backgroundSize:'cover',backgroundPosition:'center'}} />
-        <div className="absolute inset-0 bg-gradient-to-br from-[#03112b]/10 via-[#051b40]/15 to-[#03112b]/25" />
+        <div className="absolute inset-0 opacity-100" style={{backgroundImage:gateBackground?`url(${gateBackground})`:'url("/navstar-admin-hero.webp")',backgroundSize:'cover',backgroundPosition:'center'}} />
+        <div className="absolute inset-0 bg-[#03112b]/[0.03]" />
         {celebrating && <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#04142b]/35"><div className="animate-bounce rounded-2xl border border-yellow-300/60 bg-white px-5 py-4 text-center text-blue-950 shadow-2xl"><div className="text-3xl">🌸 💐 🌼 🌺</div><p className="mt-1 text-lg font-black">Welcome back, {staffPreview?.name?.split(' ')[0] || 'Administrator'}!</p><p className="text-xs font-semibold text-green-700">Identity verified • Opening dashboard</p></div></div>}
         <div className="relative z-10 mx-auto flex min-h-screen max-w-[1180px] flex-col">
           <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 sm:px-6 sm:py-10">
 
             <section className="flex w-full max-w-2xl items-center justify-center">
-              <div className="relative w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-cyan-400/80 bg-gradient-to-br from-[#061a3c]/78 via-[#04142e]/82 to-[#03102a]/84 p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,.55),0_0_0_4px_rgba(0,170,255,.14)] backdrop-blur-xl sm:p-7">
+              <div className="relative w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-cyan-400/80 bg-gradient-to-br from-[#061a3c]/58 via-[#04142e]/62 to-[#03102a]/66 p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,.55),0_0_0_4px_rgba(0,170,255,.14)] backdrop-blur-xl sm:p-7">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-cyan-400 via-blue-500 to-yellow-400"/>
                 <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-cyan-400/20 blur-2xl"/>
                 <div className="pointer-events-none absolute -bottom-10 -left-8 h-36 w-36 rounded-full bg-blue-500/20 blur-2xl"/>
