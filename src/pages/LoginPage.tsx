@@ -132,9 +132,18 @@ export function LoginPage() {
         <div className="relative z-10 mx-auto flex min-h-screen max-w-[1240px] flex-col">
           <div className="flex flex-1 flex-col justify-center px-3 pb-5 pt-32 sm:px-7 sm:pb-8 sm:pt-40">
             <header className="pointer-events-none fixed left-0 right-0 top-0 z-30 flex items-start justify-between gap-4 px-3 pt-3 drop-shadow-[0_5px_22px_rgba(0,0,0,.9)] sm:px-7 sm:pt-5 lg:px-10">
-              <div className="max-w-[62%] text-left">
-                <p className="text-lg font-black uppercase tracking-[.1em] text-cyan-100 sm:text-3xl sm:tracking-[.16em] lg:text-4xl">NAVSTAR DIGITAL HUB</p>
-                <h2 className="mt-1 text-[11px] font-extrabold tracking-[.18em] text-white sm:text-base sm:tracking-[.3em] lg:text-lg">HOME OF TECHNOCRATS</h2>
+              <div className="relative max-w-[66%] pb-3 text-left">
+                <div className="flex items-baseline whitespace-nowrap">
+                  <span className="text-lg font-black uppercase tracking-[.08em] text-cyan-100 [text-shadow:0_2px_14px_rgba(34,211,238,.45)] sm:text-3xl sm:tracking-[.13em] lg:text-4xl">NAVSTA</span>
+                  <span className="relative -mx-0.5 inline-block -skew-x-6 font-serif text-2xl font-black italic leading-none text-yellow-300 [text-shadow:0_2px_16px_rgba(250,204,21,.65)] sm:text-5xl lg:text-6xl">R</span>
+                  <span className="ml-1 text-sm font-black uppercase tracking-[.04em] text-white sm:text-2xl sm:tracking-[.08em] lg:text-3xl">DIGITAL HUB</span>
+                </div>
+                <h2 className="relative z-10 mt-1 whitespace-nowrap text-[10px] font-extrabold tracking-[.16em] text-white [text-shadow:0_2px_10px_rgba(0,0,0,.8)] sm:text-base sm:tracking-[.28em] lg:text-lg">HOME OF TECHNOCRATS</h2>
+                <svg aria-hidden="true" viewBox="0 0 520 28" preserveAspectRatio="none" className="pointer-events-none absolute bottom-0 left-0 h-5 w-full overflow-visible sm:h-6">
+                  <defs><linearGradient id="navstar-r-tail" x1="0" x2="1"><stop offset="0%" stopColor="#facc15"/><stop offset="48%" stopColor="#22d3ee"/><stop offset="100%" stopColor="#facc15"/></linearGradient></defs>
+                  <path d="M 112 3 C 145 24, 188 24, 230 18 S 365 9, 505 15" fill="none" stroke="url(#navstar-r-tail)" strokeWidth="3.2" strokeLinecap="round"/>
+                  <path d="M 493 9 L 508 15 L 493 20" fill="none" stroke="#facc15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
               <div className="max-w-[38%] text-right text-xs font-bold leading-relaxed text-white sm:text-base lg:text-lg">
                 <p className="text-cyan-100">Build with purpose.</p><p>Lead with knowledge.</p><p className="text-yellow-200">Create the future.</p>
