@@ -1,6 +1,5 @@
 import { createSession, sha256 } from '../../_shared/auth.js';
-import { error, isSameOrigin, json, readJson, safeString, uuid, normalizePhone } from '../../_shared/http.js';
-import { sendCustomerNotice } from '../../_shared/notifications.js';
+import { error, isSameOrigin, json, readJson, safeString, normalizePhone } from '../../_shared/http.js';
 
 const staffRoles = ['admin', 'tutor', 'admissions', 'principal', 'finance'];
 const normalizeStaffId = value => safeString(value, 20).toUpperCase().replace(/[^A-Z0-9]/g, '');
