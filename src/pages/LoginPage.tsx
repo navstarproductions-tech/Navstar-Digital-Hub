@@ -124,56 +124,85 @@ export function LoginPage() {
     return (
       <main className="relative isolate min-h-screen overflow-hidden bg-[#031331] text-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_12%,rgba(18,116,235,.25),transparent_45%),radial-gradient(ellipse_at_92%_82%,rgba(0,255,120,.18),transparent_40%)]" />
-        <div className="absolute inset-0 opacity-100" style={{backgroundImage:gateBackground?`url(${gateBackground})`:'url("/navstar-admin-hero.webp")',backgroundSize:'cover',backgroundPosition:'center'}} />
-        <div className="absolute inset-0 bg-[#03112b]/[0.03]" />
-        {/* Blue light-ray accents in two opposite corners */}
+        <div className="absolute inset-0" style={{backgroundImage:gateBackground ? 'url(' + gateBackground + ')' : 'url(/navstar-admin-hero.webp)',backgroundSize:'cover',backgroundPosition:'center'}} />
+        <div className="absolute inset-0 bg-[#03112b]/[0.12]" />
         <div aria-hidden="true" className="pointer-events-none absolute -left-24 -top-24 h-[34rem] w-[34rem] opacity-80" style={{background:'repeating-conic-gradient(from 205deg at 0% 0%, transparent 0deg 8deg, rgba(30,144,255,.18) 8deg 10deg, transparent 10deg 17deg)',maskImage:'radial-gradient(circle at 0% 0%,black,transparent 72%)'}}/>
         <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 -right-24 h-[34rem] w-[34rem] opacity-70" style={{background:'repeating-conic-gradient(from 25deg at 100% 100%, transparent 0deg 8deg, rgba(0,195,255,.2) 8deg 10deg, transparent 10deg 17deg)',maskImage:'radial-gradient(circle at 100% 100%,black,transparent 72%)'}}/>
         {celebrating && <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#04142b]/35"><div className="animate-bounce rounded-2xl border border-yellow-300/60 bg-white px-5 py-4 text-center text-blue-950 shadow-2xl"><div className="text-3xl">🌸 💐 🌼 🌺</div><p className="mt-1 text-lg font-black">Welcome back, {staffPreview?.name?.split(' ')[0] || 'Administrator'}!</p><p className="text-xs font-semibold text-green-700">Identity verified • Opening dashboard</p></div></div>}
-        <div className="relative z-10 mx-auto flex min-h-screen max-w-[1180px] flex-col">
-          <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 sm:px-6 sm:py-10">
-            <header className="mb-5 flex w-full items-start justify-between gap-4 px-2 drop-shadow-[0_4px_18px_rgba(0,0,0,.55)] sm:mb-8 sm:px-4">
-              <div className="text-left"><p className="text-[10px] font-black uppercase tracking-[.24em] text-cyan-200 sm:text-sm">NAVSTAR DIGITAL HUB</p><h2 className="mt-1 text-xs font-black tracking-[.12em] text-white sm:text-base">HOME OF TECHNOCRATS</h2></div>
-              <div className="max-w-[220px] text-right text-[10px] font-semibold leading-relaxed text-white/90 sm:text-sm"><p className="text-cyan-100">Build with purpose.</p><p>Lead with knowledge.</p><p className="text-yellow-200">Create the future.</p></div>
+        <div className="relative z-10 mx-auto flex min-h-screen max-w-[1240px] flex-col">
+          <div className="flex flex-1 flex-col justify-center px-3 py-5 sm:px-7 sm:py-8">
+            <header className="mb-5 flex w-full items-start justify-between gap-5 px-1 drop-shadow-[0_4px_18px_rgba(0,0,0,.7)] sm:mb-7 sm:px-3">
+              <div className="text-left">
+                <p className="text-lg font-black uppercase tracking-[.16em] text-cyan-200 sm:text-2xl lg:text-3xl">NAVSTAR DIGITAL HUB</p>
+                <h2 className="mt-1 text-sm font-extrabold tracking-[.28em] text-white sm:text-lg">HOME OF TECHNOCRATS</h2>
+              </div>
+              <div className="max-w-[270px] text-right text-xs font-semibold leading-relaxed text-white sm:text-base lg:text-lg">
+                <p className="text-cyan-100">Build with purpose.</p><p>Lead with knowledge.</p><p className="text-yellow-200">Create the future.</p>
+              </div>
             </header>
-            <section className="flex w-full max-w-2xl items-center justify-center">
-              <div className="relative w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-cyan-400/80 bg-gradient-to-br from-[#061a3c]/58 via-[#04142e]/62 to-[#03102a]/66 p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,.55),0_0_0_4px_rgba(0,170,255,.14)] backdrop-blur-xl sm:p-7">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-cyan-400 via-blue-500 to-yellow-400"/>
-                <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-cyan-400/20 blur-2xl"/>
-                <div className="pointer-events-none absolute -bottom-10 -left-8 h-36 w-36 rounded-full bg-blue-500/20 blur-2xl"/>
-                <div className="relative z-10 mb-3 flex justify-center"><img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub official logo" className="h-16 w-48 object-contain drop-shadow-lg sm:h-20 sm:w-56" /></div>
-                <div className="relative z-10 text-center"><div className="mb-2 flex justify-center"><ShieldCheck className="h-12 w-12 text-yellow-300 drop-shadow-lg"/></div><h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Admin Login</h1><p className="mt-1 text-sm text-blue-100">Enter your credentials to access the dashboard</p></div>
-                <div className="relative z-10 mt-3 flex items-center justify-center gap-2 text-[10px] font-bold text-cyan-200"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-green-500"/><span>SYSTEM ONLINE</span><span className="text-blue-900/50">•</span><span>AUTHORIZED ACCESS ONLY</span></div>
+            <section className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-[1.8rem] border border-cyan-300/80 bg-[#041631]/85 shadow-[0_28px_85px_rgba(0,0,0,.65),0_0_0_5px_rgba(0,170,255,.13)] backdrop-blur-xl md:grid-cols-[.88fr_1.12fr]">
+              <aside className="relative flex min-h-[360px] flex-col justify-between overflow-hidden border-b border-cyan-300/30 bg-gradient-to-br from-[#063b70]/95 via-[#05264d]/95 to-[#03152f]/95 p-5 sm:p-8 md:border-b-0 md:border-r">
+                <div className="pointer-events-none absolute -right-16 top-10 h-56 w-56 rounded-full bg-cyan-400/20 blur-3xl"/>
+                <div className="relative z-10">
+                  <img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub official logo" className="mb-7 h-20 w-56 object-contain object-left drop-shadow-xl sm:h-24 sm:w-64"/>
+                  <p className="text-xs font-black uppercase tracking-[.3em] text-cyan-200">ADMIN CONTROL CENTRE</p>
+                  <h1 className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl">Manage.<br/>Lead.<br/><span className="text-yellow-300">Innovate.</span></h1>
+                  <p className="mt-4 max-w-sm text-sm leading-6 text-blue-100">One secure workspace to oversee operations, people, learning and digital services across Navstar.</p>
+                </div>
+                {staffPreview ? (
+                  <div className="relative z-10 mt-7 rounded-2xl border border-green-300/50 bg-green-950/40 p-4">
+                    <p className="mb-3 text-[11px] font-black uppercase tracking-[.2em] text-green-200">Staff identity located</p>
+                    <div className="flex items-center gap-3">
+                      {(staffPreview.profilePicture||staffPreview.photoUrl||staffPreview.avatarUrl)?<img src={staffPreview.profilePicture||staffPreview.photoUrl||staffPreview.avatarUrl} alt="Staff profile" className="h-16 w-16 rounded-full border-2 border-green-300 object-cover"/>:<div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-green-300 bg-white text-xl font-black text-blue-950">{staffPreview.name.split(' ').map(part=>part[0]).slice(0,2).join('').toUpperCase()}</div>}
+                      <div className="min-w-0"><p className="truncate text-lg font-black text-white">{staffPreview.name}</p><p className="text-xs font-semibold text-green-100">{staffPreview.staffId}</p><p className="text-xs text-blue-100">{staffPreview.jobTitle||roleLabel}</p></div>
+                    </div>
+                    {staffPreview.department&&<p className="mt-2 text-xs text-blue-100">{staffPreview.department}</p>}
+                  </div>
+                ) : (
+                  <div className="relative z-10 mt-7 grid grid-cols-2 gap-2 text-xs font-bold text-blue-100">
+                    <div className="rounded-xl border border-cyan-200/25 bg-white/5 p-3"><ShieldCheck className="mb-1 h-5 w-5 text-yellow-300"/>Protected access</div>
+                    <div className="rounded-xl border border-cyan-200/25 bg-white/5 p-3"><Fingerprint className="mb-1 h-5 w-5 text-yellow-300"/>Staff verification</div>
+                  </div>
+                )}
+              </aside>
+              <section className="relative p-5 sm:p-8">
+                <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-yellow-400"/>
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div><p className="text-[11px] font-black uppercase tracking-[.24em] text-cyan-300">SECURE SIGN IN</p><h2 className="mt-1 text-2xl font-black text-white sm:text-3xl">Admin Login</h2><p className="mt-1 text-sm text-blue-100">Verify your staff identity to continue.</p></div>
+                  <div className="rounded-2xl border border-cyan-300/30 bg-cyan-300/10 p-3"><ShieldCheck className="h-8 w-8 text-yellow-300"/></div>
+                </div>
+                <div className="mb-4 flex items-center gap-2 text-[10px] font-extrabold tracking-[.16em] text-green-200"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-green-400"/><span>SYSTEM ONLINE</span><span className="text-white/30">•</span><span>AUTHORIZED ACCESS ONLY</span></div>
                 {useEmailLogin ? (
-                  <form onSubmit={signInWithEmail} className="relative z-10 mt-3 space-y-3">
-                    <div className="rounded-lg border border-cyan-400/30 bg-blue-950/60 p-2.5 text-xs text-blue-100">Use the registered administrator email and password if Staff ID verification is unavailable.</div>
+                  <form onSubmit={signInWithEmail} className="space-y-3">
+                    <div className="rounded-xl border border-cyan-400/30 bg-blue-950/60 p-3 text-xs text-blue-100">Use the registered administrator email and password if Staff ID verification is unavailable.</div>
                     <div className="space-y-1.5"><Label htmlFor="admin-email" className="font-bold text-blue-100">Registered email</Label><Input id="admin-email" name="email" type="email" autoComplete="username" required placeholder="admin@example.com" className="h-12 rounded-lg border-blue-400/50 bg-[#061a3a] text-white placeholder:text-blue-200/50"/></div>
-                    <div className="space-y-1.5"><Label htmlFor="admin-password" className="font-bold text-blue-950">Password</Label><Input id="admin-password" name="password" type="password" autoComplete="current-password" required placeholder="Enter your password" className="h-10 rounded-lg border-blue-200 bg-slate-50 text-blue-950"/></div>
-                    <Button type="submit" disabled={loading} className="h-12 w-full rounded-xl bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 text-base font-extrabold text-[#06142c] shadow-lg shadow-yellow-500/20">{loading?'Signing in…':'Sign in to Admin Portal'}</Button>
+                    <div className="space-y-1.5"><Label htmlFor="admin-password" className="font-bold text-blue-100">Password</Label><Input id="admin-password" name="password" type="password" autoComplete="current-password" required placeholder="Enter your password" className="h-12 rounded-lg border-blue-400/50 bg-[#061a3a] text-white placeholder:text-blue-200/50"/></div>
+                    <Button type="submit" disabled={loading} className="h-12 w-full rounded-xl bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 text-base font-extrabold text-[#06142c] shadow-lg">{loading?'Signing in…':'Sign in to Admin Portal'}</Button>
                     <button type="button" onClick={()=>{setUseEmailLogin(false);setStatus('');}} className="w-full text-xs font-semibold text-cyan-200 hover:text-yellow-300">Return to Staff ID verification</button>
                   </form>
                 ) : !staffPreview ? (
-                  <form onSubmit={lookupStaff} className="relative z-10 mt-3 space-y-3">
-                    <div className="rounded-lg border border-cyan-400/30 bg-blue-950/60 p-2.5 text-xs leading-4 text-blue-100">Enter your Staff ID. The scanner checks it against the staff register.</div>
-                    <div className="space-y-1.5"><Label htmlFor="staffId" className="font-bold text-blue-950">Staff ID</Label><Input id="staffId" value={staffId} onChange={event=>{setStaffId(event.target.value.toUpperCase());setScanState('idle');setStatus('');}} autoComplete="username" placeholder="Enter Staff ID" required className="h-10 rounded-lg border-blue-200 bg-slate-50 text-blue-950 placeholder:text-slate-400 focus-visible:ring-blue-500"/></div>
-                    {scanState !== 'idle' && <div className={`relative overflow-hidden rounded-lg border p-2.5 text-xs ${scanState==='found'?'border-green-300 bg-green-50 text-green-800':scanState==='notFound'?'border-red-300 bg-red-50 text-red-800':'border-blue-200 bg-blue-50 text-blue-800'}`} role="status"><div className="flex items-center gap-2">{scanState==='scanning'?<><Fingerprint className="h-5 w-5 animate-pulse"/><span className="font-semibold">Scanning staff register…</span></>:scanState==='found'?<><ShieldCheck className="h-5 w-5 text-green-600"/><span className="font-bold">STAFF ID FOUND ✓</span></>:<><span className="text-lg font-black text-red-600">✕</span><span className="font-bold">STAFF ID NOT FOUND</span></>}</div>{scanState==='scanning'&&<div className="mt-2 h-1 overflow-hidden rounded-full bg-blue-200"><div className="h-full w-1/3 animate-pulse rounded-full bg-blue-600"/></div>}</div>}
+                  <form onSubmit={lookupStaff} className="space-y-4">
+                    <div className="rounded-xl border border-cyan-400/30 bg-blue-950/60 p-3 text-sm leading-5 text-blue-100">Enter your Staff ID. The system checks it against the authorized staff register.</div>
+                    <div className="space-y-2"><Label htmlFor="staffId" className="font-bold text-blue-100">Staff ID</Label><Input id="staffId" value={staffId} onChange={event=>{setStaffId(event.target.value.toUpperCase());setScanState('idle');setStatus('');}} autoComplete="username" placeholder="Enter Staff ID" required className="h-12 rounded-xl border-blue-300/50 bg-white text-base font-semibold text-blue-950 placeholder:text-slate-400 focus-visible:ring-blue-500"/></div>
+                    {scanState !== 'idle' && <div className={`rounded-xl border p-3 text-sm ${scanState==='found'?'border-green-300 bg-green-50 text-green-800':scanState==='notFound'?'border-red-300 bg-red-50 text-red-800':'border-blue-200 bg-blue-50 text-blue-800'}`} role="status"><div className="flex items-center gap-2">{scanState==='scanning'?<><Fingerprint className="h-5 w-5 animate-pulse"/><span className="font-semibold">Scanning staff register…</span></>:scanState==='found'?<><ShieldCheck className="h-5 w-5 text-green-600"/><span className="font-bold">STAFF ID FOUND ✓</span></>:<><span className="text-lg font-black text-red-600">✕</span><span className="font-bold">STAFF ID NOT FOUND</span></>}</div>{scanState==='scanning'&&<div className="mt-2 h-1 overflow-hidden rounded-full bg-blue-200"><div className="h-full w-1/3 animate-pulse rounded-full bg-blue-600"/></div>}</div>}
                     <Button type="submit" disabled={loading||!staffId.trim()} className="h-12 w-full rounded-xl bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 text-base font-extrabold text-[#06142c] shadow-lg shadow-yellow-500/20 hover:brightness-110">{loading?<><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Scanning & validating…</>:'Scan & Validate Staff ID'}</Button>
                   </form>
                 ) : (
-                  <form onSubmit={verifyStaff} className="relative z-10 mt-5 space-y-4">
-                    <div className="rounded-2xl border border-green-200 bg-green-50 p-3"><div className="flex items-center gap-2 text-green-700"><UserRoundCheck className="h-5 w-5"/><span className="font-bold">Staff record found ✓</span></div><div className="mt-2 flex items-center gap-3">{(staffPreview.profilePicture||staffPreview.photoUrl||staffPreview.avatarUrl)?<img src={staffPreview.profilePicture||staffPreview.photoUrl||staffPreview.avatarUrl} alt="Staff profile" className="h-14 w-14 rounded-full border-2 border-green-300 object-cover"/>:<div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-green-300 bg-white text-lg font-black text-blue-900">{staffPreview.name.split(' ').map(part=>part[0]).slice(0,2).join('').toUpperCase()}</div>}<div><p className="text-base font-black text-blue-950">{staffPreview.name}</p><p className="text-xs text-blue-800">{staffPreview.staffId} · {roleLabel}</p></div></div>{staffPreview.jobTitle&&<p className="mt-1 text-xs text-blue-700">{staffPreview.jobTitle}{staffPreview.department?' · '+staffPreview.department:''}</p>}<p className="mt-2 text-xs text-blue-800">Confirm your National ID to complete secure access.</p></div>
-                    <div className="space-y-2"><Label htmlFor="nationalId" className="font-bold text-blue-950">National ID confirmation</Label><Input id="nationalId" type="password" inputMode="numeric" autoComplete="off" value={nationalId} onChange={event=>setNationalId(event.target.value)} placeholder="Enter your National ID" required className="h-14 rounded-xl border-blue-200 bg-slate-50 text-blue-950 placeholder:text-slate-400"/></div>
-                    <Button type="submit" disabled={loading||!nationalId.trim()} className="h-14 w-full rounded-full bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-base font-extrabold text-white shadow-lg">{loading?<><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Verifying identity…</>:<><Fingerprint className="mr-2 h-5 w-5"/>Confirm & Open Admin Dashboard</>}</Button>
-                    <button type="button" onClick={()=>{setStaffPreview(null);setNationalId('');setStatus('');setScanState('idle');setCelebrating(false);}} className="w-full text-sm font-semibold text-blue-700 hover:text-green-700">Back · Use a different Staff ID</button>
+                  <form onSubmit={verifyStaff} className="space-y-4">
+                    <div className="rounded-xl border border-green-300/50 bg-green-950/40 p-3 text-sm text-green-50"><div className="flex items-center gap-2 font-bold text-green-200"><UserRoundCheck className="h-5 w-5"/>Staff record found ✓</div><p className="mt-2 text-xs leading-5 text-green-50">Your staff profile is shown on the left. Enter your National ID below to complete identity confirmation.</p></div>
+                    <div className="space-y-2"><Label htmlFor="nationalId" className="font-bold text-blue-100">National ID confirmation</Label><Input id="nationalId" type="password" inputMode="numeric" autoComplete="off" value={nationalId} onChange={event=>setNationalId(event.target.value)} placeholder="Enter your National ID" required className="h-14 rounded-xl border-blue-300/50 bg-white text-base text-blue-950 placeholder:text-slate-400"/></div>
+                    <Button type="submit" disabled={loading||!nationalId.trim()} className="h-14 w-full rounded-xl bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-base font-extrabold text-white shadow-lg">{loading?<><LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>Verifying identity…</>:<><Fingerprint className="mr-2 h-5 w-5"/>Confirm & Open Admin Dashboard</>}</Button>
+                    <button type="button" onClick={()=>{setStaffPreview(null);setNationalId('');setStatus('');setScanState('idle');setCelebrating(false);}} className="w-full text-sm font-semibold text-cyan-200 hover:text-yellow-300">Back · Use a different Staff ID</button>
                   </form>
                 )}
-                {status&&<div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{status}</div>}
-                <div className="relative z-10 mt-3 flex items-center justify-center gap-2 border-t border-cyan-400/25 pt-3 text-[10px] text-blue-100"><ShieldCheck className="h-4 w-4 text-blue-700"/><span>Secure Login</span><span>|</span><span>Authorized Access Only</span></div>
-                <div className="relative z-10 mt-3 rounded-xl border border-cyan-400/25 bg-blue-950/50 px-3 py-2 text-center"><div className="flex items-center justify-center gap-2 font-bold text-cyan-100"><ShieldCheck className="h-5 w-5"/>Your security is our priority</div><p className="mt-1 text-[10px] text-blue-200">Protected by Navstar Digital Hub</p></div>
+                {status&&<div role="alert" className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{status}</div>}
+                <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-cyan-300/25 pt-3 text-[11px] font-semibold text-blue-100"><span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-green-300"/>Encrypted access</span><span>•</span><span>Staff register validation</span><span>•</span><span>Identity confirmation</span></div>
+              </section>
+              <div className="col-span-full grid grid-cols-2 border-t border-cyan-300/30 bg-[#03122c]/80 text-center sm:grid-cols-5">
+                { [{icon:"🎓",label:"E-Learning"},{icon:"♟",label:"Student & Tutor Portals"},{icon:"▥",label:"Analytics"},{icon:"☁",label:"Cloud Services"},{icon:"⛨",label:"Secure & Reliable"}].map((item,i)=><div key={item.label} className={`flex items-center justify-center gap-2 px-2 py-2.5 text-[10px] font-bold text-blue-100 ${i>0?"border-l border-cyan-300/20":""} ${i>=2?"border-t border-cyan-300/20 sm:border-t-0":""}`}><span className="text-sm text-yellow-300">{item.icon}</span><span>{item.label}</span></div>)}
               </div>
             </section>
           </div>
-          <div className="relative z-10 mt-6 w-full max-w-5xl"><div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-cyan-400/70 bg-[#03122c]/90 shadow-[0_12px_40px_rgba(0,0,0,.45)] backdrop-blur-md sm:grid-cols-5">{[{icon:"🎓",label:"E-Learning Management"},{icon:"♟",label:"Student & Tutor Portals"},{icon:"▥",label:"Analytics & Reports"},{icon:"☁",label:"Cloud Services"},{icon:"⛨",label:"Secure & Reliable"}].map((item,i)=><div key={item.label} className={`flex min-h-[92px] flex-col items-center justify-center gap-1 px-2 py-3 text-center ${i>0?"border-l border-cyan-300/30":""} ${i>=2?"border-t border-cyan-300/20 sm:border-t-0":""}`}><span className="text-2xl text-yellow-300 drop-shadow">{item.icon}</span><span className="text-[11px] font-bold leading-tight text-white sm:text-xs">{item.label}</span></div>)}</div></div>
           <footer className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-t border-green-500/30 bg-[#02102b]/90 px-4 py-3 text-[10px] text-white sm:text-xs">
             <span className="font-semibold text-yellow-300">NAVSTAR DIGITAL HUB</span>
             <span className="text-blue-100">Admin Control Centre · System Management · Secure Access</span>
