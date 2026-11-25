@@ -132,10 +132,9 @@ export function LoginPage() {
         {celebrating && <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#04142b]/35"><div className="animate-bounce rounded-2xl border border-yellow-300/60 bg-white px-5 py-4 text-center text-blue-950 shadow-2xl"><div className="text-3xl">🌸 💐 🌼 🌺</div><p className="mt-1 text-lg font-black">Welcome back, {staffPreview?.name?.split(' ')[0] || 'Administrator'}!</p><p className="text-xs font-semibold text-green-700">Identity verified • Opening dashboard</p></div></div>}
         <div className="relative z-10 mx-auto flex min-h-screen max-w-[1180px] flex-col">
           <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 sm:px-6 sm:py-10">
-            <header className="mb-6 text-center drop-shadow-[0_4px_18px_rgba(0,0,0,.55)] sm:mb-8">
-              <p className="text-xs font-black uppercase tracking-[.42em] text-cyan-200 sm:text-sm">NAVSTAR DIGITAL HUB</p>
-              <h2 className="mt-1 text-xl font-black tracking-[.16em] text-white sm:text-2xl">HOME OF TECHNOCRATS</h2>
-              <div className="mx-auto mt-3 h-[2px] w-36 bg-gradient-to-r from-transparent via-cyan-300 to-transparent"/>
+            <header className="mb-5 flex w-full items-start justify-between gap-4 px-2 drop-shadow-[0_4px_18px_rgba(0,0,0,.55)] sm:mb-8 sm:px-4">
+              <div className="text-left"><p className="text-[10px] font-black uppercase tracking-[.24em] text-cyan-200 sm:text-sm">NAVSTAR DIGITAL HUB</p><h2 className="mt-1 text-xs font-black tracking-[.12em] text-white sm:text-base">HOME OF TECHNOCRATS</h2></div>
+              <div className="max-w-[220px] text-right text-[10px] font-semibold leading-relaxed text-white/90 sm:text-sm"><p className="text-cyan-100">Build with purpose.</p><p>Lead with knowledge.</p><p className="text-yellow-200">Create the future.</p></div>
             </header>
             <section className="flex w-full max-w-2xl items-center justify-center">
               <div className="relative w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-cyan-400/80 bg-gradient-to-br from-[#061a3c]/58 via-[#04142e]/62 to-[#03102a]/66 p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,.55),0_0_0_4px_rgba(0,170,255,.14)] backdrop-blur-xl sm:p-7">
