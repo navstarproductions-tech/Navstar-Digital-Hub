@@ -38,6 +38,9 @@ export function LoginPage() {
   const [useEmailLogin, setUseEmailLogin] = useState(false);
   const [scanState, setScanState] = useState<'idle' | 'scanning' | 'found' | 'notFound'>('idle');
   const [celebrating, setCelebrating] = useState(false);
+  const [brandingSettings, setBrandingSettings] = useState<Record<string,string>>({});
+  useEffect(() => { let live=true; fetch('/api/admin/configuration',{cache:'no-store'}).then(async response=>{if(!response.ok)return;const data=await response.json();if(live)setBrandingSettings(data.settings?.branding||data.settings||{});}).catch(()=>{});return()=>{live=false}; },[]);
+  const gateBackground = role==='admin' ? (brandingSettings.adminGateBackgroundUrl||brandingSettings.loginBackgroundUrl) : role==='student' ? (brandingSettings.studentGateBackgroundUrl||brandingSettings.loginBackgroundUrl) : role==='tutor' ? (brandingSettings.tutorGateBackgroundUrl||brandingSettings.staffGateBackgroundUrl||brandingSettings.loginBackgroundUrl) : (brandingSettings.staffGateBackgroundUrl||brandingSettings.loginBackgroundUrl);
 
   useEffect(() => {
     let active = true;
@@ -121,14 +124,14 @@ export function LoginPage() {
     return (
       <main className="relative isolate min-h-screen overflow-hidden bg-[#031331] text-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_12%_12%,rgba(18,116,235,.25),transparent_45%),radial-gradient(ellipse_at_92%_82%,rgba(0,255,120,.18),transparent_40%)]" />
-        <div className="absolute inset-0 opacity-75" style={{backgroundImage:'url("/navstar-admin-hero.webp")',backgroundSize:'cover',backgroundPosition:'center'}} />
-        <div className="absolute inset-0 bg-gradient-to-br from-[#03112b]/15 via-[#051b40]/35 to-[#03112b]/55" />
+        <div className="absolute inset-0 opacity-75" style={{backgroundImage:gateBackground?`url(${gateBackground})`:'url("/navstar-admin-hero.webp")',backgroundSize:'cover',backgroundPosition:'center'}} />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#03112b]/10 via-[#051b40]/15 to-[#03112b]/25" />
         {celebrating && <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#04142b]/35"><div className="animate-bounce rounded-2xl border border-yellow-300/60 bg-white px-5 py-4 text-center text-blue-950 shadow-2xl"><div className="text-3xl">🌸 💐 🌼 🌺</div><p className="mt-1 text-lg font-black">Welcome back, {staffPreview?.name?.split(' ')[0] || 'Administrator'}!</p><p className="text-xs font-semibold text-green-700">Identity verified • Opening dashboard</p></div></div>}
         <div className="relative z-10 mx-auto flex min-h-screen max-w-[1180px] flex-col">
           <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 sm:px-6 sm:py-10">
 
             <section className="flex w-full max-w-2xl items-center justify-center">
-              <div className="relative w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-cyan-400/80 bg-gradient-to-br from-[#061a3c]/95 via-[#04142e]/97 to-[#03102a]/98 p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,.55),0_0_0_4px_rgba(0,170,255,.14)] backdrop-blur-xl sm:p-7">
+              <div className="relative w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-cyan-400/80 bg-gradient-to-br from-[#061a3c]/78 via-[#04142e]/82 to-[#03102a]/84 p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,.55),0_0_0_4px_rgba(0,170,255,.14)] backdrop-blur-xl sm:p-7">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-cyan-400 via-blue-500 to-yellow-400"/>
                 <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-cyan-400/20 blur-2xl"/>
                 <div className="pointer-events-none absolute -bottom-10 -left-8 h-36 w-36 rounded-full bg-blue-500/20 blur-2xl"/>
@@ -178,12 +181,12 @@ export function LoginPage() {
 
   return (
     <main className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#071326] px-3 py-5 sm:px-5">
-      <img src={loginBackgrounds[role] || loginBackgrounds.student} alt="" aria-hidden="true" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-45" />
+      <img src={gateBackground || loginBackgrounds[role] || loginBackgrounds.student} alt="" aria-hidden="true" className="absolute inset-0 -z-20 h-full w-full object-cover opacity-65" />
       <div className="absolute inset-0 -z-10 bg-gradient-to-br from-[#061329]/65 via-[#071b38]/55 to-[#041024]/75" />
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_12%_12%,rgba(20,120,230,.28),transparent_42%),radial-gradient(ellipse_at_90%_90%,rgba(4,190,210,.2),transparent_40%)]" />
       <div className="navstar-login-orbit relative mx-auto w-full max-w-5xl"><span className="navstar-login-bubble navstar-bubble-one" aria-hidden="true" /><span className="navstar-login-bubble navstar-bubble-two" aria-hidden="true" /><span className="navstar-login-bubble navstar-bubble-three" aria-hidden="true" /><span className="navstar-login-star navstar-star-one" aria-hidden="true">✦</span><span className="navstar-login-star navstar-star-two" aria-hidden="true">✧</span><span className="navstar-login-star navstar-star-three" aria-hidden="true">✦</span><span className="navstar-login-triangle navstar-triangle-one" aria-hidden="true" /><span className="navstar-login-triangle navstar-triangle-two" aria-hidden="true" /><div className="navstar-login-card relative z-10 grid w-full grid-cols-1 overflow-hidden rounded-2xl border border-white/25 bg-[#101d31]/95 shadow-2xl shadow-black/50 backdrop-blur-md sm:grid-cols-2">
         <aside className={`relative order-1 flex min-h-[210px] flex-col justify-between overflow-hidden bg-[#071b40] p-5 text-white sm:min-h-[360px] sm:p-6 ${staffPreview ? 'sm:order-2' : 'sm:order-1'}`}>
-          <img src={loginBackgrounds[role] || loginBackgrounds.student} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover opacity-75" />
+          <img src={gateBackground || loginBackgrounds[role] || loginBackgrounds.student} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover opacity-75" />
           <div className="absolute inset-0 bg-gradient-to-br from-[#061127]/55 via-[#0a2a55]/45 to-[#061127]/65" />
           <div className="relative z-10">
             <img src="/Navstar_Official_Logo.jpg" alt="Official Navstar Digital Hub logo" className="mb-3 h-14 w-28 object-contain object-left drop-shadow-lg" />
