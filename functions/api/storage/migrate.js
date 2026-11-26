@@ -43,7 +43,7 @@ export async function onRequestPost({request,env}){
   const verified=await verifyR2Object(env,newKey,{sizeBytes:actualSize,mimeType});
   await env.DB.batch([
    env.DB.prepare(`INSERT INTO stored_files(id,original_name,object_key,extension,mime_type,size_bytes,storage_provider,storage_bucket,module,record_id,owner_id,uploaded_by,visibility,status,description,etag)
-    VALUES(?,?,?,?,?,?,'cloudflare-r2',?,?,?,?,?,?,?,'active',?,?)`)
+    VALUES(?,?,?,?,?,?,'cloudflare-r2',?,?,?,?,?,?,'active',?,?)`)
     .bind(storedId,originalName,newKey,meta.extension,mimeType,verified.sizeBytes,env.R2_BUCKET_NAME||'navstar-digital-hub-storage',module,recordId,ownerId,access.user.id,visibility,source==='staff_applications'?'Migrated staff application document':safeString(row.description||row.alt_text||'',1000),verified.etag),
    source==='media_assets'?env.DB.prepare('UPDATE media_assets SET object_key=? WHERE id=?').bind(newKey,id):
    source==='employee_documents'?env.DB.prepare('UPDATE employee_documents SET object_key=? WHERE id=?').bind(newKey,id):
