@@ -22,7 +22,7 @@ const DEFAULT:Required<Pick<NavstarStampDesign,'shape'|'office_line'|'institutio
 const SCHEMES:Record<string,string>={'Royal Blue':'#1e3a8a','Emerald Green':'#047857',Gold:'#b08a12','Brand Primary':'#1e3a8a'};
 function rgb(hex:string):[number,number,number]{let h=String(hex||'').replace('#','').trim();if(h.length===3)h=h.split('').map(x=>x+x).join('');if(!/^[0-9a-f]{6}$/i.test(h))h='1e3a8a';return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
 export async function fetchStampDesign():Promise<NavstarStampDesign>{
-  try{const r=await fetch('/api/admin/configuration');if(!r.ok)return {...DEFAULT};const data=await r.json();return {...DEFAULT,...(data.settings?.['rubber-stamp']||{})};}
+  try{const r=await fetch('/api/public-stamp');if(!r.ok)return {...DEFAULT};const data=await r.json();return {...DEFAULT,...(data.settings?.['rubber-stamp']||{})};}
   catch{return {...DEFAULT};}
 }
 function stampDate(){return new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric',timeZone:'Africa/Nairobi'}).toUpperCase();}
