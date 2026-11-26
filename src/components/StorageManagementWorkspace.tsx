@@ -63,12 +63,12 @@ export function StorageManagementWorkspace(){
  const upload=async(file?:File)=>{
   if(!file)return;setBusy('upload');setProgress(0);setError('');setNotice('');
   const controller=new AbortController();uploadAbortRef.current=controller;
-  try{const saved=await uploadNavstarFile(file,{module:uploadModule,signal:controller.signal,onProgress:setProgress});setNotice(saved.originalName+' uploaded and verified in private R2 storage.');await load();}
-  catch(cause){setError(cause instanceof Error?cause.message:'Upload failed. Please retry.');}
+  try{const saved=await uploadNavstarFile(file,{module:uploadModule,signal:controller.signal,onProgress:setProgress});setNotice(saved.originalName+' uploaded and verified in private R2 storage.');await load();return true;}
+  catch(cause){setError(cause instanceof Error?cause.message:'Upload failed. Please retry.');return false;}
   finally{uploadAbortRef.current=null;setBusy('');setProgress(null);}
  };
  const uploadMany=async(filesToUpload:File[])=>{
-  for(const file of filesToUpload){await upload(file);if(uploadAbortRef.current===null&&busy==='upload')break;}
+  for(const file of filesToUpload){const success=await upload(file);if(!success)break;}
  };
  return <div className="space-y-5 text-slate-900">
   <header className="rounded-2xl bg-gradient-to-r from-[#071a35] via-blue-950 to-[#075b68] p-5 text-white">
