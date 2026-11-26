@@ -23,6 +23,20 @@ const mimeExtensions = new Map([
 const maxDefaultBytes = 25 * 1024 * 1024;
 const maxMediaBytes = 100 * 1024 * 1024;
 
+export async function getStorageSettings(db) {
+  const row=await db.prepare('SELECT max_upload_mb,max_media_mb,download_url_expiry_seconds,storage_alert_gb,retention_days,allowed_extensions_json FROM storage_settings WHERE id=1').first().catch(()=>null);
+  let allowedExtensions=['pdf','jpg','jpeg','png','webp','avif','txt','csv','doc','docx','xls','xlsx','ppt','pptx','mp3','wav','m4a','mp4','mov','webm','zip'];
+  try { const parsed=JSON.parse(row?.allowed_extensions_json||'[]'); if(Array.isArray(parsed))allowedExtensions=parsed.map(value=>String(value).toLowerCase()).filter(value=>/^[a-z0-9]{2,8}$/.test(value)); } catch {}
+  return {
+    maxUploadMb:Math.max(1,Math.min(100,Number(row?.max_upload_mb)||25)),
+    maxMediaMb:Math.max(1,Math.min(500,Number(row?.max_media_mb)||100)),
+    downloadUrlExpirySeconds:Math.max(60,Math.min(900,Number(row?.download_url_expiry_seconds)||180)),
+    storageAlertGb:Math.max(1,Math.min(10000,Number(row?.storage_alert_gb)||10)),
+    retentionDays:Math.max(0,Math.min(3650,Number(row?.retention_days)||365)),
+    allowedExtensions
+  };
+}
+
 export function storageConfig(env) {
   const accountId = safeString(env.R2_ACCOUNT_ID, 100);
   const accessKeyId = safeString(env.R2_ACCESS_KEY_ID, 200);
@@ -88,7 +102,7 @@ export async function presignR2(env, method, objectKey, expiresSeconds = 300) {
   return config.endpoint.protocol + '//' + host + canonicalUri + '?' + queryString;
 }
 
-export function validateUploadInput({ module, fileName, mimeType, size }) {
+export function validateUploadInput({ module, fileName, mimeType, size, settings = null }) {
   const safeModule = safeString(module, 80).toLowerCase();
   const originalName = safeString(fileName, 240).split(/[\/\\]/).pop().replace(/[\r\n\0]/g,'').trim();
   const type = safeString(mimeType, 160).toLowerCase();
@@ -100,7 +114,9 @@ export function validateUploadInput({ module, fileName, mimeType, size }) {
   const extensions = mimeExtensions.get(type);
   if (!extensions || !extensions.includes(extension)) throw new Error('The file extension and detected MIME type do not match an allowed file format.');
   const media = type.startsWith('audio/') || type.startsWith('video/');
-  const maximum = media ? maxMediaBytes : maxDefaultBytes;
+  const allowedExtensions=settings?.allowedExtensions;
+  if(Array.isArray(allowedExtensions)&&!allowedExtensions.includes(extension))throw new Error('This file extension is disabled by the administrator.');
+  const maximum = (media ? Number(settings?.maxMediaMb)||100 : Number(settings?.maxUploadMb)||25) * 1024 * 1024;
   if (bytes > maximum) throw new Error('The selected file exceeds the ' + Math.round(maximum / 1024 / 1024) + ' MB upload limit.');
   return { module:safeModule, originalName, mimeType:type, extension, sizeBytes:bytes };
 }
