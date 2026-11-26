@@ -274,12 +274,12 @@ export async function onRequestPost({request,env}){
     if(title.length<2)return error('Select a course, module and exam type to generate the title.');
     const selectedModule=moduleId?await env.DB.prepare('SELECT id,title FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
     if(!selectedModule)return error('Select a valid module belonging to the selected course.');
+    const maxPoints=Number(body.maxPoints),duration=Number(body.durationMinutes),passMark=Number(body.passMark),attempts=Number(body.maxAttempts);
     const existingQuestions=await env.DB.prepare("SELECT COUNT(*) AS count,COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status='active'").bind(assessmentId).first();
     if(existingQuestions?.count&&Number(existingQuestions.count)>0&&Number(existingQuestions.total)>maxPoints)return error('The new paper total is below the marks already allocated to its questions.');
     if(existingQuestions?.count&&Number(existingQuestions.count)>0&&(existing.course_id!==courseId||existing.module_id!==moduleId))return error('A paper with saved questions cannot be moved to another course or module. Create a new paper to preserve its question history.');
 
     const startsAt=safeString(body.startsAt,40),endsAt=safeString(body.endsAt,40);
-    const maxPoints=Number(body.maxPoints),duration=Number(body.durationMinutes),passMark=Number(body.passMark),attempts=Number(body.maxAttempts);
     if(!validDate(startsAt)||!validDate(endsAt)||Date.parse(endsAt)<=Date.parse(startsAt))return error('Enter a valid scheduled date and expiry time.');
     if(!Number.isSafeInteger(maxPoints)||maxPoints<1||maxPoints>10000||!Number.isSafeInteger(duration)||duration<1||duration>600||!Number.isSafeInteger(passMark)||passMark<0||passMark>maxPoints||!Number.isSafeInteger(attempts)||attempts<1||attempts>10)return error('Check total marks, duration, pass mark and attempts.');
     const type=safeString(body.assessmentType,20);
