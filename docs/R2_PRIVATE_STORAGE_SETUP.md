@@ -37,7 +37,7 @@ The application now has a centralized private-storage foundation:
   }
 ]
 ```
-6. Apply the additive D1 migration:
+6. Apply the additive D1 migrations:
 ```sh
 npx wrangler d1 migrations apply navstar-digital-hub --remote
 ```
@@ -61,10 +61,19 @@ npx wrangler d1 migrations apply navstar-digital-hub --remote
 - Do not delete the existing `DOCS` or `MEDIA` buckets. Existing profile photos, public media, employee documents and forum images still use their legacy routes until each module is migrated and verified.
 - The dashboard labels legacy object counts separately. No existing file is automatically moved or deleted by this release.
 - The storage usage figure is calculated from Navstar's metadata. It is not Cloudflare billing data or a provider-side bucket inventory.
+- The administrator can configure upload-size limits, download-link expiry, allowed extensions, a usage-alert threshold and a retention policy. The retention setting is informational in this release; no automatic purge runs.
+- The legacy migration workspace currently inventories media assets, employee documents, downloadable documents, forum images and staff-application documents. It copies and verifies each selected file, updates the application's reference and retains the original object in the old bucket.
+- New profile photos, gallery/branding images, employee documents, public downloads, forum images, private course resources and student assignment/project attachments use the central bucket when the binding, secrets and migrations are configured. The old routes remain available for existing records.
 - New direct uploads currently use a 25 MB default limit and a 100 MB limit for audio/video. The supported MIME types and extensions are validated together, and the uploaded file's initial bytes are checked before metadata is registered.
 - Public visibility is restricted to administrator uploads in the gallery, photography and course modules. Other uploads default to private.
 - Students can upload only to project, assignment, application and scholarship modules; tutors, admissions and finance roles have narrower module permissions. Private downloads are available to the owner and administrators/principals.
 - The storage system cannot be declared production-ready until the bucket, CORS origins, secrets and D1 migration are configured and tested against the actual Cloudflare account.
+
+## Other component integrations in this branch
+
+- Practical assessment marks use the weighted 10-point rubric: Accuracy (3), Speed (2), Presentation (2), Understanding (2) and Safety (1). Each criterion is stored separately and displayed in the marks register.
+- The student project workspace exports graded submissions into a branded portfolio PDF.
+- Class rating now supports a configurable form builder with the 20 standard questions, custom rating/text/comment/choice fields, one active form at a time, required-question validation, student submissions per accepted course and administrator response analysis. Existing one-rating-per-course records remain available.
 
 ## Rollback
 
