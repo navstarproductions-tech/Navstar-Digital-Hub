@@ -1,6 +1,6 @@
 import { requireRole } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, safeString, uuid } from '../../_shared/http.js';
-import { storageConfig,validateUploadInput,verifyR2Object } from '../../_shared/storage.js';
+import { getStorageSettings,storageConfig,validateUploadInput,verifyR2Object } from '../../_shared/storage.js';
 
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
 const maxBytes = 5 * 1024 * 1024;
@@ -28,7 +28,7 @@ export async function onRequestPost({ request, env }) {
   let centralReady=Boolean(env.NAVSTAR_STORAGE&&table);
   if(centralReady){try{storageConfig(env)}catch{centralReady=false}}
   if(centralReady){
-    let meta;try{meta=validateUploadInput({module:'gallery',fileName:file.name,mimeType:file.type,size:file.size})}catch(cause){return error(cause.message||'The image format is not valid.',400)}
+    let meta;try{meta=validateUploadInput({module:'gallery',fileName:file.name,mimeType:file.type,size:file.size,settings:await getStorageSettings(env.DB)})}catch(cause){return error(cause.message||'The image format is not valid.',400)}
     const id=uuid(),objectKey='gallery/'+id+'.'+meta.extension;
     try{
       await env.NAVSTAR_STORAGE.put(objectKey,file.stream(),{httpMetadata:{contentType:file.type,cacheControl:'public, max-age=3600'}});
