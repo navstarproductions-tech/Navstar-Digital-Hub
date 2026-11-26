@@ -155,6 +155,13 @@ export async function canReadStoredFile(db,file,user) {
   if (file.visibility === 'public') return true;
   if (['admin','principal'].includes(user?.role)) return true;
   if(user?.id&&file.owner_id===user.id)return true;
+  if(user?.role==='student'&&file.module==='course-notes'&&file.record_id){
+    const module=await db.prepare('SELECT course_id FROM course_modules WHERE id=?').bind(file.record_id).first().catch(()=>null);
+    if(module?.course_id){
+      const enrolled=await db.prepare("SELECT e.id FROM enrollments e JOIN users u ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(user.id,module.course_id).first().catch(()=>null);
+      if(enrolled)return true;
+    }
+  }
   if(user?.role!=='tutor'||!['assignments','projects','course-notes'].includes(file.module)||!file.record_id)return false;
   let courseId='';
   if(file.module==='course-notes'){
