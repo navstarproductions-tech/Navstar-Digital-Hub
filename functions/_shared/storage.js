@@ -161,7 +161,8 @@ export async function canReadStoredFile(db,file,user) {
     const module=await db.prepare('SELECT course_id FROM course_modules WHERE id=?').bind(file.record_id).first().catch(()=>null);
     courseId=String(module?.course_id||'');
   }else{
-    const assignment=await db.prepare('SELECT course_id,module_id FROM course_assignments WHERE id=?').bind(file.record_id).first().catch(()=>null);
+    let assignment=await db.prepare('SELECT course_id,module_id FROM course_assignments WHERE id=?').bind(file.record_id).first().catch(()=>null);
+    if(!assignment)assignment=await db.prepare('SELECT course_id,module_id FROM course_assessments WHERE id=?').bind(file.record_id).first().catch(()=>null);
     courseId=String(assignment?.course_id||'');
     if(assignment?.module_id){
       const moduleAssignment=await db.prepare('SELECT id FROM module_tutor_assignments WHERE module_id=? AND tutor_user_id=?').bind(assignment.module_id,user.id).first().catch(()=>null);
