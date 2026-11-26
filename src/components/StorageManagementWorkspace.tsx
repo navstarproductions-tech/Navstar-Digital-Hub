@@ -8,29 +8,38 @@ type StorageOverview={
  byModule:{module:string;files:number;bytes:number}[];legacyStorage:{mediaAssets:number;employeeDocuments:number;forumMediaAssets:number};
  billingNote:string;error?:string;
 };
+type StorageSettings={maxUploadMb:number;maxMediaMb:number;downloadUrlExpirySeconds:number;storageAlertGb:number;retentionDays:number;allowedExtensions:string[]};
 type StoredFile={id:string;originalName:string;extension:string;mimeType:string;sizeBytes:number;module:string;recordId?:string|null;ownerId?:string|null;uploadedBy?:string;visibility:string;status:string;description?:string;createdAt:string;deletedAt?:string|null};
 const modules:NavstarStorageModule[]=['students','employees','courses','course-notes','assignments','projects','certificates','transcripts','report-cards','applications','scholarships','cyber-services','customer-uploads','photography','gallery','music','institutional-documents','generated-reports'];
 const bytes=(value:number)=>value>=1024*1024?(value/1024/1024).toFixed(2)+' MB':value>=1024?(value/1024).toFixed(1)+' KB':value+' B';
 export function StorageManagementWorkspace(){
- const [overview,setOverview]=useState<StorageOverview|null>(null),[files,setFiles]=useState<StoredFile[]>([]);
+ const [overview,setOverview]=useState<StorageOverview|null>(null),[files,setFiles]=useState<StoredFile[]>([]),[storageSettings,setStorageSettings]=useState<StorageSettings|null>(null),[supportedExtensions,setSupportedExtensions]=useState<string[]>([]);
  const [query,setQuery]=useState(''),[module,setModule]=useState(''),[status,setStatus]=useState('active'),[page,setPage]=useState(1),[total,setTotal]=useState(0);
  const [uploadModule,setUploadModule]=useState<NavstarStorageModule>('institutional-documents'),[progress,setProgress]=useState<number|null>(null);
- const [loading,setLoading]=useState(true),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [loading,setLoading]=useState(true),[busy,setBusy]=useState(''),[savingSettings,setSavingSettings]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const load=useCallback(async()=>{
   setLoading(true);setError('');
   try{
-   const [a,b]=await Promise.all([
+   const [a,b,d]=await Promise.all([
     fetch('/api/storage/overview',{credentials:'same-origin',cache:'no-store'}),
-    fetch('/api/storage/files?'+new URLSearchParams({q:query,module,status,page:String(page)}),{credentials:'same-origin',cache:'no-store'})
+    fetch('/api/storage/files?'+new URLSearchParams({q:query,module,status,page:String(page)}),{credentials:'same-origin',cache:'no-store'}),
+    fetch('/api/storage/settings',{credentials:'same-origin',cache:'no-store'})
    ]);
-   const [x,y]=await Promise.all([a.json(),b.json()]);
+   const [x,y,z]=await Promise.all([a.json(),b.json(),d.json()]);
    if(!a.ok)throw new Error(x.error||'Storage overview could not be loaded.');
    if(!b.ok)throw new Error(y.error||'Stored files could not be loaded.');
-   setOverview(x);setFiles(y.files||[]);setTotal(Number(y.total||0));
+   if(!d.ok)throw new Error(z.error||'Storage settings could not be loaded.');
+   setOverview(x);setFiles(y.files||[]);setTotal(Number(y.total||0));setStorageSettings(z.settings||null);setSupportedExtensions(z.supportedExtensions||[]);
   }catch(cause){setError(cause instanceof Error?cause.message:'Storage records could not be loaded.');}
   finally{setLoading(false);}
  },[query,module,status,page]);
  useEffect(()=>{void load()},[load]);
+ const saveSettings=async()=>{
+  if(!storageSettings)return;setSavingSettings(true);setError('');setNotice('');
+  try{const response=await fetch('/api/storage/settings',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(storageSettings)});const result=await response.json();if(!response.ok)throw new Error(result.error||'Storage settings could not be saved.');setStorageSettings(result.settings);setNotice('Storage settings saved. New upload and download requests will use these limits.');}
+  catch(cause){setError(cause instanceof Error?cause.message:'Storage settings could not be saved.');}
+  finally{setSavingSettings(false);}
+ };
  const openFile=async(file:StoredFile)=>{
   setBusy(file.id);setError('');
   try{const response=await fetch('/api/storage/files/'+encodeURIComponent(file.id),{credentials:'same-origin',cache:'no-store'});const result=await response.json();if(!response.ok||!result.downloadUrl)throw new Error(result.error||'A secure download link could not be created.');window.open(result.downloadUrl,'_blank','noopener,noreferrer');}
@@ -84,5 +93,15 @@ export function StorageManagementWorkspace(){
    <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500"><span>Page {page} · {Math.max(1,Math.ceil(total/50))}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={page<=1||loading} onClick={()=>setPage(value=>value-1)}>Previous</Button><Button size="sm" variant="outline" disabled={page>=Math.ceil(total/50)||loading} onClick={()=>setPage(value=>value+1)}>Next</Button></div></div>
   </section>
   <section className="rounded-2xl border bg-white p-5 shadow-sm"><h3 className="font-black">Storage usage by module</h3><div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{(overview?.byModule||[]).map(row=><div key={row.module} className="rounded-lg bg-slate-50 p-3"><div className="flex justify-between gap-2 text-sm"><strong className="capitalize">{row.module.replace(/-/g,' ')}</strong><span>{bytes(row.bytes)}</span></div><p className="mt-1 text-xs text-slate-500">{row.files} file(s)</p></div>)}</div><p className="mt-3 text-xs leading-5 text-slate-500">{overview?.billingNote}</p><div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><strong>Legacy storage not yet migrated:</strong> {overview?.legacyStorage.mediaAssets||0} media asset(s), {overview?.legacyStorage.employeeDocuments||0} employee document(s), and {overview?.legacyStorage.forumMediaAssets||0} forum image(s) remain in their existing buckets. They have not been moved or deleted.</div></section>
+  <section className="rounded-2xl border bg-white p-5 shadow-sm">
+   <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">Storage settings</h3><p className="mt-1 text-xs text-slate-500">Control future uploads and signed-link expiry. Existing files are not altered.</p></div><Button disabled={savingSettings||!storageSettings} onClick={()=>void saveSettings()}>{savingSettings?'Saving…':'Save storage settings'}</Button></div>
+   {storageSettings&&<><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <label className="text-xs font-bold">Max standard upload (MB)<input type="number" min="1" max="100" value={storageSettings.maxUploadMb} onChange={e=>setStorageSettings(s=>s?{...s,maxUploadMb:Number(e.target.value)}:s)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"/></label>
+    <label className="text-xs font-bold">Max audio/video (MB)<input type="number" min="1" max="500" value={storageSettings.maxMediaMb} onChange={e=>setStorageSettings(s=>s?{...s,maxMediaMb:Number(e.target.value)}:s)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"/></label>
+    <label className="text-xs font-bold">Download link expiry (seconds)<input type="number" min="60" max="900" value={storageSettings.downloadUrlExpirySeconds} onChange={e=>setStorageSettings(s=>s?{...s,downloadUrlExpirySeconds:Number(e.target.value)}:s)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"/></label>
+    <label className="text-xs font-bold">Usage alert threshold (GB)<input type="number" min="1" max="10000" value={storageSettings.storageAlertGb} onChange={e=>setStorageSettings(s=>s?{...s,storageAlertGb:Number(e.target.value)}:s)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"/></label>
+    <label className="text-xs font-bold">Retention policy (days)<input type="number" min="0" max="3650" value={storageSettings.retentionDays} onChange={e=>setStorageSettings(s=>s?{...s,retentionDays:Number(e.target.value)}:s)} className="mt-1 h-10 w-full rounded-lg border px-3 text-sm"/></label>
+   </div><div className="mt-4"><p className="text-xs font-bold">Allowed file extensions</p><div className="mt-2 flex flex-wrap gap-2">{supportedExtensions.map(ext=><label key={ext} className="flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"><input type="checkbox" checked={storageSettings.allowedExtensions.includes(ext)} onChange={e=>setStorageSettings(s=>s?{...s,allowedExtensions:e.target.checked?[...s.allowedExtensions,ext]:s.allowedExtensions.filter(x=>x!==ext)}:s)}/>{ext}</label>)}</div></div><p className="mt-3 text-xs leading-5 text-slate-500">Retention is a policy setting only. The current release never automatically deletes files; deleted files remain recoverable until a separately approved retention and purge workflow is implemented.</p></>}
+  </section>
  </div>;
 }
