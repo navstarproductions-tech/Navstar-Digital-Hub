@@ -2,6 +2,7 @@ import { createSession, sha256 } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, normalizePhone } from '../../_shared/http.js';
 
 const staffRoles = ['admin', 'tutor', 'admissions', 'principal', 'finance'];
+const normalizeRole = value => { const role=safeString(value,24).toLowerCase(); return role==='administrator' || role==='superadmin' ? 'admin' : role; };
 const normalizeStaffId = value => safeString(value, 20).toUpperCase().replace(/[^A-Z0-9]/g, '');
 const maskEmail = value => { const [name,domain] = String(value || '').split('@'); return name && domain ? name.slice(0,1) + '****@' + domain : ''; };
 const maskPhone = value => { const digits=String(value||'').replace(/\D/g,''); return digits.length>=7 ? digits.slice(0,3)+'****'+digits.slice(-2) : ''; };
@@ -20,8 +21,11 @@ export async function onRequestPost({ request, env }) {
   if (!isSameOrigin(request)) return error('Cross-origin request rejected.',403);
   if (!env.DB) return error('Staff authentication is not configured.',503);
   let body; try { body=await readJson(request,4096); } catch { return error('Invalid request.'); }
-  const action=safeString(body.action,12), staffId=normalizeStaffId(body.staffId), role=safeString(body.role,24);
-  if (!['lookup','verify'].includes(action)||staffId.length<6||!staffRoles.includes(role)) return error('Enter a valid Staff ID and select the correct staff portal.',400);
+  const action=safeString(body.action,12), staffId=normalizeStaffId(body.staffId), role=normalizeRole(body.role);
+  if (!['lookup','verify'].includes(action)) return error('Invalid staff sign-in action. Refresh the page and try again.',400);
+  if (!staffId) return error('Enter your Staff ID to continue.',400);
+  if (staffId.length>20) return error('The Staff ID is too long. Check it and try again.',400);
+  if (!staffRoles.includes(role)) return error('The selected staff portal is invalid. Open the Admin Login page and try again.',400);
   const ipHash=await sha256(request.headers.get('CF-Connecting-IP')||'unknown');
   const attempts=await checkAttempts(env.DB,staffId,ipHash);
   if (attempts.count>=8) return error('Too many verification attempts. Please wait 15 minutes before trying again.',429);
