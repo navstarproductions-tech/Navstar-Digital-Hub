@@ -73,7 +73,7 @@ export function CertificateManagementWorkspace() {
     const w=window.open('','_blank','width=1100,height=850');
     if(!w){setNotice('Allow pop-ups to print the certificate.');return;}
     const landscape=t.orientation!=='portrait';
-    const bg=t.backgroundUrl? 'background-image:url(&quot;'+escapeHtml(t.backgroundUrl)+'&quot;);background-size:cover;background-position:center;':'';
+    const bg=t.backgroundUrl? 'background-image:url('+escapeHtml(t.backgroundUrl)+');background-size:cover;background-position:center;':'';
     const logo=t.showLogo!==false&&t.logoUrl?'<img class="logo" src="'+escapeHtml(t.logoUrl)+'" alt="Institution logo">':'';
     const badge=t.badgeUrl?'<img class="badge" src="'+escapeHtml(t.badgeUrl)+'" alt="Award badge">':'';
     const seal=t.showSeal!==false?(t.sealUrl?'<img class="seal-img" src="'+escapeHtml(t.sealUrl)+'" alt="Institution seal">':'<div class="seal">NAVSTAR<br>OFFICIAL SEAL</div>'):'';
