@@ -1,6 +1,6 @@
 import { requireRole } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, uuid } from '../../_shared/http.js';
-import { storageConfig,validateUploadInput,verifyR2Object } from '../../_shared/storage.js';
+import { getStorageSettings,storageConfig,validateUploadInput,verifyR2Object } from '../../_shared/storage.js';
 
 const roles = ['student', 'admin', 'tutor', 'admissions', 'principal', 'finance'];
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
@@ -34,7 +34,7 @@ export async function onRequestPost({ request, env }) {
 
   if (centralReady) {
     let meta;
-    try { meta = validateUploadInput({module:'students',fileName:file.name,mimeType:file.type,size:file.size}); }
+    try { meta = validateUploadInput({module:'students',fileName:file.name,mimeType:file.type,size:file.size,settings:await getStorageSettings(env.DB)}); }
     catch (cause) { return error(cause.message || 'The selected profile photo is invalid.', 400); }
     const fileId = uuid();
     const objectKey = 'students/' + targetUserId + '/' + fileId + '.' + meta.extension;
