@@ -58,13 +58,13 @@ export async function presignR2(env, method, objectKey, expiresSeconds = 300) {
   const config = storageConfig(env);
   const expires = Math.max(60, Math.min(900, Math.floor(Number(expiresSeconds) || 300)));
   const now = new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\\.\\d{3}/g, '');
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
   const dateStamp = amzDate.slice(0,8);
   const region = 'auto';
   const service = 's3';
   const scope = dateStamp + '/' + region + '/' + service + '/aws4_request';
   const host = config.endpoint.host;
-  const prefix = config.endpoint.pathname.replace(/\\/+$/,'');
+  const prefix = config.endpoint.pathname.replace(/\/+$/,'');
   const encodedKey = objectKey.split('/').map(encode).join('/');
   const canonicalUri = prefix + '/' + encode(config.bucketName) + '/' + encodedKey;
   const credential = config.accessKeyId + '/' + scope;
@@ -75,10 +75,10 @@ export async function presignR2(env, method, objectKey, expiresSeconds = 300) {
     ['X-Amz-Expires',String(expires)],
     ['X-Amz-SignedHeaders','host']
   ];
-  const canonicalHeaders = 'host:' + host + '\\n';
+  const canonicalHeaders = 'host:' + host + '\n';
   const signedHeaders = 'host';
-  const canonicalRequest = [method.toUpperCase(),canonicalUri,canonicalQuery(query),canonicalHeaders,signedHeaders,'UNSIGNED-PAYLOAD'].join('\\n');
-  const stringToSign = ['AWS4-HMAC-SHA256',amzDate,scope,await sha256(canonicalRequest)].join('\\n');
+  const canonicalRequest = [method.toUpperCase(),canonicalUri,canonicalQuery(query),canonicalHeaders,signedHeaders,'UNSIGNED-PAYLOAD'].join('\n');
+  const stringToSign = ['AWS4-HMAC-SHA256',amzDate,scope,await sha256(canonicalRequest)].join('\n');
   const dateKey = await hmac(encoder.encode('AWS4' + config.secretAccessKey),dateStamp);
   const regionKey = await hmac(dateKey,region);
   const serviceKey = await hmac(regionKey,service);
@@ -90,7 +90,7 @@ export async function presignR2(env, method, objectKey, expiresSeconds = 300) {
 
 export function validateUploadInput({ module, fileName, mimeType, size }) {
   const safeModule = safeString(module, 80).toLowerCase();
-  const originalName = safeString(fileName, 240).replace(/[\\\\/\\r\\n\\0]/g,'').trim();
+  const originalName = safeString(fileName, 240).split(/[\/\\]/).pop().replace(/[\r\n\0]/g,'').trim();
   const type = safeString(mimeType, 160).toLowerCase();
   const bytes = Number(size);
   if (!allowedModules.has(safeModule)) throw new Error('Choose a supported Navstar storage module.');
