@@ -9,11 +9,12 @@ type StorageOverview={
  billingNote:string;error?:string;
 };
 type StorageSettings={maxUploadMb:number;maxMediaMb:number;downloadUrlExpirySeconds:number;storageAlertGb:number;retentionDays:number;allowedExtensions:string[]};
+type LegacyFile={id:string;source:string;title:string;mimeType:string;sizeBytes:number;createdAt:string;legacyKey:string};
 type StoredFile={id:string;originalName:string;extension:string;mimeType:string;sizeBytes:number;module:string;recordId?:string|null;ownerId?:string|null;uploadedBy?:string;visibility:string;status:string;description?:string;createdAt:string;deletedAt?:string|null};
 const modules:NavstarStorageModule[]=['students','employees','courses','course-notes','assignments','projects','certificates','transcripts','report-cards','applications','scholarships','cyber-services','customer-uploads','photography','gallery','music','institutional-documents','generated-reports'];
 const bytes=(value:number)=>value>=1024*1024?(value/1024/1024).toFixed(2)+' MB':value>=1024?(value/1024).toFixed(1)+' KB':value+' B';
 export function StorageManagementWorkspace(){
- const [overview,setOverview]=useState<StorageOverview|null>(null),[files,setFiles]=useState<StoredFile[]>([]),[storageSettings,setStorageSettings]=useState<StorageSettings|null>(null),[supportedExtensions,setSupportedExtensions]=useState<string[]>([]);
+ const [overview,setOverview]=useState<StorageOverview|null>(null),[files,setFiles]=useState<StoredFile[]>([]),[storageSettings,setStorageSettings]=useState<StorageSettings|null>(null),[supportedExtensions,setSupportedExtensions]=useState<string[]>([]),[legacyFiles,setLegacyFiles]=useState<LegacyFile[]>([]);
  const [query,setQuery]=useState(''),[module,setModule]=useState(''),[status,setStatus]=useState('active'),[page,setPage]=useState(1),[total,setTotal]=useState(0);
  const [uploadModule,setUploadModule]=useState<NavstarStorageModule>('institutional-documents'),[progress,setProgress]=useState<number|null>(null);
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(''),[savingSettings,setSavingSettings]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
@@ -21,20 +22,28 @@ export function StorageManagementWorkspace(){
  const load=useCallback(async()=>{
   setLoading(true);setError('');
   try{
-   const [a,b,d]=await Promise.all([
+   const [a,b,d,e]=await Promise.all([
     fetch('/api/storage/overview',{credentials:'same-origin',cache:'no-store'}),
     fetch('/api/storage/files?'+new URLSearchParams({q:query,module,status,page:String(page)}),{credentials:'same-origin',cache:'no-store'}),
-    fetch('/api/storage/settings',{credentials:'same-origin',cache:'no-store'})
+    fetch('/api/storage/settings',{credentials:'same-origin',cache:'no-store'}),
+    fetch('/api/storage/legacy',{credentials:'same-origin',cache:'no-store'})
    ]);
-   const [x,y,z]=await Promise.all([a.json(),b.json(),d.json()]);
+   const [x,y,z,w]=await Promise.all([a.json(),b.json(),d.json(),e.json()]);
    if(!a.ok)throw new Error(x.error||'Storage overview could not be loaded.');
    if(!b.ok)throw new Error(y.error||'Stored files could not be loaded.');
    if(!d.ok)throw new Error(z.error||'Storage settings could not be loaded.');
-   setOverview(x);setFiles(y.files||[]);setTotal(Number(y.total||0));setStorageSettings(z.settings||null);setSupportedExtensions(z.supportedExtensions||[]);
+   if(!e.ok)throw new Error(w.error||'Legacy storage inventory could not be loaded.');
+   setOverview(x);setFiles(y.files||[]);setTotal(Number(y.total||0));setStorageSettings(z.settings||null);setSupportedExtensions(z.supportedExtensions||[]);setLegacyFiles(w.legacyFiles||[]);
   }catch(cause){setError(cause instanceof Error?cause.message:'Storage records could not be loaded.');}
   finally{setLoading(false);}
  },[query,module,status,page]);
  useEffect(()=>{void load()},[load]);
+ const migrateLegacy=async(file:LegacyFile)=>{
+  setBusy('migrate:'+file.id);setError('');setNotice('');
+  try{const response=await fetch('/api/storage/migrate',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:file.source,id:file.id})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Legacy file migration failed.');setNotice(file.title+' migrated and verified. The original legacy object was retained.');await load();}
+  catch(cause){setError(cause instanceof Error?cause.message:'Legacy file migration failed.');}
+  finally{setBusy('');}
+ };
  const saveSettings=async()=>{
   if(!storageSettings)return;setSavingSettings(true);setError('');setNotice('');
   try{const response=await fetch('/api/storage/settings',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(storageSettings)});const result=await response.json();if(!response.ok)throw new Error(result.error||'Storage settings could not be saved.');setStorageSettings(result.settings);setNotice('Storage settings saved. New upload and download requests will use these limits.');}
@@ -98,6 +107,11 @@ export function StorageManagementWorkspace(){
    <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500"><span>Page {page} · {Math.max(1,Math.ceil(total/50))}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={page<=1||loading} onClick={()=>setPage(value=>value-1)}>Previous</Button><Button size="sm" variant="outline" disabled={page>=Math.ceil(total/50)||loading} onClick={()=>setPage(value=>value+1)}>Next</Button></div></div>
   </section>
   <section className="rounded-2xl border bg-white p-5 shadow-sm"><h3 className="font-black">Storage usage by module</h3><div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{(overview?.byModule||[]).map(row=><div key={row.module} className="rounded-lg bg-slate-50 p-3"><div className="flex justify-between gap-2 text-sm"><strong className="capitalize">{row.module.replace(/-/g,' ')}</strong><span>{bytes(row.bytes)}</span></div><p className="mt-1 text-xs text-slate-500">{row.files} file(s)</p></div>)}</div><p className="mt-3 text-xs leading-5 text-slate-500">{overview?.billingNote}</p><div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><strong>Legacy storage not yet migrated:</strong> {overview?.legacyStorage.mediaAssets||0} media asset(s), {overview?.legacyStorage.employeeDocuments||0} employee document(s), and {overview?.legacyStorage.forumMediaAssets||0} forum image(s) remain in their existing buckets. They have not been moved or deleted.</div></section>
+  <section className="rounded-2xl border bg-white p-5 shadow-sm">
+   <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">Legacy file migration</h3><p className="mt-1 text-xs text-slate-500">{legacyFiles.length} legacy record(s) currently listed. Migrate one at a time; each object is copied, verified and relinked before the old object is left untouched.</p></div><Button size="sm" variant="outline" disabled={loading} onClick={()=>void load()}>Refresh inventory</Button></div>
+   <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Legacy file</th><th className="p-3">Source</th><th className="p-3">Type / size</th><th className="p-3">Uploaded</th><th className="p-3">Action</th></tr></thead><tbody>{legacyFiles.map(file=><tr key={file.source+':'+file.id} className="border-t"><td className="p-3 font-semibold">{file.title}<p className="text-[11px] text-slate-400">{file.id}</p></td><td className="p-3">{file.source.replace(/_/g,' ')}</td><td className="p-3">{file.mimeType}<p className="text-xs text-slate-500">{file.sizeBytes?bytes(file.sizeBytes):'Size verified during migration'}</p></td><td className="p-3 text-xs text-slate-500">{file.createdAt?new Date(file.createdAt).toLocaleDateString('en-KE'):'—'}</td><td className="p-3"><Button size="sm" variant="outline" disabled={busy==='migrate:'+file.id||!overview?.bucketConnected} onClick={()=>void migrateLegacy(file)}>{busy==='migrate:'+file.id?'Migrating…':'Migrate & verify'}</Button></td></tr>)}{!legacyFiles.length&&<tr><td colSpan={5} className="p-6 text-center text-sm text-slate-500">No legacy file records are waiting in the current inventory window.</td></tr>}</tbody></table></div>
+   <p className="mt-3 text-xs leading-5 text-slate-500">The migration inventory shows up to 100 files per legacy source. It does not delete legacy objects. Unsupported or invalid files are reported and remain in their original bucket.</p>
+  </section>
   <section className="rounded-2xl border bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">Storage settings</h3><p className="mt-1 text-xs text-slate-500">Control future uploads and signed-link expiry. Existing files are not altered.</p></div><Button disabled={savingSettings||!storageSettings} onClick={()=>void saveSettings()}>{savingSettings?'Saving…':'Save storage settings'}</Button></div>
    {storageSettings&&<><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
