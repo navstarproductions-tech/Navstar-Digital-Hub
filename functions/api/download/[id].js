@@ -1,15 +1,26 @@
 import { error } from '../../_shared/http.js';
 
-export async function onRequestGet({ env, params }) {
-  if (!env.DB || !env.DOCS) return error('The document download service is temporarily unavailable. Please contact Navstar support.', 503);
+export async function onRequestGet({ request, env, params }) {
+  if (!env.DB) return error('The document download service is temporarily unavailable. Please contact Navstar support.', 503);
   try {
     const id = String(params?.id || '').slice(0, 80);
     if (!id) return error('A document reference is required.', 400);
     const row = await env.DB.prepare('SELECT object_key, mime_type, original_name FROM downloadable_documents WHERE id = ? AND is_public = 1').bind(id).first();
     if (!row) return error('This document is no longer available. Please contact Navstar support.', 404);
-    const object = await env.DOCS.get(row.object_key);
+    let object=null;
+    if(env.NAVSTAR_STORAGE){
+      const central=await env.DB.prepare("SELECT object_key,mime_type,status,visibility FROM stored_files WHERE id=? AND module='institutional-documents'").bind(id).first().catch(()=>null);
+      if(central){
+        if(central.status!=='active'||central.visibility!=='public')return error('This document is no longer available.',404);
+        object=await env.NAVSTAR_STORAGE.get(central.object_key);
+      }
+    }
+    if(!object){
+      if(!env.DOCS)return error('The document storage service is temporarily unavailable.',503);
+      object=await env.DOCS.get(row.object_key);
+    }
     if (!object) return error('The document file is temporarily unavailable. Please contact Navstar support.', 404);
-    const safeName = String(row.original_name || 'navstar-document').replace(/[\\r\\n"\\\\]/g, '_');
+    const safeName = String(row.original_name || 'navstar-document').replace(/[\r\n"\\]/g, '_');
     const headers = new Headers();
     object.writeHttpMetadata(headers);
     headers.set('Content-Type', row.mime_type || 'application/octet-stream');

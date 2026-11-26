@@ -1,0 +1,44 @@
+name: Verify Navstar Digital Hub
+
+on:
+  push:
+    branches:
+      - integration/shared-components-2026-11
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check Cloudflare Pages Functions syntax
+        run: npm run check:functions
+      - name: Bundle Cloudflare Pages Functions
+        run: npx wrangler pages functions build functions --outdir .wrangler/functions-build --compatibility-date=2026-11-16
+      - name: Type-check the application
+        run: npm run typecheck
+      - name: Build Cloudflare Pages application
+        run: npm run build
+      - name: Lint newly added storage code
+        run: >-
+          npx eslint
+          functions/_shared/storage.js
+          functions/api/storage/*.js
+          'functions/api/storage/files/[id].js'
+          'functions/api/storage/preview/[id].js'
+          'functions/api/storage/public/[id].js'
+          src/components/StorageManagementWorkspace.tsx
+          src/lib/storage.ts
