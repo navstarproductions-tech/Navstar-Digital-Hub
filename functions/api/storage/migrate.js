@@ -1,5 +1,5 @@
 import { requireRole } from '../../_shared/auth.js';
-import { error,isSameOrigin,json,readJson,uuid } from '../../_shared/http.js';
+import { error,isSameOrigin,json,readJson,safeString,uuid } from '../../_shared/http.js';
 import { getStorageSettings,storageConfig,validateUploadInput,verifyR2Object } from '../../_shared/storage.js';
 
 export async function onRequestPost({request,env}){
