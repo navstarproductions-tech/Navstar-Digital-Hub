@@ -50,7 +50,7 @@ npx wrangler d1 migrations apply navstar-digital-hub --remote
 - `POST /api/storage/complete`: checks intent ownership/expiry, verifies object size, stored content type and initial file signature, then creates the metadata record and audit entry.
 - `POST /api/storage/cancel`: removes an unfinished upload intent and its temporary object.
 - `GET /api/storage/files`: administrator file listing with search, module/type/status filters and pagination.
-- `GET /api/storage/files/:id`: checks file ownership/role and issues a 180-second download URL.
+- `GET /api/storage/files/:id`: checks file ownership/role and issues a short-lived download URL using the administrator-configured expiry.
 - `DELETE /api/storage/files/:id`: soft-deletes metadata; the R2 object is retained.
 - `POST /api/storage/files/:id`: restores a soft-deleted file only if the R2 object still exists.
 - `GET /api/storage/overview`: bucket connectivity and metadata-based usage statistics.
@@ -65,7 +65,7 @@ npx wrangler d1 migrations apply navstar-digital-hub --remote
 - The legacy migration workspace currently inventories media assets, employee documents, downloadable documents, forum images and staff-application documents. It copies and verifies each selected file, updates the application's reference and retains the original object in the old bucket.
 - New profile photos, gallery/branding images, employee documents, public downloads, forum images, private course resources and student assignment/project attachments use the central bucket when the binding, secrets and migrations are configured. The old routes remain available for existing records.
 - New direct uploads currently use a 25 MB default limit and a 100 MB limit for audio/video. The supported MIME types and extensions are validated together, and the uploaded file's initial bytes are checked before metadata is registered.
-- Public visibility is restricted to administrator uploads in the gallery, photography and course modules. Other uploads default to private.
+- Direct presigned public uploads are restricted to administrators and approved gallery, photography and course modules. Server-side publishing routes also support public institutional downloads and community forum images. All other new uploads default to private; the R2 bucket itself remains private.
 - Students can upload only to project, assignment, application and scholarship modules; tutors, admissions and finance roles have narrower module permissions. Private downloads are available to the owner and administrators/principals.
 - The storage system cannot be declared production-ready until the bucket, CORS origins, secrets and D1 migration are configured and tested against the actual Cloudflare account.
 
