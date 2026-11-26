@@ -9,7 +9,7 @@ export async function onRequestGet({ request, env }) {
   if (!env.DB) return error('Media database is not configured.', 503);
   const access = await requireRole(request, env, ['admin', 'principal']);
   if (access.response) return access.response;
-  const rows = await env.DB.prepare('SELECT id, mime_type AS mimeType, size_bytes AS sizeBytes, alt_text AS altText, created_at AS createdAt FROM media_assets ORDER BY created_at DESC LIMIT 100').all();
+  const rows = await env.DB.prepare('SELECT id, mime_type AS mimeType, size_bytes AS sizeBytes, alt_text AS altText, created_at AS createdAt FROM media_assets WHERE NOT EXISTS(SELECT 1 FROM stored_files s WHERE s.id=media_assets.id) ORDER BY created_at DESC LIMIT 100').all();
   const central = await env.DB.prepare("SELECT id,mime_type AS mimeType,size_bytes AS sizeBytes,description AS altText,created_at AS createdAt FROM stored_files WHERE module='gallery' AND visibility='public' AND status='active' ORDER BY created_at DESC LIMIT 100").all().catch(()=>({results:[]}));
   const combined=[...(central.results||[]),...(rows.results||[])].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))).slice(0,100);
   return json({ media: combined.map((item) => ({ ...item, url: `/api/media/${item.id}` })) });
