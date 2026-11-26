@@ -163,6 +163,10 @@ export function LoginPage() {
                       <div className="min-w-0"><p className="truncate text-lg font-black text-white">{staffPreview.name}</p><p className="text-xs font-semibold tracking-wider text-green-100" title="Staff ID partially masked">Staff account matched</p><p className="text-xs text-blue-100">{staffPreview.jobTitle||roleLabel}</p></div>
                     </div>
                     {staffPreview.department&&<p className="mt-2 text-xs text-blue-100">{staffPreview.department}</p>}
+                    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-green-200/20 pt-3 text-xs sm:grid-cols-2">
+                      <div><span className="block font-bold text-green-200">Registered email</span><span className="text-blue-100">{staffPreview.emailMasked||'Not registered'}</span></div>
+                      <div><span className="block font-bold text-green-200">Registered phone</span><span className="text-blue-100">{staffPreview.phoneMasked||'Not registered'}</span></div>
+                    </div>
                   </div>
                 ) : (
                   <div className="relative z-10 mt-7 grid grid-cols-2 gap-2 text-xs font-bold text-blue-100">
@@ -178,15 +182,7 @@ export function LoginPage() {
                   <div className="rounded-2xl border border-cyan-300/30 bg-cyan-300/10 p-3"><ShieldCheck className="h-8 w-8 text-yellow-300"/></div>
                 </div>
                 <div className="mb-4 flex items-center gap-2 text-[10px] font-extrabold tracking-[.16em] text-green-200"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-green-400"/><span>SYSTEM ONLINE</span><span className="text-white/30">•</span><span>AUTHORIZED ACCESS ONLY</span></div>
-                {useEmailLogin ? (
-                  <form onSubmit={signInWithEmail} className="space-y-3">
-                    <div className="rounded-xl border border-cyan-400/30 bg-blue-950/60 p-3 text-xs text-blue-100">Use the registered administrator email and password if Staff ID verification is unavailable.</div>
-                    <div className="space-y-1.5"><Label htmlFor="admin-email" className="font-bold text-blue-100">Registered email</Label><Input id="admin-email" name="email" type="email" autoComplete="username" required placeholder="admin@example.com" className="h-12 rounded-lg border-blue-400/50 bg-[#061a3a] text-white placeholder:text-blue-200/50"/></div>
-                    <div className="space-y-1.5"><Label htmlFor="admin-password" className="font-bold text-blue-100">Password</Label><Input id="admin-password" name="password" type="password" autoComplete="current-password" required placeholder="Enter your password" className="h-12 rounded-lg border-blue-400/50 bg-[#061a3a] text-white placeholder:text-blue-200/50"/></div>
-                    <Button type="submit" disabled={loading} className="h-12 w-full rounded-xl bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 text-base font-extrabold text-[#06142c] shadow-lg">{loading?'Signing in…':'Sign in to Admin Portal'}</Button>
-                    <button type="button" onClick={()=>{setUseEmailLogin(false);setStatus('');}} className="w-full text-xs font-semibold text-cyan-200 hover:text-yellow-300">Return to Staff ID verification</button>
-                  </form>
-                ) : !staffPreview ? (
+                {!staffPreview ? (
                   <form onSubmit={lookupStaff} className="space-y-4">
                     <div className="rounded-xl border border-cyan-400/30 bg-blue-950/60 p-3 text-sm leading-5 text-blue-100">Enter your Staff ID. The system checks it against the authorized staff register.</div>
                     <div className="space-y-2"><Label htmlFor="staffId" className="font-bold text-blue-100">Staff ID</Label><Input id="staffId" value={staffId} onChange={event=>{setStaffId(event.target.value.toUpperCase());setScanState('idle');setStatus('');}} autoComplete="username" placeholder="Enter Staff ID" required className="h-12 rounded-xl border-blue-300/50 bg-white text-base font-semibold text-blue-950 placeholder:text-slate-400 focus-visible:ring-blue-500"/></div>
@@ -195,11 +191,12 @@ export function LoginPage() {
                   </form>
                 ) : (
                   <form onSubmit={verifyStaff} className="space-y-4">
-                    <div className="rounded-xl border border-green-300/50 bg-green-950/40 p-3 text-sm text-green-50"><div className="flex items-center gap-2 font-bold text-green-200"><UserRoundCheck className="h-5 w-5"/>Staff account matched</div><p className="mt-2 text-xs leading-5 text-green-50">Confirm the matched profile and masked contact details, then enter your National ID.</p></div>
+                    <div className="rounded-xl border border-green-300/50 bg-green-950/40 p-3 text-sm text-green-50"><div className="flex items-center gap-2 font-bold text-green-200"><UserRoundCheck className="h-5 w-5"/>Staff account matched</div><p className="mt-2 text-xs leading-5 text-green-50">Your staff record is matched. Contact details are shown for reference only; no email or SMS code is used for Admin sign-in.</p></div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <div className="rounded-xl border border-cyan-300/25 bg-white/5 p-3 text-xs"><b className="block text-cyan-100">Registered email</b><span className="mt-1 block text-blue-100">{staffPreview.emailMasked||'Not registered'}</span></div>
                       <div className="rounded-xl border border-cyan-300/25 bg-white/5 p-3 text-xs"><b className="block text-cyan-100">Registered phone</b><span className="mt-1 block text-blue-100">{staffPreview.phoneMasked||'Not registered'}</span></div>
                     </div>
+                    <div className="rounded-xl border border-cyan-300/25 bg-cyan-950/40 p-3 text-xs leading-5 text-cyan-50">Admin identity verification uses your registered National ID only. Email and phone are masked profile references, not verification methods.</div>
                     <div className="space-y-2"><Label htmlFor="staff-national-id" className="font-bold text-blue-100">National ID Number</Label><Input id="staff-national-id" inputMode="numeric" autoComplete="off" maxLength={12} value={staffNationalId} onChange={event=>setStaffNationalId(event.target.value.replace(/\D/g,'').slice(0,12))} placeholder="Enter your registered National ID" required className="h-12 rounded-xl border-blue-300/50 bg-white text-base font-semibold text-blue-950 placeholder:text-slate-400"/></div>
                     <Button type="submit" disabled={loading||staffNationalId.length<6} className="h-12 w-full rounded-xl bg-gradient-to-r from-green-600 via-green-500 to-blue-700 text-sm font-extrabold text-white shadow-lg">{loading?'Verifying identity…':'Verify National ID & Open Admin Dashboard'}</Button>
                     <button type="button" onClick={()=>{setStaffPreview(null);setStaffNationalId('');setStatus('');setScanState('idle');setCelebrating(false);}} className="w-full text-sm font-semibold text-cyan-200 hover:text-yellow-300">Back · Use a different Staff ID</button>
