@@ -44,6 +44,7 @@ import { BroadcastSocialWorkspace } from '@/components/BroadcastSocialWorkspace'
 import { DemoPreviewsWorkspace } from '@/components/DemoPreviewsWorkspace';
 import { SMSAlertsWorkspace } from '@/components/SMSAlertsWorkspace';
 import { ClassRatingWorkspace } from '@/components/ClassRatingWorkspace';
+import { StorageManagementWorkspace } from '@/components/StorageManagementWorkspace';
 import { AdminFinancePanel } from '@/components/admin/AdminFinancePanel';
 import { ProfileDropdown, GENDER_OPTIONS, CITIZENSHIP_OPTIONS, DEPARTMENT_OPTIONS, JOB_TITLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/components/ProfileDropdown';
 
@@ -184,7 +185,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   'admin-access': makeTabs(['Admin Roles','Access Permissions','Access Logs'],'admin-access'),
   'customer-accounts': makeTabs(['Customer Accounts','Account Balances','Payment History'],'customer-accounts'),
   maintenance: makeTabs(['Maintenance Status','Enable / Disable Maintenance','Maintenance Notices'],'maintenance'),
-  'ict-portal': makeTabs(['ICT Service Requests','ICT Services & Pricing','Student Gateway','Tutor Portal','Finance Portal','Principal Portal','Deputy Principal'],'ict-portal'),
+  'ict-portal': makeTabs(['ICT Service Requests','ICT Services & Pricing','Storage Management','Student Gateway','Tutor Portal','Finance Portal','Principal Portal','Deputy Principal'],'ict-portal'),
   settings: [
     {label:"Navstar AI",target:'settings',settingsTab:'complete'},
     {label:"Institute Profile",target:'settings',settingsTab:'complete'},
@@ -195,6 +196,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
     {label:"Rules & Regulations",target:'settings',settingsTab:'complete'},
     {label:"Marks & Grading",target:'settings',settingsTab:'complete'},
     {label:"Institutional Branding",target:'settings',settingsTab:'complete'},
+    {label:"Storage Management",target:'ict-portal'},
     {label:"Home Page Content",target:'settings',settingsTab:'complete'},
     {label:"Trusted Platforms",target:'settings',settingsTab:'complete'},
     {label:"News & Announcements",target:'settings',settingsTab:'complete'},
@@ -1560,13 +1562,15 @@ export function AdminPage() {
             </section>}
           </div>}
 
+          {active === 'ict-portal' && selectedSubtab === 'Storage Management' && <StorageManagementWorkspace/>}
+
           {active === 'analytics-reports' && (selectedSubtab === 'Analytics Dashboard' || !selectedSubtab ? <BusinessOperationsWorkspace subtab="Analytics Dashboard"/> : <AdminWorkspaceHub section="analytics-reports" subtab={selectedSubtab} courses={courses} users={portalUsers} applications={applications} services={services}/>)}
           {active === 'analytics-reports' && selectedSubtab === 'Legacy Overview' && <section className="space-y-4 rounded-2xl border border-cyan-400/20 bg-[#101d31] p-6 text-white"><p className="text-xs font-black uppercase tracking-[.2em] text-cyan-300">Navstar Digital Hub reporting</p><h2 className="text-2xl font-black">Analytics & Reports</h2><p className="max-w-3xl text-sm leading-6 text-slate-300">Operational reporting for Navstar Digital Hub's own computer-school activity and cyber-services business. This is kept separate from the future Navstar Analytics school-management product.</p><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{['Computer-school enrolment','Course and module activity','Cyber-service orders','POS sales and verified payments'].map(item=><div key={item} className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm font-semibold">{item}</div>)}</div></section>}
           {active === 'ai-assistant' && <section className="space-y-4"><div><h2 className="text-2xl font-black text-white">Navstar AI</h2><p className="mt-1 text-sm text-slate-400">AI assistance for academic administration, exams, documents and Navstar operations.</p></div><AIChatWidget embedded context="admin"/></section>}
           {active === 'ai-intake-advisor' && <section className="mb-5 space-y-3"><div><h2 className="text-xl font-black text-white">AI Intake Advisor</h2><p className="text-sm text-slate-400">Ask Navstar AI to analyse intake planning, course demand, application trends and admissions communication. Verify recommendations against live records before acting.</p></div><AIChatWidget embedded context="admin"/></section>}
           {active === 'timetable' && selectedSubtab === 'AI Timetable Generator' && <section className="mb-5 space-y-3"><div><h2 className="text-xl font-black text-white">AI Timetable Assistant</h2><p className="text-sm text-slate-400">Generate draft timetable structures and resolve scheduling conflicts with AI. Review and save the approved timetable in the timetable workspace.</p></div><AIChatWidget embedded context="admin"/></section>}
 
-          {!['ai-assistant','overview','analytics-reports','courses','learning','marks-tests','school','attendance','scholarships','certificates','online-forms','news-updates','events','customer-carts','online-classes','eclass-meetings','support-tickets','alumni','student-projects','maintenance','auto-reports','services','pos','finance','fees','staff-applications','applications','enrollment-summary','users','employees','student-directory','downloads','documents','gallery','settings','profile','orders','receipts','portal-links'].includes(active) && <AdminWorkspaceHub section={active} subtab={selectedSubtab || sections.find(item=>item.id===active)?.label || 'Workspace'} courses={courses} users={portalUsers} applications={applications} services={services}/ >}
+          {!['ai-assistant','overview','analytics-reports','ict-portal','courses','learning','marks-tests','school','attendance','scholarships','certificates','online-forms','news-updates','events','customer-carts','online-classes','eclass-meetings','support-tickets','alumni','student-projects','maintenance','auto-reports','services','pos','finance','fees','staff-applications','applications','enrollment-summary','users','employees','student-directory','downloads','documents','gallery','settings','profile','orders','receipts','portal-links'].includes(active) && <AdminWorkspaceHub section={active} subtab={selectedSubtab || sections.find(item=>item.id===active)?.label || 'Workspace'} courses={courses} users={portalUsers} applications={applications} services={services}/ >}
 
           <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Secure Navstar administration · User accounts, student records, uploads and finance operations are protected.</span><span className="font-semibold text-cyan-300">Powered by Navstar Digital Hub</span></footer>
           </div>
