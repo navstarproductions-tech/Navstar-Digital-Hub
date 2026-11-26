@@ -5,7 +5,7 @@ import { uploadNavstarFile, type NavstarStorageModule } from '@/lib/storage';
 type StorageOverview={
  provider:string;bucketName:string;bucketPrivate:boolean;bucketConnected:boolean;connectionMessage:string;
  credentialsConfigured:boolean;totalFiles:number;totalBytes:number;deletedFiles:number;activeUploadIntents:number;
- byModule:{module:string;files:number;bytes:number}[];legacyStorage:{mediaAssets:number;employeeDocuments:number;forumMediaAssets:number};
+ byModule:{module:string;files:number;bytes:number}[];legacyStorage:{mediaAssets:number;employeeDocuments:number;forumMediaAssets:number;downloadableDocuments:number;staffApplicationDocuments:number};
  billingNote:string;error?:string;
 };
 type StorageSettings={maxUploadMb:number;maxMediaMb:number;downloadUrlExpirySeconds:number;storageAlertGb:number;retentionDays:number;allowedExtensions:string[]};
