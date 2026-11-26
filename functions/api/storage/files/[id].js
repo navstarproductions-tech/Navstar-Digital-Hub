@@ -7,7 +7,7 @@ export async function onRequestGet({request,env,params}){
   if(!env.DB)return error('File metadata database is not configured.',503);
   const access=await requireRole(request,env,roles);if(access.response)return access.response;
   const row=await env.DB.prepare('SELECT * FROM stored_files WHERE id=?').bind(params.id).first();
-  if(!row||!canReadStoredFile(row,access.user))return error('File not found or access is not permitted.',404);
+  if(!row||!(await canReadStoredFile(env.DB,row,access.user)))return error('File not found or access is not permitted.',404);
   try{
     const settings=await getStorageSettings(env.DB);
     const downloadUrl=await presignR2(env,'GET',row.object_key,settings.downloadUrlExpirySeconds);
