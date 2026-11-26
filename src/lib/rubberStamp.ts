@@ -22,7 +22,7 @@ const DEFAULT:Required<Pick<NavstarStampDesign,'shape'|'office_line'|'institutio
 const SCHEMES:Record<string,string>={'Royal Blue':'#1e3a8a','Emerald Green':'#047857',Gold:'#b08a12','Brand Primary':'#1e3a8a'};
 function rgb(hex:string):[number,number,number]{let h=String(hex||'').replace('#','').trim();if(h.length===3)h=h.split('').map(x=>x+x).join('');if(!/^[0-9a-f]{6}$/i.test(h))h='1e3a8a';return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
 export async function fetchStampDesign():Promise<NavstarStampDesign>{
-  try{const r=await fetch('/api/public-stamp');if(!r.ok)return {...DEFAULT};const data=await r.json();return {...DEFAULT,...(data.settings?.['rubber-stamp']||{})};}
+  try{const r=await fetch('/api/public-stamp');if(!r.ok)return {...DEFAULT};const data=await r.json();return {...DEFAULT,...(data.stamp||{})};}
   catch{return {...DEFAULT};}
 }
 function stampDate(){return new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric',timeZone:'Africa/Nairobi'}).toUpperCase();}
@@ -44,8 +44,10 @@ export async function applyNavstarRubberStamp(doc:StampPdf,design:NavstarStampDe
     doc.setPage(p);
     const X=Math.max(2,Math.min(W-w-2,x)),Y=Math.max(2,Math.min(H-h-2,y));
     doc.setDrawColor(...main);doc.setTextColor(...main);
-    doc.setLineWidth(Math.max(.35,w*.018));doc.rect(X,Y,w,h);
-    doc.setLineWidth(Math.max(.15,w*.004));doc.rect(X+w*.018,Y+w*.018,w-w*.036,h-w*.036);
+    doc.setLineWidth(Math.max(.35,w*.018));
+    if(s.shape==='Oval')doc.ellipse(X+w/2,Y+h/2,w/2,h/2);else doc.rect(X,Y,w,h);
+    doc.setLineWidth(Math.max(.15,w*.004));
+    if(s.shape==='Oval')doc.ellipse(X+w/2,Y+h/2,w/2-w*.018,h/2-w*.018);else doc.rect(X+w*.018,Y+w*.018,w-w*.036,h-w*.036);
     const fit=(value:string,size:number,color=main)=>{const t=String(value||'').toUpperCase();doc.setFont('times','bold');doc.setFontSize(size*fs*scale);const tw=doc.getTextWidth(t),max=w*.88;if(tw>max)doc.setFontSize(size*fs*(max/tw)*scale);doc.setTextColor(...color);return t;};
     const cx=X+w/2,sp=Math.max(.6,Math.min(1.6,(Number(s.line_spacing)||100)/100));
     doc.text(fit(s.office_line||DEFAULT.office_line,w*.082),cx,Y+h*.15,{align:'center'});
