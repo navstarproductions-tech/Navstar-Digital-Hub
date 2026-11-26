@@ -16,11 +16,11 @@ export async function onRequestGet({request,env}){
     env.DB.prepare("SELECT COUNT(*) AS files,COALESCE(SUM(size_bytes),0) AS bytes,COALESCE(SUM(CASE WHEN status='deleted' THEN 1 ELSE 0 END),0) AS deleted FROM stored_files WHERE status IN ('active','deleted','quarantined')").first(),
     env.DB.prepare("SELECT module,COUNT(*) AS files,COALESCE(SUM(size_bytes),0) AS bytes FROM stored_files WHERE status='active' GROUP BY module ORDER BY bytes DESC").all(),
     safeCount(env.DB,"SELECT COUNT(*) AS count FROM storage_upload_intents WHERE expires_at>CURRENT_TIMESTAMP"),
-    safeCount(env.DB,'SELECT COUNT(*) AS count FROM media_assets'),
-    safeCount(env.DB,'SELECT COUNT(*) AS count FROM employee_documents'),
-    safeCount(env.DB,'SELECT COUNT(*) AS count FROM forum_media_assets'),
-    safeCount(env.DB,'SELECT COUNT(*) AS count FROM downloadable_documents'),
-    safeCount(env.DB,"SELECT COUNT(*) AS count FROM staff_applications WHERE document_key IS NOT NULL AND document_key<>''")
+    safeCount(env.DB,'SELECT COUNT(*) AS count FROM media_assets WHERE NOT EXISTS(SELECT 1 FROM stored_files s WHERE s.id=media_assets.id)'),
+    safeCount(env.DB,'SELECT COUNT(*) AS count FROM employee_documents WHERE NOT EXISTS(SELECT 1 FROM stored_files s WHERE s.id=employee_documents.id)'),
+    safeCount(env.DB,'SELECT COUNT(*) AS count FROM forum_media_assets WHERE NOT EXISTS(SELECT 1 FROM stored_files s WHERE s.id=forum_media_assets.id)'),
+    safeCount(env.DB,'SELECT COUNT(*) AS count FROM downloadable_documents WHERE NOT EXISTS(SELECT 1 FROM stored_files s WHERE s.id=downloadable_documents.id)'),
+    safeCount(env.DB,"SELECT COUNT(*) AS count FROM staff_applications WHERE document_key IS NOT NULL AND document_key<>'' AND NOT EXISTS(SELECT 1 FROM stored_files s WHERE s.id='staffdoc-'||staff_applications.id)")
   ]);
   return json({
     provider:'Cloudflare R2',
