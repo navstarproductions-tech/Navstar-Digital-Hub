@@ -150,11 +150,29 @@ export async function verifyR2Object(env, objectKey, expected) {
   return { sizeBytes:Number(head.size), etag:head.etag||null, uploadedAt:head.uploaded?.toISOString?.()||new Date().toISOString() };
 }
 
-export function canReadStoredFile(file, user) {
+export async function canReadStoredFile(db,file,user) {
   if (!file || file.status !== 'active') return false;
   if (file.visibility === 'public') return true;
   if (['admin','principal'].includes(user?.role)) return true;
-  return Boolean(user?.id && file.owner_id === user.id);
+  if(user?.id&&file.owner_id===user.id)return true;
+  if(user?.role!=='tutor'||!['assignments','projects','course-notes'].includes(file.module)||!file.record_id)return false;
+  let courseId='';
+  if(file.module==='course-notes'){
+    const module=await db.prepare('SELECT course_id FROM course_modules WHERE id=?').bind(file.record_id).first().catch(()=>null);
+    courseId=String(module?.course_id||'');
+  }else{
+    const assignment=await db.prepare('SELECT course_id,module_id FROM course_assignments WHERE id=?').bind(file.record_id).first().catch(()=>null);
+    courseId=String(assignment?.course_id||'');
+    if(assignment?.module_id){
+      const moduleAssignment=await db.prepare('SELECT id FROM module_tutor_assignments WHERE module_id=? AND tutor_user_id=?').bind(assignment.module_id,user.id).first().catch(()=>null);
+      if(moduleAssignment)return true;
+    }
+  }
+  if(!courseId)return false;
+  const assigned=await db.prepare('SELECT id FROM course_tutor_assignments WHERE course_id=? AND tutor_user_id=?').bind(courseId,user.id).first().catch(()=>null);
+  if(assigned)return true;
+  const moduleAssigned=await db.prepare('SELECT id FROM module_tutor_assignments WHERE tutor_user_id=? AND module_id IN (SELECT id FROM course_modules WHERE course_id=?) LIMIT 1').bind(user.id,courseId).first().catch(()=>null);
+  return Boolean(moduleAssigned);
 }
 
 export function safeStorageDescription(value) {
