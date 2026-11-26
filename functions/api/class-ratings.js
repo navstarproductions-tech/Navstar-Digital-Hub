@@ -3,6 +3,7 @@ import { error,isSameOrigin,json,readJson,safeString,uuid } from '../_shared/htt
 
 const questionTypes=new Set(['rating','text','longtext','choice']);
 function parseItems(value){try{const parsed=JSON.parse(value||'[]');return Array.isArray(parsed)?parsed:[]}catch{return []}}
+function parseObject(value){try{const parsed=JSON.parse(value||'{}');return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{}}catch{return {}}}
 function cleanFormItems(items){
  if(!Array.isArray(items)||items.length<1||items.length>50)throw new Error('A rating form must contain between 1 and 50 questions.');
  const ids=new Set();
@@ -53,14 +54,14 @@ export async function onRequestGet({request,env}){
   ]);
   const form=formRow?{...formRow,items:parseItems(formRow.items_json)}:null;
   const responses=form?await env.DB.prepare('SELECT id,form_id AS formId,course_id AS courseId,answers_json,overall_rating AS overallRating,created_at AS createdAt,updated_at AS updatedAt FROM class_rating_responses WHERE form_id=? AND user_id=? ORDER BY updated_at DESC').bind(form.id,access.user.id).all():{results:[]};
-  return json({courses:courses.results||[],ratings:ratings.results||[],form,responses:responses.results||[]});
+  return json({courses:courses.results||[],ratings:ratings.results||[],form,responses:(responses.results||[]).map(item=>({...item,answers:parseObject(item.answers_json)}))});
  }
  const [rows,forms,responses]=await Promise.all([
   env.DB.prepare(`SELECT r.id,r.course_id AS courseId,r.module_id AS moduleId,r.rating,r.feedback,r.created_at AS createdAt,r.updated_at AS updatedAt,u.name AS studentName,u.email,c.title AS courseTitle,m.title AS moduleTitle FROM course_class_ratings r JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=r.course_id LEFT JOIN course_modules m ON m.id=r.module_id ORDER BY r.updated_at DESC LIMIT 1000`).all(),
   env.DB.prepare('SELECT id,title,description,items_json,status,created_at AS createdAt,updated_at AS updatedAt FROM class_rating_forms ORDER BY updated_at DESC LIMIT 100').all(),
   env.DB.prepare(`SELECT r.id,r.form_id AS formId,r.course_id AS courseId,r.answers_json,r.overall_rating AS overallRating,r.created_at AS createdAt,r.updated_at AS updatedAt,u.name AS studentName,u.email,c.title AS courseTitle,f.title AS formTitle FROM class_rating_responses r JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=r.course_id JOIN class_rating_forms f ON f.id=r.form_id ORDER BY r.updated_at DESC LIMIT 2000`).all()
  ]);
- return json({ratings:rows.results||[],forms:(forms.results||[]).map(form=>({...form,items:parseItems(form.items_json)})),responses:(responses.results||[]).map(response=>({...response,answers:parseItems(response.answers_json)}))});
+ return json({ratings:rows.results||[],forms:(forms.results||[]).map(form=>({...form,items:parseItems(form.items_json)})),responses:(responses.results||[]).map(response=>({...response,answers:parseObject(response.answers_json)}))});
 }
 
 export async function onRequestPost({request,env}){
