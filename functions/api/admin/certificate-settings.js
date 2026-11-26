@@ -1,5 +1,5 @@
 import { requireRole } from '../../_shared/auth.js';
-import { error, isSameOrigin, json, readJson } from '../../_shared/http.js';
+import { error, isSameOrigin, json, readJson, uuid } from '../../_shared/http.js';
 
 const defaults = {
   institutionName: 'NAVSTAR DIGITAL HUB',
@@ -61,9 +61,11 @@ export async function onRequestPut({ request, env }) {
   }
   settings.orientation = input.orientation === 'portrait' ? 'portrait' : 'landscape';
   for (const key of ['showLogo','showSeal','showCertificateNumber','showVerificationUrl','showIssueDate','showStudentId']) settings[key] = input[key] !== false;
-  await env.DB.prepare(`INSERT INTO certificate_settings(id,settings_json,updated_by,updated_at)
+  await env.DB.batch([env.DB.prepare(`INSERT INTO certificate_settings(id,settings_json,updated_by,updated_at)
     VALUES(1,?,?,CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET settings_json=excluded.settings_json,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP`)
-    .bind(JSON.stringify(settings), access.user.id).run();
+    .bind(JSON.stringify(settings), access.user.id),
+    env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),access.user.id,'certificate_template_updated','certificate_settings','1')
+  ]);
   return json({ saved: true, settings });
 }
