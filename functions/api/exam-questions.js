@@ -105,7 +105,9 @@ async function handleQuestionPost({request,env}){
      {role:'user',content:prompt}
     ],
     max_completion_tokens:Math.min(8192,Math.max(1400,count*220)),
-    temperature:0.2
+    temperature:0.2,
+    chat_template_kwargs:{enable_thinking:false},
+    response_format:{type:'json_object'}
    });
    let content=result?.choices?.[0]?.message?.content??result?.response??result?.output_text??'';
    if(Array.isArray(content))content=content.map(part=>typeof part?.text==='string'?part.text:'').filter(Boolean).join('\\n');
