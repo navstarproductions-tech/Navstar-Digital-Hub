@@ -32,7 +32,7 @@ export async function getStorageSettings(db) {
     maxMediaMb:Math.max(1,Math.min(500,Number(row?.max_media_mb)||100)),
     downloadUrlExpirySeconds:Math.max(60,Math.min(900,Number(row?.download_url_expiry_seconds)||180)),
     storageAlertGb:Math.max(1,Math.min(10000,Number(row?.storage_alert_gb)||10)),
-    retentionDays:Math.max(0,Math.min(3650,Number(row?.retention_days)||365)),
+    retentionDays:Number.isFinite(Number(row?.retention_days))?Math.max(0,Math.min(3650,Number(row.retention_days))):365,
     allowedExtensions
   };
 }
