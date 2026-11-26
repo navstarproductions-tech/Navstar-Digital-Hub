@@ -1,4 +1,4 @@
-import { useCallback,useEffect,useState } from 'react';
+import { useCallback,useEffect,useRef,useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { uploadNavstarFile, type NavstarStorageModule } from '@/lib/storage';
 
@@ -17,6 +17,7 @@ export function StorageManagementWorkspace(){
  const [query,setQuery]=useState(''),[module,setModule]=useState(''),[status,setStatus]=useState('active'),[page,setPage]=useState(1),[total,setTotal]=useState(0);
  const [uploadModule,setUploadModule]=useState<NavstarStorageModule>('institutional-documents'),[progress,setProgress]=useState<number|null>(null);
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(''),[savingSettings,setSavingSettings]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const uploadAbortRef=useRef<AbortController|null>(null);
  const load=useCallback(async()=>{
   setLoading(true);setError('');
   try{
@@ -61,9 +62,13 @@ export function StorageManagementWorkspace(){
  };
  const upload=async(file?:File)=>{
   if(!file)return;setBusy('upload');setProgress(0);setError('');setNotice('');
-  try{const saved=await uploadNavstarFile(file,{module:uploadModule,onProgress:setProgress});setNotice(saved.originalName+' uploaded and verified in private R2 storage.');await load();}
+  const controller=new AbortController();uploadAbortRef.current=controller;
+  try{const saved=await uploadNavstarFile(file,{module:uploadModule,signal:controller.signal,onProgress:setProgress});setNotice(saved.originalName+' uploaded and verified in private R2 storage.');await load();}
   catch(cause){setError(cause instanceof Error?cause.message:'Upload failed. Please retry.');}
-  finally{setBusy('');setProgress(null);}
+  finally{uploadAbortRef.current=null;setBusy('');setProgress(null);}
+ };
+ const uploadMany=async(filesToUpload:File[])=>{
+  for(const file of filesToUpload){await upload(file);if(uploadAbortRef.current===null&&busy==='upload')break;}
  };
  return <div className="space-y-5 text-slate-900">
   <header className="rounded-2xl bg-gradient-to-r from-[#071a35] via-blue-950 to-[#075b68] p-5 text-white">
@@ -84,7 +89,7 @@ export function StorageManagementWorkspace(){
     <p className="mt-2 text-xs text-slate-500">Server credentials: {overview?.credentialsConfigured?'configured':'missing'} · Existing legacy buckets remain active during migration.</p>
     {overview&&!overview.bucketConnected&&<p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-900">Create the private bucket and add the R2 credentials in Cloudflare Pages settings before enabling uploads. Do not paste secrets into this page.</p>}
    </article>
-   <article className="rounded-2xl border bg-white p-5 shadow-sm"><h3 className="font-black">Upload a file</h3><p className="mt-1 text-xs text-slate-500">The browser uploads directly to R2 using a short-lived signed URL. Metadata is saved only after server verification.</p><label className="mt-3 block text-xs font-bold">Destination module<select value={uploadModule} onChange={e=>setUploadModule(e.target.value as NavstarStorageModule)} className="mt-1 h-10 w-full rounded-lg border bg-white px-3 text-sm font-normal">{modules.map(item=><option key={item} value={item}>{item.replace(/-/g,' ')}</option>)}</select></label><label className="mt-3 block text-xs font-bold">Choose file<input type="file" disabled={busy==='upload'||!overview?.bucketConnected} onChange={e=>{void upload(e.target.files?.[0]);e.currentTarget.value='';}} className="mt-1 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-blue-900 file:px-3 file:py-2 file:font-bold file:text-white"/></label>{progress!==null&&<div className="mt-3"><div className="flex justify-between text-xs"><span>Upload progress</span><strong>{progress}%</strong></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-cyan-700 transition-all" style={{width:progress+'%'}}/></div></div>}</article>
+   <article className="rounded-2xl border bg-white p-5 shadow-sm"><h3 className="font-black">Upload a file</h3><p className="mt-1 text-xs text-slate-500">The browser uploads directly to R2 using a short-lived signed URL. Metadata is saved only after server verification.</p><label className="mt-3 block text-xs font-bold">Destination module<select value={uploadModule} onChange={e=>setUploadModule(e.target.value as NavstarStorageModule)} className="mt-1 h-10 w-full rounded-lg border bg-white px-3 text-sm font-normal">{modules.map(item=><option key={item} value={item}>{item.replace(/-/g,' ')}</option>)}</select></label><label className="mt-3 block text-xs font-bold">Choose file<input type="file" multiple disabled={busy==='upload'||!overview?.bucketConnected} onChange={e=>{void uploadMany(Array.from(e.target.files||[]));e.currentTarget.value='';}} className="mt-1 block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-blue-900 file:px-3 file:py-2 file:font-bold file:text-white"/></label>{progress!==null&&<div className="mt-3"><div className="flex justify-between text-xs"><span>Upload progress</span><strong>{progress}%</strong></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-cyan-700 transition-all" style={{width:progress+'%'}}/></div><button type="button" onClick={()=>uploadAbortRef.current?.abort()} className="mt-2 text-xs font-bold text-rose-700">Cancel current upload</button></div>}</article>
   </section>
   <section className="rounded-2xl border bg-white p-5 shadow-sm">
    <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="font-black">File manager</h3><p className="mt-1 text-xs text-slate-500">{total.toLocaleString()} file record(s) · Search, filter, preview, download, soft-delete and restore.</p></div><Button size="sm" variant="outline" disabled={loading} onClick={()=>void load()}>Refresh</Button></div>
