@@ -10,7 +10,7 @@ const soft='inline-flex items-center gap-2 rounded-xl border border-slate-700 bg
 export function ExamQuestionBank({exams}:Props){
  const [examId,setExamId]=useState(''),[questions,setQuestions]=useState<Question[]>([]);
  const [tab,setTab]=useState<'manual'|'ai'|'bulk'|'settings'>('manual'),[modalOpen,setModalOpen]=useState(false);
- const [question,setQuestion]=useState(''),[type,setType]=useState('single_choice'),[options,setOptions]=useState('A|B|C|D'),[answer,setAnswer]=useState('A'),[points,setPoints]=useState('2'),[editingId,setEditingId]=useState(''),[explanation,setExplanation]=useState('');
+ const [question,setQuestion]=useState(''),[type,setType]=useState('single_choice'),[options,setOptions]=useState('Option A\nOption B\nOption C\nOption D'),[answer,setAnswer]=useState('Option A'),[points,setPoints]=useState('2'),[editingId,setEditingId]=useState(''),[explanation,setExplanation]=useState('');
  const [topic,setTopic]=useState(''),[count,setCount]=useState('5'),[difficulty,setDifficulty]=useState('medium'),[aiType,setAiType]=useState('multiple_choice'),[replaceAll,setReplaceAll]=useState(false);
  const [csv,setCsv]=useState('question,type,options,answer,marks,explanation\n"Which language is used for web structure?",single_choice,"HTML|CSS|JavaScript|Python",HTML,2,"HTML defines page structure"');
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[assessment,setAssessment]=useState<any>(null);
