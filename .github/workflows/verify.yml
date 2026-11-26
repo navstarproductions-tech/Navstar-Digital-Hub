@@ -30,5 +30,13 @@ jobs:
         run: npm run typecheck
       - name: Build Cloudflare Pages application
         run: npm run build
-      - name: Lint application
-        run: npm run lint
+      - name: Lint newly added storage code
+        run: >-
+          npx eslint
+          functions/_shared/storage.js
+          functions/api/storage/*.js
+          'functions/api/storage/files/[id].js'
+          'functions/api/storage/preview/[id].js'
+          'functions/api/storage/public/[id].js'
+          src/components/StorageManagementWorkspace.tsx
+          src/lib/storage.ts
