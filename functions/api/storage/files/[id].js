@@ -1,6 +1,6 @@
 import { requireRole } from '../../../_shared/auth.js';
 import { error,isSameOrigin,json,uuid } from '../../../_shared/http.js';
-import { canReadStoredFile,presignR2 } from '../../../_shared/storage.js';
+import { canReadStoredFile,getStorageSettings,presignR2 } from '../../../_shared/storage.js';
 
 const roles=['student','tutor','admissions','principal','finance','admin'];
 export async function onRequestGet({request,env,params}){
@@ -9,9 +9,10 @@ export async function onRequestGet({request,env,params}){
   const row=await env.DB.prepare('SELECT * FROM stored_files WHERE id=?').bind(params.id).first();
   if(!row||!canReadStoredFile(row,access.user))return error('File not found or access is not permitted.',404);
   try{
-    const downloadUrl=await presignR2(env,'GET',row.object_key,180);
+    const settings=await getStorageSettings(env.DB);
+    const downloadUrl=await presignR2(env,'GET',row.object_key,settings.downloadUrlExpirySeconds);
     await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),access.user.id,'storage_download_url_issued','stored_file',row.id).run();
-    return json({file:{id:row.id,originalName:row.original_name,mimeType:row.mime_type,sizeBytes:row.size_bytes,module:row.module,visibility:row.visibility},downloadUrl,expiresIn:180});
+    return json({file:{id:row.id,originalName:row.original_name,mimeType:row.mime_type,sizeBytes:row.size_bytes,module:row.module,visibility:row.visibility},downloadUrl,expiresIn:settings.downloadUrlExpirySeconds});
   }catch(cause){return error(cause.message||'A secure download link could not be generated.',503)}
 }
 export async function onRequestDelete({request,env,params}){
