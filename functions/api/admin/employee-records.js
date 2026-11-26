@@ -1,6 +1,6 @@
 import { requireRole } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
-import { storageConfig,validateUploadInput,verifyR2Object } from '../../_shared/storage.js';
+import { getStorageSettings,storageConfig,validateUploadInput,verifyR2Object } from '../../_shared/storage.js';
 
 const staffRoles = ['admin','principal','finance','admissions','tutor'];
 const allowedTypes = new Set([
@@ -39,7 +39,7 @@ export async function onRequestPost({request,env}) {
   const table=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='stored_files'").first().catch(()=>null);
   let centralReady=Boolean(env.NAVSTAR_STORAGE&&table);if(centralReady){try{storageConfig(env)}catch{centralReady=false}}
   if(centralReady){
-   let meta;try{meta=validateUploadInput({module:'employees',fileName:file.name,mimeType:file.type,size:file.size})}catch(cause){return error(cause.message||'The selected document is not valid.',400)}
+   let meta;try{meta=validateUploadInput({module:'employees',fileName:file.name,mimeType:file.type,size:file.size,settings:await getStorageSettings(env.DB)})}catch(cause){return error(cause.message||'The selected document is not valid.',400)}
    const id=uuid(),key='employees/'+employeeId+'/'+id+'.'+meta.extension;
    try{
     await env.NAVSTAR_STORAGE.put(key,file.stream(),{httpMetadata:{contentType:file.type,cacheControl:'private, no-store'}});
