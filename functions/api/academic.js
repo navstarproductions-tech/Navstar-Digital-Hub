@@ -182,18 +182,45 @@ export async function onRequestPost({request,env}){
 
   if(action==='save_manual_assessment_mark'){
     const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
-    const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),raw=Number(body.rawPoints),feedbackText=safeString(body.feedback,3000);
+    const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),feedbackText=safeString(body.feedback,3000);
     const assessment=await env.DB.prepare('SELECT id,course_id,assessment_type,max_points FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id)))return error('Assessment access denied.',403);
     const enrolled=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted'").bind(studentId,assessment.course_id).first();
-    const rawMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
-    if(!enrolled||!Number.isFinite(raw)||raw<0||raw>rawMaximum)return error('Enter a valid mark for an enrolled student, within the paper maximum.',409);
-    const cfg=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();
-    let examConfig={};try{examConfig=JSON.parse(cfg?.settings_json||'{}')}catch{}
+    let raw=Number(body.rawPoints);
+    let rawMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
+    const componentRows=[];
+    if(Array.isArray(body.components)&&body.components.length){
+      const expected=[
+        {key:'accuracy',label:'Accuracy',maxPoints:3},
+        {key:'speed',label:'Speed',maxPoints:2},
+        {key:'presentation',label:'Presentation',maxPoints:2},
+        {key:'understanding',label:'Understanding',maxPoints:2},
+        {key:'safety',label:'Safety',maxPoints:1}
+      ];
+      if(assessment.assessment_type!=='practical')return error('The practical rubric can only be used for a practical assessment.',409);
+      if(body.components.length!==expected.length)return error('Submit all five practical assessment criteria.',400);
+      for(const rule of expected){
+        const item=body.components.find(row=>row&&row.key===rule.key);
+        const points=Number(item?.pointsAwarded),maximum=Number(item?.maxPoints);
+        if(!item||maximum!==rule.maxPoints||!Number.isFinite(points)||points<0||points>rule.maxPoints)return error('Enter a valid score for '+rule.label+' (maximum '+rule.maxPoints+').',400);
+        componentRows.push({...rule,pointsAwarded:points});
+      }
+      raw=componentRows.reduce((sum,row)=>sum+row.pointsAwarded,0);
+      rawMaximum=10;
+      if(!Number.isFinite(Number(body.rawPoints))||Math.abs(Number(body.rawPoints)-raw)>0.001)return error('The practical total does not match the five criterion scores.',409);
+    }
+    if(!enrolled||!Number.isFinite(raw)||raw<0||raw>rawMaximum)return error('Enter a valid mark for an enrolled student, within the assessment maximum.',409);
     const policy=await getCentralMarksPolicy(env.DB);const targetMaximum=policy.publishedMaximum,published=scaledPoints(raw,rawMaximum,targetMaximum);
-    await env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points").bind(uuid(),assessmentId,studentId,published,feedbackText,body.publish===false?null:new Date().toISOString(),user.id,raw,targetMaximum).run();
-    await audit('manual_assessment_mark_saved','assessment_result',assessmentId+':'+studentId);
-    return json({saved:true,rawPoints:raw,rawMaximum,publishedPoints:published,publishedMaximum:targetMaximum});
+    const statements=[
+      env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points").bind(uuid(),assessmentId,studentId,published,feedbackText,body.publish===false?null:new Date().toISOString(),user.id,raw,targetMaximum)
+    ];
+    for(const row of componentRows){
+      statements.push(env.DB.prepare("INSERT INTO assessment_component_marks(id,assessment_id,user_id,component_key,component_label,points_awarded,max_points,feedback,marked_by,marked_at) VALUES(?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(assessment_id,user_id,component_key) DO UPDATE SET component_label=excluded.component_label,points_awarded=excluded.points_awarded,max_points=excluded.max_points,feedback=excluded.feedback,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP")
+        .bind(uuid(),assessmentId,studentId,row.key,row.label,row.pointsAwarded,row.maxPoints,feedbackText,user.id));
+    }
+    statements.push(env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'manual_assessment_mark_saved','assessment_result',assessmentId+':'+studentId));
+    await env.DB.batch(statements);
+    return json({saved:true,rawPoints:raw,rawMaximum,publishedPoints:published,publishedMaximum:targetMaximum,components:componentRows});
   }
   if(action==='grade_assessment_attempt'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
