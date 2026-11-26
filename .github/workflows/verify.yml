@@ -26,6 +26,8 @@ jobs:
         run: npm ci
       - name: Check Cloudflare Pages Functions syntax
         run: npm run check:functions
+      - name: Bundle Cloudflare Pages Functions
+        run: npx wrangler pages functions build functions --outdir .wrangler/functions-build --compatibility-date=2026-11-16
       - name: Type-check the application
         run: npm run typecheck
       - name: Build Cloudflare Pages application
