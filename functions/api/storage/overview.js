@@ -12,13 +12,15 @@ export async function onRequestGet({request,env}){
     await env.NAVSTAR_STORAGE.list({limit:1});
     bucketConnected=true;connectionMessage='Private R2 bucket is reachable';
   }catch(cause){connectionMessage=cause.message||'R2 connection failed'}
-  const [totals,byModule,activeIntents,legacyMedia,legacyEmployee,legacyForum]=await Promise.all([
+  const [totals,byModule,activeIntents,legacyMedia,legacyEmployee,legacyForum,legacyDownloads,legacyApplications]=await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS files,COALESCE(SUM(size_bytes),0) AS bytes,COALESCE(SUM(CASE WHEN status='deleted' THEN 1 ELSE 0 END),0) AS deleted FROM stored_files WHERE status IN ('active','deleted','quarantined')").first(),
     env.DB.prepare("SELECT module,COUNT(*) AS files,COALESCE(SUM(size_bytes),0) AS bytes FROM stored_files WHERE status='active' GROUP BY module ORDER BY bytes DESC").all(),
     safeCount(env.DB,"SELECT COUNT(*) AS count FROM storage_upload_intents WHERE expires_at>CURRENT_TIMESTAMP"),
     safeCount(env.DB,'SELECT COUNT(*) AS count FROM media_assets'),
     safeCount(env.DB,'SELECT COUNT(*) AS count FROM employee_documents'),
-    safeCount(env.DB,'SELECT COUNT(*) AS count FROM forum_media_assets')
+    safeCount(env.DB,'SELECT COUNT(*) AS count FROM forum_media_assets'),
+    safeCount(env.DB,'SELECT COUNT(*) AS count FROM downloadable_documents'),
+    safeCount(env.DB,"SELECT COUNT(*) AS count FROM staff_applications WHERE document_key IS NOT NULL AND document_key<>''")
   ]);
   return json({
     provider:'Cloudflare R2',
@@ -32,7 +34,7 @@ export async function onRequestGet({request,env}){
     deletedFiles:Number(totals?.deleted||0),
     activeUploadIntents:activeIntents,
     byModule:byModule.results||[],
-    legacyStorage:{mediaAssets:legacyMedia,employeeDocuments:legacyEmployee,forumMediaAssets:legacyForum},
+    legacyStorage:{mediaAssets:legacyMedia,employeeDocuments:legacyEmployee,forumMediaAssets:legacyForum,downloadableDocuments:legacyDownloads,staffApplicationDocuments:legacyApplications},
     billingNote:'Storage usage is calculated from Navstar file metadata. Actual Cloudflare billing and provider-side usage are not exposed by this database estimate.'
   });
 }
