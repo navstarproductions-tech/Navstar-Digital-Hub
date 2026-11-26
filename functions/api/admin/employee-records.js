@@ -1,5 +1,6 @@
 import { requireRole } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
+import { storageConfig,validateUploadInput,verifyR2Object } from '../../_shared/storage.js';
 
 const staffRoles = ['admin','principal','finance','admissions','tutor'];
 const allowedTypes = new Set([
@@ -30,12 +31,31 @@ export async function onRequestPost({request,env}) {
  if(access.response)return access.response;
  const contentType=request.headers.get('content-type')||'';
  if(contentType.includes('multipart/form-data')){
-  if(!env.DOCS)return error('Employee document storage is not configured. Bind the DOCS R2 bucket.',503);
   let form;try{form=await request.formData();}catch{return error('Invalid document upload.');}
   const file=form.get('file'),employeeId=safeString(form.get('employeeId'),80);
   if(!(file instanceof File)||!allowedTypes.has(file.type)||file.size<1||file.size>maxBytes)return error('Choose a supported document or image up to 15 MB.');
   const employee=await env.DB.prepare(`SELECT u.id FROM users u LEFT JOIN user_profiles p ON p.user_id=u.id WHERE u.id=? AND COALESCE(p.portal_role,u.role) IN ('admin','principal','finance','admissions','tutor')`).bind(employeeId).first();
   if(!employee)return error('Select an existing employee account.',404);
+  const table=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='stored_files'").first().catch(()=>null);
+  let centralReady=Boolean(env.NAVSTAR_STORAGE&&table);if(centralReady){try{storageConfig(env)}catch{centralReady=false}}
+  if(centralReady){
+   let meta;try{meta=validateUploadInput({module:'employees',fileName:file.name,mimeType:file.type,size:file.size})}catch(cause){return error(cause.message||'The selected document is not valid.',400)}
+   const id=uuid(),key='employees/'+employeeId+'/'+id+'.'+meta.extension;
+   try{
+    await env.NAVSTAR_STORAGE.put(key,file.stream(),{httpMetadata:{contentType:file.type,cacheControl:'private, no-store'}});
+    const verified=await verifyR2Object(env,key,{sizeBytes:file.size,mimeType:file.type});
+    await env.DB.batch([
+     env.DB.prepare(`INSERT INTO stored_files(id,original_name,object_key,extension,mime_type,size_bytes,storage_provider,storage_bucket,module,record_id,owner_id,uploaded_by,visibility,status,description,etag)
+       VALUES(?,?,?,?,?,?,'cloudflare-r2',?,'employees',?,?,?,'private','active',?,?)`)
+      .bind(id,file.name,key,meta.extension,file.type,verified.sizeBytes,env.R2_BUCKET_NAME||'navstar-digital-hub-storage',employeeId,employeeId,access.user.id,safeString(form.get('description'),500),verified.etag),
+     env.DB.prepare('INSERT INTO employee_documents(id,employee_user_id,title,category,description,object_key,original_name,mime_type,size_bytes,uploaded_by) VALUES(?,?,?,?,?,?,?,?,?,?)')
+      .bind(id,employeeId,safeString(form.get('title'),120)||file.name.slice(0,120),safeString(form.get('category'),60)||'Other',safeString(form.get('description'),500),key,safeString(file.name,180),file.type,file.size,access.user.id),
+     env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),access.user.id,'employee_document_uploaded','stored_file',id)
+    ]);
+    return json({id,created:true,storage:'central-r2'},201);
+   }catch(cause){await env.NAVSTAR_STORAGE.delete(key).catch(()=>{});console.error('Central employee document upload failed:',String(cause?.stack||cause));return error('The employee document could not be verified and saved in private R2 storage.',500)}
+  }
+  if(!env.DOCS)return error('Employee document storage is not configured. Bind the DOCS R2 bucket.',503);
   const id=uuid(),key=`employee-documents/${employeeId}/${id}`;
   await env.DOCS.put(key,file.stream(),{httpMetadata:{contentType:file.type,cacheControl:'private, no-store'}});
   try{
@@ -43,7 +63,7 @@ export async function onRequestPost({request,env}) {
     .bind(id,employeeId,safeString(form.get('title'),120)||file.name.slice(0,120),safeString(form.get('category'),60)||'Other',safeString(form.get('description'),500),key,safeString(file.name,180),file.type,file.size,access.user.id).run();
   }catch(e){await env.DOCS.delete(key);throw e;}
   await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),access.user.id,'employee_document_uploaded','employee_document',id).run();
-  return json({id,created:true},201);
+  return json({id,created:true,storage:'legacy-docs'},201);
  }
  let body;try{body=await readJson(request,8192);}catch{return error('Invalid attendance record.');}
  const employeeId=safeString(body.employeeId,80),date=safeString(body.date,10),status=safeString(body.status,20);
