@@ -22,7 +22,7 @@ export async function onRequestPost({request,env}){
   const visibility=body.visibility==='public'?'public':'private';
   if(visibility==='public'&&(access.user.role!=='admin'||!['gallery','photography','courses'].includes(file.module)))return error('Only an administrator may publish approved gallery, photography or course assets.',403);
   try{storageConfig(env)}catch(cause){return error(cause.message||'Private storage is not configured.',503)}
-  const id=uuid(),intentId=uuid(),objectKey=file.module+'/'+id+'.'+file.extension;
+  const intentId=uuid(),objectKey='staging/'+access.user.id+'/'+intentId;
   const expiresAt=new Date(Date.now()+5*60*1000).toISOString();
   const description=safeStorageDescription(body.description);
   await env.DB.prepare(`INSERT INTO storage_upload_intents
