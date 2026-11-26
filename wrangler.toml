@@ -17,5 +17,10 @@ bucket_name = "navstar-digital-hub-docs"
 binding = "MEDIA"
 bucket_name = "navstar-digital-hub-media"
 
+# New centralized private storage. Keep DOCS and MEDIA until their existing objects are migrated and verified.
+[[r2_buckets]]
+binding = "NAVSTAR_STORAGE"
+bucket_name = "navstar-digital-hub-storage"
+
 [ai]
 binding = "AI"
