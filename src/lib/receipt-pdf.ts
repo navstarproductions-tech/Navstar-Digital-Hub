@@ -90,7 +90,8 @@ async function drawDonation(root:ParentNode,filename:string,C:PdfCtor,logo:strin
   let y=44;const title=txt(el(appreciation,'h2'))||'Thank you for your generosity';d.setFontSize(15).setTextColor(11,67,135).text(title,m,y);y+=12;
   for(const p of Array.from(appreciation.querySelectorAll('p'))){const text=txt(p);if(text){y=wrap(d,text,m,y,inner,9,[51,75,101],5)+5;if(y>270){d.addPage();y=20;}}}
  }
- void d.save(filename);
+ await applyNavstarRubberStamp(d as unknown as Parameters<typeof applyNavstarRubberStamp>[0],stamp);
+ await d.save(filename);
 }
 async function drawPayment(root:ParentNode,filename:string,C:PdfCtor,logo:string|null,qr:string|null,stamp:NavstarStampDesign){
  const d=new C({orientation:'portrait',unit:'mm',format:'a4',compress:true}),W=d.internal.pageSize.getWidth(),m=9.5,inner=W-2*m;
