@@ -20,13 +20,10 @@ const mimeExtensions = new Map([
   ['video/mp4',['mp4']],['video/quicktime',['mov']],['video/webm',['webm']],
   ['application/zip',['zip']]
 ]);
-const maxDefaultBytes = 25 * 1024 * 1024;
-const maxMediaBytes = 100 * 1024 * 1024;
-
 export async function getStorageSettings(db) {
   const row=await db.prepare('SELECT max_upload_mb,max_media_mb,download_url_expiry_seconds,storage_alert_gb,retention_days,allowed_extensions_json FROM storage_settings WHERE id=1').first().catch(()=>null);
   let allowedExtensions=['pdf','jpg','jpeg','png','webp','avif','txt','csv','doc','docx','xls','xlsx','ppt','pptx','mp3','wav','m4a','mp4','mov','webm','zip'];
-  try { const parsed=JSON.parse(row?.allowed_extensions_json||'[]'); if(Array.isArray(parsed))allowedExtensions=parsed.map(value=>String(value).toLowerCase()).filter(value=>/^[a-z0-9]{2,8}$/.test(value)); } catch {}
+  try { const parsed=JSON.parse(row?.allowed_extensions_json||'[]'); if(Array.isArray(parsed)&&parsed.length)allowedExtensions=parsed.map(value=>String(value).toLowerCase()).filter(value=>/^[a-z0-9]{2,8}$/.test(value)); } catch {}
   return {
     maxUploadMb:Math.max(1,Math.min(100,Number(row?.max_upload_mb)||25)),
     maxMediaMb:Math.max(1,Math.min(500,Number(row?.max_media_mb)||100)),
@@ -44,7 +41,7 @@ export function storageConfig(env) {
   const bucketName = safeString(env.R2_BUCKET_NAME, 120) || 'navstar-digital-hub-storage';
   const endpoint = safeString(env.R2_ENDPOINT, 500) || (accountId ? 'https://' + accountId + '.r2.cloudflarestorage.com' : '');
   if (!accountId || !accessKeyId || !secretAccessKey || !endpoint || !env.NAVSTAR_STORAGE) {
-    throw new Error('Central Navstar storage is not configured. Add the NAVSTAR_STORAGE R2 binding and the five R2 server-side settings.');
+    throw new Error('Central Navstar storage is not configured. Add the NAVSTAR_STORAGE R2 binding and the required server-side R2 credentials.');
   }
   return { accountId, accessKeyId, secretAccessKey, bucketName, endpoint: new URL(endpoint) };
 }
@@ -122,7 +119,7 @@ export function validateUploadInput({ module, fileName, mimeType, size, settings
 }
 
 export async function verifyR2Object(env, objectKey, expected) {
-  const config = storageConfig(env);
+  storageConfig(env);
   const head = await env.NAVSTAR_STORAGE.head(objectKey);
   if (!head) throw new Error('The uploaded object was not found in private R2 storage.');
   if (Number(head.size) !== Number(expected.sizeBytes)) throw new Error('The uploaded file size does not match the upload request.');
