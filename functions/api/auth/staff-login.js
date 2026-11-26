@@ -1,5 +1,5 @@
 import { createSession, sha256 } from '../../_shared/auth.js';
-import { error, isSameOrigin, json, readJson, safeString, normalizePhone } from '../../_shared/http.js';
+import { error, isSameOrigin, json, readJson, safeString, normalizePhone, constantTimeEqual } from '../../_shared/http.js';
 
 const staffRoles = ['admin', 'tutor', 'admissions', 'principal', 'finance'];
 const normalizeRole = value => { const role=safeString(value,24).toLowerCase(); return role==='administrator' || role==='superadmin' ? 'admin' : role; };
@@ -36,22 +36,23 @@ export async function onRequestPost({ request, env }) {
     FROM user_profiles p JOIN users u ON u.id=p.user_id
     WHERE REPLACE(UPPER(p.staff_id),'-','')=? AND u.status='active' LIMIT 1
   `).bind(staffId).first();
-  if (!staff||staff.role!==role.toLowerCase()) { await recordAttempt(env.DB,attempts.staffHash,ipHash); return error('We could not match that Staff ID to the selected portal. Check the ID and portal, then try again.',404); }
+  const matchedRole = normalizeRole(staff?.role);
+  if (!staff || matchedRole !== role) { await recordAttempt(env.DB,attempts.staffHash,ipHash); return error('We could not match that Staff ID to the selected portal. Check the ID and portal, then try again.',404); }
 
   if (action==='lookup') {
     await recordAttempt(env.DB,attempts.staffHash,ipHash);
-    return json({matched:true,staff:{name:staff.name,role:staff.role,department:staff.department||'',jobTitle:staff.jobTitle||'',emailMasked:maskEmail(staff.email),phoneMasked:maskPhone(staff.phone),hasEmail:!!staff.email,hasPhone:!!normalizePhone(staff.phone),profilePicture:staff.profilePicture||''}});
+    return json({matched:true,staff:{name:staff.name,role:matchedRole,department:staff.department||'',jobTitle:staff.jobTitle||'',emailMasked:maskEmail(staff.email),phoneMasked:maskPhone(staff.phone),hasEmail:!!staff.email,hasPhone:!!normalizePhone(staff.phone),profilePicture:staff.profilePicture||''}});
   }
 
   const nationalId=normalizeNationalId(body.nationalId);
   const registeredNationalId=normalizeNationalId(staff.nationalId);
   if (nationalId.length<6 || nationalId.length>12) return error('Enter your registered National ID number.',400);
   if (!registeredNationalId) return error('Your National ID is not yet recorded on your staff profile. Contact the administrator to update your staff record.',409);
-  if (nationalId!==registeredNationalId) {
+  if (!constantTimeEqual(nationalId, registeredNationalId)) {
     await recordAttempt(env.DB,attempts.staffHash,ipHash);
     return error('The National ID does not match the validated staff account. Check the number and try again.',401);
   }
   await env.DB.prepare('DELETE FROM login_attempts WHERE email_hash=? AND ip_hash=?').bind(attempts.staffHash,ipHash).run();
   const cookie=await createSession(env,staff.id,request);
-  return json({user:{id:staff.id,name:staff.name,role:staff.role,mustChangePassword:false}},200,{'Set-Cookie':cookie});
+  return json({user:{id:staff.id,name:staff.name,role:matchedRole,mustChangePassword:false}},200,{'Set-Cookie':cookie});
 }
