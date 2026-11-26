@@ -7,7 +7,7 @@ export async function onRequestGet({request,env,params}){
   if(!env.DB||!env.NAVSTAR_STORAGE)return error('Private file storage is not configured.',503);
   const access=await requireRole(request,env,roles);if(access.response)return access.response;
   const file=await env.DB.prepare('SELECT * FROM stored_files WHERE id=?').bind(params.id).first();
-  if(!file||!canReadStoredFile(file,access.user))return error('File not found or access is not permitted.',404);
+  if(!file||!(await canReadStoredFile(env.DB,file,access.user)))return error('File not found or access is not permitted.',404);
   const object=await env.NAVSTAR_STORAGE.get(file.object_key);
   if(!object)return error('The stored file is unavailable.',404);
   const headers=new Headers();
