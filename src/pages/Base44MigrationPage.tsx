@@ -30,7 +30,8 @@ export function Base44MigrationPage() {
   const [progress, setProgress] = useState('');
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [archive, setArchive] = useState<{batch?: {id?:string;createdAt?: string;completed?: boolean;recordsReceived?: number;savedRecords?:number}; batches?: {id:string;createdAt:string;completed:boolean;recordsReceived:number;savedRecords:number}[]; entities?: {entityName:string;count:number}[]; records?: {entityName:string;sourceId:string;createdAt?:string;updatedAt?:string;importedAt?:string;data:Record<string,unknown>}[]; truncated?:boolean} | null>(null);
-  const [archiveSearch, setArchiveSearch] = useState('');\n  const [selectedBatch, setSelectedBatch] = useState('');
+  const [archiveSearch, setArchiveSearch] = useState('');
+  const [selectedBatch, setSelectedBatch] = useState('');
   const [archiveError, setArchiveError] = useState('');
 
   const counts = useMemo(() => Object.fromEntries(ENTITY_NAMES.map(name => [name, bundle?.entities?.[name]?.length || 0])), [bundle]);
