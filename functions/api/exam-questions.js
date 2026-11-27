@@ -80,7 +80,7 @@ async function handleQuestionPost({request,env}){
  }
  if(action==='generate_ai'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
-  const topic=safeString(body.topic,500),count=Math.max(1,Math.min(100,Number(body.count)||5)),level=safeString(body.level,40)||'medium';
+  const topic=safeString(body.topic,500),count=Math.max(1,Math.min(20,Number(body.count)||5)),level=safeString(body.level,40)||'medium';
   const questionType=safeString(body.questionType,40)||'multiple_choice',pointsPerQuestion=Number(body.pointsPerQuestion||2),replaceAll=body.replaceAll===true;
   const module=await env.DB.prepare('SELECT m.title,c.title AS course_title FROM course_assessments a LEFT JOIN course_modules m ON m.id=a.module_id JOIN courses c ON c.id=a.course_id WHERE a.id=?').bind(assessmentId).first();
   if(!module?.title)return error('This exam must be linked to a module before AI can set its questions.',409);
@@ -95,7 +95,7 @@ async function handleQuestionPost({request,env}){
   try{const saved=JSON.parse(settingsRow?.value||'{}');aiSettings=saved?.['ai-assistant']||{};}catch{/* Safe defaults. */}
   if(aiSettings.aiEnabled===false||aiSettings.aiExamQuestionGeneration===false)return error('AI exam question generation is currently disabled in Admin Settings → Navstar AI.',403);
   if(!env.AI||typeof env.AI.run!=='function')return error('Cloudflare Workers AI is not connected to this deployment. Check the Production AI binding.',503);
-  const model='@cf/zai-org/glm-4.7-flash';
+  const model='@cf/meta/llama-3.1-8b-instruct-fast';
   const prompt='Create exactly '+count+' original '+level+' assessment questions for the module "'+module.title+'" in the course "'+module.course_title+'". Exam title: "'+assessment.title+'". '+(topic?'Focus specifically on this topic: '+topic+'.':'Cover the full module syllabus and its key learning outcomes.')+' Question type: '+questionType+'. Each question must carry exactly '+pointsPerQuestion+' marks. Return ONLY compact valid JSON with a "questions" array. Each item must contain questionText, questionType (single_choice, multiple_choice, true_false, short_answer, essay), options (four concise strings for choice questions; [] otherwise), correctAnswer (exact option text or an array for multiple choice; null for written answers), points exactly `+pointsPerQuestion+`, and a brief explanation. Include exactly `+count+` questions. No markdown or commentary.';
   let generated;
   try{
@@ -104,9 +104,8 @@ async function handleQuestionPost({request,env}){
      {role:'system',content:'You are an expert Kenyan educational assessment author. Produce valid JSON only. Questions must be clear, age-appropriate, academically sound, original and aligned to the stated topic and level. Do not invent a curriculum code.'},
      {role:'user',content:prompt}
     ],
-    max_completion_tokens:Math.min(8192,Math.max(1400,count*220)),
+    max_tokens:Math.min(3072,Math.max(700,count*140)),
     temperature:0.2,
-    chat_template_kwargs:{enable_thinking:false},
     response_format:{type:'json_object'}
    });
    let content=result?.choices?.[0]?.message?.content??result?.response??result?.output_text??'';
