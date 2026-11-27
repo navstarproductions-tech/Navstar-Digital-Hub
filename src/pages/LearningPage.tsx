@@ -21,7 +21,7 @@ const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-xl bg
 export function LearningPage({section}:{section?:string}) {
   const [searchParams] = useSearchParams();
   const activeSection = section || searchParams.get('section') || undefined;
-  const [data, setData = useState<LearningData | null>(null);
+  const [data, setData] = useState<LearningData | null>(null);
   const [academic, setAcademic] = useState<AcademicData>({});
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedLessonId, setSelectedLessonId] = useState('');
