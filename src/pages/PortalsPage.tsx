@@ -43,6 +43,8 @@ export function PortalsPage() {
   const selectedPortal = portals.find((portal) => portal.id === role);
   const selectedStyle = selectedPortal ? portalStyles[selectedPortal.id] : null;
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [logoUrl, setLogoUrl] = useState('/Navstar_Official_Logo.jpg');
+  useEffect(() => { let live = true; fetch('/api/public-branding', { cache: 'no-store' }).then(r => r.json()).then(data => { if (live && typeof data?.branding?.logoAssetUrl === 'string' && data.branding.logoAssetUrl) setLogoUrl(data.branding.logoAssetUrl); }).catch(() => undefined); return () => { live = false; }; }, []);
   const [maintenance, setMaintenance] = useState<{active:boolean;portals:string[];message:string;startsAt:string;returnAt:string;backgroundUrl:string}|null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -169,7 +171,7 @@ export function PortalsPage() {
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_20%,rgba(37,99,235,.45),transparent_40%),radial-gradient(ellipse_at_90%_80%,rgba(6,182,212,.25),transparent_38%)]" />
           <div className="container mx-auto px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
             <div className="max-w-3xl">
-              <img src="/Navstar_Official_Logo.jpg" alt="Official Navstar Digital Hub logo" className="mb-7 h-24 w-48 object-contain object-left sm:h-28 sm:w-56" />
+              <img src={logoUrl} alt="Official Navstar Digital Hub logo" className="mb-7 h-24 w-48 object-contain object-left sm:h-28 sm:w-56" />
               <p className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-xs font-bold uppercase tracking-[.25em] text-cyan-200"><LockKeyhole className="h-4 w-4" /> Secure access gateway</p>
               <p className="mt-6 text-xs font-extrabold uppercase tracking-[.3em] text-amber-300">HOME OF TECHNOCRATS</p>
               <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">Welcome to your <span className="bg-gradient-to-r from-sky-300 to-amber-300 bg-clip-text text-transparent">digital workspace.</span></h1>
@@ -224,9 +226,9 @@ export function PortalsPage() {
     return <main className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#061127] px-4 py-12 text-white">
       {maintenance.backgroundUrl && <div className="absolute inset-0 -z-20 bg-cover bg-center opacity-35" style={{backgroundImage:`url("${maintenance.backgroundUrl}")`}}/>}
       <div className="absolute inset-0 -z-10 bg-gradient-to-br from-[#041126]/95 via-blue-950/90 to-[#071329]/95"/>
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[.07]"><img src="/Navstar_Official_Logo.jpg" alt="" className="w-[min(75vw,620px)] object-contain"/></div>
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[.07]"><img src={logoUrl} alt="" className="w-[min(75vw,620px)] object-contain"/></div>
       <section className="w-full max-w-2xl rounded-3xl border border-white/15 bg-white/[.08] p-7 text-center shadow-2xl backdrop-blur-xl sm:p-10">
-        <img src="/Navstar_Official_Logo.jpg" alt="Navstar Digital Hub" className="mx-auto mb-7 h-20 w-40 object-contain"/>
+        <img src={logoUrl} alt="Navstar Digital Hub" className="mx-auto mb-7 h-20 w-40 object-contain"/>
         <p className="text-xs font-black uppercase tracking-[.28em] text-amber-300">HOME OF TECHNOCRATS</p>
         <div className="mx-auto mt-7 grid h-16 w-16 place-items-center rounded-2xl border border-cyan-200/30 bg-cyan-300/10 text-3xl">⚙</div>
         <h1 className="mt-6 text-3xl font-black sm:text-4xl">Portal under maintenance</h1>
