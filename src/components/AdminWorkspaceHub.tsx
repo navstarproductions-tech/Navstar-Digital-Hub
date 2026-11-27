@@ -170,7 +170,7 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
  const source=definition?.source||'Dedicated register for this section';
  const columns=section==='student-status'?['name','email','staffId','status']:section==='pos'&&subtab==='Packing & Delivery'?['reference','customerName','serviceName','status','createdAt']:section==='finance'&&subtab==='Cashouts'?['reference','amount','status','created_at','requested_by']:section==='users'&&subtab==='Staff IDs & Roles'?['name','staffId','role','department','status']:definition?.columns||['Record','Category','Status','Updated'];
  const rows=filtered.slice(0,30);
- if(section==='customer-accounts'||section==='fingerprint'||section==='navstar-analytics'||(!endpoint))return <AdminWorkspaceRecords section={section} subtab={subtab/>;
+ if(section==='customer-accounts'||section==='fingerprint'||section==='navstar-analytics'||(!endpoint))return <AdminWorkspaceRecords section={section} subtab={subtab}/>;
  const isConnected=Boolean(endpoint)||['courses','school','student-status','employees','applications','enrollment-summary','services'].includes(section);
  return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
   <div className="flex flex-wrap items-start justify-between gap-3">
