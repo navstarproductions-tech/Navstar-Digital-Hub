@@ -180,6 +180,24 @@ async function handleQuestionPost({request,env}){
   await env.DB.prepare("INSERT INTO exam_runtime_attempts(id,assessment_id,user_id,attempt_number,started_at,expires_at,last_activity_at) VALUES(?,?,?,?,?,?,?)").bind(id,assessmentId,user.id,Number(count?.n||0)+1,started,expires,started).run();
   return json({started:true,attemptId:id,expiresAt:expires,attemptNumber:Number(count?.n||0)+1});
  }
+ if(action==='save_runtime_answers'){
+  if(user.role!=='student')return error('Only students can save examination answers.',403);
+  const attemptId=safeString(body.attemptId,80),attempt=await env.DB.prepare("SELECT id,expires_at FROM exam_runtime_attempts WHERE id=? AND assessment_id=? AND user_id=? AND status='in_progress'").bind(attemptId,assessmentId,user.id).first();
+  if(!attempt)return error('Active examination attempt not found.',404);
+  if(Date.parse(attempt.expires_at)<=Date.now()){await env.DB.prepare("UPDATE exam_runtime_attempts SET status='expired' WHERE id=?").bind(attemptId).run();return error('Your examination time has expired.',409);}
+  const answers=Array.isArray(body.answers)?body.answers.slice(0,500):[];
+  const statements=[];
+  for(const answer of answers){
+   const questionId=safeString(answer.questionId,80);
+   if(!questionId)continue;
+   const question=await env.DB.prepare("SELECT id FROM course_exam_questions WHERE id=? AND assessment_id=? AND status='active'").bind(questionId,assessmentId).first();
+   if(!question)continue;
+   statements.push(env.DB.prepare("INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct) VALUES(?,?,?,?,NULL,NULL) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer_json=excluded.answer_json,updated_at=CURRENT_TIMESTAMP").bind(uuid(),attemptId,questionId,JSON.stringify(answer.answer??null)));
+  }
+  if(statements.length)await env.DB.batch(statements);
+  await env.DB.prepare("UPDATE exam_runtime_attempts SET last_activity_at=CURRENT_TIMESTAMP WHERE id=?").bind(attemptId).run();
+  return json({saved:statements.length});
+ }
  if(action==='report_violation'){
   if(user.role!=='student')return error('Only students can report an examination event.',403);
   const attemptId=safeString(body.attemptId,80),kind=safeString(body.kind,60);
