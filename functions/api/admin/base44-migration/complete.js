@@ -702,7 +702,9 @@ async function importStudent(DB,r,adminId,c) {
         c.warnings.push('Skipped '+email+': admission number '+requestedAdmission+' already belongs to a different student. The original admission number and student record were protected.');
         return null;
       }
-      matchedEnrollment=byAdmission;
+      // A learner may hold different admission numbers for different courses. Never reuse
+      // an enrollment from another course merely because the email/identity is the same.
+      if(byAdmission.course_id===course.id)matchedEnrollment=byAdmission;
     }
   }
 
@@ -715,6 +717,14 @@ async function importStudent(DB,r,adminId,c) {
         AND COALESCE(preferred_intake,'')=COALESCE(?, '')
       ORDER BY created_at ASC LIMIT 1
     `).bind(email,course.id,requestedIntake).first();
+    if(!matchedEnrollment){
+      const sameCourseRows=await DB.prepare(`
+        SELECT id,admission_number,email,identity_number,course_id,preferred_intake
+        FROM enrollments WHERE lower(email)=lower(?) AND course_id=?
+        ORDER BY created_at ASC LIMIT 2
+      `).bind(email,course.id).all();
+      if((sameCourseRows.results||[]).length===1)matchedEnrollment=sameCourseRows.results[0];
+    }
   }
   const enrollmentId=matchedEnrollment?.id||'b44-enr-'+sourceId.slice(-24);
   const admission=requestedAdmission || matchedEnrollment?.admission_number || null;
