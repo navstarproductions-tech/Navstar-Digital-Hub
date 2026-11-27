@@ -1,7 +1,7 @@
 import { sha256 } from '../../../_shared/auth.js';
 import { error, json, uuid } from '../../../_shared/http.js';
 
-const allowedOrigins = new Set(['https://navstardigitalhub.base44.app', 'https://app.base44.com']);
+const allowedOrigins = new Set(['https://navstardigitalhub.co.ke', 'https://www.navstardigitalhub.co.ke', 'https://navstardigitalhub.base44.app', 'https://app.base44.com']);
 const corsHeaders = (origin) => ({
   'Access-Control-Allow-Origin': allowedOrigins.has(origin) ? origin : 'null',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
