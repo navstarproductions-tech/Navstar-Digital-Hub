@@ -15,14 +15,14 @@ export function RuntimeExamMarkingWorkspace({attempts,onSaved}:{attempts:Attempt
     'Award no marks for an absent answer. Do not invent content, do not exceed the question maximum, and award partial credit only where the response demonstrates relevant understanding.',
     'Question: '+answer.questionText,'Question type: '+answer.questionType,'Maximum marks: '+answer.points,
     'Expected answer / marking guidance: '+String(answer.correctAnswer??answer.explanation??'Not supplied'),
-    'Learner response: '+String(Array.isArray(answer.answer)?answer.answer.join(', '):answer.answer??'No answer saved')].join('\\n\\n');
+    'Learner response: '+String(Array.isArray(answer.answer)?answer.answer.join(', '):answer.answer??'No answer saved')].join('\n\n');
    const response=await fetch('/api/assistant',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({messages:[{role:'user',content:prompt}]})});
    const result=await response.json();if(!response.ok)throw new Error(result.error||'Navstar AI could not suggest a mark.');
-   const match=String(result.answer||'').match(/\\{[\\s\\S]*\\}/);if(!match)throw new Error('AI returned an unclear marking suggestion.');
+   const match=String(result.answer||'').match(/\{[\s\S]*\}/);if(!match)throw new Error('AI returned an unclear marking suggestion.');
    const parsed=JSON.parse(match[0]),score=Number(parsed.pointsAwarded),reason=String(parsed.reason||'').trim();
    if(!Number.isInteger(score)||score<0||score>answer.points||!reason)throw new Error('AI returned an invalid mark or missing reason.');
    setMarks(current=>({...current,[answer.questionId]:String(score)}));setAiReasons(current=>({...current,[answer.questionId]:reason}));
-   setFeedback(current=>current?current+'\\n'+answer.questionText+': '+reason:answer.questionText+': '+reason);
+   setFeedback(current=>current?current+'\n'+answer.questionText+': '+reason:answer.questionText+': '+reason);
    setNotice('AI suggested '+score+'/'+answer.points+' for the selected written answer. Review or change it before saving.');
   }catch(e){setError(e instanceof Error?e.message:'AI marking suggestion failed.');}finally{setAiBusy('');}
  };
