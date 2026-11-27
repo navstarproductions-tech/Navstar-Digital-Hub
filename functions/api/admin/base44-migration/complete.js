@@ -494,14 +494,16 @@ async function importStudentResult(DB,r,adminId,c,sourceCourses,sourceModules) {
   const cat=r.cat_score===null||r.cat_score===undefined?0:num(r.cat_score);
   const practical=r.assignment_score===null||r.assignment_score===undefined?0:num(r.assignment_score);
   const exam=r.exam_score===null||r.exam_score===undefined?0:num(r.exam_score);
-  const result=await DB.prepare("INSERT OR IGNORE INTO student_module_results(id,user_id,course_id,module_id,cat_score,practical_score,exam_score,assignment_score,score,max_score,grade,remarks,status,published_at,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-    .bind('b44modres-'+sourceId.slice(-20),student.id,course.id,module.row.id,cat,practical,exam,0,
+  const targetId='b44modres-'+sourceId.slice(-20);
+  const result=await DB.prepare("INSERT INTO student_module_results(id,user_id,course_id,module_id,cat_score,practical_score,exam_score,assignment_score,score,max_score,grade,remarks,status,published_at,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,module_id) DO UPDATE SET course_id=excluded.course_id,cat_score=excluded.cat_score,practical_score=excluded.practical_score,exam_score=excluded.exam_score,assignment_score=excluded.assignment_score,score=excluded.score,max_score=excluded.max_score,grade=excluded.grade,remarks=excluded.remarks,status=excluded.status,published_at=excluded.published_at,updated_by=excluded.updated_by,updated_at=excluded.updated_at")
+    .bind(targetId,student.id,course.id,module.row.id,cat,practical,exam,0,
       num(r.score),Math.max(1,num(r.max_score)||100),grade,clean(r.remarks,1000),status,
       status==='published'?clean(r.updated_date,60)||clean(r.created_date,60)||new Date().toISOString():null,
       adminId,clean(r.updated_date,60)||clean(r.created_date,60)||new Date().toISOString()).run();
+  const savedResult=await DB.prepare("SELECT id FROM student_module_results WHERE user_id=? AND module_id=?").bind(student.id,module.row.id).first();
   if(Number(result.meta?.changes||0)>0)c.studentResultsImported++;else c.studentResultsAlreadyPresent++;
-  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('StudentResult',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING")
-    .bind(sourceId,'b44modres-'+sourceId.slice(-20),student.id).run();
+  if(savedResult?.id)await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('StudentResult',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+    .bind(sourceId,savedResult.id,student.id).run();
 }
 async function importExamSettings(DB,rows) {
   if(!rows.length)return;
