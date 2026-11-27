@@ -35,7 +35,22 @@ export async function onRequestDelete({ request, env }) {
   if (learnerCount > 0) {
     return error('This course cannot be permanently deleted because ' + learnerCount + ' learner enrolment(s) are linked to it. Active, accepted, registered, completed and graduated learners are protected. Remove or transfer the learner enrolments through the academic process first.', 409);
   }
-  // Course foreign keys use ON DELETE CASCADE for modules, fee items and other course-owned records.
+  // Remove non-learner application records (submitted, under-review or rejected) only.
+  // Their fee snapshots are application-owned and are removed with those applications.
+  await env.DB.prepare(`
+    DELETE FROM enrollment_fee_items
+    WHERE enrollment_id IN (
+      SELECT id FROM enrollments
+      WHERE course_id = ?
+        AND lower(trim(status)) NOT IN ('accepted','active','enrolled','registered','completed','complete','graduated','graduate','candidate')
+    )
+  `).bind(id).run();
+  await env.DB.prepare(`
+    DELETE FROM enrollments
+    WHERE course_id = ?
+      AND lower(trim(status)) NOT IN ('accepted','active','enrolled','registered','completed','complete','graduated','graduate','candidate')
+  `).bind(id).run();
+  // Course-owned modules, fee items and dependent learning resources cascade with the course.
   const deleted = await env.DB.prepare("DELETE FROM courses WHERE id = ? AND status != 'active'").bind(id).run();
   if (!deleted.meta?.changes) return error('The archived course could not be deleted. Refresh the list and try again.', 409);
   await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
