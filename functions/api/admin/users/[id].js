@@ -14,19 +14,29 @@ export async function onRequestPatch({ request, env, params }) {
   try { body = await readJson(request, 8192); } catch { return error('Invalid user details.'); }
   if (body.status !== undefined) {
     const status = safeString(body.status, 24).toLowerCase();
-    if (!['active','suspended','archived'].includes(status)) return error('Choose Active, Suspended or Archived.');
-    const target = await env.DB.prepare("SELECT id, role, status FROM users WHERE id = ?").bind(id).first();
+    if (!['active','suspended','deferred','dismissed'].includes(status)) {
+      return error('Choose Active, Suspended, Deferred or Dismissed. Graduation and completion can only be confirmed through the authorized academic process.', 400);
+    }
+    const reason = safeString(body.reason, 1000).trim();
+    const effectiveDate = safeString(body.effectiveDate, 10) || new Date().toISOString().slice(0,10);
+    if (reason.length < 5) return error('A reason of at least five characters is required for every student status change.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) || Number.isNaN(Date.parse(effectiveDate + 'T00:00:00Z'))) return error('Enter a valid effective date.');
+    const target = await env.DB.prepare("SELECT id, role FROM users WHERE id = ?").bind(id).first();
     if (!target) return error('User account not found.', 404);
     if (target.role !== 'student') return error('Student status actions can only be applied to student accounts.', 409);
     if (id === access.user.id) return error('You cannot change your own account status.');
-    await env.DB.prepare('UPDATE users SET status = ? WHERE id = ?').bind(status==='active'?'active':'disabled', id).run();
-    const profile=await env.DB.prepare('SELECT user_id FROM user_profiles WHERE user_id=?').bind(id).first();
-    if(profile)await env.DB.prepare('UPDATE user_profiles SET student_status=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?').bind(status,id).run();
-    else {let staffId='ST'+uuid().replace(/-/g,'').slice(0,8).toUpperCase();await env.DB.prepare('INSERT INTO user_profiles(user_id,staff_id,portal_role,student_status) VALUES(?,?,\'student\',?)').bind(id,staffId,status).run();}
+    await env.DB.prepare('UPDATE users SET status = ? WHERE id = ?').bind(status === 'active' ? 'active' : 'disabled', id).run();
+    const profile = await env.DB.prepare('SELECT user_id FROM user_profiles WHERE user_id=?').bind(id).first();
+    if (profile) await env.DB.prepare('UPDATE user_profiles SET student_status=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?').bind(status,id).run();
+    else {
+      const staffId = 'ST' + uuid().replace(/-/g,'').slice(0,8).toUpperCase();
+      await env.DB.prepare("INSERT INTO user_profiles(user_id,staff_id,portal_role,student_status) VALUES(?,?,'student',?)").bind(id,staffId,status).run();
+    }
     if (status !== 'active') await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
+    const action = 'student_status_changed:' + status + '|effective:' + effectiveDate + '|reason:' + reason;
     await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
-      .bind(uuid(), access.user.id, 'student_status_' + status, 'user', id).run();
-    return json({ updated: true, id, status });
+      .bind(uuid(), access.user.id, action, 'user', id).run();
+    return json({ updated: true, id, status, effectiveDate, reason, confirmed: true });
   }
   const current = await env.DB.prepare('SELECT id, role FROM users WHERE id = ?').bind(id).first();
   const currentProfile = await env.DB.prepare('SELECT staff_id FROM user_profiles WHERE user_id = ?').bind(id).first();
