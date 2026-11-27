@@ -19,8 +19,8 @@ export async function onRequestPost({request,env}){
  let body;try{body=await readJson(request,30000);}catch{return error('Invalid course code request.');}
  const action=safeString(body.action,20);
  const [c,m]=await Promise.all([
-  env.DB.prepare("SELECT id,title,course_code,status FROM courses ORDER BY title").all(),
-  env.DB.prepare("SELECT m.id,m.course_id,m.title,m.module_code,m.status,c.title AS course_title,c.course_code FROM course_modules m JOIN courses c ON c.id=m.course_id ORDER BY c.title,m.sort_order,m.title").all()
+  env.DB.prepare("SELECT id,title,course_code,status FROM courses WHERE status = 'active' ORDER BY title").all(),
+  env.DB.prepare("SELECT m.id,m.course_id,m.title,m.module_code,m.status,c.title AS course_title,c.course_code FROM course_modules m JOIN courses c ON c.id=m.course_id WHERE c.status = 'active' ORDER BY c.title,m.sort_order,m.title").all()
  ]);
  const courses=c.results||[],modules=m.results||[];
  if(action==='generate'){
