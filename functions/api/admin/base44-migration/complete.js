@@ -79,6 +79,7 @@ function passwordCredential(r) {
 async function importFeeStructure(DB,r,c) {
   const sourceId=sourceRecordId(r);
   if(!sourceId)return;
+  if(r.approved!==true){c.feeStructuresSkipped++;c.warnings.push('Unapproved or legacy fee structure for '+clean(r.course_title,120)+' was retained in the archive but not activated in the official fee register.');return;}
   const course=await courseFor(DB,r.course_title,r.total_fee);
   if(course.created)c.archivedCoursesCreated++;
   const items=normalizeFeeItems(r);
