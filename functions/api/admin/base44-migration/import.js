@@ -20,7 +20,7 @@ async function secureRecord(value) {
   if (!value || typeof value !== 'object') return value;
   const out = {};
   for (const [key, item] of Object.entries(value)) {
-    if (/^(biometric_data|fingerprints|parent_password)$/i.test(key)) {
+    if (/^(biometric_data|fingerprints|parent_password|student_password|password|login_password|portal_password)$/i.test(key)) {
       continue;
     }
     if (/^(student_password|password|login_password|portal_password)$/i.test(key) && typeof item === 'string' && item.length) {
@@ -62,7 +62,7 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return new Response(JSON.stringify({ error: 'Invalid JSON payload.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } }); }
   const entityName = String(body?.entityName || '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 63);
-  const allowedEntities = new Set(['Enrollment', 'FeeStructure', 'FeePayment']);
+  const allowedEntities = new Set(['Enrollment', 'FeeStructure', 'FeePayment', 'AdditionalFee']);
   if (!allowedEntities.has(entityName)) return new Response(JSON.stringify({ error: 'This migration accepts student enrolments and fee records only (Enrollment, FeeStructure, FeePayment).' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
   const records = Array.isArray(body?.records) ? body.records : [];
   const batchId = tokenHash;
