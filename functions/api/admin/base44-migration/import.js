@@ -50,7 +50,8 @@ export async function onRequestOptions({ request }) {
 
 export async function onRequestPost({ request, env }) {
   const origin = request.headers.get('Origin') || '';
-  if (!allowedOrigins.has(origin)) return error('Origin not allowed.', 403);
+  const sameOrigin = origin && origin === new URL(request.url).origin;
+  if (!allowedOrigins.has(origin) && !sameOrigin) return new Response(JSON.stringify({ error: 'Origin not allowed. Open the migration centre on the official website.' }), { status: 403, headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' } });
   const headers = corsHeaders(origin);
   const token = bearer(request);
   if (!token || !env.DB) return new Response(JSON.stringify({ error: 'A valid migration token is required.' }), { status: 401, headers: { ...headers, 'Content-Type': 'application/json' } });
@@ -67,25 +68,21 @@ export async function onRequestPost({ request, env }) {
   const batchId = tokenHash;
   if (!entityName || records.length < 1 || records.length > 100) return new Response(JSON.stringify({ error: 'Each batch must contain 1–100 records and a valid entity name.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
   let imported = 0;
+  let skipped = 0;
   for (const source of records) {
     if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
     const suppliedId = source.id ?? source._id ?? source.uuid ?? source.ID ?? source.Id;
     const sourceId = String(suppliedId ?? ('auto-' + (await sha256(JSON.stringify(source))))).slice(0, 200);
     const safe = await secureRecord(source);
     const jsonValue = JSON.stringify(safe);
-    await env.DB.prepare(`
-      INSERT INTO base44_legacy_records (id, entity_name, source_id, source_created_at, source_updated_at, record_json, migration_batch)
+    const write = await env.DB.prepare(`
+      INSERT OR IGNORE INTO base44_legacy_records (id, entity_name, source_id, source_created_at, source_updated_at, record_json, migration_batch)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(entity_name, source_id) DO UPDATE SET
-        source_created_at=excluded.source_created_at,
-        source_updated_at=excluded.source_updated_at,
-        record_json=excluded.record_json,
-        imported_at=CURRENT_TIMESTAMP,
-        migration_batch=excluded.migration_batch
     `).bind(uuid(), entityName, sourceId, source.created_date || source.created_at || null, source.updated_date || source.updated_at || null, jsonValue, batchId).run();
-    imported += 1;
+    if (Number(write.meta?.changes || 0) > 0) imported += 1;
+    else skipped += 1;
   }
   await env.DB.prepare('UPDATE base44_migration_tokens SET records_received=records_received+? WHERE token_hash=?').bind(imported, tokenHash).run();
   const savedCount = await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_records WHERE migration_batch=? AND entity_name=?').bind(batchId, entityName).first();
-  return new Response(JSON.stringify({ entityName, received: imported, saved: Number(savedCount?.count || 0), batchId }), { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ entityName, received: imported, skipped, saved: Number(savedCount?.count || 0), batchId }), { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } });
 }
