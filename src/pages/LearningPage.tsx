@@ -21,6 +21,7 @@ const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-xl bg
 export function LearningPage({section}:{section?:string}) {
   const [searchParams] = useSearchParams();
   const activeSection = section || searchParams.get('section') || undefined;
+  // The exams view is shared by tutors and administrators; server permissions determine course scope.
   const [data, setData] = useState<LearningData | null>(null);
   const [academic, setAcademic] = useState<AcademicData>({});
   const [selectedCourseId, setSelectedCourseId] = useState('');
