@@ -34,7 +34,7 @@ const portalStyles: Record<string, { page: string; hero: string; eyebrow: string
 type SessionUser = { id: string; name: string; email: string; role: string; profilePhotoUrl?: string | null; mustChangePassword?: boolean };
 type Enrollment = { id: string; full_name: string; course_id: string; course_title?:string; phone?: string; status: string; payment_status: string; created_at: string; admission_fee?:number; amount_paid?:number; course_fee?:number };
 type Overview = { students: number; applications: number; verifiedPayments: number; verifiedDonations: number; courses: number; services: number };
-type FinancePayment = { id: string; purpose: string; receipt_number?: string; mpesa_receipt?: string; amount: number; payer_name: string; description: string; status: string; updated_at: string };
+type FinancePayment = { id: string; purpose: string; ledger?: string; receipt_number?: string; mpesa_receipt?: string; amount: number; payer_name: string; description: string; status: string; updated_at: string };
 type CashoutRequest = { id: string; reference: string; amount: number; status: string; created_at: string; requested_by: string };
 
 export function PortalsPage() {
@@ -124,7 +124,7 @@ export function PortalsPage() {
           return;
         }
         if (active) { setUser(session.user); setStatus(''); }
-        if (['student', 'admissions', 'principal'].includes(session.user.role)) {
+        if (['student', 'admissions', 'principal', 'finance'].includes(session.user.role)) {
           const response = await fetch('/api/enrollments');
           const result = await response.json() as { enrollments?: Enrollment[] };
           if (response.ok && active) setEnrollments(result.enrollments ?? []);
@@ -135,15 +135,20 @@ export function PortalsPage() {
           if (response.ok && active) setOverview(result);
         }
         if (session.user.role === 'finance') {
-          const [paymentsResponse, cashoutsResponse] = await Promise.all([
-            fetch('/api/admin/payments'),
+          const [businessPaymentsResponse, feePaymentsResponse, cashoutsResponse] = await Promise.all([
+            fetch('/api/admin/payments?ledger=business'),
+            fetch('/api/admin/payments?ledger=fees'),
             fetch('/api/admin/cashouts'),
           ]);
-          const [paymentsResult, cashoutsResult] = await Promise.all([
-            paymentsResponse.json() as Promise<{ payments?: FinancePayment[] }>,
+          const [businessPaymentsResult, feePaymentsResult, cashoutsResult] = await Promise.all([
+            businessPaymentsResponse.json() as Promise<{ payments?: FinancePayment[] }>,
+            feePaymentsResponse.json() as Promise<{ payments?: FinancePayment[] }>,
             cashoutsResponse.json() as Promise<{ requests?: CashoutRequest[] }>,
           ]);
-          if (active && paymentsResponse.ok) setFinancePayments(paymentsResult.payments ?? []);
+          if (active) setFinancePayments([
+            ...(businessPaymentsResponse.ok ? (businessPaymentsResult.payments ?? []).map(item => ({ ...item, ledger: 'business' })) : []),
+            ...(feePaymentsResponse.ok ? (feePaymentsResult.payments ?? []).map(item => ({ ...item, ledger: 'fees' })) : []),
+          ].sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || ''))));
           if (active && cashoutsResponse.ok) setFinanceCashouts(cashoutsResult.requests ?? []);
         }
       } catch {
