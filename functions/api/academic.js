@@ -54,9 +54,15 @@ async function getCentralMarksPolicy(db){
  const grading=config.grading||{},lines=String(grading.gradeScale||'').split(/\r?\n/);
  const gradingScale=lines.map(line=>line.split('|').map(part=>part.trim())).filter(parts=>parts[0]&&parts[2]!==''&&parts[3]!==''&&parts[2]!=='—'&&parts[3]!=='—'&&Number.isFinite(Number(parts[2]))&&Number.isFinite(Number(parts[3]))).map(parts=>({grade:parts[0],classification:parts[1]||'',min:Number(parts[2]),max:Number(parts[3]),remarks:parts.slice(4).join(' | ')}));
  const maximum=Number(grading.publishedMaximum);
- return {publishedMaximum:Number.isFinite(maximum)&&maximum>0?maximum:100,gradingScale:gradingScale.length?gradingScale:[{grade:'A',min:80,max:100,remarks:'Exceptional performance'},{grade:'B+',min:70,max:79,remarks:'Strong technical skills'},{grade:'B',min:60,max:69,remarks:'Competent work'},{grade:'C',min:50,max:59,remarks:'Satisfactory work'},{grade:'D',min:40,max:49,remarks:'Developing'},{grade:'F',min:0,max:39,remarks:'Essential requirements not met'}]};
+ return {publishedMaximum:Number.isFinite(maximum)&&maximum>0?maximum:100,grading,gradingScale:gradingScale.length?gradingScale:[{grade:'A',min:80,max:100,remarks:'Exceptional performance'},{grade:'B+',min:70,max:79,remarks:'Strong technical skills'},{grade:'B',min:60,max:69,remarks:'Competent work'},{grade:'C',min:50,max:59,remarks:'Satisfactory work'},{grade:'D',min:40,max:49,remarks:'Developing'},{grade:'F',min:0,max:39,remarks:'Essential requirements not met'}]};
 }
-function publishedMaximum(type,settings={}){const value=Number(settings?.publishedMaximum);return Number.isFinite(value)&&value>0?value:100;}
+function publishedMaximum(type,settings={}){
+ const grading=settings.grading||settings||{},kind=String(type||'').toLowerCase();
+ const key=({cat:'catOutOf',test:'catOutOf',practical:'practicalOutOf',exam:'finalOutOf'}[kind]||'finalOutOf');
+ const fallback=({cat:30,test:30,practical:20,exam:50}[kind]||50);
+ const snake=key.replace(/[A-Z]/g,m=>'_'+m.toLowerCase()),value=Number(grading[key]??grading[snake]);
+ return Number.isFinite(value)&&value>0?value:fallback;
+}
 
 function scaledPoints(raw,rawMaximum,publishedMaximumValue){
  const denominator=Number(rawMaximum)>0?Number(rawMaximum):100;
@@ -214,7 +220,7 @@ export async function onRequestPost({request,env}){
       if(!Number.isFinite(Number(body.rawPoints))||Math.abs(Number(body.rawPoints)-raw)>0.001)return error('The practical total does not match the five criterion scores.',409);
     }
     if(!enrolled||!Number.isFinite(raw)||raw<0||raw>rawMaximum)return error('Enter a valid mark for an enrolled student, within the assessment maximum.',409);
-    const policy=await getCentralMarksPolicy(env.DB);const targetMaximum=policy.publishedMaximum,published=scaledPoints(raw,rawMaximum,targetMaximum);
+    const policy=await getCentralMarksPolicy(env.DB);const targetMaximum=publishedMaximum(assessment.assessment_type,policy),published=scaledPoints(raw,rawMaximum,targetMaximum);
     const statements=[
       env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points").bind(uuid(),assessmentId,studentId,published,feedbackText,body.publish===false?null:new Date().toISOString(),user.id,raw,targetMaximum)
     ];
@@ -233,8 +239,8 @@ export async function onRequestPost({request,env}){
     const attempt=await env.DB.prepare('SELECT t.id,t.assessment_id,t.user_id,a.course_id,a.max_points FROM course_assessment_attempts t JOIN course_assessments a ON a.id=t.assessment_id WHERE t.id=?').bind(attemptId).first();
     if(!attempt||!(await courseAccess(env.DB,user,attempt.course_id))||!Number.isSafeInteger(points)||points<0||points>Number(attempt.max_points))return error('Choose a valid attempt and a score within the assessment maximum.',409);
     const paper=await env.DB.prepare('SELECT assessment_type,max_points,module_id FROM course_assessments WHERE id=?').bind(attempt.assessment_id).first();
-    const cfg=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();
-    let examConfig={};try{examConfig=JSON.parse(cfg?.settings_json||'{}')}catch{}
+    const cfg=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
+    let examConfig={};try{examConfig=JSON.parse(cfg?.value||'{}')}catch{}
     const rawMaximum=Number(paper?.max_points)>0?Number(paper.max_points):100,targetMaximum=publishedMaximum(paper?.assessment_type,examConfig),published=scaledPoints(points,rawMaximum,targetMaximum);
     await env.DB.batch([
       env.DB.prepare("UPDATE course_assessment_attempts SET status='graded',points_awarded=?,feedback=?,marked_by=?,marked_at=CURRENT_TIMESTAMP WHERE id=?").bind(points,feedback,user.id,attemptId),
