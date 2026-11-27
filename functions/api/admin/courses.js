@@ -5,7 +5,9 @@ export async function onRequestGet({ request, env }) {
   if (!env.DB) return error('Course database is unavailable.', 503);
   const access = await requireRole(request, env, ['admin']);
   if (access.response) return access.response;
-  const rows = await env.DB.prepare("SELECT id,title,description,duration,image_url AS image,category,price,status,level,course_code FROM courses WHERE status != 'active' ORDER BY title").all();
+  const officialIds = ['computer-programming','advanced-programming','web-design','graphic-design','robotics-automation','video-editing','html-css','computer-maintenance','integrated-digital-services','python-programming'];
+  const placeholders = officialIds.map(() => '?').join(',');
+  const rows = await env.DB.prepare(`SELECT id,title,description,duration,image_url AS image,category,price,status,level,course_code FROM courses WHERE status != 'active' OR id NOT IN (${placeholders}) ORDER BY status,title`).bind(...officialIds).all();
   return json({ courses: rows.results ?? [] });
 }
 
