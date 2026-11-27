@@ -1,6 +1,6 @@
 import { getSession, requireRole } from '../_shared/auth.js';
 import { error,isSameOrigin,json,readJson,safeString,uuid } from '../_shared/http.js';
-import { syncModuleResult } from '../_shared/module-marks.js';
+import { syncModuleResult, syncStudentModuleResults } from '../_shared/module-marks.js';
 
 const admins=['admin','principal'];
 const staff=['admin','principal','tutor'];
@@ -63,7 +63,7 @@ export async function onRequestGet({request,env}){
   if(!staff.includes(user.role))return error('Not authorised.',403);
   const courseId=clean(url.searchParams.get('courseId'),80);
   if(!await canCourse(env.DB,user,courseId))return error('Course access denied.',403);
-  const rows=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE e.course_id=? AND e.status='accepted' ORDER BY u.name").bind(courseId).all();
+  const rows=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE e.course_id=? AND e.status='accepted' AND u.role='student' AND u.status='active' ORDER BY u.name").bind(courseId).all();
   return json({students:rows.results||[]});
  }
  return error('Unknown academic workspace view.',400);
@@ -100,8 +100,9 @@ export async function onRequestPost({request,env}){
   const access=await requireRole(request,env,admins);if(access.response)return access.response;
   const studentId=clean(b.studentId,80),courseId=clean(b.courseId,80),period=clean(b.periodLabel,80);
   if(!studentId||!period||!await canCourse(env.DB,user,courseId))return error('Select a valid course, student and reporting period.');
-  const student=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake,e.course_fee,e.amount_paid,e.id AS enrollment_id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted'").bind(studentId,courseId).first();
-  if(!student)return error('Student is not enrolled in this course.',404);
+  const student=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake,e.course_fee,e.amount_paid,e.id AS enrollment_id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' AND u.role='student' AND u.status='active'").bind(studentId,courseId).first();
+  if(!student)return error('Only an active student with an accepted enrolment can receive a report card.',404);
+  await syncStudentModuleResults(env.DB,studentId,courseId,user.id);
   const course=await env.DB.prepare('SELECT id,title,course_code FROM courses WHERE id=?').bind(courseId).first();
   let modules=(await env.DB.prepare('SELECT id,code,title,sort_order FROM course_modules WHERE course_id=? ORDER BY sort_order,title').bind(courseId).all()).results||[];
   const modulePrefix=String(course?.course_code||course?.title||'NAV').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6)||'NAV';
@@ -109,7 +110,13 @@ export async function onRequestPost({request,env}){
   let moduleSequence=1;
   for(const module of modules){if(module.code&&String(module.code).trim())continue;let candidate='';do{candidate=modulePrefix+String(moduleSequence++).padStart(3,'0')}while(usedCodes.has(candidate));usedCodes.add(candidate);await env.DB.prepare('UPDATE course_modules SET code=? WHERE id=? AND (code IS NULL OR trim(code)=\'\')').bind(candidate,module.id).run();module.code=candidate;}
   modules=modules.map(({id,code,title})=>({id,code,title}));
-  const results=(await env.DB.prepare('SELECT m.id,m.code,m.title, CASE WHEN SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.published_max_points,a.max_points) ELSE 0 END)>0 THEN SUM(CASE WHEN r.published_at IS NOT NULL THEN r.points_awarded ELSE 0 END)*100.0/SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.published_max_points,a.max_points) ELSE 0 END) ELSE NULL END AS percentage, SUM(CASE WHEN r.published_at IS NOT NULL THEN r.points_awarded ELSE 0 END) AS total_points, SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.published_max_points,a.max_points) ELSE 0 END) AS max_points FROM course_modules m LEFT JOIN course_assessments a ON a.module_id=m.id LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=? AND r.published_at IS NOT NULL WHERE m.course_id=? GROUP BY m.id ORDER BY m.sort_order,m.title').bind(studentId,courseId).all()).results||[];
+  const results=(await env.DB.prepare(`SELECT m.id,m.code,m.title,r.cat_score,r.practical_score,r.exam_score,r.assignment_score,
+    r.score AS total_points,r.max_score AS max_points,
+    CASE WHEN r.max_score>0 AND r.status='published' THEN r.score*100.0/r.max_score ELSE NULL END AS percentage,
+    COALESCE(r.grade,'MM') AS grade,COALESCE(r.remarks,'Missing Marks') AS remarks,
+    COALESCE(r.status,'incomplete') AS result_status
+    FROM course_modules m LEFT JOIN student_module_results r ON r.module_id=m.id AND r.user_id=?
+    WHERE m.course_id=? ORDER BY m.sort_order,m.title`).bind(studentId,courseId).all()).results||[];
   const cfgRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
   let allConfig={};try{allConfig=JSON.parse(cfgRow?.value||'{}')}catch{}
   const gradingText=String(allConfig.grading?.gradeScale||'');
@@ -123,7 +130,7 @@ export async function onRequestPost({request,env}){
    const hasResult=x.percentage!==null&&x.percentage!==undefined&&Number.isFinite(Number(x.percentage));
    const pct=hasResult?Number(x.percentage):null;
    const g=hasResult?grading.find(item=>pct>=Number(item.min??item.from??0)&&pct<=Number(item.max??item.to??100)):null;
-   return {...x,percentage:pct,grade:g?.grade||'—',remarks:hasResult?(g?.remarks||g?.remark||'Recorded result'):'Awaiting published marks'};
+   return {...x,percentage:pct,grade:x.grade||g?.grade||(hasResult?'—':'MM'),remarks:x.remarks||(hasResult?(g?.remarks||g?.remark||'Recorded result'):'Awaiting Final Exam')};
   });
   const validPercentages=gradedResults.filter(x=>x.percentage!==null).map(x=>Number(x.percentage));
   const attendance=await env.DB.prepare("SELECT COUNT(ca.id) AS sessions,SUM(CASE WHEN ca.status='present' THEN 1 ELSE 0 END) AS present,SUM(CASE WHEN ca.status='late' THEN 1 ELSE 0 END) AS late,SUM(CASE WHEN ca.status='absent' THEN 1 ELSE 0 END) AS absent,SUM(CASE WHEN ca.status='excused' THEN 1 ELSE 0 END) AS excused FROM course_timetable t LEFT JOIN course_attendance ca ON ca.timetable_id=t.id AND ca.student_user_id=? WHERE t.course_id=? AND t.status='completed'").bind(studentId,courseId).first();
