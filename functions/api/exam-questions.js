@@ -41,21 +41,40 @@ export async function onRequestGet({request,env}){
  if(!env.DB)return error('Exam question database is not configured.',503);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  const requestUrl=new URL(request.url),assessmentId=safeString(requestUrl.searchParams.get('assessmentId'),80),attemptId=safeString(requestUrl.searchParams.get('attemptId'),80);
- const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,CASE WHEN a.max_points>0 THEN a.max_points ELSE 100 END AS max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.require_admin_approval,a.allow_result_review,c.title AS course_title,m.title AS module_title,NULL AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
+ const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,CASE WHEN a.max_points>0 THEN a.max_points ELSE 100 END AS max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.max_attempts,a.require_admin_approval,a.allow_result_review,a.shuffle_questions,a.shuffle_options,a.question_selection_mode,a.question_count,c.title AS course_title,m.title AS module_title,NULL AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not available.',404);
- const paperMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
- const student=user.role==='student';
+ const paperMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100,student=user.role==='student';
  if(student&&(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())))return error('This examination is not currently open.',403);
- let revealAnswers=!student;
- if(student&&assessment.allow_result_review){
-  const submitted=await env.DB.prepare("SELECT id FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status IN ('submitted','graded') AND attempt_number>=(SELECT max_attempts FROM course_assessments WHERE id=?) ORDER BY attempt_number DESC LIMIT 1").bind(assessmentId,user.id,assessmentId).first();
-  revealAnswers=Boolean(submitted);
+ const bank=(await env.DB.prepare('SELECT id,question_text AS questionText,question_type AS questionType,options_json AS optionsJson,points,sort_order AS sortOrder,explanation,correct_answer_json AS correctAnswerJson FROM course_exam_questions WHERE assessment_id=? AND status=? ORDER BY sort_order,id').bind(assessmentId,'active').all()).results||[];
+ let revealAnswers=!student,questions=[],savedAnswers={};
+ if(student&&attemptId){
+  let activeAttempt=await env.DB.prepare("SELECT id,served_question_ids_json,option_order_json FROM exam_runtime_attempts WHERE id=? AND assessment_id=? AND user_id=? AND status='in_progress'").bind(attemptId,assessmentId,user.id).first();
+  if(!activeAttempt)return error('Active examination attempt not found.',404);
+  let servedIds=[];try{servedIds=JSON.parse(activeAttempt.served_question_ids_json||'[]')}catch{servedIds=[];}
+  let optionOrder=parseJsonObject(activeAttempt.option_order_json,{});
+  if(!Array.isArray(servedIds)||!servedIds.length){
+   const selected=selectExamQuestions(bank,paperMaximum,assessment.question_selection_mode||'marks',assessment.question_count||10,Boolean(assessment.shuffle_questions));
+   if(!selected.length)return error('The question bank cannot produce a paper within the configured maximum marks. Add suitable questions or adjust the exam total.',409);
+   servedIds=selected.map(q=>q.id);
+   optionOrder={};
+   for(const q of selected){let options=[];try{options=JSON.parse(q.optionsJson||'[]')}catch{}optionOrder[q.id]=assessment.shuffle_options===0?options:shuffled(options);}
+   await env.DB.prepare('UPDATE exam_runtime_attempts SET served_question_ids_json=?,option_order_json=? WHERE id=?').bind(JSON.stringify(servedIds),JSON.stringify(optionOrder),attemptId).run();
+  }
+  const servedRows=(await env.DB.prepare('SELECT id,question_text AS questionText,question_type AS questionType,options_json AS optionsJson,points,sort_order AS sortOrder,explanation,correct_answer_json AS correctAnswerJson FROM course_exam_questions WHERE assessment_id=? AND id IN ('+servedIds.map(()=>'?').join(',')+')').bind(assessmentId,...servedIds).all()).results||[];
+  const byId=new Map(servedRows.map(q=>[q.id,q]));
+  const ordered=servedIds.map(id=>byId.get(id)).filter(Boolean);
+  if(ordered.length!==servedIds.length)return error('A question in this saved attempt is no longer available. Contact your tutor or administrator.',409);
+  const reviewCount=await env.DB.prepare("SELECT COUNT(*) AS n FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status IN ('submitted','graded') AND attempt_number>=(SELECT max_attempts FROM course_assessments WHERE id=?)").bind(assessmentId,user.id,assessmentId).first();
+  revealAnswers=Boolean(assessment.allow_result_review)&&Number(reviewCount?.n||0)>0;
+  questions=ordered.map(q=>{let options=[];try{options=JSON.parse(q.optionsJson||'[]')}catch{}const chosen=Array.isArray(optionOrder[q.id])?optionOrder[q.id]:options;return {id:q.id,questionText:q.questionText,questionType:q.questionType,options:chosen,points:q.points,sortOrder:q.sortOrder,...(revealAnswers?{correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}:{})};});
+  const saved=(await env.DB.prepare('SELECT question_id,answer_json FROM exam_runtime_answers WHERE attempt_id=?').bind(attemptId).all()).results||[];
+  savedAnswers=Object.fromEntries(saved.map(row=>{let answer=null;try{answer=JSON.parse(row.answer_json||'null')}catch{}return [row.question_id,answer]}));
+ }else if(!student){
+  questions=bank.map(q=>({id:q.id,questionText:q.questionText,questionType:q.questionType,options:JSON.parse(q.optionsJson||'[]'),points:q.points,sortOrder:q.sortOrder,correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}));
  }
- const rows=await env.DB.prepare('SELECT id,question_text AS questionText,question_type AS questionType,options_json AS optionsJson,points,sort_order AS sortOrder,explanation,correct_answer_json AS correctAnswerJson FROM course_exam_questions WHERE assessment_id=? AND status=? ORDER BY sort_order,id').bind(assessmentId,'active').all();
- const questions=(rows.results||[]).map(q=>({id:q.id,questionText:q.questionText,questionType:q.questionType,options:JSON.parse(q.optionsJson||'[]'),points:q.points,sortOrder:q.sortOrder,...(revealAnswers?{correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}:{})}));
  const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first().catch(()=>null);
- let securitySettings={};try{securitySettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{securitySettings={};}
- let savedAnswers={};if(student&&attemptId){const activeAttempt=await env.DB.prepare("SELECT id FROM exam_runtime_attempts WHERE id=? AND assessment_id=? AND user_id=? AND status='in_progress'").bind(attemptId,assessmentId,user.id).first();if(!activeAttempt)return error('Active examination attempt not found.',404);const saved=(await env.DB.prepare('SELECT question_id,answer_json FROM exam_runtime_answers WHERE attempt_id=?').bind(attemptId).all()).results||[];savedAnswers=Object.fromEntries(saved.map(row=>{let answer=null;try{answer=JSON.parse(row.answer_json||'null')}catch{}return [row.question_id,answer]}));}return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:paperMaximum,durationMinutes:assessment.duration_minutes},questions,...(student?{securitySettings,savedAnswers}: {})});
+ let securitySettings={};try{securitySettings=JSON.parse(examSettingsRow?.settings_json||'{}')}catch{securitySettings={};}
+ return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:paperMaximum,durationMinutes:assessment.duration_minutes,questionSelectionMode:assessment.question_selection_mode||'marks',questionCount:assessment.question_count||10},questions,questionCount:bank.length,...(student?{securitySettings,savedAnswers}: {})});
 }
 async function handleQuestionPost({request,env}){
  if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
