@@ -129,7 +129,7 @@ export function Base44MigrationPage() {
       });
       const completion = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error([completion.error || 'Saved academic records could not be connected.', completion.detail || '', completion.progress ? JSON.stringify(completion.progress) : ''].filter(Boolean).join(' · '));
-      setResult({ ...completion, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: (archive?.entities || []).filter(x => ['Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings'].includes(x.entityName)).length });
+      setResult({ ...completion, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: (archive?.entities || []).filter(x => ['Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem'].includes(x.entityName)).length });
       await loadArchive(selectedBatch);
       setProgress('Saved academic records have been processed. Refresh the Marks Hub to view imported exams and questions.');
     } catch (cause) {
