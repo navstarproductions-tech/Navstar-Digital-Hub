@@ -378,3 +378,42 @@ body::-webkit-scrollbar,
     overflow-x: hidden;
   }
 }
+
+
+/* Navstar Student Portal — match the official navy, blue and gold identity. */
+.navstar-student { background:linear-gradient(180deg,#f4f7fc 0%,#eaf0f8 100%); color:#10213c; }
+.navstar-student header { border-color:#d7e1ef; box-shadow:0 2px 12px rgba(7,26,56,.06); }
+.navstar-student header .text-cyan-800,
+.navstar-student .text-cyan-800,
+.navstar-student .text-cyan-900 { color:#0755a6 !important; }
+.navstar-student .bg-cyan-950,
+.navstar-student .bg-blue-950 { background-color:#071a38 !important; }
+.navstar-student .bg-cyan-900 { background:linear-gradient(100deg,#0755b8,#0a3977) !important; color:#fff !important; box-shadow:inset 0 -3px 0 #f5c542; }
+.navstar-student .bg-cyan-50 { background:#edf4ff !important; color:#0b3470 !important; }
+.navstar-student .border-cyan-100,
+.navstar-student .border-cyan-200 { border-color:#c7d8ed !important; }
+.navstar-student .text-cyan-300,
+.navstar-student .text-cyan-200 { color:#f5d36b !important; }
+.navstar-student .bg-gradient-to-br.from-cyan-950,
+.navstar-student .bg-gradient-to-r.from-cyan-950 { background-image:linear-gradient(125deg,#071a38 0%,#0b3470 58%,#0755a6 100%) !important; }
+.navstar-student aside { background:linear-gradient(180deg,#0b2348 0%,#071a38 100%) !important; border-color:rgba(148,163,184,.2) !important; color:#e7eefc; }
+.navstar-student aside nav > div > button { color:#d5e2f5 !important; }
+.navstar-student aside nav > div > button[aria-expanded="true"] { background:linear-gradient(90deg,#0755b8,#073a79) !important; color:#fff !important; box-shadow:inset 3px 0 #f5c542; }
+.navstar-student aside nav > div > div button { color:#c2d1e6 !important; }
+.navstar-student aside nav > div > div button.bg-cyan-900 { background:rgba(8,135,169,.3) !important; color:#fff !important; box-shadow:inset 2px 0 #f5c542; }
+.navstar-student aside nav button:hover { background-color:rgba(255,255,255,.09) !important; color:#fff !important; }
+.navstar-student aside .bg-slate-50 { background:rgba(255,255,255,.07) !important; border-color:rgba(148,163,184,.2) !important; }
+.navstar-student aside .text-slate-600,
+.navstar-student aside .text-slate-500,
+.navstar-student aside .text-slate-400 { color:#aebed4 !important; }
+.navstar-student .text-amber-700 { color:#9a6700 !important; }
+.navstar-student .border-amber-200 { border-color:#e9d49b !important; }
+.navstar-student .bg-gradient-to-r.from-cyan-950.via-sky-900.to-cyan-700 { background-image:linear-gradient(105deg,#071a38 0%,#0b3470 58%,#0755a6 100%) !important; }
+.navstar-student button.bg-cyan-900,
+.navstar-student a.bg-cyan-900,
+.navstar-student button.bg-blue-800 { background:linear-gradient(100deg,#0755b8,#073a79) !important; color:#fff !important; box-shadow:inset 0 -2px 0 #f5c542; }
+.navstar-student button.bg-cyan-900:hover,
+.navstar-student a.bg-cyan-900:hover { filter:brightness(1.08); }
+.navstar-student .text-cyan-950 { color:#09264d !important; }
+.navstar-student .bg-cyan-50 { background-color:#edf4ff !important; }
+.navstar-student .border-cyan-200 { border-color:#c4d7ed !important; }
