@@ -32,6 +32,7 @@ import { CertificateAdminTabs } from '@/components/CertificateAdminTabs';
 import { OnlineFormsWorkspace } from '@/components/OnlineFormsWorkspace';
 import { InstitutionContentWorkspace } from '@/components/InstitutionContentWorkspace';
 import { CustomerCartWorkspace } from '@/components/CustomerCartWorkspace';
+import { ServicesAdminWorkspace } from '@/components/ServicesAdminWorkspace';
 import { LiveClassesWorkspace } from '@/components/LiveClassesWorkspace';
 import { SupportTicketsWorkspace } from '@/components/SupportTicketsWorkspace';
 import { PortalMessagesWorkspace } from '@/components/PortalMessagesWorkspace';
@@ -1327,6 +1328,12 @@ export function AdminPage() {
           {active === 'news-updates' && <InstitutionContentWorkspace type="news"/>}
           {active === 'events' && <InstitutionContentWorkspace type="event"/>}
           {active === 'customer-carts' && <CustomerCartWorkspace/>}
+          {active === 'services' && selectedSubtab === 'Manage Services' && <ServicesAdminWorkspace/>}
+          {active === 'services' && selectedSubtab === 'Customer Carts' && <CustomerCartWorkspace/>}
+          {active === 'services' && selectedSubtab === 'Service Orders' && <section className="overflow-hidden rounded-2xl border bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><div><h3 className="font-bold text-slate-950">Customer service orders</h3><p className="mt-1 text-sm text-slate-600">Track requests from the public Services page and update fulfilment progress.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">{customerOrders.length} orders</span></div>
+            <div className="divide-y">{customerOrders.map(order=><article key={order.id} className="grid gap-3 p-4 lg:grid-cols-[1fr_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-950">{order.serviceName}</p><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-600">{order.status}</span></div><p className="mt-1 text-sm text-slate-600">{order.customerName} · {order.phone}{order.email?' · '+order.email:''}</p><p className="mt-1 text-xs text-slate-500">Reference: {order.reference} · KSh {Number(order.amount).toLocaleString('en-KE')} · {formatEATDateTime(order.createdAt)}</p>{order.notes&&<p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{order.notes}</p>}</div><div className="flex flex-wrap gap-2">{[['in_progress','In progress'],['ready','Ready'],['delivered','Delivered'],['completed','Completed'],['cancelled','Cancel']].map(([value,label])=><Button key={value} type="button" size="sm" variant="outline" onClick={()=>void updateOrderStatus(order.id,value)}>{label}</Button>)}</div></article>)}{customerOrders.length===0&&<p className="p-6 text-sm text-slate-500">No customer orders have been submitted yet.</p>}</div>
+          </section>}
           {(active === 'online-classes' || active === 'eclass-meetings') && <LiveClassesWorkspace/>}
           {active === 'support-tickets' && <SupportTicketsWorkspace/>}
           {active === 'alumni' && <AlumniWorkspace/>}
