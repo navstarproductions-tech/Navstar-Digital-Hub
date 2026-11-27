@@ -495,7 +495,6 @@ async function importMarksConflict(DB,r,adminId,c,sourceCourses,sourceModules) {
 async function importStudentResult(DB,r,adminId,c,sourceCourses,sourceModules) {
   const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='StudentResult' AND source_id=?").bind(sourceId).first();
-  if(mapped?.destination_id){c.studentResultsAlreadyPresent++;return;}
   const courseTitle=sourceCourseTitle(r.course_id,sourceCourses);
   const course=await activeCourseFor(DB,courseTitle);
   if(!course){c.studentResultsSkipped++;return;}
@@ -516,7 +515,7 @@ async function importStudentResult(DB,r,adminId,c,sourceCourses,sourceModules) {
       status==='published'?clean(r.updated_date,60)||clean(r.created_date,60)||new Date().toISOString():null,
       adminId,clean(r.updated_date,60)||clean(r.created_date,60)||new Date().toISOString()).run();
   const savedResult=await DB.prepare("SELECT id FROM student_module_results WHERE user_id=? AND module_id=?").bind(student.id,module.row.id).first();
-  if(Number(result.meta?.changes||0)>0)c.studentResultsImported++;else c.studentResultsAlreadyPresent++;
+  if(mapped?.destination_id)c.studentResultsAlreadyPresent++;else if(Number(result.meta?.changes||0)>0)c.studentResultsImported++;else c.studentResultsAlreadyPresent++;
   if(savedResult?.id)await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('StudentResult',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
     .bind(sourceId,savedResult.id,student.id).run();
 }
