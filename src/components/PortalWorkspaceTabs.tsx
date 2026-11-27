@@ -15,6 +15,7 @@ const tabSets:Record<Role,Tab[]> = {
   {id:'overview',label:'Overview',title:'My student dashboard',description:'Your learning, applications and fee activity in one place.',icon:GraduationCap},
   {id:'courses',label:'My Courses',title:'Enrolled courses and learning',description:'Open your approved courses, modules, lessons and learning resources.',href:'/learning',icon:BookOpen},
   {id:'assignments',label:'Assignments',title:'Assignments and assessments',description:'View published assignments, submit your work and track feedback.',href:'/learning',icon:FileText},
+  {id:'exams',label:'Tests & Exams',title:'Examination centre',description:'View published papers, attempt eligible examinations and track tutor-marked or automatically marked results.',href:'/learning',icon:GraduationCap},
   {id:'fees',label:'Fees & Payments',title:'My fee account',description:'Review your application fee status and request an M-Pesa prompt for an unpaid enrolment.',icon:Wallet},
   {id:'applications',label:'Applications',title:'My applications',description:'Track your course applications and Admissions decisions.',icon:FileText},
   {id:'support',label:'Student support',title:'Help and support',description:'Contact Navstar for account, course and payment assistance.',href:'/services',icon:Headphones},
@@ -157,6 +158,7 @@ const navGroups:Partial<Record<Role,NavGroup[]>>={
  student:[
   {id:'home',label:'Home',items:['overview','applications','notifications']},
   {id:'academics',label:'Academics',items:['academic','courses']},
+  {id:'assessments',label:'Assessments',items:['exams','assignments','projects']},
   {id:'assignments',label:'Assignments',items:['assignments','projects']},
   {id:'finance',label:'Finance',items:['fees']},
   {id:'chat',label:'Chat',items:['support','ai']},
@@ -199,9 +201,11 @@ export function PortalWorkspaceTabs({role,name,enrollments,overview,payments,cas
  const current=tabs.find(tab=>tab.id===active)||tabs[0];
  const currentGroup=groups.find(group=>group.items.includes(active))||groups[0];
  const visibleGroupTabs=(currentGroup?.items||[]).map(id=>tabs.find(tab=>tab.id===id)).filter((tab):tab is Tab=>Boolean(tab)).sort((a,b)=>a.label.localeCompare(b.label));
- const embeddedLearning=(role==='tutor'&&(['classes','resources','assignments','progress'].includes(active)||active==='exams'))||(role==='admin'&&active==='exams')||(role==='student'&&['courses','assignments'].includes(active));
- const accentByRole:Record<Role,string>={student:'bg-blue-800',tutor:'bg-blue-800',admissions:'bg-blue-800',principal:'bg-blue-800',finance:'bg-blue-800',admin:'bg-blue-800',customer:'bg-blue-800'};
+ const embeddedLearning=(role==='tutor'&&(['classes','resources','assignments','progress'].includes(active)||active==='exams'))||(role==='admin'&&active==='exams')||(role==='student'&&['courses','assignments','exams'].includes(active));
+ const accentByRole:Record<Role,string>={student:'bg-blue-800',tutor:'bg-indigo-800',admissions:'bg-teal-800',principal:'bg-amber-700',finance:'bg-emerald-800',admin:'bg-slate-900',customer:'bg-emerald-800'};
+ const softAccentByRole:Record<Role,string>={student:'bg-blue-50 text-blue-900 ring-blue-100',tutor:'bg-indigo-50 text-indigo-900 ring-indigo-100',admissions:'bg-teal-50 text-teal-900 ring-teal-100',principal:'bg-amber-50 text-amber-950 ring-amber-100',finance:'bg-emerald-50 text-emerald-900 ring-emerald-100',admin:'bg-slate-100 text-slate-950 ring-slate-200',customer:'bg-emerald-50 text-emerald-900 ring-emerald-100'};
  const activeAccent=accentByRole[role]||'bg-blue-800';
+ const activeSoft=softAccentByRole[role]||softAccentByRole.student;
  const myEnrollments=enrollments;
  const unpaid=myEnrollments.filter(item=>item.payment_status!=='paid');
  const applications=myEnrollments;
@@ -216,7 +220,7 @@ export function PortalWorkspaceTabs({role,name,enrollments,overview,payments,cas
     {groups.map(group=><button key={group.id} type="button" onClick={()=>setActive(group.items[0])} aria-current={currentGroup?.id===group.id?'page':undefined} className={'shrink-0 rounded-xl px-3 py-2.5 text-xs font-extrabold transition sm:text-sm '+(currentGroup?.id===group.id?activeAccent+' text-white shadow-md':'text-slate-600 hover:bg-slate-50')}>{group.label}</button>)}
    </nav>
    {visibleGroupTabs.length>1&&<nav aria-label={(currentGroup?.label||role)+' sections'} className="flex w-full gap-1.5 overflow-x-auto border-t border-slate-100 pt-2">
-    {visibleGroupTabs.map(tab=>{const Icon=tab.icon;return <button key={tab.id} type="button" onClick={()=>setActive(tab.id)} aria-current={active===tab.id?'page':undefined} className={'inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition '+(active===tab.id?'bg-blue-50 text-blue-900 ring-1 ring-blue-100':'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}><Icon className="h-3.5 w-3.5"/>{tab.label}</button>;})}
+    {visibleGroupTabs.map(tab=>{const Icon=tab.icon;return <button key={tab.id} type="button" onClick={()=>setActive(tab.id)} aria-current={active===tab.id?'page':undefined} className={'inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition '+(active===tab.id?activeSoft+' ring-1':'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}><Icon className="h-3.5 w-3.5"/>{tab.label}</button>;})}
    </nav>}
   </div>
   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
