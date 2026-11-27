@@ -26,14 +26,18 @@ export async function syncModuleResult(db, userId, moduleId, actorId = null) {
   if (!module || !userId) return null;
 
   const [assignmentRows, examRow, config] = await Promise.all([
-    db.prepare(`SELECT a.marks_category,COALESCE(SUM(s.points_awarded* a.category_out_of / a.max_points),0) AS points,COALESCE(SUM(a.category_out_of),0) AS maximum
-      FROM course_assignments a JOIN course_assignment_submissions s ON s.assignment_id=a.id
-      WHERE a.module_id=? AND s.user_id=? AND s.status='graded' AND s.approval_status='approved'
-      GROUP BY a.marks_category`).bind(moduleId,userId).all(),
-    db.prepare(`SELECT a.marks_category,COALESCE(SUM(COALESCE(r.raw_points_awarded,r.points_awarded)*COALESCE(NULLIF(a.category_out_of,0),a.max_points)/a.max_points),0) AS points,
-      COALESCE(SUM(COALESCE(NULLIF(a.category_out_of,0),a.max_points)),0) AS maximum,COUNT(r.id) AS papers
-      FROM course_assessments a JOIN course_assessment_results r ON r.assessment_id=a.id
-      WHERE a.module_id=? AND r.user_id=? AND r.published_at IS NOT NULL GROUP BY a.marks_category`).bind(moduleId,userId).all(),
+    db.prepare(`SELECT a.marks_category,
+      COALESCE(SUM(CASE WHEN s.status='graded' AND s.approval_status='approved' AND s.points_awarded IS NOT NULL THEN s.points_awarded*a.category_out_of/a.max_points ELSE 0 END),0) AS points,
+      COALESCE(SUM(a.category_out_of),0) AS maximum,
+      COUNT(CASE WHEN s.status='graded' AND s.approval_status='approved' AND s.points_awarded IS NOT NULL THEN s.id END) AS marked_count
+      FROM course_assignments a LEFT JOIN course_assignment_submissions s ON s.assignment_id=a.id AND s.user_id=?
+      WHERE a.module_id=? GROUP BY a.marks_category`).bind(userId,moduleId).all(),
+    db.prepare(`SELECT a.marks_category,
+      COALESCE(SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.raw_points_awarded,r.points_awarded)*COALESCE(NULLIF(a.category_out_of,0),a.max_points)/a.max_points ELSE 0 END),0) AS points,
+      COALESCE(SUM(COALESCE(NULLIF(a.category_out_of,0),a.max_points)),0) AS maximum,
+      COUNT(CASE WHEN r.published_at IS NOT NULL THEN r.id END) AS papers
+      FROM course_assessments a LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=?
+      WHERE a.module_id=? GROUP BY a.marks_category`).bind(userId,moduleId).all(),
     configuration(db),
   ]);
 
@@ -57,7 +61,7 @@ export async function syncModuleResult(db, userId, moduleId, actorId = null) {
   };
   const maxScore = outs.CAT + outs.Practical + outs.Final;
   const score = categoryScore.CAT + categoryScore.Practical + categoryScore.Final;
-  const hasAnyMarks = maxima.CAT > 0 || maxima.Practical > 0 || maxima.Final > 0;
+  const hasAnyMarks = (assignmentRows.results||[]).some(row=>Number(row.marked_count||0)>0) || (examRow.results||[]).some(row=>Number(row.papers||0)>0);
   const hasFinal = maxima.Final > 0 && finalExamPapers > 0;
   const bands = parseBands(config.grading?.gradeScale);
   const defaults = [
