@@ -864,9 +864,10 @@ export async function onRequestPost({request,env}) {
   const tokenRow=await env.DB.prepare('SELECT token_hash,expires_at,used_at,records_received,created_by FROM base44_migration_tokens WHERE token_hash=?').bind(tokenHash).first();
   if(!tokenRow||tokenRow.used_at||new Date(tokenRow.expires_at).getTime()<Date.now())return new Response(JSON.stringify({error:'Migration token is invalid, expired, or already completed.'}),{status:401,headers:{...headers,'Content-Type':'application/json'}});
   let body={};try{body=await request.json();}catch{}
-  const academicOnly=body.academicOnly===true;
-  const sourceBatch=academicOnly?clean(body.batchId,80):tokenHash;
-  if(academicOnly&&!sourceBatch)return new Response(JSON.stringify({error:'Select a saved migration package first.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
+  const archiveReplay=body.archiveReplay===true||body.academicOnly===true;
+  const academicOnly=body.academicOnly===true&&body.archiveReplay!==true;
+  const sourceBatch=archiveReplay?clean(body.batchId,80):tokenHash;
+  if(archiveReplay&&!sourceBatch)return new Response(JSON.stringify({error:'Select a saved migration package first.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
   const entityFilter=academicOnly?"'Enrollment','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'":"'Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'";
   const stagedRows=[];
   const newArchiveCount=await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_archive_records WHERE migration_batch=?').bind(sourceBatch).first();
@@ -877,7 +878,7 @@ export async function onRequestPost({request,env}) {
     const rows=page.results||[];stagedRows.push(...rows);if(rows.length<500)break;
     if(offset>=50000)throw new Error('The saved migration package exceeds the safe 50,000-record processing limit. Split the export into smaller packages.');
   }
-  if(academicOnly&&!stagedRows.length)return new Response(JSON.stringify({error:'This saved package contains no archived academic records to import.'}),{status:404,headers:{...headers,'Content-Type':'application/json'}});
+  if(archiveReplay&&!stagedRows.length)return new Response(JSON.stringify({error:'This saved package contains no supported records to import.'}),{status:404,headers:{...headers,'Content-Type':'application/json'}});
   const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],GradingSystem:[],SystemUser:[],ModuleAssignment:[],MarksApproval:[],MarksConflict:[],StaffApplication:[]};
   for(const row of stagedRows) {
     try{const parsed=JSON.parse(row.record_json);if(!parsed.id&&!parsed._id&&!parsed.uuid&&!parsed.ID&&!parsed.Id)parsed._migration_source_id=row.source_id;groups[row.entity_name].push(parsed);}
