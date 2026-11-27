@@ -151,9 +151,10 @@ export async function onRequestPost({request,env}){
   if(action==='set_result_visibility'){
     const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),visible=body.visible===true;
-    const assessment=await env.DB.prepare('SELECT id FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    const assessment=await env.DB.prepare('SELECT id,module_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!assessment)return error('Exam not found.',404);
     await env.DB.prepare('UPDATE course_assessment_results SET published_at=? WHERE assessment_id=?').bind(visible?new Date().toISOString():null,assessmentId).run();
+    if(assessment.module_id){const students=await env.DB.prepare('SELECT user_id FROM course_assessment_results WHERE assessment_id=?').bind(assessmentId).all();for(const row of students.results||[])await syncModuleResult(env.DB,row.user_id,assessment.module_id,user.id);}
     await audit(visible?'exam_results_published':'exam_results_hidden','assessment',assessmentId);
     return json({updated:true,visible});
   }
@@ -186,7 +187,7 @@ export async function onRequestPost({request,env}){
   if(action==='save_manual_assessment_mark'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),feedbackText=safeString(body.feedback,3000);
-    const assessment=await env.DB.prepare('SELECT id,course_id,assessment_type,max_points FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    const assessment=await env.DB.prepare('SELECT id,course_id,module_id,assessment_type,max_points FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id)))return error('Assessment access denied.',403);
     const enrolled=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted'").bind(studentId,assessment.course_id).first();
     let raw=Number(body.rawPoints);
@@ -223,6 +224,7 @@ export async function onRequestPost({request,env}){
     }
     statements.push(env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'manual_assessment_mark_saved','assessment_result',assessmentId+':'+studentId));
     await env.DB.batch(statements);
+    if(assessment.module_id)await syncModuleResult(env.DB,studentId,assessment.module_id,user.id);
     return json({saved:true,rawPoints:raw,rawMaximum,publishedPoints:published,publishedMaximum:targetMaximum,components:componentRows});
   }
   if(action==='grade_assessment_attempt'){
@@ -230,7 +232,7 @@ export async function onRequestPost({request,env}){
     const attemptId=safeString(body.attemptId,80),points=Number(body.pointsAwarded),feedback=safeString(body.feedback,3000);
     const attempt=await env.DB.prepare('SELECT t.id,t.assessment_id,t.user_id,a.course_id,a.max_points FROM course_assessment_attempts t JOIN course_assessments a ON a.id=t.assessment_id WHERE t.id=?').bind(attemptId).first();
     if(!attempt||!(await courseAccess(env.DB,user,attempt.course_id))||!Number.isSafeInteger(points)||points<0||points>Number(attempt.max_points))return error('Choose a valid attempt and a score within the assessment maximum.',409);
-    const paper=await env.DB.prepare('SELECT assessment_type,max_points FROM course_assessments WHERE id=?').bind(attempt.assessment_id).first();
+    const paper=await env.DB.prepare('SELECT assessment_type,max_points,module_id FROM course_assessments WHERE id=?').bind(attempt.assessment_id).first();
     const cfg=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();
     let examConfig={};try{examConfig=JSON.parse(cfg?.settings_json||'{}')}catch{}
     const rawMaximum=Number(paper?.max_points)>0?Number(paper.max_points):100,targetMaximum=publishedMaximum(paper?.assessment_type,examConfig),published=scaledPoints(points,rawMaximum,targetMaximum);
@@ -238,6 +240,7 @@ export async function onRequestPost({request,env}){
       env.DB.prepare("UPDATE course_assessment_attempts SET status='graded',points_awarded=?,feedback=?,marked_by=?,marked_at=CURRENT_TIMESTAMP WHERE id=?").bind(points,feedback,user.id,attemptId),
       env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points").bind(uuid(),attempt.assessment_id,attempt.user_id,published,feedback,body.publish===false?null:new Date().toISOString(),user.id,points,targetMaximum)
     ]);
+    if(body.publish!==false&&paper?.module_id)await syncModuleResult(env.DB,attempt.user_id,paper.module_id,user.id);
     return json({graded:true});
   }
 
