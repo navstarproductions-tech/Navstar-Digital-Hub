@@ -48,7 +48,7 @@ export function StudentExamRunner({exams,attempts=[]}:{exams:Exam[];attempts?:an
  useEffect(()=>{
   if(!attempt)return;
   const onBlur=()=>{if(security.blockAppSwitching||security.lockTabSwitching||security.flagForReview)violation('window_blur');};
-  const onVisibility=()=>{if(document.hidden&&(security.blockAppSwitching||security.lockTabSwitching||security.flagForReview)){violation('tab_hidden');if(security.pauseOnViolation)setMessage('Exam paused for review after a focus change. Return to the exam and contact your tutor if needed.');}};
+  const onVisibility=()=>{if(document.hidden&&(security.blockAppSwitching||security.lockTabSwitching||security.flagForReview)){violation('tab_hidden');if(security.pauseOnViolation)setMessage('A focus change has been flagged for tutor review. The server timer continues while you are away; return to the exam promptly.');}};
   const block=(e:Event)=>e.preventDefault();
   const key=(e:KeyboardEvent)=>{if((security.killShortcuts||security.blockCopying||security.blockPasting)&&(e.ctrlKey||e.metaKey)&&['c','x','v','s','p','u'].includes(e.key.toLowerCase())){e.preventDefault();violation('restricted_shortcut');}};
   const unload=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='Your examination is in progress.';};
