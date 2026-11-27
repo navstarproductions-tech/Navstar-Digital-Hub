@@ -220,14 +220,15 @@ async function handleQuestionPost({request,env}){
  }
  if(action==='save_runtime_answers'){
   if(user.role!=='student')return error('Only students can save examination answers.',403);
-  const attemptId=safeString(body.attemptId,80),attempt=await env.DB.prepare("SELECT id,expires_at FROM exam_runtime_attempts WHERE id=? AND assessment_id=? AND user_id=? AND status='in_progress'").bind(attemptId,assessmentId,user.id).first();
+  const attemptId=safeString(body.attemptId,80),attempt=await env.DB.prepare("SELECT id,expires_at,served_question_ids_json FROM exam_runtime_attempts WHERE id=? AND assessment_id=? AND user_id=? AND status='in_progress'").bind(attemptId,assessmentId,user.id).first();
   if(!attempt)return error('Active examination attempt not found.',404);
   if(Date.parse(attempt.expires_at)<=Date.now()){await env.DB.prepare("UPDATE exam_runtime_attempts SET status='expired' WHERE id=?").bind(attemptId).run();return error('Your examination time has expired.',409);}
+  let servedIds=[];try{servedIds=JSON.parse(attempt.served_question_ids_json||'[]')}catch{servedIds=[];}const servedSet=new Set(Array.isArray(servedIds)?servedIds:[]);
   const answers=Array.isArray(body.answers)?body.answers.slice(0,500):[];
   const statements=[];
   for(const answer of answers){
    const questionId=safeString(answer.questionId,80);
-   if(!questionId)continue;
+   if(!questionId||!servedSet.has(questionId))continue;
    const question=await env.DB.prepare("SELECT id FROM course_exam_questions WHERE id=? AND assessment_id=? AND status='active'").bind(questionId,assessmentId).first();
    if(!question)continue;
    statements.push(env.DB.prepare("INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct) VALUES(?,?,?,?,NULL,NULL) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer_json=excluded.answer_json,updated_at=CURRENT_TIMESTAMP").bind(uuid(),attemptId,questionId,JSON.stringify(answer.answer??null)));
@@ -252,6 +253,7 @@ async function handleQuestionPost({request,env}){
   const now=Date.now(),attempt=await env.DB.prepare("SELECT * FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status='in_progress' ORDER BY attempt_number DESC LIMIT 1").bind(assessmentId,user.id).first();
   if(!attempt)return error('Start the examination before submitting answers.',409);
   if(Date.parse(attempt.expires_at)<=now){await env.DB.prepare("UPDATE exam_runtime_attempts SET status='expired' WHERE id=?").bind(attempt.id).run();return error('Your examination time has expired.',409);}
+  let servedIds=[];try{servedIds=JSON.parse(attempt.served_question_ids_json||'[]')}catch{servedIds=[];}const servedSet=new Set(Array.isArray(servedIds)?servedIds:[]);
   const answers=Array.isArray(body.answers)?body.answers.slice(0,500):[];
   const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first().catch(()=>null);
   let securitySettings={};try{securitySettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{securitySettings={};}
@@ -259,7 +261,8 @@ async function handleQuestionPost({request,env}){
   const deduction=Math.max(0,Math.min(100,Number(securitySettings.negativeMarkValue)||0));
   let score=0,autoMarked=true,negativeDeductions=0;
   for(const answer of answers){
-   const q=await env.DB.prepare('SELECT id,question_type,correct_answer_json,points FROM course_exam_questions WHERE id=? AND assessment_id=? AND status=?').bind(safeString(answer.questionId,80),assessmentId,'active').first();
+   const questionId=safeString(answer.questionId,80);if(!servedSet.has(questionId))continue;
+   const q=await env.DB.prepare('SELECT id,question_type,correct_answer_json,points FROM course_exam_questions WHERE id=? AND assessment_id=?').bind(questionId,assessmentId).first();
    if(!q)continue;
    const submitted=answer.answer??null;let correct=null,points=null;
    if(['single_choice','multiple_choice','true_false'].includes(q.question_type)){
