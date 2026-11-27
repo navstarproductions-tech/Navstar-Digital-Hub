@@ -653,8 +653,7 @@ async function importStaffApplication(DB,r,adminId,c) {
   }
   const sourceStatus=clean(r.status,40).toLowerCase().replace(/[ -]+/g,'_');
   const status=sourceStatus==='approved'||sourceStatus==='accepted'?'approved':
-    sourceStatus==='shortlisted'?'shortlisted':sourceStatus==='rejected'?'rejected':
-    sourceStatus==='withdrawn'?'withdrawn':sourceStatus==='under_review'||sourceStatus==='reviewing'?'under_review':'pending';
+    sourceStatus==='rejected'?'rejected':'pending';
   const list=value=>Array.isArray(value)?value.map(x=>clean(x,160)).filter(Boolean):clean(value,500);
   const specialisations=[
     ...([list(r.courses_to_teach)].flat().filter(Boolean).flatMap(x=>Array.isArray(x)?x:[x])),
@@ -675,7 +674,7 @@ async function importStaffApplication(DB,r,adminId,c) {
     VALUES(?,?,?,?,?,?,?,?,?,NULL,NULL,NULL,?,?,?, ?,?)`)
     .bind(id,name,email,clean(r.phone,32),clean(r.position,120),specialisations.join(', '),
       qualification,clean(r.experience,3000),clean(r.cover_letter||r.recommendation_notes,5000),
-      status,notes||null,['approved','shortlisted','rejected','withdrawn'].includes(status)?clean(r.updated_date,40)||null:null,
+      status,notes||null,['approved','rejected'].includes(status)?clean(r.updated_date,40)||null:null,
       clean(r.created_date,40)||new Date().toISOString(),clean(r.updated_date,40)||clean(r.created_date,40)||new Date().toISOString()).run();
   const saved=await DB.prepare("SELECT id FROM staff_applications WHERE id=?").bind(id).first();
   if(!saved){c.staffApplicationsSkipped++;c.warnings.push('Staff application '+email+' could not be connected to Recruitment.');return;}
