@@ -408,8 +408,12 @@ export async function onRequestPost({request,env}){
     if(!Number.isSafeInteger(points)||points<0||points>Number(assessment.max_points))return error('Score must be between zero and the maximum score.');
     const student=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(studentId,assessment.course_id).first();
     if(!student)return error('Student is not enrolled in this course.',409);
-    await env.DB.prepare('INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by) VALUES(?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP').bind(uuid(),assessmentId,studentId,points,safeString(body.feedback,3000),body.publish===false?null:new Date().toISOString(),user.id).run();
-    return json({saved:true});
+    const policy=await getCentralMarksPolicy(env.DB);
+    const paper=await env.DB.prepare('SELECT assessment_type FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    const targetMaximum=publishedMaximum(paper?.assessment_type,policy);
+    const publishedPoints=scaledPoints(points,Number(assessment.max_points),targetMaximum);
+    await env.DB.prepare('INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points').bind(uuid(),assessmentId,studentId,publishedPoints,safeString(body.feedback,3000),body.publish===false?null:new Date().toISOString(),user.id,points,targetMaximum).run();
+    return json({saved:true,rawPoints:points,publishedPoints,publishedMaximum:targetMaximum});
   }
 
   if(action==='set_graduation_status'){
@@ -428,8 +432,8 @@ export async function onRequestPost({request,env}){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const studentId=safeString(body.studentId,80),period=safeString(body.periodLabel,80);
     if(!period||!(await requireCourse(env.DB,user,courseId)))return error('Select a course and report-card period.');
-    const student=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(studentId,courseId).first();
-    if(!student)return error('Student is not enrolled in this course.',409);
+    const student=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' AND u.role='student' AND u.status='active' LIMIT 1").bind(studentId,courseId).first();
+    if(!student)return error('Only an active student with an accepted enrolment can receive a report card.',409);
     const assignmentStats=await env.DB.prepare("SELECT COUNT(*) AS total,AVG(CASE WHEN points_awarded IS NOT NULL THEN points_awarded*100.0/(SELECT max_points FROM course_assignments WHERE id=assignment_id) END) AS average FROM course_assignment_submissions WHERE user_id=? AND assignment_id IN (SELECT id FROM course_assignments WHERE course_id=?)").bind(studentId,courseId).first();
     const examStats=await env.DB.prepare("SELECT COUNT(*) AS total,AVG(r.points_awarded*100.0/COALESCE(r.published_max_points,a.max_points)) AS average FROM course_assessment_results r JOIN course_assessments a ON a.id=r.assessment_id WHERE r.user_id=? AND a.course_id=? AND r.published_at IS NOT NULL").bind(studentId,courseId).first();
     const summary={assignments:assignmentStats||{},assessments:examStats||{},issuedAt:new Date().toISOString()};
