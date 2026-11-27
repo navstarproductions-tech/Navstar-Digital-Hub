@@ -88,7 +88,7 @@ async function importFeeStructure(DB,r,c) {
       .bind(id,course.id,item.itemName,item.amount,item.dueStage,item.sortOrder).run();
   }
   const total=items.reduce((a,x)=>a+x.amount,0);
-  await DB.prepare('UPDATE courses SET price=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(total,course.id).run();
+  await DB.prepare('UPDATE courses SET price=? WHERE id=?').bind(total,course.id).run();
   await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id) VALUES('FeeStructure',?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,imported_at=CURRENT_TIMESTAMP")
     .bind(sourceId,course.id).run();
   c.feeStructuresImported++;
