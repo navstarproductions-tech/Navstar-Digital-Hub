@@ -619,7 +619,7 @@ export async function onRequestPost({request,env}) {
   const academicOnly=body.academicOnly===true;
   const sourceBatch=academicOnly?clean(body.batchId,80):tokenHash;
   if(academicOnly&&!sourceBatch)return new Response(JSON.stringify({error:'Select a saved migration package first.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
-  const entityFilter=academicOnly?"'Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict'":"'Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict'";
+  const entityFilter=academicOnly?"'Enrollment','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict'":"'Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict'";
   const staged=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM base44_legacy_records WHERE migration_batch=? AND entity_name IN ("+entityFilter+") ORDER BY entity_name,source_id").bind(sourceBatch).all();
   if(academicOnly&&!(staged.results||[]).length)return new Response(JSON.stringify({error:'This saved package contains no archived academic records to import.'}),{status:404,headers:{...headers,'Content-Type':'application/json'}});
   const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],MarksApproval:[],MarksConflict:[]};
@@ -634,7 +634,7 @@ export async function onRequestPost({request,env}) {
     const sourceCourses=new Map(groups.Course.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
     const sourceModules=new Map(groups.CourseUnit.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
     const imported=[];
-    for(const student of groups.Enrollment){const item=await importStudent(env.DB,student,tokenRow.created_by,c);if(item)imported.push(item);}
+    for(const student of groups.Enrollment){const item=await importStudent(env.DB,student,tokenRow.created_by,c);if(item&&!academicOnly)imported.push(item);}
     await importExamSettings(env.DB,groups.ExamSettings);
     await importMarksWeights(env.DB,groups.SystemSettings);
     for(const module of groups.CourseUnit)await importCourseModule(env.DB,module,tokenRow.created_by,c,sourceCourses);
