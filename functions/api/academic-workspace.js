@@ -20,7 +20,7 @@ export async function onRequestGet({request,env}){
  const url=new URL(request.url),action=url.searchParams.get('action')||'messages';
  if(action==='verify-report-card'){
   const key=clean(url.searchParams.get('token'),100);if(!key)return error('Verification token required.');
-  const row=await env.DB.prepare('SELECT report_card_no,period_label,snapshot_json,issued_at FROM academic_report_cards WHERE public_token=?').bind(key).first();
+  const row=await env.DB.prepare("SELECT report_card_no,period_label,snapshot_json,issued_at FROM academic_report_cards WHERE public_token=? AND status='published'").bind(key).first();
   if(!row)return error('Report card not found.',404);
   let snapshot={};try{snapshot=JSON.parse(row.snapshot_json)}catch{}
   return json({reportCardNo:row.report_card_no,period:row.period_label,issuedAt:row.issued_at,student:snapshot.student,course:snapshot.course,results:snapshot.results,summary:snapshot.summary,verification:'verified'});
@@ -28,11 +28,11 @@ export async function onRequestGet({request,env}){
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  if(action==='report-cards'){
   if(user.role==='student'){
-   const rows=await env.DB.prepare('SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.course_id,r.snapshot_json,c.title AS course_title FROM academic_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY issued_at DESC').bind(user.id).all();
+   const rows=await env.DB.prepare("SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.course_id,r.snapshot_json,c.title AS course_title FROM academic_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? AND r.status='published' ORDER BY r.published_at DESC,r.issued_at DESC").bind(user.id).all();
    return json({reportCards:rows.results||[]});
   }
   if(!staff.includes(user.role))return error('Not authorised.',403);
-  const rows=await env.DB.prepare('SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.course_id,r.snapshot_json,u.name AS student_name,c.title AS course_title FROM academic_report_cards r JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=r.course_id ORDER BY r.issued_at DESC LIMIT 500').all();
+  const rows=await env.DB.prepare("SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.approved_at,r.published_at,r.course_id,r.snapshot_json,u.name AS student_name,c.title AS course_title FROM academic_report_cards r JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=r.course_id ORDER BY CASE r.status WHEN 'draft' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,r.issued_at DESC LIMIT 500").all();
   return json({reportCards:rows.results||[]});
  }
  if(action==='messages'){
@@ -103,22 +103,55 @@ export async function onRequestPost({request,env}){
   if(!student)return error('Student is not enrolled in this course.',404);
   const course=await env.DB.prepare('SELECT id,title FROM courses WHERE id=?').bind(courseId).first();
   const modules=(await env.DB.prepare('SELECT id,code,title FROM course_modules WHERE course_id=? ORDER BY sort_order,title').bind(courseId).all()).results||[];
-  const results=(await env.DB.prepare(`SELECT m.id,m.code,m.title,
-   AVG(r.points_awarded*100.0/COALESCE(r.published_max_points,a.max_points)) AS percentage,
-   SUM(r.points_awarded) AS total_points,SUM(COALESCE(r.published_max_points,a.max_points)) AS max_points
-   FROM course_modules m LEFT JOIN course_assessments a ON a.module_id=m.id
-   LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=? AND r.published_at IS NOT NULL
-   WHERE m.course_id=? GROUP BY m.id ORDER BY m.sort_order,m.title`).bind(studentId,courseId).all()).results||[];
+  const results=(await env.DB.prepare('SELECT m.id,m.code,m.title, CASE WHEN SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.published_max_points,a.max_points) ELSE 0 END)>0 THEN SUM(CASE WHEN r.published_at IS NOT NULL THEN r.points_awarded ELSE 0 END)*100.0/SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.published_max_points,a.max_points) ELSE 0 END) ELSE NULL END AS percentage, SUM(CASE WHEN r.published_at IS NOT NULL THEN r.points_awarded ELSE 0 END) AS total_points, SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.published_max_points,a.max_points) ELSE 0 END) AS max_points FROM course_modules m LEFT JOIN course_assessments a ON a.module_id=m.id LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=? AND r.published_at IS NOT NULL WHERE m.course_id=? GROUP BY m.id ORDER BY m.sort_order,m.title').bind(studentId,courseId).all()).results||[];
   const cfgRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
-  let allConfig={};try{allConfig=JSON.parse(cfgRow?.value||'{}')}catch{}const gradingText=String(allConfig.grading?.gradeScale||'');const parsedGrades=gradingText.split(/\r?\n/).map(line=>line.split('|').map(part=>part.trim())).filter(p=>p[0]&&p[2]!==''&&p[3]!==''&&p[2]!=='—'&&p[3]!=='—'&&Number.isFinite(Number(p[2]))&&Number.isFinite(Number(p[3]))).map(p=>({grade:p[0],min:Number(p[2]),max:Number(p[3]),remarks:p.slice(4).join(' | ')}));const grading=parsedGrades.length?parsedGrades:[{grade:'A',min:80,max:100,remarks:'Exceptional performance'},{grade:'B+',min:70,max:79,remarks:'Strong technical skills'},{grade:'B',min:60,max:69,remarks:'Competent work'},{grade:'C',min:50,max:59,remarks:'Satisfactory work'},{grade:'D',min:40,max:49,remarks:'Developing'},{grade:'F',min:0,max:39,remarks:'Essential requirements not met'}];
+  let allConfig={};try{allConfig=JSON.parse(cfgRow?.value||'{}')}catch{}
+  const gradingText=String(allConfig.grading?.gradeScale||'');
+  const parsedGrades=gradingText.split(/\r?\n/).map(line=>line.split('|').map(part=>part.trim())).filter(p=>p[0]&&p[2]!==''&&p[3]!==''&&p[2]!=='—'&&p[3]!=='—'&&Number.isFinite(Number(p[2]))&&Number.isFinite(Number(p[3]))).map(p=>({grade:p[0],min:Number(p[2]),max:Number(p[3]),remarks:p.slice(4).join(' | ')}));
+  const grading=parsedGrades.length?parsedGrades:[{grade:'A',min:80,max:100,remarks:'Exceptional performance'},{grade:'B+',min:70,max:79,remarks:'Strong technical skills'},{grade:'B',min:60,max:69,remarks:'Competent work'},{grade:'C',min:50,max:59,remarks:'Satisfactory work'},{grade:'D',min:40,max:49,remarks:'Developing'},{grade:'F',min:0,max:39,remarks:'Essential requirements not met'}];
   const paid=Number(student.amount_paid||0),fee=Number(student.course_fee||0),balance=Math.max(0,fee-paid);
-  const intakeText=clean(student.preferred_intake,60),monthMap={january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12'};const month=Object.keys(monthMap).find(m=>intakeText.toLowerCase().includes(m));const year=(intakeText.match(/20\d{2}/)||[])[0];const intake=month&&year?monthMap[month]+year.slice(-2):(intakeText.replace(/[^a-z0-9]/gi,'').slice(0,4)||'0000').toUpperCase();
-  const gradedResults=results.map(x=>{const pct=Number(x.percentage||0),g=grading.find((item)=>pct>=Number(item.min??item.from??0)&&pct<=Number(item.max??item.to??100));return {...x,grade:g?.grade||'—',remarks:g?.remarks||g?.remark||'Recorded result'};});
-  const snapshot={student:{name:student.name,email:student.email,admissionNumber:student.admission_number,intake:student.preferred_intake},course,modules,results:gradedResults,summary:{mean:gradedResults.length?gradedResults.reduce((s,x)=>s+Number(x.percentage||0),0)/gradedResults.length:0,fee,paid,balance,paymentPercentage:fee?paid/fee*100:0},grading,tutorComment:clean(b.tutorComment,1000),principalComment:clean(b.principalComment,1000),recommendation:clean(b.recommendation,100),issuedBy:user.name};
-  const existing=await env.DB.prepare('SELECT id,report_card_no,public_token FROM academic_report_cards WHERE user_id=? AND course_id=? AND period_label=?').bind(studentId,courseId,period).first();
-  const id=existing?.id||uuid(),number=existing?.report_card_no||'RC-'+intake+'/'+String(crypto.getRandomValues(new Uint16Array(1))[0]%10000).padStart(4,'0')+String.fromCharCode(65+(crypto.getRandomValues(new Uint8Array(1))[0]%26)),publicToken=existing?.public_token||token();
-  await env.DB.prepare('INSERT INTO academic_report_cards(id,report_card_no,public_token,user_id,course_id,period_label,intake_code,snapshot_json,issued_by) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,course_id,period_label) DO UPDATE SET snapshot_json=excluded.snapshot_json,issued_by=excluded.issued_by,issued_at=CURRENT_TIMESTAMP').bind(id,number,publicToken,studentId,courseId,period,intake,JSON.stringify(snapshot),user.id).run();
-  return json({issued:true,id,reportCardNo:number,publicUrl:new URL('/verify-result/'+publicToken,request.url).toString()});
+  const intakeText=clean(student.preferred_intake,60),monthMap={january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12'};
+  const month=Object.keys(monthMap).find(m=>intakeText.toLowerCase().includes(m)),year=(intakeText.match(/20\d{2}/)||[])[0];
+  const intake=month&&year?monthMap[month]+year.slice(-2):(intakeText.replace(/[^a-z0-9]/gi,'').slice(0,4)||'0000').toUpperCase();
+  const gradedResults=results.map(x=>{
+   const hasResult=x.percentage!==null&&x.percentage!==undefined&&Number.isFinite(Number(x.percentage));
+   const pct=hasResult?Number(x.percentage):null;
+   const g=hasResult?grading.find(item=>pct>=Number(item.min??item.from??0)&&pct<=Number(item.max??item.to??100)):null;
+   return {...x,percentage:pct,grade:g?.grade||'—',remarks:hasResult?(g?.remarks||g?.remark||'Recorded result'):'Awaiting published marks'};
+  });
+  const validPercentages=gradedResults.filter(x=>x.percentage!==null).map(x=>Number(x.percentage));
+  const snapshot={student:{name:student.name,email:student.email,admissionNumber:student.admission_number,intake:student.preferred_intake},course,modules,results:gradedResults,summary:{mean:validPercentages.length?validPercentages.reduce((sum,value)=>sum+value,0)/validPercentages.length:null,fee,paid,balance,paymentPercentage:fee?paid/fee*100:0},grading,tutorComment:clean(b.tutorComment,1000),principalComment:clean(b.principalComment,1000),recommendation:clean(b.recommendation,100),issuedBy:user.name};
+  const existing=await env.DB.prepare('SELECT id,report_card_no,status FROM academic_report_cards WHERE user_id=? AND course_id=? AND period_label=?').bind(studentId,courseId,period).first();
+  if(existing)return error('A report card already exists for this student and period ('+existing.report_card_no+', '+existing.status+'). Published report cards are permanent and cannot be overwritten. Use a new reporting period for a new issue.',409);
+  const id=uuid(),number='RC-'+intake+'/'+String(crypto.getRandomValues(new Uint16Array(1))[0]%10000).padStart(4,'0')+String.fromCharCode(65+(crypto.getRandomValues(new Uint8Array(1))[0]%26)),publicToken=token();
+  const inserted=await env.DB.prepare("INSERT INTO academic_report_cards(id,report_card_no,public_token,user_id,course_id,period_label,intake_code,snapshot_json,issued_by,status) VALUES(?,?,?,?,?,?,?,?,?,'draft') ON CONFLICT(user_id,course_id,period_label) DO NOTHING").bind(id,number,publicToken,studentId,courseId,period,intake,JSON.stringify(snapshot),user.id).run();
+  if(!inserted.meta?.changes)return error('A report card was created for this student and period by another administrator. Refresh the register before continuing.',409);
+  return json({created:true,id,reportCardNo:number,status:'draft',message:'Draft created. Approve it and then publish it to release the student copy and activate public verification.'},201);
+ }
+ if(action==='approve-report-card'){
+  const access=await requireRole(request,env,admins);if(access.response)return access.response;
+  const id=clean(b.id,80);if(!id)return error('Select a report card.');
+  const record=await env.DB.prepare('SELECT id,status FROM academic_report_cards WHERE id=?').bind(id).first();
+  if(!record)return error('Report card not found.',404);
+  if(record.status!=='draft')return error('Only a draft report card can be approved.',409);
+  const result=await env.DB.prepare("UPDATE academic_report_cards SET status='approved',approved_by=?,approved_at=CURRENT_TIMESTAMP WHERE id=? AND status='draft'").bind(user.id,id).run();
+  if(!result.meta?.changes)return error('The report card changed while you were reviewing it. Refresh and retry.',409);
+  await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'academic_report_card_approved','academic_report_card',id).run();
+  return json({saved:true,status:'approved'});
+ }
+ if(action==='publish-report-card'){
+  const access=await requireRole(request,env,admins);if(access.response)return access.response;
+  const id=clean(b.id,80);if(!id)return error('Select a report card.');
+  const record=await env.DB.prepare('SELECT id,user_id,report_card_no,status,public_token FROM academic_report_cards WHERE id=?').bind(id).first();
+  if(!record)return error('Report card not found.',404);
+  if(record.status!=='approved')return error('A report card must be approved before it can be published.',409);
+  const result=await env.DB.prepare("UPDATE academic_report_cards SET status='published',published_by=?,published_at=CURRENT_TIMESTAMP,issued_at=CURRENT_TIMESTAMP WHERE id=? AND status='approved'").bind(user.id,id).run();
+  if(!result.meta?.changes)return error('The report card changed while you were publishing it. Refresh and retry.',409);
+  await env.DB.batch([
+   env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'academic_report_card_published','academic_report_card',id),
+   env.DB.prepare('INSERT INTO notifications(id,user_id,title,message) VALUES(?,?,?,?)').bind(uuid(),record.user_id,'Academic report card published','Your report card '+record.report_card_no+' is now available in your Navstar Student Portal.')
+  ]);
+  return json({saved:true,status:'published',reportCardNo:record.report_card_no,publicUrl:new URL('/verify-result/'+record.public_token,request.url).toString()});
  }
  if(action==='create-conversation'){
   if(user.role!=='student')return error('Only students may open a new tutor conversation.',403);
