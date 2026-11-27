@@ -926,6 +926,7 @@ export async function onRequestPost({request,env}) {
     for(const submission of groups.AssignmentSubmission)await importAssignmentSubmission(env.DB,submission,tokenRow.created_by,c);
     for(const attempt of groups.ExamAttempt)await importExamAttempt(env.DB,attempt,tokenRow.created_by,c);
     for(const conflict of groups.MarksConflict)await importMarksConflict(env.DB,conflict,tokenRow.created_by,c,sourceCourses,sourceModules);
+    groups.StudentResult.sort((a,b)=>Date.parse(clean(a.updated_date||a.created_date,40)||'1970-01-01')-Date.parse(clean(b.updated_date||b.created_date,40)||'1970-01-01'));
     for(const result of groups.StudentResult)await importStudentResult(env.DB,result,tokenRow.created_by,c,sourceCourses,sourceModules);
     for(const application of groups.StaffApplication)await importStaffApplication(env.DB,application,tokenRow.created_by,c);
     for(const fee of groups.AdditionalFee) {
