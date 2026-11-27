@@ -125,7 +125,7 @@ async function importStudent(DB,r,adminId,c) {
   const profile=await DB.prepare('SELECT staff_id FROM user_profiles WHERE user_id=?').bind(user.id).first();
   const staffId=profile?.staff_id||'STB44'+sourceId.replace(/[^a-z0-9]/gi,'').slice(-10).toUpperCase();
   const address=[r.street,r.location,r.sublocation||r.sub_location,r.ward,r.subcounty||r.sub_county,r.county].map(x=>clean(x,100)).filter(Boolean).join(', ');
-  await DB.prepare(\`
+  await DB.prepare(`
     INSERT INTO user_profiles(user_id,staff_id,portal_role,phone,date_of_birth,gender,citizenship,country,province,county,sub_county,ward,location,sub_location,profile_photo_url,national_id,address,student_status)
     VALUES(?,?,'student',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET
@@ -145,7 +145,7 @@ async function importStudent(DB,r,adminId,c) {
       national_id=COALESCE(NULLIF(excluded.national_id,''),user_profiles.national_id),
       address=COALESCE(NULLIF(excluded.address,''),user_profiles.address),
       student_status=excluded.student_status,updated_at=CURRENT_TIMESTAMP
-  \`).bind(
+  `).bind(
     user.id,staffId,phone,dateOnly(r.date_of_birth)||null,clean(r.gender,40)||null,clean(r.nationality,80)||null,
     clean(r.country,80)||'Kenya',clean(r.province,80)||null,clean(r.county,80)||null,clean(r.subcounty||r.sub_county,80)||null,
     clean(r.ward,80)||null,clean(r.location,100)||null,clean(r.sublocation||r.sub_location,100)||null,
@@ -162,14 +162,14 @@ async function importStudent(DB,r,adminId,c) {
     const createdAt=clean(r.created_date||r.created_at,40)||new Date().toISOString();
     const contactName=clean(r.next_of_kin_name||r.guardian_name||r.mother_name||r.father_name,120)||'Not recorded';
     const contactPhone=clean(r.next_of_kin_phone||r.guardian_phone||r.mother_phone||r.father_phone,40)||'Not recorded';
-    await DB.prepare(\`
+    await DB.prepare(`
       INSERT INTO enrollments(
         id,display_ref,admission_number,course_id,full_name,email,phone,date_of_birth,identity_type,identity_number,gender,nationality,
         study_mode,education_level,preferred_intake,experience,county,town,address,sub_county,ward,location,sub_location,
         emergency_contact_name,emergency_contact_phone,emergency_contact_relationship,support_needs,consent,status,payment_status,
         application_details_json,admitted_user_id,created_at
       ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,'accepted','unpaid',?,?,?)
-    \`).bind(
+    `).bind(
       enrollmentId,ref,admission,course.id,name,email,phone,dateOnly(r.date_of_birth)||'',clean(r.id_type,40)||null,
       clean(r.national_id,80)||null,clean(r.gender,40)||null,clean(r.nationality,80)||null,
       clean(r.study_mode,40)||'Not recorded',clean(r.education_level,80)||'Not recorded',
