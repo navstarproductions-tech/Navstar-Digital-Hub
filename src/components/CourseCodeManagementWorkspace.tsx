@@ -4,7 +4,7 @@ type Props={mode:'courses'|'modules'};
 const box='rounded-xl border border-slate-200 bg-white p-3 text-sm';
 export function CourseCodeManagementWorkspace({mode}:Props){
  const [courseRows,setCourseRows]=useState<Row[]>([]),[moduleRows,setModuleRows]=useState<Row[]>([]);
- const [generated,setGenerated]=useState<{courseCodes:Row[];moduleCodes:Row[]}>({courseCodes:[],moduleCodes:[]});
+ const [generated,setGenerated]=useState<{courseCodes:Row[];moduleCodes:Row[];replaceExisting?:boolean}>({courseCodes:[],moduleCodes:[]});
  const [selected,setSelected]=useState<string[]>([]),[busy,setBusy]=useState(false),[err,setErr]=useState(''),[notice,setNotice]=useState('');
  const load=async()=>{const r=await fetch('/api/admin/course-codes',{credentials:'same-origin',cache:'no-store'}),j=await r.json();if(!r.ok)throw new Error(j.error||'Codes could not be loaded.');setCourseRows((j.courses||[]).map((x:any)=>({id:x.id,title:x.title,code:x.course_code||''})));setModuleRows((j.modules||[]).map((x:any)=>({id:x.id,title:x.title,code:x.module_code||'',courseTitle:x.course_title,courseId:x.course_id})));setSelected([]);};
  useEffect(()=>{void load().catch(e=>setErr(e.message));},[]);
