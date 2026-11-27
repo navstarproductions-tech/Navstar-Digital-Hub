@@ -133,8 +133,28 @@ export async function onRequestGet({ request, env }) {
   const user = await getSession(request, env);
   if (!user) return error('Sign in required.', 401);
   let query;
-  if (['admin', 'admissions', 'principal'].includes(user.role)) {
-    query = env.DB.prepare(`SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title, e.full_name, e.email, e.phone, p.profile_photo_url, e.status, e.payment_status, e.special_enrollment, e.payment_exception, e.payment_due_date, e.admissions_decision_reason, e.created_at FROM enrollments e JOIN courses c ON c.id = e.course_id LEFT JOIN users u ON lower(u.email)=lower(e.email) LEFT JOIN user_profiles p ON p.user_id=u.id ORDER BY e.created_at DESC LIMIT 200`);
+  if (['admin', 'admissions', 'principal', 'finance'].includes(user.role)) {
+    query = env.DB.prepare(`
+      SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title,
+        e.full_name, e.email, e.phone, p.profile_photo_url, e.status, e.payment_status,
+        e.special_enrollment, e.payment_exception, e.payment_due_date, e.admissions_decision_reason, e.created_at,
+        CASE WHEN EXISTS(SELECT 1 FROM enrollment_fee_items sf WHERE sf.enrollment_id=e.id)
+          THEN (SELECT COALESCE(SUM(sf.amount),0) FROM enrollment_fee_items sf WHERE sf.enrollment_id=e.id)
+          ELSE c.price END AS course_fee,
+        COALESCE((SELECT SUM(pay.amount) FROM payments pay WHERE pay.purpose='enrollment' AND pay.reference_id=e.id AND pay.status='paid'),0) AS amount_paid,
+        MAX(0,
+          (CASE WHEN EXISTS(SELECT 1 FROM enrollment_fee_items sf WHERE sf.enrollment_id=e.id)
+            THEN (SELECT COALESCE(SUM(sf.amount),0) FROM enrollment_fee_items sf WHERE sf.enrollment_id=e.id)
+            ELSE c.price END) -
+          COALESCE((SELECT SUM(pay.amount) FROM payments pay WHERE pay.purpose='enrollment' AND pay.reference_id=e.id AND pay.status='paid'),0)
+        ) AS fee_balance,
+        (SELECT pay.internal_receipt_number FROM payments pay WHERE pay.purpose='enrollment' AND pay.reference_id=e.id AND pay.status='paid' AND pay.internal_receipt_number IS NOT NULL ORDER BY pay.updated_at DESC LIMIT 1) AS latest_receipt,
+        (SELECT pay.receipt_number FROM payments pay WHERE pay.purpose='enrollment' AND pay.reference_id=e.id AND pay.status='paid' AND pay.receipt_number IS NOT NULL ORDER BY pay.updated_at DESC LIMIT 1) AS latest_mpesa_receipt
+      FROM enrollments e JOIN courses c ON c.id = e.course_id
+      LEFT JOIN users u ON lower(u.email)=lower(e.email)
+      LEFT JOIN user_profiles p ON p.user_id=u.id
+      ORDER BY e.created_at DESC LIMIT 200
+    `);
   } else if (user.role === 'student') {
     query = env.DB.prepare(`
       SELECT e.id, e.display_ref AS reference, e.admission_number, e.course_id, c.title AS course_title,
