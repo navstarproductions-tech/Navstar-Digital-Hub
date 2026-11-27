@@ -231,14 +231,24 @@ async function importStudent(DB,r,adminId,c) {
   const baseFee=Math.max(0,totalDue-additionalFee);
   // Replace the trigger's current-course snapshot with this learner's historical total,
   // so old discounts and prior fee agreements do not get overwritten by today's course fee.
-  await DB.prepare('DELETE FROM enrollment_fee_items WHERE enrollment_id=?').bind(enrollmentId).run();
+  if(!existing) await DB.prepare('DELETE FROM enrollment_fee_items WHERE enrollment_id=?').bind(enrollmentId).run();
   const feeDate=clean(r.created_date,40)||new Date().toISOString();
-  if(baseFee>0) await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,'Legacy course fee total',?,'before_term',?)")
-    .bind('b44enrfee-'+sourceId.slice(-24),enrollmentId,baseFee,feeDate).run();
-  if(additionalFee>0) await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,?,?,'anytime',?)")
-    .bind('b44enradd-'+sourceId.slice(-24),enrollmentId,'Additional fee - '+(clean(r.additional_fee_reason,80)||'Other'),additionalFee,feeDate).run();
-  if(totalDue>0&&baseFee===0&&additionalFee===0) await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,'Legacy student fee total',?,'before_term',?)")
-    .bind('b44enrtotal-'+sourceId.slice(-24),enrollmentId,totalDue,feeDate).run();
+  if(baseFee>0) {
+    const duplicate=existing?await DB.prepare("SELECT id FROM enrollment_fee_items WHERE enrollment_id=? AND item_name='Legacy course fee total' AND amount=? LIMIT 1").bind(enrollmentId,baseFee).first():null;
+    if(!duplicate) await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,'Legacy course fee total',?,'before_term',?)")
+      .bind('b44enrfee-'+sourceId.slice(-24),enrollmentId,baseFee,feeDate).run();
+  }
+  if(additionalFee>0) {
+    const additionalName='Additional fee - '+(clean(r.additional_fee_reason,80)||'Other');
+    const duplicate=existing?await DB.prepare('SELECT id FROM enrollment_fee_items WHERE enrollment_id=? AND item_name=? AND amount=? LIMIT 1').bind(enrollmentId,additionalName,additionalFee).first():null;
+    if(!duplicate) await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,?,?,'anytime',?)")
+      .bind('b44enradd-'+sourceId.slice(-24),enrollmentId,additionalName,additionalFee,feeDate).run();
+  }
+  if(totalDue>0&&baseFee===0&&additionalFee===0) {
+    const duplicate=existing?await DB.prepare("SELECT id FROM enrollment_fee_items WHERE enrollment_id=? AND item_name='Legacy student fee total' AND amount=? LIMIT 1").bind(enrollmentId,totalDue).first():null;
+    if(!duplicate) await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,'Legacy student fee total',?,'before_term',?)")
+      .bind('b44enrtotal-'+sourceId.slice(-24),enrollmentId,totalDue,feeDate).run();
+  }
   return {sourceId,enrollmentId,userId:user.id,amountPaid,totalFee:totalDue,source:r};
 }
 export async function onRequestOptions({request}) { return new Response(null,{status:204,headers:corsHeaders(request.headers.get('Origin')||'')}); }
@@ -346,14 +356,17 @@ export async function onRequestPost({request,env}) {
       const opening=Math.max(0,targetPaid-detailPaid);
       if(opening>0) {
         const openingId='b44open-'+item.sourceId.slice(-24);
-        await env.DB.prepare("INSERT OR IGNORE INTO payments(id,purpose,reference_id,phone,amount,status,internal_receipt_number,display_reference,result_description,created_at,updated_at) VALUES(?,'enrollment',?,?,?,'paid',?,?,?,?,?)")
-          .bind(openingId,item.enrollmentId,clean(item.source.student_phone,40)||'Not recorded',opening,
-            'B44-OPEN-'+item.sourceId.replace(/[^a-z0-9]/gi,'').slice(-16).toUpperCase(),
-            'BASE44-OPENING-'+item.sourceId.slice(-10).toUpperCase(),
-            'Imported cumulative opening balance from Base44 Enrollment.amount_paid; individual fee receipts are listed separately.',
-            clean(item.source.created_date,40)||new Date().toISOString(),
-            clean(item.source.updated_date||item.source.created_date,40)||new Date().toISOString()).run();
-        c.openingBalanceEntries++;
+        const priorOpening=await env.DB.prepare("SELECT id FROM payments WHERE reference_id=? AND purpose='enrollment' AND amount=? AND result_description LIKE 'Imported cumulative opening balance from Base44%' LIMIT 1").bind(item.enrollmentId,opening).first();
+        if(!priorOpening) {
+          await env.DB.prepare("INSERT OR IGNORE INTO payments(id,purpose,reference_id,phone,amount,status,internal_receipt_number,display_reference,result_description,created_at,updated_at) VALUES(?,'enrollment',?,?,?,'paid',?,?,?,?,?)")
+            .bind(openingId,item.enrollmentId,clean(item.source.student_phone,40)||'Not recorded',opening,
+              'B44-OPEN-'+item.sourceId.replace(/[^a-z0-9]/gi,'').slice(-16).toUpperCase(),
+              'BASE44-OPENING-'+item.sourceId.slice(-10).toUpperCase(),
+              'Imported cumulative opening balance from Base44 Enrollment.amount_paid; individual fee receipts are listed separately.',
+              clean(item.source.created_date,40)||new Date().toISOString(),
+              clean(item.source.updated_date||item.source.created_date,40)||new Date().toISOString()).run();
+          c.openingBalanceEntries++;
+        }
       }
       const paid=Math.max(targetPaid,detailPaid);
       const due=Math.max(0,Math.round(item.totalFee));
