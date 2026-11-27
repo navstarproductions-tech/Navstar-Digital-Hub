@@ -93,7 +93,7 @@ export async function onRequestGet({ request, env }) {
     lessons = result.results ?? [];
   }
   const assignmentsResult = await env.DB.prepare(`
-    SELECT a.id, a.course_id, a.module_id, a.assignment_type, a.marks_category, a.title, a.instructions, a.due_at, a.max_points, a.status
+    SELECT a.id, a.course_id, a.module_id, a.assignment_type, a.marks_category, a.title, a.instructions, a.due_at, a.max_points, a.category_out_of, a.status
     FROM course_assignments a
     WHERE a.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND a.status = 'published'" : user.role === 'tutor' ? "AND a.status = 'published' AND a.module_id IS NOT NULL AND EXISTS (SELECT 1 FROM module_tutor_assignments mt WHERE mt.module_id=a.module_id AND mt.tutor_user_id=?)" : "AND a.status != 'archived'"}
     ORDER BY a.due_at IS NULL, a.due_at, a.created_at DESC
@@ -334,9 +334,10 @@ export async function onRequestPost({ request, env }) {
     const status = body.status === 'published' ? 'published' : 'draft';
     const assignmentType = body.assignmentType === 'project' ? 'project' : 'assignment';
     const marksCategory = ['CAT','Practical','Final'].includes(String(body.marksCategory)) ? String(body.marksCategory) : 'CAT';
+    const categoryOutOf=Number(body.categoryOutOf??20);if(!Number.isFinite(categoryOutOf)||categoryOutOf<=0||categoryOutOf>10000)return error('Enter a valid category maximum greater than zero.');
     const id = uuid();
-    await env.DB.prepare('INSERT INTO course_assignments (id, course_id, module_id, assignment_type, marks_category, title, instructions, due_at, max_points, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, courseId, moduleId, assignmentType, marksCategory, title, instructions, dueAt, maxPoints, status, user.id).run();
+    await env.DB.prepare('INSERT INTO course_assignments (id, course_id, module_id, assignment_type, marks_category, title, instructions, due_at, max_points, category_out_of, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, courseId, moduleId, assignmentType, marksCategory, title, instructions, dueAt, maxPoints, categoryOutOf, status, user.id).run();
     await writeAudit(env.DB, user.id, assignmentType === 'project' ? 'lms_project_created' : 'lms_assignment_created', 'course_assignment', id);
     return json({ id, status }, 201);
   }
