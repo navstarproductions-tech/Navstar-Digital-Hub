@@ -48,7 +48,7 @@ export async function onRequestGet({ request, env }) {
       (SELECT e.display_ref FROM enrollments e WHERE lower(e.email)=lower(u.email) AND e.status='accepted' ORDER BY e.created_at DESC LIMIT 1) AS admissionNumber,
       NULL AS enrollmentId, 0 AS pendingActivation
     FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
-    ORDER BY u.created_at DESC LIMIT 300
+    ORDER BY u.created_at DESC
   `).all();
   const missingAccounts = await env.DB.prepare(`
     SELECT 'pending:' || e.id AS id,e.full_name AS name,e.email,'student' AS role,'pending_activation' AS status,e.created_at,
@@ -59,7 +59,7 @@ export async function onRequestGet({ request, env }) {
     FROM enrollments e
     WHERE e.status='accepted'
       AND NOT EXISTS(SELECT 1 FROM users u WHERE lower(u.email)=lower(e.email) AND u.role='student')
-    ORDER BY e.created_at DESC LIMIT 300
+    ORDER BY e.created_at DESC
   `).all();
   return json({ users: [...(users.results ?? []), ...(missingAccounts.results ?? [])] });
 }
