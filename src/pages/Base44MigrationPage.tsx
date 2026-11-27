@@ -29,6 +29,8 @@ export function Base44MigrationPage() {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [archive, setArchive] = useState<{batch?: {createdAt?: string; completed?: boolean; recordsReceived?: number}; entities?: {entityName:string;count:number}[]; records?: {entityName:string;sourceId:string;data:Record<string,unknown>}[]} | null>(null);
+  const [archiveError, setArchiveError] = useState('');
 
   const counts = useMemo(() => Object.fromEntries(ENTITY_NAMES.map(name => [name, bundle?.entities?.[name]?.length || 0])), [bundle]);
 
@@ -54,6 +56,12 @@ export function Base44MigrationPage() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not read the migration file.');
     }
+  }
+
+  async function loadArchive() {
+    setArchiveError('');
+    try { const response = await fetch('/api/admin/base44-migration/archive', { credentials: 'same-origin' }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Could not load the saved archive.'); setArchive(data); }
+    catch (cause) { setArchiveError(cause instanceof Error ? cause.message : 'Could not load the saved archive.'); }
   }
 
   async function runImport() {
@@ -92,6 +100,7 @@ export function Base44MigrationPage() {
       const completion = await completeResponse.json();
       if (!completeResponse.ok) throw new Error(completion.error || 'Records were uploaded to the secure staging archive, but operational import did not complete. ' + (completion.detail || ''));
       setResult({ ...completion, recordsReceived: transferred, archiveOnlyStaffAccounts: bundle.entities.SystemUser?.length || 0, archiveOnlyStaffApplications: bundle.entities.StaffApplication?.length || 0 });
+      await loadArchive();
       setProgress('Import completed. Review the saved record totals below.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The import could not be completed.');
@@ -126,6 +135,7 @@ export function Base44MigrationPage() {
           {error&&<p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
           {result&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h3 className="font-bold text-emerald-950">Import completed</h3><p className="mt-1 text-sm text-emerald-900">Records received: {String(result.recordsReceived ?? 0)}. Student enrolments imported: {String(result.studentEnrollmentsImported ?? 0)}. Fee structures saved: {String(result.feeStructuresImported ?? 0)}. Fee payments saved: {String(result.feePaymentsImported ?? 0)}.</p><p className="mt-2 text-xs text-emerald-900">Staff accounts received for secure archive: {String(result.archiveOnlyStaffAccounts ?? 0)}. Staff applications received for secure archive: {String(result.archiveOnlyStaffApplications ?? 0)}. Staff records are preserved in the migration archive and are not yet activated as operational staff/application records.</p>{Array.isArray(result.warnings)&&result.warnings.length>0&&<ul className="mt-3 list-disc pl-5 text-xs text-amber-900">{(result.warnings as string[]).map((warning,index)=><li key={index}>{warning}</li>)}</ul>}</div>}
         </section>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">3. View records saved in the migration archive</h2><p className="mt-1 text-sm text-slate-600">Open the latest saved package and inspect the original imported record details by entity.</p></div><button onClick={()=>void loadArchive()} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-50">Load saved records</button></div>{archiveError&&<p role="alert" className="mt-3 text-sm text-rose-700">{archiveError}</p>}{archive&&<><p className="mt-3 text-xs text-slate-500">Latest package: {archive.batch?.createdAt ? new Date(archive.batch.createdAt).toLocaleString() : 'No completed package'} · {archive.batch?.recordsReceived ?? 0} records received</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{(archive.entities||[]).map(item=><div key={item.entityName} className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">{item.entityName}</p><p className="text-xl font-black">{item.count}</p></div>)}</div><div className="mt-4 max-h-[34rem] space-y-2 overflow-auto">{(archive.records||[]).map(record=><details key={record.entityName+'-'+record.sourceId} className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-semibold">{record.entityName} · {record.sourceId}</summary><pre className="mt-3 overflow-auto whitespace-pre-wrap break-words rounded bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(record.data,null,2)}</pre></details>)}</div></>}</section>
         <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>Data protection:</strong> The Base44 source is not changed or deleted. Passwords and biometric/fingerprint data are excluded from the transfer; imported student accounts require password setup. Keep the exported JSON file private because it contains personal and financial records. Do not upload it to GitHub or share it publicly.</section>
       </div>
     </main>
