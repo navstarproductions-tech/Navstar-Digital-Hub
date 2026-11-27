@@ -141,7 +141,7 @@ export async function onRequestPost({request,env}){
     await env.DB.prepare(`INSERT INTO student_module_results(id,user_id,course_id,module_id,cat_score,practical_score,exam_score,assignment_score,score,max_score,grade,remarks,status,published_at,updated_by,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,100,?,?,'published',CURRENT_TIMESTAMP,?,CURRENT_TIMESTAMP)
       ON CONFLICT(user_id,module_id) DO UPDATE SET cat_score=excluded.cat_score,practical_score=excluded.practical_score,exam_score=excluded.exam_score,assignment_score=excluded.assignment_score,score=excluded.score,max_score=excluded.max_score,grade=excluded.grade,remarks=excluded.remarks,status='published',published_at=CURRENT_TIMESTAMP,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP`)
-      .bind(uuid(),conflict.user_id,conflict.course_id,conflict.module_id,cat,practical,exam,practical,score,grade,remarks,user.id).run();
+      .bind(uuid(),conflict.user_id,conflict.course_id,conflict.module_id,cat,practical,exam,0,score,grade,remarks,user.id).run();
     await env.DB.prepare("UPDATE base44_marks_conflicts SET status='resolved',resolved_by=?,published_source=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'")
       .bind(user.id,choice==='A'?conflict.source_a:conflict.source_b,conflictId).run();
     await audit('base44_marks_conflict_resolved','base44_marks_conflict',conflictId);
