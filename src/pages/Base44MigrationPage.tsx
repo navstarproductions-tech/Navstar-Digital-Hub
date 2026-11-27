@@ -28,7 +28,7 @@ export function Base44MigrationPage() {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
-  const [archive, setArchive] = useState<{batch?: {id?:string;createdAt?: string;completed?: boolean;recordsReceived?: number;savedRecords?:number}; batches?: {id:string;createdAt:string;completed:boolean;recordsReceived:number;savedRecords:number}[]; entities?: {entityName:string;count:number}[]; records?: {entityName:string;sourceId:string;createdAt?:string;updatedAt?:string;importedAt?:string;data:Record<string,unknown>}[]; truncated?:boolean} | null>(null);
+  const [archive, setArchive] = useState<{batch?: {id?:string;createdAt?: string;completed?: boolean;recordsReceived?: number;savedRecords?:number}; batches?: {id:string;createdAt:string;completed:boolean;recordsReceived:number;savedRecords:number}[]; entities?: {entityName:string;count:number}[]; records?: {entityName:string;sourceId:string;createdAt?:string;updatedAt?:string;importedAt?:string;data:Record<string,unknown>}[]; truncated?:boolean;nextOffset?:number|null;offset?:number} | null>(null);
   const [archiveSearch, setArchiveSearch] = useState('');
   const [selectedBatch, setSelectedBatch] = useState('');
   const [archiveError, setArchiveError] = useState('');
@@ -89,6 +89,20 @@ export function Base44MigrationPage() {
       setSelectedBatch(data.batch?.id || '');
     } catch (cause) {
       setArchiveError(cause instanceof Error ? cause.message : 'Could not load the saved archive.');
+    }
+  }
+
+  async function loadMoreArchive() {
+    if (!archive?.batch?.id || archive.nextOffset == null) return;
+    setArchiveError('');
+    try {
+      const query = '?batch=' + encodeURIComponent(archive.batch.id) + '&offset=' + archive.nextOffset + '&limit=500';
+      const response = await fetch('/api/admin/base44-migration/archive' + query, { credentials: 'same-origin' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load more archived records.');
+      setArchive(previous => previous ? { ...data, records: [...(previous.records || []), ...(data.records || [])] } : data);
+    } catch (cause) {
+      setArchiveError(cause instanceof Error ? cause.message : 'Could not load more archived records.');
     }
   }
 
@@ -200,7 +214,8 @@ export function Base44MigrationPage() {
               })}
               {visibleArchiveRecords.length===0&&archive.records?.length>0&&<p className="p-4 text-center text-sm text-slate-500">No records match your search.</p>}
             </div>
-            {archive.truncated&&<p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">This package contains more than 2,000 records. The archive summary counts all records; this view currently loads the first 2,000.</p>}
+            {archive.nextOffset!=null&&<button onClick={()=>void loadMoreArchive()} className="mt-3 w-full rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-900 hover:bg-blue-100">Load next 500 records ({Math.max(0,(archive.batch?.savedRecords||0)-(archive.records||[]).length).toLocaleString()} remaining)</button>}
+            {archive.nextOffset==null&&archive.batch?.savedRecords!=null&&archive.batch.savedRecords>0&&<p className="mt-3 text-center text-xs font-semibold text-emerald-700">All {archive.batch.savedRecords.toLocaleString()} saved records in this package are loaded.</p>}
           </>}
         </section>
         <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>Data protection:</strong> The Base44 source is not changed or deleted. Passwords and biometric/fingerprint data are excluded from the transfer; imported student accounts require password setup. Keep the exported JSON file private because it contains personal and financial records. Do not upload it to GitHub or share it publicly.</section>
