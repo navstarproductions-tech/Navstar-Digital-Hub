@@ -89,7 +89,7 @@ export function StudentSubtabWorkspace({ students, applications, courses, select
     if (!window.confirm('Restore portal access for ' + student.name + '? Their existing enrolments, marks and payment history will remain unchanged.')) return;
     setRecoveryBusy(student.id); setRecoveryMessage('');
     try {
-      const response = await fetch('/api/admin/users/' + encodeURIComponent(student.id), { method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'active' }) });
+      const response = await fetch('/api/admin/users/' + encodeURIComponent(student.id), { method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'active', reason: 'Administrator restored the student account after reviewing the student record.', effectiveDate: new Date().toISOString().slice(0,10) }) });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error || 'The student account could not be restored.');
       setRecoveryMessage(student.name + ' has been restored. Portal sign-in is enabled again.');
