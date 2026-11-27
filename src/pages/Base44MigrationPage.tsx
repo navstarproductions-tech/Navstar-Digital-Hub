@@ -98,7 +98,7 @@ export function Base44MigrationPage() {
         method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }, body: '{}'
       });
       const completion = await completeResponse.json();
-      if (!completeResponse.ok) throw new Error(completion.error || 'Records were uploaded to the secure staging archive, but operational import did not complete. ' + (completion.detail || ''));
+      if (!completeResponse.ok) { const detail = [completion.detail, completion.progress ? 'Import progress: ' + JSON.stringify(completion.progress) : ''].filter(Boolean).join('\\n'); throw new Error([completion.error || 'Operational import did not complete.', detail].filter(Boolean).join('\\n')); }
       setResult({ ...completion, recordsReceived: transferred, archiveOnlyStaffAccounts: bundle.entities.SystemUser?.length || 0, archiveOnlyStaffApplications: bundle.entities.StaffApplication?.length || 0 });
       await loadArchive('');
       setProgress('Import completed. Review the saved record totals below.');
