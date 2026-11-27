@@ -7,6 +7,7 @@ const clean = (v, n=500) => String(v ?? '').trim().slice(0,n);
 const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
 const norm = v => clean(v,160).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const dateOnly = v => { const m=clean(v,40).match(/^\d{4}-\d{2}-\d{2}/); return m ? m[0] : ''; };
+function kenyaDateTime(date,time) { const d=dateOnly(date),m=clean(time,30).match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i); if(!d||!m)return ''; let h=Number(m[1]); const minute=Number(m[2]); if(m[3])h=(h%12)+(m[3].toUpperCase()==='PM'?12:0); if(h>23||minute>59)return ''; const iso=new Date(d+'T'+String(h).padStart(2,'0')+':'+String(minute).padStart(2,'0')+':00+03:00'); return Number.isNaN(iso.getTime())?'':iso.toISOString(); }
 const aliases = {
   'computer programming':'computer-programming',
   'advanced level computer programming':'advanced-programming',
@@ -132,7 +133,7 @@ async function importExam(DB,r,adminId,c,sourceCourses,sourceModules) {
   const category=['CAT','Practical','Final'].includes(clean(r.score_category,20))?clean(r.score_category,20):(type==='cat'?'CAT':type==='practical'?'Practical':'Final');
   const rawStatus=clean(r.status,40).toLowerCase();
   const status=rawStatus==='active'?'published':rawStatus==='closed'?'closed':'draft';
-  const start=clean(r.availability_start,60)||(()=>{const d=dateOnly(r.scheduled_date),tm=clean(r.scheduled_time,20);return d&&tm?new Date(d+'T'+tm+':00+03:00').toISOString():'';})();
+  const start=clean(r.availability_start,60)||kenyaDateTime(r.scheduled_date,r.scheduled_time);
   const end=clean(r.availability_end,60)||(()=>{if(!start)return '';const d=new Date(start);d.setMinutes(d.getMinutes()+Math.max(1,num(r.duration_minutes)||60));return d.toISOString();})();
   const creatorEmail=clean(r.created_by,254).toLowerCase();
   const creator=creatorEmail?await DB.prepare("SELECT id FROM users WHERE lower(email)=lower(?)").bind(creatorEmail).first():null;
