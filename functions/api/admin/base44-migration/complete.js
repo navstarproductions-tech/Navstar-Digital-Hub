@@ -142,12 +142,38 @@ async function importExam(DB,r,adminId,c,sourceCourses,sourceModules) {
   const duration=Math.max(1,Math.min(600,Math.round(num(r.duration_minutes)||60)));
   const questionMode=r.randomize_questions&&r.random_by_marks===false?'count':'marks';
   const questionCount=Math.max(1,Math.min(500,Math.round(num(r.random_question_count)||10)));
+  const perExamSecurity={
+    securityLevel:clean(r.security_preset,20).toLowerCase()||'moderate',
+    publishResultsAutomatically:false,showCorrectAnswers:r.allow_review===true,
+    freezeTextSelection:r.security_block_selection===true,
+    killShortcuts:r.security_block_keyboard_shortcuts===true,
+    blockDragging:r.security_block_drag_drop===true,
+    blockLinks:r.security_block_new_tabs===true,
+    stripSpellcheck:r.security_disable_autofill===true,
+    aiInsertionGuard:r.security_ai_insert_guard===true,
+    blockReload:r.security_block_reload===true,
+    identityWatermark:r.security_watermark_identity===true,
+    forceFullscreen:r.security_fullscreen===true,
+    blockScreenshots:r.security_block_screenshot===true,
+    blockPrintingSaving:r.security_block_print===true,
+    blockAppSwitching:r.security_block_calls===true,
+    disableRightClick:r.security_no_right_click===true,
+    liveCameraPresence:r.security_require_camera===true,
+    blockCopying:r.security_no_copy===true,
+    blockPasting:r.security_block_paste===true,
+    blockDeveloperTools:r.security_block_devtools===true,
+    lockTabSwitching:r.security_block_tab_switch===true,
+    pauseOnViolation:r.security_pause_on_violation===true,
+    autoSubmitAtViolationLimit:r.security_auto_submit===true,
+    violationsAllowed:Math.max(0,Math.round(num(r.security_max_violations)||3)),
+    flagForReview:true,alertAdmin:true
+  };
   const result=await DB.prepare(`INSERT OR IGNORE INTO course_assessments
     (id,course_id,module_id,title,assessment_type,instructions,starts_at,due_at,max_points,status,created_by,created_at,
      description,duration_minutes,pass_mark,max_attempts,require_full_fee_payment,require_assignment_submission,
      allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit,require_admin_approval,
-     marks_category,category_out_of,question_selection_mode,question_count,shuffle_options)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+     marks_category,category_out_of,question_selection_mode,question_count,shuffle_options,security_settings_json)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .bind(id,course.id,module.row?.id||null,clean(r.title,160)||'Imported Base44 examination',type,
       clean(r.instructions,12000)||clean(r.description,4000),start||null,end||null,maximum,status,createdBy,
       clean(r.created_date,40)||new Date().toISOString(),clean(r.description,4000),
@@ -156,7 +182,7 @@ async function importExam(DB,r,adminId,c,sourceCourses,sourceModules) {
       r.security_shuffle||r.randomize_questions?1:0,r.security_no_copy||r.security_block_paste?1:0,
       r.security_time_limit===false?0:1,rawStatus==='pending approval'?1:0,category,
       Math.max(0,num(r.category_out_of)||num(r.exam_out_of)||maximum),questionMode,questionCount,
-      r.randomize_options?1:0).run();
+      r.randomize_options?1:0,JSON.stringify(perExamSecurity)).run();
   const saved=await DB.prepare("SELECT id FROM course_assessments WHERE id=?").bind(id).first();
   if(!saved){c.examsSkipped++;c.warnings.push("Exam '"+clean(r.title,120)+"' could not be saved.");return;}
   await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Exam',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING").bind(sourceId,id,createdBy).run();
@@ -351,7 +377,27 @@ async function importExamSettings(DB,rows) {
     negativeMarking:source.negative_marking_enabled===true,neverBelowZero:source.negative_floor_zero!==false,
     penaliseUnanswered:source.penalise_unanswered===true,durationMinutes:num(source.default_duration_minutes)||60,
     attempts:num(source.default_max_attempts)||1,publishedMaximum:num(source.default_total_marks)||100,
-    violationsAllowed:num(source.security_max_violations)||3};
+    violationsAllowed:num(source.security_max_violations)||3,
+    freezeTextSelection:source.security_block_selection===true,killShortcuts:source.security_block_keyboard_shortcuts===true,
+    blockDragging:source.security_block_drag_drop===true,blockLinks:source.security_block_new_tabs===true,
+    stripSpellcheck:source.security_disable_autofill===true,aiInsertionGuard:source.security_ai_insert_guard===true,
+    blockReload:source.security_block_reload===true,identityWatermark:source.security_watermark_identity===true,
+    forceFullscreen:source.security_fullscreen===true,blockScreenshots:source.security_block_screenshot===true,
+    blockPrintingSaving:source.security_block_print===true,blockAppSwitching:source.security_block_calls===true,
+    disableRightClick:source.security_no_right_click===true,liveCameraPresence:source.security_require_camera===true,
+    blockCopying:source.security_no_copy===true,blockPasting:source.security_block_paste===true,
+    blockDeveloperTools:source.security_block_devtools===true,lockTabSwitching:source.security_block_tab_switch===true,
+    pauseOnViolation:source.security_pause_on_violation===true,autoSubmitAtViolationLimit:source.security_auto_submit===true,
+    flagForReview:source.security_flag_attempt!==false,alertAdmin:source.security_notify_admin!==false,
+    questionFontSize:num(source.question_font_size)||17,questionTextAlign:source.question_text_align||'Left',
+    questionNumberStyle:source.question_number_style||'1.',questionShowMarks:source.question_show_marks!==false,
+    questionShowType:source.question_show_type!==false,questionSpacing:source.question_spacing||'Comfortable',
+    showQuestionProgress:source.show_question_progress!==false,answerOptionStyle:source.answer_option_style||'Cards',
+    answerLabelStyle:source.answer_label_style||'A) B) C)',answerFontSize:num(source.answer_font_size)||15,
+    answerSpacing:source.answer_spacing||'Comfortable',answerSelectedStyle:source.answer_selected_style||'Tinted',
+    showAnsweredSummary:source.show_answered_summary!==false,answerChangeMode:source.answer_change_mode||'Can change until submit',
+    autoAdvanceAfterAnswer:source.auto_advance_after_answer===true,allowPreviousQuestion:source.allow_previous_question!==false,
+    confirmBeforeSubmit:source.confirm_before_submit!==false,requireAllAnswers:source.require_all_answers===true};
   await DB.prepare("UPDATE exam_institute_settings SET settings_json=? WHERE id='default' AND (settings_json='{}' OR settings_json='')").bind(JSON.stringify(normalized)).run();
 }
 async function importMarksWeights(DB,rows) {
