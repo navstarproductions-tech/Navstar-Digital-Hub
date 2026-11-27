@@ -187,6 +187,185 @@ async function importExamQuestion(DB,r,adminId,c) {
     .bind(sourceId,id,createdBy).run();
 }
 
+
+async function findDestinationStudent(DB,email,courseId,sourceEnrollmentId='') {
+  const source=clean(sourceEnrollmentId,120);
+  if(source){
+    const mapped=await DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(source).first();
+    if(mapped?.user_id&&mapped?.destination_id){
+      const row=await DB.prepare("SELECT u.id,e.id AS enrollment_id,e.admission_number FROM users u JOIN enrollments e ON e.id=? WHERE u.id=? AND e.course_id=? AND u.role='student'").bind(mapped.destination_id,mapped.user_id,courseId).first();
+      if(row)return row;
+    }
+  }
+  return DB.prepare("SELECT u.id,e.id AS enrollment_id,e.admission_number FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' AND u.role='student' ORDER BY e.created_at LIMIT 1").bind(clean(email,254).toLowerCase(),courseId).first();
+}
+async function importAssignment(DB,r,adminId,c,sourceCourses,sourceModules) {
+  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Assignment' AND source_id=?").bind(sourceId).first();
+  if(mapped?.destination_id){c.assignmentsAlreadyPresent++;return;}
+  const courseTitle=clean(r.course_title,160)||sourceCourseTitle(r.course_id,sourceCourses);
+  const course=await activeCourseFor(DB,courseTitle);
+  if(!course){c.assignmentsSkipped++;c.warnings.push("Assignment '"+clean(r.title,120)+"' was archived because its official course could not be matched.");return;}
+  const module=await mappedModule(DB,course.id,r.module_id,'',r.module_title,sourceModules);
+  const questionItems=Array.isArray(r.question_items)?r.question_items:[];
+  const questionText=questionItems.map((q,i)=>[
+    "Question "+(i+1)+(q.marks?" ("+num(q.marks)+" marks)":""),
+    clean(q.question_type,60),clean(q.question_text,3000),
+    Array.isArray(q.options)&&q.options.length?"Options: "+q.options.map(x=>clean(x,300)).join(" | "):"",
+    q.correct_answer?"Model answer: "+clean(q.correct_answer,1000):""
+  ].filter(Boolean).join("\n")).join("\n\n");
+  const instructions=[clean(r.instructions,12000),clean(r.description,12000),clean(r.questions,12000),questionText].filter(Boolean).join("\n\n");
+  const status=clean(r.status,30).toLowerCase()==='active'?'published':clean(r.status,30).toLowerCase()==='closed'?'closed':'draft';
+  const type=['CAT','Practical','Final'].includes(clean(r.score_category,20))?clean(r.score_category,20):'CAT';
+  const creatorEmail=clean(r.assigned_by||r.created_by,254).toLowerCase();
+  const creator=creatorEmail?await DB.prepare("SELECT id FROM users WHERE lower(email)=lower(?)").bind(creatorEmail).first():null;
+  const createdBy=creator?.id||adminId,id='b44asg-'+sourceId.slice(-24);
+  const due=clean(r.due_date,40)?clean(r.due_date,10)+'T23:59:59+03:00':null;
+  const result=await DB.prepare("INSERT OR IGNORE INTO course_assignments(id,course_id,module_id,title,instructions,due_at,max_points,status,created_by,created_at,assignment_type,marks_category,category_out_of) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id,course.id,module.row?.id||null,clean(r.title,160)||'Imported assignment',instructions,due,
+      Math.max(1,Math.min(10000,Math.round(num(r.max_score)||30))),status,createdBy,
+      clean(r.created_date,40)||new Date().toISOString(),'assignment',type,
+      Math.max(1,num(r.category_out_of)||20)).run();
+  const saved=await DB.prepare("SELECT id FROM course_assignments WHERE id=?").bind(id).first();
+  if(!saved){c.assignmentsSkipped++;return;}
+  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Assignment',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING").bind(sourceId,id,createdBy).run();
+  if(Number(result.meta?.changes||0)>0)c.assignmentsImported++;else c.assignmentsAlreadyPresent++;
+}
+async function importAssignmentSubmission(DB,r,adminId,c) {
+  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='AssignmentSubmission' AND source_id=?").bind(sourceId).first();
+  if(mapped?.destination_id){c.assignmentSubmissionsAlreadyPresent++;return;}
+  const assignment=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Assignment' AND source_id=?").bind(clean(r.assignment_id,120)).first();
+  if(!assignment?.destination_id){c.assignmentSubmissionsSkipped++;return;}
+  const details=await DB.prepare("SELECT course_id,max_points FROM course_assignments WHERE id=?").bind(assignment.destination_id).first();
+  if(!details){c.assignmentSubmissionsSkipped++;return;}
+  const student=await findDestinationStudent(DB,r.student_email,details.course_id);
+  if(!student){c.assignmentSubmissionsSkipped++;return;}
+  const sourceStatus=clean(r.status,40).toLowerCase();
+  const status=sourceStatus==='graded'?'graded':sourceStatus.includes('revision')||sourceStatus==='rejected'?'returned':'submitted';
+  const approval=status==='graded'?'approved':sourceStatus==='pending approval'?'pending':'approved';
+  const scoreValue=r.score!==null&&r.score!==undefined?r.score:r.auto_score;
+  const score=scoreValue===null||scoreValue===undefined||scoreValue===''?null:Math.max(0,Math.min(Number(details.max_points)||100,Math.round(num(scoreValue))));
+  const answers=Array.isArray(r.question_answers)?r.question_answers:[];
+  const response=[clean(r.submission_text,30000),answers.length?"\n\nQuestion answers:\n"+answers.map((x,i)=>(i+1)+". "+clean(x,4000)).join("\n"):""].filter(Boolean).join("");
+  const files=Array.isArray(r.file_urls)?r.file_urls.filter(Boolean):[];
+  const submitted=clean(r.submitted_date,40)||clean(r.created_date,40)||new Date().toISOString();
+  const id='b44sub-'+sourceId.slice(-24);
+  const result=await DB.prepare("INSERT OR IGNORE INTO course_assignment_submissions(id,assignment_id,user_id,response_text,attachment_url,status,points_awarded,feedback,submitted_at,graded_by,graded_at,approval_status,approved_by,approved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id,assignment.destination_id,student.id,response,files.length?JSON.stringify(files):null,status,score,
+      clean(r.feedback,5000),submitted,status==='graded'?adminId:null,status==='graded'?clean(r.updated_date,40)||submitted:null,
+      approval,status==='graded'&&approval==='approved'?adminId:null,status==='graded'&&approval==='approved'?clean(r.updated_date,40)||submitted:null).run();
+  if(Number(result.meta?.changes||0)>0)c.assignmentSubmissionsImported++;else c.assignmentSubmissionsAlreadyPresent++;
+  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('AssignmentSubmission',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING").bind(sourceId,id,student.id).run();
+}
+async function importExamAttempt(DB,r,adminId,c) {
+  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamAttempt' AND source_id=?").bind(sourceId).first();
+  if(mapped?.destination_id){c.examAttemptsAlreadyPresent++;return;}
+  const exam=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Exam' AND source_id=?").bind(clean(r.exam_id,120)).first();
+  if(!exam?.destination_id){c.examAttemptsSkipped++;return;}
+  const assessment=await DB.prepare("SELECT id,course_id,max_points,category_out_of FROM course_assessments WHERE id=?").bind(exam.destination_id).first();
+  if(!assessment){c.examAttemptsSkipped++;return;}
+  const student=await findDestinationStudent(DB,r.student_email,assessment.course_id);
+  if(!student){c.examAttemptsSkipped++;c.warnings.push("Exam attempt for "+clean(r.student_email,120)+" was retained in the archive because no accepted official enrolment matched.");return;}
+  const sourceAdmission=clean(r.admission_number,80);
+  if(sourceAdmission&&student.admission_number&&sourceAdmission!==student.admission_number)c.warnings.push("Kept existing admission number "+student.admission_number+" for "+clean(r.student_email,120)+"; exam attempt carried legacy number "+sourceAdmission+".");
+  const sourceStatus=clean(r.status,30).toLowerCase();
+  const approvalStatus=sourceStatus==='approved'?'approved':sourceStatus==='rejected'?'rejected':'pending';
+  if(['waiting','approved','rejected'].includes(sourceStatus)){
+    await DB.prepare("INSERT OR IGNORE INTO exam_attempt_approvals(id,assessment_id,user_id,status,reviewed_by,reviewed_at,note) VALUES(?,?,?,?,?,?,?)")
+      .bind('b44approval-'+sourceId.slice(-20),assessment.id,student.id,approvalStatus,
+        sourceStatus==='waiting'?null:adminId,sourceStatus==='waiting'?null:clean(r.updated_date,40)||null,clean(r.admin_notes,1000)).run();
+    c.examApprovalsImported++;
+    await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('ExamAttempt',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING")
+      .bind(sourceId,'b44approval-'+sourceId.slice(-20),student.id).run();
+    return;
+  }
+  const started=clean(r.start_time,60)||clean(r.created_date,60)||new Date().toISOString();
+  const submitted=clean(r.submitted_at,60)||null;
+  const duration=await DB.prepare("SELECT duration_minutes FROM course_assessments WHERE id=?").bind(assessment.id).first();
+  const expiry=clean(r.end_time,60)||(()=>{const d=new Date(started);d.setMinutes(d.getMinutes()+Math.max(1,num(duration?.duration_minutes)||60));return d.toISOString();})();
+  const status=sourceStatus==='moderated'?'graded':sourceStatus==='submitted'?'submitted':sourceStatus==='in_progress'?'in_progress':'expired';
+  const questionIds=Array.isArray(r.question_ids)?r.question_ids:[];
+  const mappedQuestionIds=[];
+  for(const qid of questionIds){const q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(qid,120)).first();if(q?.destination_id)mappedQuestionIds.push(q.destination_id);}
+  const answers=Array.isArray(r.answers)?r.answers:[];
+  for(const a of answers){const q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(a.question_id,120)).first();if(q?.destination_id&&!mappedQuestionIds.includes(q.destination_id))mappedQuestionIds.push(q.destination_id);}
+  const id='b44attempt-'+sourceId.slice(-24);
+  const score=num(r.is_moderated?r.moderated_score:r.score);
+  const flagged=Math.max(0,Math.round(num(r.tab_switches)+(Array.isArray(r.cheating_flags)?r.cheating_flags.length:0)));
+  await DB.prepare("INSERT OR IGNORE INTO exam_runtime_attempts(id,assessment_id,user_id,attempt_number,started_at,expires_at,submitted_at,status,objective_score,total_score,flagged_count,last_activity_at,served_question_ids_json,option_order_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id,assessment.id,student.id,Math.max(1,Math.round(num(r.attempt_number)||1)),started,expiry,submitted,status,
+      Math.round(num(r.score)),Math.round(score),flagged,submitted||clean(r.updated_date,60)||started,
+      JSON.stringify(mappedQuestionIds),'{}').run();
+  for(const answer of answers){
+    const q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(answer.question_id,120)).first();
+    if(!q?.destination_id)continue;
+    await DB.prepare("INSERT OR IGNORE INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct,updated_at) VALUES(?,?,?,?,?,NULL,?)")
+      .bind('b44ans-'+sourceId.slice(-12)+'-'+clean(answer.question_id,24),id,q.destination_id,JSON.stringify(answer.answer??null),
+        answer.marks_awarded===null||answer.marks_awarded===undefined?null:Math.max(0,Math.round(num(answer.marks_awarded))),
+        submitted||clean(r.updated_date,60)||started).run();
+  }
+  if(r.is_published===true&&(r.score!==null&&r.score!==undefined||r.moderated_score!==null&&r.moderated_score!==undefined)){
+    const raw=score,paperMax=Math.max(1,Number(assessment.max_points)||100),publishedMax=Math.max(1,Number(assessment.category_out_of)||paperMax);
+    const published=Math.max(0,Math.round(raw/paperMax*publishedMax));
+    await DB.prepare("INSERT OR IGNORE INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?)")
+      .bind('b44result-'+sourceId.slice(-24),assessment.id,student.id,published,clean(r.admin_notes,2000),
+        submitted||clean(r.updated_date,60)||new Date().toISOString(),adminId,raw,publishedMax).run();
+  }
+  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('ExamAttempt',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING")
+    .bind(sourceId,id,student.id).run();
+  c.examAttemptsImported++;
+}
+async function importStudentResult(DB,r,adminId,c,sourceCourses,sourceModules) {
+  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='StudentResult' AND source_id=?").bind(sourceId).first();
+  if(mapped?.destination_id){c.studentResultsAlreadyPresent++;return;}
+  const courseTitle=sourceCourseTitle(r.course_id,sourceCourses);
+  const course=await activeCourseFor(DB,courseTitle);
+  if(!course){c.studentResultsSkipped++;return;}
+  const module=await mappedModule(DB,course.id,r.unit_id,r.module_code,r.unit_title,sourceModules);
+  if(!module.row){c.studentResultsSkipped++;c.warnings.push("Module result for "+clean(r.student_email,120)+" could not be linked to an official module.");return;}
+  const student=await findDestinationStudent(DB,r.student_email,course.id,r.enrollment_id);
+  if(!student){c.studentResultsSkipped++;return;}
+  const sourceAdmission=clean(r.admission_number,80);
+  if(sourceAdmission&&student.admission_number&&sourceAdmission!==student.admission_number)c.warnings.push("Preserved official admission number "+student.admission_number+" for "+clean(r.student_email,120)+"; result carried legacy number "+sourceAdmission+".");
+  const grade=clean(r.grade,8)||'MM',status=['I','MM'].includes(grade.toUpperCase())?'incomplete':'published';
+  const cat=r.cat_score===null||r.cat_score===undefined?0:num(r.cat_score);
+  const practical=r.assignment_score===null||r.assignment_score===undefined?0:num(r.assignment_score);
+  const exam=r.exam_score===null||r.exam_score===undefined?0:num(r.exam_score);
+  const result=await DB.prepare("INSERT OR IGNORE INTO student_module_results(id,user_id,course_id,module_id,cat_score,practical_score,exam_score,assignment_score,score,max_score,grade,remarks,status,published_at,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind('b44modres-'+sourceId.slice(-20),student.id,course.id,module.row.id,cat,practical,exam,practical,
+      num(r.score),Math.max(1,num(r.max_score)||100),grade,clean(r.remarks,1000),status,
+      status==='published'?clean(r.updated_date,60)||clean(r.created_date,60)||new Date().toISOString():null,
+      adminId,clean(r.updated_date,60)||clean(r.created_date,60)||new Date().toISOString()).run();
+  if(Number(result.meta?.changes||0)>0)c.studentResultsImported++;else c.studentResultsAlreadyPresent++;
+  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('StudentResult',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING")
+    .bind(sourceId,'b44modres-'+sourceId.slice(-20),student.id).run();
+}
+async function importExamSettings(DB,rows) {
+  if(!rows.length)return;
+  const source=rows[0]||{};
+  const normalized={...source,securityLevel:clean(source.default_security_preset,20).toLowerCase()||'moderate',
+    publishResultsAutomatically:source.auto_publish_results===true,showCorrectAnswers:source.show_correct_answers===true,
+    negativeMarking:source.negative_marking_enabled===true,neverBelowZero:source.negative_floor_zero!==false,
+    penaliseUnanswered:source.penalise_unanswered===true,durationMinutes:num(source.default_duration_minutes)||60,
+    attempts:num(source.default_max_attempts)||1,publishedMaximum:num(source.default_total_marks)||100,
+    violationsAllowed:num(source.security_max_violations)||3};
+  await DB.prepare("UPDATE exam_institute_settings SET settings_json=? WHERE id='default' AND (settings_json='{}' OR settings_json='')").bind(JSON.stringify(normalized)).run();
+}
+async function importMarksWeights(DB,rows) {
+  const setting=rows.find(x=>clean(x.setting_key,80)==='marks_category_weights');
+  if(!setting)return;
+  let weights={};try{weights=JSON.parse(setting.setting_value||'{}')}catch{return;}
+  const cat=num(weights.CAT),practical=num(weights.Practical),final=num(weights.Final);
+  if(cat<=0||practical<=0||final<=0||cat+practical+final!==100)return;
+  const current=await DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
+  let config={};try{config=JSON.parse(current?.value||'{}')}catch{}
+  config.grading={...(config.grading||{}),marksWeights:{CAT:cat,Practical:practical,Final:final},catOutOf:cat,practicalOutOf:practical,finalOutOf:final};
+  await DB.prepare("INSERT INTO system_state(key,value,updated_at) VALUES('admin-configuration',?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(config)).run();
+}
+
 async function importStudent(DB,r,adminId,c) {
   const sourceId=clean(r.id||r._id||r.uuid,120);
   const email=clean(r.student_email||r.email,254).toLowerCase();
@@ -356,22 +535,28 @@ export async function onRequestPost({request,env}) {
   const tokenHash=await sha256(token);
   const tokenRow=await env.DB.prepare('SELECT token_hash,expires_at,used_at,records_received,created_by FROM base44_migration_tokens WHERE token_hash=?').bind(tokenHash).first();
   if(!tokenRow||tokenRow.used_at||new Date(tokenRow.expires_at).getTime()<Date.now())return new Response(JSON.stringify({error:'Migration token is invalid, expired, or already completed.'}),{status:401,headers:{...headers,'Content-Type':'application/json'}});
-  const staged=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM base44_legacy_records WHERE migration_batch=? AND entity_name IN ('Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion') ORDER BY entity_name,source_id").bind(tokenHash).all();
-  const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[]};
+  const staged=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM base44_legacy_records WHERE migration_batch=? AND entity_name IN ('Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict') ORDER BY entity_name,source_id").bind(tokenHash).all();
+  const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],MarksApproval:[],MarksConflict:[]};
   for(const row of staged.results||[]) {
     try{groups[row.entity_name].push(JSON.parse(row.record_json));}
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
   }
   // A complete export may contain entities beyond student enrolments. Archive-only packages are valid; the operational student/fee importer simply has nothing to process.
-  const c={sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,warnings:[]};
+  const c={sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsSkipped:0,warnings:[]};
   try {
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
     const sourceCourses=new Map(groups.Course.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
     const sourceModules=new Map(groups.CourseUnit.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
-    for(const exam of groups.Exam)await importExam(env.DB,exam,tokenRow.created_by,c,sourceCourses,sourceModules);
-    for(const question of groups.ExamQuestion)await importExamQuestion(env.DB,question,tokenRow.created_by,c);
     const imported=[];
     for(const student of groups.Enrollment){const item=await importStudent(env.DB,student,tokenRow.created_by,c);if(item)imported.push(item);}
+    await importExamSettings(env.DB,groups.ExamSettings);
+    await importMarksWeights(env.DB,groups.SystemSettings);
+    for(const exam of groups.Exam)await importExam(env.DB,exam,tokenRow.created_by,c,sourceCourses,sourceModules);
+    for(const question of groups.ExamQuestion)await importExamQuestion(env.DB,question,tokenRow.created_by,c);
+    for(const assignment of groups.Assignment)await importAssignment(env.DB,assignment,tokenRow.created_by,c,sourceCourses,sourceModules);
+    for(const submission of groups.AssignmentSubmission)await importAssignmentSubmission(env.DB,submission,tokenRow.created_by,c);
+    for(const attempt of groups.ExamAttempt)await importExamAttempt(env.DB,attempt,tokenRow.created_by,c);
+    for(const result of groups.StudentResult)await importStudentResult(env.DB,result,tokenRow.created_by,c,sourceCourses,sourceModules);
     for(const fee of groups.AdditionalFee) {
       const sourceId=clean(fee.id||fee._id||fee.uuid,120);
       const sourceEnrollmentId=clean(fee.enrollment_id,120);
@@ -475,11 +660,11 @@ export async function onRequestPost({request,env}) {
     await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
       .bind(uuid(),tokenRow.created_by,'base44_student_and_fee_migration_completed','migration',tokenHash.slice(0,24)).run();
     return new Response(JSON.stringify({
-      completed:true,scope:['Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion'],
+      completed:true,scope:['Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict'],
       studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
-      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,warnings:c.warnings
+      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,assignmentsImported:c.assignmentsImported,assignmentsAlreadyPresent:c.assignmentsAlreadyPresent,assignmentsSkipped:c.assignmentsSkipped,assignmentSubmissionsImported:c.assignmentSubmissionsImported,assignmentSubmissionsAlreadyPresent:c.assignmentSubmissionsAlreadyPresent,assignmentSubmissionsSkipped:c.assignmentSubmissionsSkipped,examAttemptsImported:c.examAttemptsImported,examAttemptsAlreadyPresent:c.examAttemptsAlreadyPresent,examAttemptsSkipped:c.examAttemptsSkipped,examApprovalsImported:c.examApprovalsImported,studentResultsImported:c.studentResultsImported,studentResultsAlreadyPresent:c.studentResultsAlreadyPresent,studentResultsSkipped:c.studentResultsSkipped,warnings:c.warnings
     }),{status:200,headers:{...headers,'Content-Type':'application/json'}});
   } catch(cause) {
     console.error('Focused Base44 student/fee migration failed:',String(cause?.message||cause));
