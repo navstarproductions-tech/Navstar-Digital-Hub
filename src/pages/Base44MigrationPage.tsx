@@ -38,7 +38,7 @@ export function Base44MigrationPage() {
   const entityNames = useMemo(() => Object.keys(bundle?.entities || {}).sort((a,b)=>a.localeCompare(b)), [bundle]);
   const counts = useMemo(() => Object.fromEntries(entityNames.map(name => [name, bundle?.entities?.[name]?.length || 0])), [bundle, entityNames]);
   const selectedCount = selectedEntities.reduce((sum, name) => sum + (bundle?.entities?.[name]?.length || 0), 0);
-  const hasAcademicArchive = (archive?.entities || []).some(item => ['Course','CourseUnit','ModuleAssignment','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksConflict','StaffApplication'].includes(item.entityName) && item.count > 0);
+  const hasAcademicArchive = (archive?.entities || []).some(item => ['Enrollment','Course','CourseUnit','ModuleAssignment','SystemUser','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksApproval','MarksConflict','StaffApplication'].includes(item.entityName) && item.count > 0);
   const visibleArchiveRecords = useMemo(() => {
     const records = archive?.records || [];
     const query = archiveSearch.trim().toLowerCase();
@@ -121,7 +121,7 @@ export function Base44MigrationPage() {
       const tokenResponse = await fetch('/api/admin/base44-migration/token', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const tokenData = await tokenResponse.json().catch(() => ({}));
       if (!tokenResponse.ok || !tokenData.token) throw new Error(tokenData.error || 'Could not start the secure academic import.');
-      setProgress('Matching archived exams, questions, assignments, marks and module identities to the official records…');
+      setProgress('Connecting archived student, staff, recruitment, finance and academic records to their official modules…');
       const response = await fetch('/api/admin/base44-migration/complete', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Authorization': 'Bearer ' + tokenData.token, 'Content-Type': 'application/json' },
@@ -226,7 +226,7 @@ export function Base44MigrationPage() {
               <div className="rounded-lg bg-slate-50 px-4 py-2 text-sm"><span className="text-slate-500">Persisted records</span><p className="text-xl font-black tabular-nums">{archive.batch?.savedRecords ?? 0}</p></div>
             </div>
             <p className="mt-3 text-xs text-slate-500">Package date: {archive.batch?.createdAt ? new Date(archive.batch.createdAt).toLocaleString() : 'No saved package'} · Received: {archive.batch?.recordsReceived ?? 0} · Saved in archive: {archive.batch?.savedRecords ?? 0} · Status: {archive.batch?.completed?'Import completed':'Not marked complete'}</p>
-            {hasAcademicArchive&&<div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold text-blue-950">Connect saved academic records</p><p className="mt-1 text-xs text-blue-900">Import exams, question banks, attempts, assignments and module results from this archive into the official Marks Hub. Already-matched records are skipped; student admission numbers are not regenerated.</p></div><button type="button" onClick={()=>void importArchivedAcademic()} disabled={busy} className="rounded-xl bg-blue-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy?'Connecting…':'Import archived academic data'}</button></div></div>}
+            {hasAcademicArchive&&<div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold text-blue-950">Connect saved system records</p><p className="mt-1 text-xs text-blue-900">Import student identities, admission numbers, courses, modules, tutor allocations, exams, questions, attempts, assignments, marks, staff accounts and recruitment records into their official modules. Existing matches are protected against duplicates.</p></div><button type="button" onClick={()=>void importArchivedAcademic()} disabled={busy} className="rounded-xl bg-blue-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy?'Connecting…':'Import archived system data'}</button></div></div>}
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {(archive.entities||[]).map(item=><div key={item.entityName} className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-600">{item.entityName}</p><p className="text-xl font-black tabular-nums">{item.count}</p><p className="text-[11px] text-slate-500">records saved</p></div>)}
               {(!archive.entities||archive.entities.length===0)&&<p className="col-span-full rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This package has no saved records. Choose another package above or upload and complete the migration.</p>}
