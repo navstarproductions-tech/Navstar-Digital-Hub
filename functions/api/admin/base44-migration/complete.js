@@ -102,7 +102,42 @@ async function importStudent(DB,r,adminId,c) {
   const course=await courseFor(DB,r.course_title,r.total_fee);
   if(course.created)c.archivedCoursesCreated++;
   const mapping=await DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceId).first();
-  const enrollmentId=mapping?.destination_id||'b44-enr-'+sourceId.slice(-24);
+  const requestedAdmission=clean(r.admission_number,80);
+  const requestedIntake=clean(r.intake_label||r.intake_id,80);
+  let matchedEnrollment=mapping?.destination_id
+    ? await DB.prepare('SELECT id,admission_number,email,identity_number,course_id,preferred_intake FROM enrollments WHERE id=?').bind(mapping.destination_id).first()
+    : null;
+
+  // Match exact admission numbers first. Reuse only when the student identity agrees.
+  if(requestedAdmission) {
+    const byAdmission=await DB.prepare('SELECT id,admission_number,email,identity_number,course_id,preferred_intake FROM enrollments WHERE admission_number=? LIMIT 1').bind(requestedAdmission).first();
+    if(byAdmission && byAdmission.id!==matchedEnrollment?.id) {
+      const sameIdentity=clean(byAdmission.email,254).toLowerCase()===email ||
+        (clean(r.national_id,80) && clean(byAdmission.identity_number,80)===clean(r.national_id,80));
+      if(!sameIdentity) {
+        c.skippedStudents++;
+        c.warnings.push('Skipped '+email+': admission number '+requestedAdmission+' already belongs to a different student. The original admission number and student record were protected.');
+        return null;
+      }
+      matchedEnrollment=byAdmission;
+    }
+  }
+
+  // Catch a repeated export row even when Base44 supplied a different source record ID.
+  if(!matchedEnrollment) {
+    matchedEnrollment=await DB.prepare(`
+      SELECT id,admission_number,email,identity_number,course_id,preferred_intake
+      FROM enrollments
+      WHERE lower(email)=lower(?) AND course_id=?
+        AND COALESCE(preferred_intake,'')=COALESCE(?, '')
+      ORDER BY created_at ASC LIMIT 1
+    `).bind(email,course.id,requestedIntake).first();
+  }
+  const enrollmentId=matchedEnrollment?.id||'b44-enr-'+sourceId.slice(-24);
+  const admission=matchedEnrollment?.admission_number || requestedAdmission || null;
+  if(matchedEnrollment?.admission_number && requestedAdmission && matchedEnrollment.admission_number!==requestedAdmission) {
+    c.warnings.push('Kept existing admission number '+matchedEnrollment.admission_number+' for '+email+'; conflicting incoming value '+requestedAdmission+' was not allowed to overwrite it.');
+  }
   let user=await DB.prepare('SELECT id,role,status FROM users WHERE lower(email)=lower(?)').bind(email).first();
   if(user&&user.role!=='student'){c.skippedStudents++;c.warnings.push('Skipped '+email+': the email is already used by a non-student account.');return null;}
   if(!user) {
@@ -151,12 +186,7 @@ async function importStudent(DB,r,adminId,c) {
     clean(r.ward,80)||null,clean(r.location,100)||null,clean(r.sublocation||r.sub_location,100)||null,
     clean(r.student_photo_url,1000)||null,clean(r.national_id,80)||null,address||null,state.profile
   ).run();
-  let admission=clean(r.admission_number,80)||null;
-  if(admission) {
-    const duplicate=await DB.prepare('SELECT id FROM enrollments WHERE admission_number=? AND id<>?').bind(admission,enrollmentId).first();
-    if(duplicate){c.warnings.push('Admission number collision for '+email+'; original value remains in imported details, but was not assigned as a unique live admission number.');admission=null;}
-  }
-  const existing=await DB.prepare('SELECT id FROM enrollments WHERE id=?').bind(enrollmentId).first();
+  const existing=await DB.prepare('SELECT id,admission_number FROM enrollments WHERE id=?').bind(enrollmentId).first();
   if(!existing) {
     const ref='B44-'+sourceId.replace(/[^a-z0-9]/gi,'').slice(-16).toUpperCase();
     const createdAt=clean(r.created_date||r.created_at,40)||new Date().toISOString();
@@ -180,7 +210,14 @@ async function importStudent(DB,r,adminId,c) {
       clean(r.support_needs,1000)||null,safeDetails(r),user.id,createdAt
     ).run();
     c.enrollmentsCreated++;
-  } else c.enrollmentsAlreadyPresent++;
+  } else {
+    c.enrollmentsAlreadyPresent++;
+    if(requestedAdmission && !existing.admission_number) {
+      const collision=await DB.prepare('SELECT id FROM enrollments WHERE admission_number=? AND id<>?').bind(requestedAdmission,enrollmentId).first();
+      if(!collision) await DB.prepare('UPDATE enrollments SET admission_number=? WHERE id=? AND (admission_number IS NULL OR admission_number=\'\')').bind(requestedAdmission,enrollmentId).run();
+      else c.warnings.push('Kept the existing record for '+email+' without changing its admission number because '+requestedAdmission+' is already assigned elsewhere.');
+    }
+  }
   await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Enrollment',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
     .bind(sourceId,enrollmentId,user.id).run();
   if(state.graduation) {
@@ -274,6 +311,22 @@ export async function onRequestPost({request,env}) {
       const st=clean(payment.status,40).toLowerCase();
       const status=st==='verified'||st==='paid'||payment.amount_confirmed===true?'paid':st==='rejected'||st==='failed'?'failed':'pending';
       const paymentId='b44pay-'+sourcePaymentId.slice(-24);
+      const existingPayment=await env.DB.prepare('SELECT id FROM payments WHERE id=?').bind(paymentId).first();
+      if(existingPayment) {
+        await env.DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('FeePayment',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+          .bind(sourcePaymentId,paymentId,mapping.user_id).run();
+        continue;
+      }
+      const mpesaCode=clean(payment.mpesa_code,80);
+      if(mpesaCode) {
+        const receiptDuplicate=await env.DB.prepare('SELECT id FROM payments WHERE receipt_number=? AND amount=? AND reference_id=? LIMIT 1').bind(mpesaCode,amount,mapping.destination_id).first();
+        if(receiptDuplicate) {
+          c.warnings.push('Skipped repeated fee receipt '+mpesaCode+' for an existing student payment.');
+          await env.DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('FeePayment',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+            .bind(sourcePaymentId,receiptDuplicate.id,mapping.user_id).run();
+          continue;
+        }
+      }
       await env.DB.prepare("INSERT OR IGNORE INTO payments(id,purpose,reference_id,phone,amount,status,receipt_number,internal_receipt_number,display_reference,result_description,transaction_date,created_at,updated_at) VALUES(?,'enrollment',?,?,?,?,?,?,?,?,?,?,?)")
         .bind(paymentId,mapping.destination_id,clean(payment.payment_phone,40)||clean(payment.phone,40)||'Not recorded',amount,status,
           clean(payment.mpesa_code,80)||null,'B44-PAY-'+sourcePaymentId.replace(/[^a-z0-9]/gi,'').slice(-16).toUpperCase(),
