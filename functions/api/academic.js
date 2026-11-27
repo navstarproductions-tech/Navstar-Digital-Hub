@@ -304,8 +304,11 @@ export async function onRequestPost({request,env}){
   if(action==='delete_assessment'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80);
-    const existing=await env.DB.prepare('SELECT id,course_id,title FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    const existing=await env.DB.prepare('SELECT id,course_id,module_id,title FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
+    const affectedRows=existing.module_id?(await env.DB.prepare(`SELECT user_id FROM course_assessment_results WHERE assessment_id=?
+      UNION SELECT user_id FROM course_assessment_attempts WHERE assessment_id=?
+      UNION SELECT user_id FROM exam_runtime_attempts WHERE assessment_id=?`).bind(assessmentId,assessmentId,assessmentId).all()).results||[]:[];
     // Remove dependent runtime answers first, then attempts, approvals, marks and the question bank.
     // The audit event is retained after the academic records are permanently removed.
     await env.DB.batch([
@@ -318,8 +321,9 @@ export async function onRequestPost({request,env}){
       env.DB.prepare('DELETE FROM course_exam_questions WHERE assessment_id=?').bind(assessmentId),
       env.DB.prepare('DELETE FROM course_assessments WHERE id=?').bind(assessmentId),
     ]);
+    if(existing.module_id){for(const row of affectedRows)await syncModuleResult(env.DB,row.user_id,existing.module_id,user.id);}
     await audit('assessment_permanently_deleted','assessment',assessmentId);
-    return json({deleted:true,assessmentId,title:existing.title,questionsDeleted:true,attemptsDeleted:true,resultsDeleted:true});
+    return json({deleted:true,assessmentId,title:existing.title,questionsDeleted:true,attemptsDeleted:true,resultsDeleted:true,moduleResultsRecalculated:affectedRows.length});
   }
   if(action==='archive_assessment'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
