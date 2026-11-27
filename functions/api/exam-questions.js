@@ -303,7 +303,10 @@ async function handleQuestionPost({request,env}){
   const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first().catch(()=>null);
   let securitySettings={};try{securitySettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{securitySettings={};}
   const negativeEnabled=securitySettings.negativeMarking===true,penaliseUnanswered=securitySettings.penaliseUnanswered===true;
-  const deduction=Math.max(0,Math.min(100,Number(securitySettings.negativeMarkValue)||0));
+  const fixedDeduction=Math.max(0,Math.min(100,Number(securitySettings.negativeMarkValue)||0));
+  const deductionMode=String(securitySettings.negativeDeductionMode||'fixed').toLowerCase();
+  const deductionPercent=Math.max(0,Math.min(100,Number(securitySettings.negativeDeductionPercent)||25));
+  const applyTo=String(securitySettings.negativeApplyTo||'Multiple Choice only').toLowerCase();
   let score=0,autoMarked=true,negativeDeductions=0;
   for(const answer of answers){
    const questionId=safeString(answer.questionId,80);if(!servedSet.has(questionId))continue;
@@ -311,11 +314,18 @@ async function handleQuestionPost({request,env}){
    if(!q)continue;
    const submitted=answer.answer??answer.selected_answer??null;let correct=null,points=null;
    if(['single_choice','multiple_choice','true_false'].includes(q.question_type)){
-    const expected=JSON.parse(q.correct_answer_json||'null');correct=sameAnswer(submitted,expected);points=correct?Number(q.points):0;if(correct)score+=points;else if(submitted!==null&&submitted!==''&&negativeEnabled){const minus=Math.min(Number(q.points),deduction);score-=minus;negativeDeductions+=minus;}else if((submitted===null||submitted==='')&&penaliseUnanswered&&negativeEnabled){const minus=Math.min(Number(q.points),deduction);score-=minus;negativeDeductions+=minus;}
+    const expected=JSON.parse(q.correct_answer_json||'null');correct=sameAnswer(submitted,expected);points=correct?Number(q.points):0;
+    if(correct)score+=points;
+    else if(negativeEnabled&&(['all objective questions','multiple choice & true / false'].includes(applyTo)||applyTo==='multiple choice only'&&['single_choice','multiple_choice'].includes(q.question_type))){
+      if((submitted!==null&&submitted!=='')||penaliseUnanswered){
+        const minus=Math.min(Number(q.points),deductionMode==='percentage'?Number(q.points)*deductionPercent/100:fixedDeduction);
+        score-=minus;negativeDeductions+=minus;
+      }
+    }
    }else autoMarked=false;
    await env.DB.prepare('INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct) VALUES(?,?,?,?,?,?) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer_json=excluded.answer_json,points_awarded=excluded.points_awarded,is_correct=excluded.is_correct,updated_at=CURRENT_TIMESTAMP').bind(uuid(),attempt.id,q.id,JSON.stringify(submitted),points,correct===null?null:(correct?1:0)).run();
   }
-  score=Math.max(0,score);
+  if(securitySettings.neverBelowZero!==false)score=Math.max(0,score);
   const expired=Date.parse(attempt.expires_at)<=Date.now();
   await env.DB.prepare("UPDATE exam_runtime_attempts SET status=?,submitted_at=CURRENT_TIMESTAMP,last_activity_at=CURRENT_TIMESTAMP,objective_score=?,total_score=? WHERE id=?").bind(autoMarked?'graded':'submitted',score,autoMarked?score:null,attempt.id).run();
   let publishedResult=null;
