@@ -38,7 +38,7 @@ export function Base44MigrationPage() {
   const entityNames = useMemo(() => Object.keys(bundle?.entities || {}).sort((a,b)=>a.localeCompare(b)), [bundle]);
   const counts = useMemo(() => Object.fromEntries(entityNames.map(name => [name, bundle?.entities?.[name]?.length || 0])), [bundle, entityNames]);
   const selectedCount = selectedEntities.reduce((sum, name) => sum + (bundle?.entities?.[name]?.length || 0), 0);
-  const hasAcademicArchive = (archive?.entities || []).some(item => ['Course','CourseUnit','ModuleAssignment','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem'].includes(item.entityName) && item.count > 0);
+  const hasAcademicArchive = (archive?.entities || []).some(item => ['Course','CourseUnit','ModuleAssignment','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksConflict'].includes(item.entityName) && item.count > 0);
   const visibleArchiveRecords = useMemo(() => {
     const records = archive?.records || [];
     const query = archiveSearch.trim().toLowerCase();
@@ -129,7 +129,7 @@ export function Base44MigrationPage() {
       });
       const completion = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error([completion.error || 'Saved academic records could not be connected.', completion.detail || '', completion.progress ? JSON.stringify(completion.progress) : ''].filter(Boolean).join(' · '));
-      setResult({ ...completion, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: (archive?.entities || []).filter(x => ['Course','CourseUnit','ModuleAssignment','SystemUser','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem'].includes(x.entityName)).length });
+      setResult({ ...completion, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: (archive?.entities || []).filter(x => ['Course','CourseUnit','ModuleAssignment','SystemUser','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksConflict'].includes(x.entityName)).length });
       await loadArchive(selectedBatch);
       setProgress('Saved academic records have been processed. Refresh the Marks Hub to view imported exams and questions.');
     } catch (cause) {
