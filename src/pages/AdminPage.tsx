@@ -818,6 +818,7 @@ export function AdminPage() {
       if (!response.ok || (status === 'accepted' && !result.saved)) throw new Error(result.error ?? 'Application status could not be updated.');
       setApplications((current) => current.map((item) => item.id === applicationId ? { ...item, status: result.status ?? status } : item));
       setNotice(status === 'accepted' ? 'Admission confirmed. A student account and profile have been created, secure portal setup instructions sent, and the learner moved to Students → Student Status.' : 'Application status updated.');
+      if (status === 'accepted') window.setTimeout(() => window.location.reload(), 400);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Application status could not be updated.');
     }
