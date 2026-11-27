@@ -23,7 +23,7 @@ async function canAccess(db,user,courseId){
 export async function onRequestGet({request,env}){
  if(!env.DB)return error('Exam question database is not configured.',503);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
- const assessmentId=safeString(new URL(request.url).searchParams.get('assessmentId'),80);
+ const requestUrl=new URL(request.url),assessmentId=safeString(requestUrl.searchParams.get('assessmentId'),80),attemptId=safeString(requestUrl.searchParams.get('attemptId'),80);
  const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,CASE WHEN a.max_points>0 THEN a.max_points ELSE 100 END AS max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.require_admin_approval,a.allow_result_review,c.title AS course_title,m.title AS module_title,NULL AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
  if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not available.',404);
  const paperMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
@@ -31,14 +31,14 @@ export async function onRequestGet({request,env}){
  if(student&&(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())))return error('This examination is not currently open.',403);
  let revealAnswers=!student;
  if(student&&assessment.allow_result_review){
-  const submitted=await env.DB.prepare("SELECT id FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status IN ('submitted','graded') ORDER BY attempt_number DESC LIMIT 1").bind(assessmentId,user.id).first();
+  const submitted=await env.DB.prepare("SELECT id FROM exam_runtime_attempts WHERE assessment_id=? AND user_id=? AND status IN ('submitted','graded') AND attempt_number>=(SELECT max_attempts FROM course_assessments WHERE id=?) ORDER BY attempt_number DESC LIMIT 1").bind(assessmentId,user.id,assessmentId).first();
   revealAnswers=Boolean(submitted);
  }
  const rows=await env.DB.prepare('SELECT id,question_text AS questionText,question_type AS questionType,options_json AS optionsJson,points,sort_order AS sortOrder,explanation,correct_answer_json AS correctAnswerJson FROM course_exam_questions WHERE assessment_id=? AND status=? ORDER BY sort_order,id').bind(assessmentId,'active').all();
  const questions=(rows.results||[]).map(q=>({id:q.id,questionText:q.questionText,questionType:q.questionType,options:JSON.parse(q.optionsJson||'[]'),points:q.points,sortOrder:q.sortOrder,...(revealAnswers?{correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}:{})}));
  const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first().catch(()=>null);
  let securitySettings={};try{securitySettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{securitySettings={};}
- return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:paperMaximum,durationMinutes:assessment.duration_minutes},questions,...(student?{securitySettings}: {})});
+ let savedAnswers={};if(student&&attemptId){const activeAttempt=await env.DB.prepare("SELECT id FROM exam_runtime_attempts WHERE id=? AND assessment_id=? AND user_id=? AND status='in_progress'").bind(attemptId,assessmentId,user.id).first();if(!activeAttempt)return error('Active examination attempt not found.',404);const saved=(await env.DB.prepare('SELECT question_id,answer_json FROM exam_runtime_answers WHERE attempt_id=?').bind(attemptId).all()).results||[];savedAnswers=Object.fromEntries(saved.map(row=>{let answer=null;try{answer=JSON.parse(row.answer_json||'null')}catch{}return [row.question_id,answer]}));}return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:paperMaximum,durationMinutes:assessment.duration_minutes},questions,...(student?{securitySettings,savedAnswers}: {})});
 }
 async function handleQuestionPost({request,env}){
  if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
