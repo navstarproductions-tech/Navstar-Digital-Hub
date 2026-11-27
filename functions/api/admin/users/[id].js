@@ -85,3 +85,24 @@ export async function onRequestPatch({ request, env, params }) {
   ).run();
   return json({ updated: true, id });
 }
+
+
+export async function onRequestDelete({ request, env, params }) {
+  if (!isSameOrigin(request)) return error('Cross-origin request rejected.', 403);
+  if (!env.DB) return error('User service is not configured.', 503);
+  const access = await requireRole(request, env, ['admin']);
+  if (access.response) return access.response;
+  const id = safeString(params?.id, 80);
+  if (!id) return error('User ID is required.');
+  if (id === access.user.id) return error('You cannot delete your own administrator account.');
+  const target = await env.DB.prepare('SELECT id,role FROM users WHERE id=?').bind(id).first();
+  if (!target) return error('Student account not found.', 404);
+  if (target.role !== 'student') return error('This action is restricted to student accounts.', 409);
+  // Keep enrolments, marks, certificates, fees and audit history intact.
+  await env.DB.prepare("UPDATE users SET status='disabled' WHERE id=?").bind(id).run();
+  await env.DB.prepare("UPDATE user_profiles SET student_status='dismissed',updated_at=CURRENT_TIMESTAMP WHERE user_id=?").bind(id).run();
+  await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(id).run();
+  await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
+    .bind(uuid(), access.user.id, 'student_account_deactivated_by_admin', 'user', id).run();
+  return json({ id, deleted: true, status: 'dismissed', recordsPreserved: true });
+}
