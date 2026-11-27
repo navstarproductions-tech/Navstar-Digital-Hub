@@ -18,7 +18,7 @@ export function StudentExamRunner({exams,attempts=[]}:{exams:Exam[];attempts?:an
   try{
    const preflight=await fetch('/api/exam-questions?assessmentId='+encodeURIComponent(selected.id),{credentials:'same-origin',cache:'no-store'});
    const paper=await preflight.json();if(!preflight.ok)throw new Error(paper.error||'Question paper unavailable.');
-   if(!(paper.questions||[]).length)throw new Error('This examination has no questions yet. Contact your tutor or administrator.');
+   if(Number(paper.questionCount||0)<1)throw new Error('This examination has no questions yet. Contact your tutor or administrator.');
    const sr=await fetch('/api/exam-questions',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'start_runtime',assessmentId:selected.id})});
    const sj=await sr.json();if(!sr.ok)throw new Error(sj.error||'Examination could not be started.');
    const qr=await fetch('/api/exam-questions?assessmentId='+encodeURIComponent(selected.id)+'&attemptId='+encodeURIComponent(sj.attemptId),{credentials:'same-origin',cache:'no-store'});
