@@ -14,7 +14,7 @@ const timeLabel = (value: string) => value ? new Date(value).toLocaleString('en-
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Nairobi'
 }) : '';
 
-export function PortalMessagesWorkspace({ userId, userName }: { userId: string; userName: string }) {
+export function PortalMessagesWorkspace({ userId, userName, mode = 'student' }: { userId: string; userName: string; mode?: 'student' | 'staff' }) {
   const [messages, setMessages] = useState<PortalMessage[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -142,7 +142,7 @@ export function PortalMessagesWorkspace({ userId, userName }: { userId: string; 
           <div>
             <p className="text-xs font-black uppercase tracking-[.2em] text-cyan-200">NAVSTAR · STUDENT COMMUNICATION</p>
             <h3 className="mt-2 text-2xl font-black">Messages</h3>
-            <p className="mt-1 max-w-xl text-sm leading-6 text-blue-100">Communicate privately with your tutors and Navstar administration.</p>
+            <p className="mt-1 max-w-xl text-sm leading-6 text-blue-100">{mode === 'staff' ? 'Communicate privately with students and manage their replies.' : 'Communicate privately with your tutors and Navstar administration.'}</p>
           </div>
           <button type="button" onClick={startNew} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-950 shadow-sm hover:bg-cyan-50">
             <Plus className="h-4 w-4" /> New message
@@ -177,17 +177,17 @@ export function PortalMessagesWorkspace({ userId, userName }: { userId: string; 
                 <p className="mt-2 text-[10px] text-slate-400">{timeLabel(thread.latest.createdAt)}</p>
               </button>;
             })}
-            {!loading&&threads.length===0&&<div className="px-4 py-10 text-center"><Mail className="mx-auto h-8 w-8 text-slate-300"/><p className="mt-3 text-sm font-bold text-slate-700">Your inbox is empty</p><p className="mt-1 text-xs leading-5 text-slate-500">Start a conversation with your tutor or Navstar Administration.</p></div>}
+            {!loading&&threads.length===0&&<div className="px-4 py-10 text-center"><Mail className="mx-auto h-8 w-8 text-slate-300"/><p className="mt-3 text-sm font-bold text-slate-700">Your inbox is empty</p><p className="mt-1 text-xs leading-5 text-slate-500">{mode === 'staff' ? 'Start a conversation with a student.' : 'Start a conversation with your tutor or Navstar Administration.'}</p></div>}
           </div>
         </section>
 
         <section className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {compose ? <>
-            <div className="border-b border-slate-100 bg-slate-50 px-5 py-4"><h4 className="font-black text-slate-900">Compose a message</h4><p className="mt-1 text-xs text-slate-500">Your message will be delivered to the selected staff member.</p></div>
+            <div className="border-b border-slate-100 bg-slate-50 px-5 py-4"><h4 className="font-black text-slate-900">Compose a message</h4><p className="mt-1 text-xs text-slate-500">{mode === 'staff' ? 'Your message will be delivered to the selected student.' : 'Your message will be delivered to the selected staff member.'}</p></div>
             <form onSubmit={send} className="flex flex-1 flex-col gap-4 p-5">
               <label className="text-xs font-bold text-slate-700">Send to
                 <select required value={recipientId} onChange={event=>setRecipientId(event.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900">
-                  <option value="">Choose a tutor or staff member</option>
+                  <option value="">{mode === 'staff' ? 'Choose a student' : 'Choose a tutor or staff member'}</option>
                   {contacts.map(contact=><option key={contact.id} value={contact.id}>{contact.name} · {contact.role}</option>)}
                 </select>
               </label>
