@@ -187,12 +187,22 @@ async function importStudent(DB,r,adminId,c) {
     await DB.prepare("INSERT INTO student_graduation_records(id,user_id,course_id,status,completed_at,updated_by) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,course_id) DO UPDATE SET status=excluded.status,completed_at=COALESCE(excluded.completed_at,student_graduation_records.completed_at),updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
       .bind('b44grad-'+sourceId.slice(-20),user.id,course.id,state.graduation,dateOnly(r.completion_date)||dateOnly(r.updated_date)||null,adminId).run();
   }
+  const amountPaid=Math.max(0,Math.round(num(r.amount_paid)));
   const additionalFee=Math.max(0,Math.round(num(r.additional_fee)));
-  if(additionalFee>0) {
-    await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,?,?,'anytime',?)")
-      .bind('b44enradd-'+sourceId.slice(-24),enrollmentId,'Additional fee - '+(clean(r.additional_fee_reason,80)||'Other'),additionalFee,clean(r.created_date,40)||new Date().toISOString()).run();
-  }
-  return {sourceId,enrollmentId,userId:user.id,amountPaid:Math.max(0,num(r.amount_paid)),totalFee:Math.max(0,num(r.total_fee))+additionalFee,source:r};
+  const hasBalance=r.fee_balance!==null&&r.fee_balance!==undefined&&r.fee_balance!=='';
+  const totalDue=Math.max(0,Math.round(hasBalance?amountPaid+num(r.fee_balance):num(r.total_fee)+additionalFee));
+  const baseFee=Math.max(0,totalDue-additionalFee);
+  // Replace the trigger's current-course snapshot with this learner's historical total,
+  // so old discounts and prior fee agreements do not get overwritten by today's course fee.
+  await DB.prepare('DELETE FROM enrollment_fee_items WHERE enrollment_id=?').bind(enrollmentId).run();
+  const feeDate=clean(r.created_date,40)||new Date().toISOString();
+  if(baseFee>0) await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,'Legacy course fee total',?,'before_term',?)")
+    .bind('b44enrfee-'+sourceId.slice(-24),enrollmentId,baseFee,feeDate).run();
+  if(additionalFee>0) await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,?,?,'anytime',?)")
+    .bind('b44enradd-'+sourceId.slice(-24),enrollmentId,'Additional fee - '+(clean(r.additional_fee_reason,80)||'Other'),additionalFee,feeDate).run();
+  if(totalDue>0&&baseFee===0&&additionalFee===0) await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,'Legacy student fee total',?,'before_term',?)")
+    .bind('b44enrtotal-'+sourceId.slice(-24),enrollmentId,totalDue,feeDate).run();
+  return {sourceId,enrollmentId,userId:user.id,amountPaid,totalFee:totalDue,source:r};
 }
 export async function onRequestOptions({request}) { return new Response(null,{status:204,headers:corsHeaders(request.headers.get('Origin')||'')}); }
 export async function onRequestPost({request,env}) {
