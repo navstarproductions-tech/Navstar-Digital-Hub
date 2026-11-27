@@ -363,7 +363,7 @@ async function importMarksWeights(DB,rows) {
   const current=await DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
   let config={};try{config=JSON.parse(current?.value||'{}')}catch{}
   config.grading={...(config.grading||{}),marksWeights:{CAT:cat,Practical:practical,Final:final},catOutOf:cat,practicalOutOf:practical,finalOutOf:final};
-  await DB.prepare("INSERT INTO system_state(key,value,updated_at) VALUES('admin-configuration',?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(JSON.stringify(config)).run();
+  await DB.prepare("INSERT INTO system_state(key,value) VALUES('admin-configuration',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
 }
 
 async function importStudent(DB,r,adminId,c) {
