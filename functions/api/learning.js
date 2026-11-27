@@ -128,7 +128,7 @@ export async function onRequestGet({ request, env }) {
     const visibleToStudent=user.role!=='student'||submission.approval_status==='approved';
     const categoryMaximum=Number(submission.category_out_of)>0?Number(submission.category_out_of):20;
     const categoryPoints=submission.points_awarded===null||submission.points_awarded===undefined?null:Math.round((raw/rawMax*categoryMaximum)*100)/100;
-    const enriched={...submission,status:submission.approval_status==='pending'&&submission.points_awarded!==null?'pending_approval':submission.status,raw_points_awarded:submission.points_awarded,points_awarded:visibleToStudent?categoryPoints:null,feedback:visibleToStudent?submission.feedback:null,percentage:visibleToStudent?percentage:null,published_maximum:categoryMaximum,published_points_awarded:visibleToStudent?categoryPoints:null,grade:visibleToStudent?grade:null};
+    const enriched={...submission,status:submission.approval_status==='pending'&&submission.points_awarded!==null?'pending_approval':submission.status,raw_points_awarded:submission.points_awarded,points_awarded:user.role==='student'?(visibleToStudent?categoryPoints:null):submission.points_awarded,feedback:visibleToStudent?submission.feedback:null,percentage:visibleToStudent?percentage:null,published_maximum:categoryMaximum,published_points_awarded:visibleToStudent?categoryPoints:null,grade:visibleToStudent?grade:null};
     const current = submissionsByAssignment.get(submission.assignment_id) ?? [];
     current.push(enriched);
     submissionsByAssignment.set(submission.assignment_id, current);
