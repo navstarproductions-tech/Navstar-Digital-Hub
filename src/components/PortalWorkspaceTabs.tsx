@@ -193,10 +193,11 @@ const navGroups:Partial<Record<Role,NavGroup[]>>={
 export function PortalWorkspaceTabs({role,name,enrollments,overview,payments,cashouts,onPay,payingId=''}:Props){
  const [active,setActive]=useState('overview');
  const tabs=[...(tabSets[role]||tabSets.student),...(extraTabs[role]||[])];
- const groups=navGroups[role]||tabs.map(tab=>({id:tab.id,label:tab.label,items:[tab.id]}));
+ const groups=(navGroups[role]||tabs.map(tab=>({id:tab.id,label:tab.label,items:[tab.id]}))).slice();
+ if(role==='tutor'||role==='finance')groups.sort((a,b)=>a.id==='dashboard'?-1:b.id==='dashboard'?1:a.label.localeCompare(b.label));
  const current=tabs.find(tab=>tab.id===active)||tabs[0];
  const currentGroup=groups.find(group=>group.items.includes(active))||groups[0];
- const visibleGroupTabs=(currentGroup?.items||[]).map(id=>tabs.find(tab=>tab.id===id)).filter((tab):tab is Tab=>Boolean(tab));
+ const visibleGroupTabs=(currentGroup?.items||[]).map(id=>tabs.find(tab=>tab.id===id)).filter((tab):tab is Tab=>Boolean(tab)).sort((a,b)=>a.label.localeCompare(b.label));
  const embeddedLearning=(role==='tutor'&&['classes','resources','assignments','progress'].includes(active))||(role==='student'&&['courses','assignments'].includes(active));
  const accentByRole:Record<Role,string>={student:'bg-blue-800',tutor:'bg-blue-800',admissions:'bg-blue-800',principal:'bg-blue-800',finance:'bg-blue-800',admin:'bg-blue-800',customer:'bg-blue-800'};
  const activeAccent=accentByRole[role]||'bg-blue-800';
