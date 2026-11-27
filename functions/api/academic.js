@@ -87,7 +87,7 @@ export async function onRequestGet({request,env}){
   const scholarships=(await env.DB.prepare(`SELECT s.*,c.title AS course_title,a.id AS application_id,a.status AS application_status FROM course_scholarships s LEFT JOIN courses c ON c.id=s.course_id LEFT JOIN scholarship_applications a ON a.scholarship_id=s.id AND a.user_id=? WHERE (s.course_id IS NULL OR s.course_id IN (${marks})) AND s.status!='draft' ORDER BY s.deadline`).bind(user.id,...ids).all()).results||[];
   const moduleRegistrations=user.role==='student'?(await env.DB.prepare(`SELECT r.*,m.title AS module_title,c.title AS course_title FROM student_module_registrations r JOIN course_modules m ON m.id=r.module_id JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY c.title,m.sort_order`).bind(user.id).all()).results||[]:[];
   const attendance=user.role==='student'?(await env.DB.prepare(`SELECT a.*,t.title AS session_title,t.starts_at,c.title AS course_title FROM course_attendance a JOIN course_timetable t ON t.id=a.timetable_id JOIN courses c ON c.id=t.course_id WHERE a.student_user_id=? ORDER BY a.marked_at DESC`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT a.*,t.title AS session_title,t.starts_at,c.title AS course_title,u.name AS student_name FROM course_attendance a JOIN course_timetable t ON t.id=a.timetable_id JOIN courses c ON c.id=t.course_id JOIN users u ON u.id=a.student_user_id WHERE t.course_id IN (${marks}) ORDER BY a.marked_at DESC LIMIT 500`).bind(...ids).all()).results||[];
-  const assessments=(await env.DB.prepare(`SELECT a.*,c.title AS course_title,m.title AS module_title,r.points_awarded,r.raw_points_awarded,r.published_max_points,r.feedback,r.published_at FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=? WHERE a.course_id IN (${marks}) AND a.status!='draft' ORDER BY a.due_at`).bind(user.id,...ids).all()).results||[];
+  const assessments=(await env.DB.prepare(`SELECT a.*,c.title AS course_title,m.title AS module_title,r.points_awarded,r.raw_points_awarded,r.published_max_points,r.feedback,r.published_at FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=? WHERE a.course_id IN (${marks}) AND (a.status!='draft' OR ?!='student') ORDER BY a.due_at`).bind(user.id,...ids,user.role).all()).results||[];
   const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();
   let examSettings={};try{examSettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{examSettings={};}
   const marksPolicy=await getCentralMarksPolicy(env.DB);examSettings={...examSettings,...marksPolicy};
@@ -128,7 +128,7 @@ export async function onRequestPost({request,env}){
     return json({deleted:true});
   }
   if(action==='set_exam_candidate_approval'){
-    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),status=safeString(body.status,20);
     if(!['approved','rejected','pending'].includes(status))return error('Choose approved, rejected or pending.');
     const assessment=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
@@ -182,7 +182,7 @@ export async function onRequestPost({request,env}){
   }
 
   if(action==='save_manual_assessment_mark'){
-    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),feedbackText=safeString(body.feedback,3000);
     const assessment=await env.DB.prepare('SELECT id,course_id,assessment_type,max_points FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id)))return error('Assessment access denied.',403);
@@ -266,7 +266,7 @@ export async function onRequestPost({request,env}){
   }
 
   if(action==='update_assessment'){
-    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80);
     const existing=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
@@ -291,7 +291,7 @@ export async function onRequestPost({request,env}){
     return json({id:assessmentId,updated:true});
   }
   if(action==='archive_assessment'){
-    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80);
     const existing=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
@@ -300,7 +300,7 @@ export async function onRequestPost({request,env}){
     return json({archived:true});
   }
   if(action==='generate_exam_timetable'){
-    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const rules=body.rules&&typeof body.rules==='object'?body.rules:{};
     const startText=safeString(rules.startDate,10),endText=safeString(rules.endDate,10);
     const perDay=Number(rules.papersPerDay),morning=safeString(rules.morningTime,5),evening=safeString(rules.eveningTime,5);
