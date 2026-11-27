@@ -37,13 +37,16 @@ export async function onRequestGet({ request, env }) {
     GROUP BY entity_name
     ORDER BY entity_name
   `).bind(selected.id).all();
+  const params = new URL(request.url).searchParams;
+  const limit = Math.min(500, Math.max(1, Number(params.get('limit') || 500)));
+  const offset = Math.max(0, Number(params.get('offset') || 0));
   const rows = await env.DB.prepare(`
     SELECT entity_name, source_id, source_created_at, source_updated_at, record_json, imported_at
     FROM base44_legacy_records
     WHERE migration_batch = ?
     ORDER BY entity_name, source_id
-    LIMIT 2000
-  `).bind(selected.id).all();
+    LIMIT ? OFFSET ?
+  `).bind(selected.id, limit, offset).all();
   const records = (rows.results || []).map(row => {
     let data = {};
     try { data = JSON.parse(row.record_json); } catch { data = { _archiveReadError: true }; }
@@ -65,6 +68,8 @@ export async function onRequestGet({ request, env }) {
     batches,
     entities: entityCounts,
     records,
-    truncated: selected.savedRecords > records.length
+    offset,
+    nextOffset: offset + records.length < selected.savedRecords ? offset + records.length : null,
+    truncated: selected.savedRecords > records.length + offset
   });
 }
