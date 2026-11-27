@@ -268,7 +268,7 @@ export async function onRequestPost({request,env}) {
     try{groups[row.entity_name].push(JSON.parse(row.record_json));}
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
   }
-  if(!groups.Enrollment.length)return new Response(JSON.stringify({error:'No student records received. Export Enrollment, FeeStructure, FeePayment and AdditionalFee from Base44, then retry.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
+  // A complete export may contain entities beyond student enrolments. Archive-only packages are valid; the operational student/fee importer simply has nothing to process.
   const c={sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,warnings:[]};
   try {
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
