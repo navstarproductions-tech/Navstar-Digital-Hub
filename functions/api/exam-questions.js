@@ -263,11 +263,11 @@ async function handleQuestionPost({request,env}){
   const answers=Array.isArray(body.answers)?body.answers.slice(0,500):[];
   const statements=[];
   for(const answer of answers){
-   const questionId=safeString(answer.questionId,80);
+   const questionId=safeString(answer.questionId||answer.question_id,80);
    if(!questionId||!servedSet.has(questionId))continue;
    const question=await env.DB.prepare("SELECT id FROM course_exam_questions WHERE id=? AND assessment_id=?").bind(questionId,assessmentId).first();
    if(!question)continue;
-   statements.push(env.DB.prepare("INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct) VALUES(?,?,?,?,NULL,NULL) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer_json=excluded.answer_json,updated_at=CURRENT_TIMESTAMP").bind(uuid(),attemptId,questionId,JSON.stringify(answer.answer??null)));
+   statements.push(env.DB.prepare("INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct) VALUES(?,?,?,?,NULL,NULL) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer_json=excluded.answer_json,updated_at=CURRENT_TIMESTAMP").bind(uuid(),attemptId,questionId,JSON.stringify(answer.answer??answer.selected_answer??null)));
   }
   if(statements.length)await env.DB.batch(statements);
   await env.DB.prepare("UPDATE exam_runtime_attempts SET last_activity_at=CURRENT_TIMESTAMP WHERE id=?").bind(attemptId).run();
@@ -300,7 +300,7 @@ async function handleQuestionPost({request,env}){
    const questionId=safeString(answer.questionId,80);if(!servedSet.has(questionId))continue;
    const q=await env.DB.prepare('SELECT id,question_type,correct_answer_json,points FROM course_exam_questions WHERE id=? AND assessment_id=?').bind(questionId,assessmentId).first();
    if(!q)continue;
-   const submitted=answer.answer??null;let correct=null,points=null;
+   const submitted=answer.answer??answer.selected_answer??null;let correct=null,points=null;
    if(['single_choice','multiple_choice','true_false'].includes(q.question_type)){
     const expected=JSON.parse(q.correct_answer_json||'null');correct=JSON.stringify(submitted)===JSON.stringify(expected);points=correct?Number(q.points):0;if(correct)score+=points;else if(submitted!==null&&submitted!==''&&negativeEnabled){const minus=Math.min(Number(q.points),deduction);score-=minus;negativeDeductions+=minus;}else if((submitted===null||submitted==='')&&penaliseUnanswered&&negativeEnabled){const minus=Math.min(Number(q.points),deduction);score-=minus;negativeDeductions+=minus;}
    }else autoMarked=false;
