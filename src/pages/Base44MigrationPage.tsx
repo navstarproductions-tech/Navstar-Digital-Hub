@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Database, Download, FileJson, FileUp, ShieldCheck, UploadCloud } from 'lucide-react';
+import { ArrowLeft, Database, Download, FileJson, FileUp, RefreshCw, Search, ShieldCheck, UploadCloud } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const ENTITY_NAMES = ['Enrollment','FeeStructure','FeePayment','AdditionalFee','SystemUser','StaffApplication'] as const;
@@ -29,7 +29,7 @@ export function Base44MigrationPage() {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
-  const [archive, setArchive] = useState<{batch?: {createdAt?: string; completed?: boolean; recordsReceived?: number}; entities?: {entityName:string;count:number}[]; records?: {entityName:string;sourceId:string;data:Record<string,unknown>}[]} | null>(null);
+  const [archive, setArchive] = useState<{batch?: {id?:string;createdAt?: string;completed?: boolean;recordsReceived?: number;savedRecords?:number}; batches?: {id:string;createdAt:string;completed:boolean;recordsReceived:number;savedRecords:number}[]; entities?: {entityName:string;count:number}[]; records?: {entityName:string;sourceId:string;createdAt?:string;updatedAt?:string;importedAt?:string;data:Record<string,unknown>}[]; truncated?:boolean} | null>(null);\n  const [archiveSearch, setArchiveSearch] = useState('');\n  const [selectedBatch, setSelectedBatch] = useState('');
   const [archiveError, setArchiveError] = useState('');
 
   const counts = useMemo(() => Object.fromEntries(ENTITY_NAMES.map(name => [name, bundle?.entities?.[name]?.length || 0])), [bundle]);
@@ -135,7 +135,49 @@ export function Base44MigrationPage() {
           {error&&<p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
           {result&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h3 className="font-bold text-emerald-950">Import completed</h3><p className="mt-1 text-sm text-emerald-900">Records received: {String(result.recordsReceived ?? 0)}. Student enrolments imported: {String(result.studentEnrollmentsImported ?? 0)}. Fee structures saved: {String(result.feeStructuresImported ?? 0)}. Fee payments saved: {String(result.feePaymentsImported ?? 0)}.</p><p className="mt-2 text-xs text-emerald-900">Staff accounts received for secure archive: {String(result.archiveOnlyStaffAccounts ?? 0)}. Staff applications received for secure archive: {String(result.archiveOnlyStaffApplications ?? 0)}. Staff records are preserved in the migration archive and are not yet activated as operational staff/application records.</p>{Array.isArray(result.warnings)&&result.warnings.length>0&&<ul className="mt-3 list-disc pl-5 text-xs text-amber-900">{(result.warnings as string[]).map((warning,index)=><li key={index}>{warning}</li>)}</ul>}</div>}
         </section>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">3. View records saved in the migration archive</h2><p className="mt-1 text-sm text-slate-600">Open the latest saved package and inspect the original imported record details by entity.</p></div><button onClick={()=>void loadArchive()} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-50">Load saved records</button></div>{archiveError&&<p role="alert" className="mt-3 text-sm text-rose-700">{archiveError}</p>}{archive&&<><p className="mt-3 text-xs text-slate-500">Latest package: {archive.batch?.createdAt ? new Date(archive.batch.createdAt).toLocaleString() : 'No completed package'} · {archive.batch?.recordsReceived ?? 0} records received</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{(archive.entities||[]).map(item=><div key={item.entityName} className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">{item.entityName}</p><p className="text-xl font-black">{item.count}</p></div>)}</div><div className="mt-4 max-h-[34rem] space-y-2 overflow-auto">{(archive.records||[]).map(record=><details key={record.entityName+'-'+record.sourceId} className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-semibold">{record.entityName} · {record.sourceId}</summary><pre className="mt-3 overflow-auto whitespace-pre-wrap break-words rounded bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(record.data,null,2)}</pre></details>)}</div></>}</section>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><h2 className="font-bold">3. View and manage permanently saved records</h2><p className="mt-1 text-sm text-slate-600">Browse saved migration packages, see how many records were stored for each entity, search original records, and reopen any package.</p></div>
+            <button onClick={()=>void loadArchive('')} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-50"><RefreshCw className="h-4 w-4"/>Refresh archive</button>
+          </div>
+          {archiveError&&<p role="alert" className="mt-3 text-sm text-rose-700">{archiveError}</p>}
+          {archive&&<>
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+              <label className="block text-xs font-bold text-slate-600">SAVED MIGRATION PACKAGE
+                <select value={selectedBatch} onChange={event=>{setSelectedBatch(event.target.value);void loadArchive(event.target.value);}} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900">
+                  {(archive.batches||[]).map(batch=><option key={batch.id} value={batch.id}>{new Date(batch.createdAt).toLocaleString()} · {batch.savedRecords} saved records{batch.completed?' · completed':''}</option>)}
+                </select>
+              </label>
+              <div className="rounded-lg bg-slate-50 px-4 py-2 text-sm"><span className="text-slate-500">Persisted records</span><p className="text-xl font-black tabular-nums">{archive.batch?.savedRecords ?? 0}</p></div>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">Package date: {archive.batch?.createdAt ? new Date(archive.batch.createdAt).toLocaleString() : 'No saved package'} · Received: {archive.batch?.recordsReceived ?? 0} · Saved in archive: {archive.batch?.savedRecords ?? 0} · Status: {archive.batch?.completed?'Import completed':'Not marked complete'}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              {(archive.entities||[]).map(item=><div key={item.entityName} className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-600">{item.entityName}</p><p className="text-xl font-black tabular-nums">{item.count}</p><p className="text-[11px] text-slate-500">records saved</p></div>)}
+              {(!archive.entities||archive.entities.length===0)&&<p className="col-span-full rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This package has no saved records. Choose another package above or upload and complete the migration.</p>}
+            </div>
+            <div className="mt-4">
+              <label className="relative block"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/><input value={archiveSearch} onChange={event=>setArchiveSearch(event.target.value)} placeholder="Search by student name, entity, source ID or any saved detail…" className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm"/></label>
+              <p className="mt-2 text-xs text-slate-500">Showing {visibleArchiveRecords.length} of {(archive.records||[]).length} loaded records.</p>
+            </div>
+            <div className="mt-3 max-h-[38rem] space-y-2 overflow-auto">
+              {visibleArchiveRecords.map((record,index)=>{
+                const data=record.data||{};
+                const displayName=String(data.student_name||data.full_name||data.name||data.applicant_name||data.staff_name||data.email||record.sourceId);
+                const detailPairs=Object.entries(data).filter(([key,value])=>value!==null&&value!==undefined&&typeof value!=='object'&&String(value).trim()!=='').slice(0,8);
+                return <details key={record.entityName+'-'+record.sourceId} className="rounded-lg border border-slate-200 p-3">
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-bold text-slate-900">{displayName}</p><p className="mt-0.5 text-xs text-slate-500">{record.entityName} · Source ID: {record.sourceId}</p></div><span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-800">View original details</span></div>
+                    {detailPairs.length>0&&<p className="mt-2 line-clamp-2 text-xs text-slate-600">{detailPairs.map(([key,value])=>key.replace(/_/g,' ')+': '+String(value)).join(' · ')}</p>}
+                  </summary>
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500"><span>Created: {record.createdAt||'Not supplied'}</span><span>Updated: {record.updatedAt||'Not supplied'}</span><span>Archived: {record.importedAt||'Not supplied'}</span></div>
+                  <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(record.data,null,2)}</pre>
+                </details>;
+              })}
+              {visibleArchiveRecords.length===0&&archive.records?.length>0&&<p className="p-4 text-center text-sm text-slate-500">No records match your search.</p>}
+            </div>
+            {archive.truncated&&<p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">This package contains more than 2,000 records. The archive summary counts all records; this view currently loads the first 2,000.</p>}
+          </>}
+        </section>
         <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>Data protection:</strong> The Base44 source is not changed or deleted. Passwords and biometric/fingerprint data are excluded from the transfer; imported student accounts require password setup. Keep the exported JSON file private because it contains personal and financial records. Do not upload it to GitHub or share it publicly.</section>
       </div>
     </main>
