@@ -438,11 +438,24 @@ async function importExamAttempt(DB,r,adminId,c) {
   const duration=await DB.prepare("SELECT duration_minutes FROM course_assessments WHERE id=?").bind(assessment.id).first();
   const expiry=clean(r.end_time,60)||(()=>{const d=new Date(started);d.setMinutes(d.getMinutes()+Math.max(1,num(duration?.duration_minutes)||60));return d.toISOString();})();
   const status=sourceStatus==='moderated'?'graded':sourceStatus==='submitted'?'submitted':sourceStatus==='in_progress'?'in_progress':'expired';
-  const questionIds=Array.isArray(r.question_ids)?r.question_ids:[];
-  const mappedQuestionIds=[];
-  for(let index=0;index<questionIds.length;index++){const qid=questionIds[index];let q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(qid,120)).first();const destination=q?.destination_id||await ensureLegacyAttemptQuestion(DB,qid,assessment.id,adminId,c,0,index,started);if(destination&&!mappedQuestionIds.includes(destination))mappedQuestionIds.push(destination);}
+  const questionIds=Array.isArray(r.question_ids)?r.question_ids.map(x=>clean(x,120)).filter(Boolean):[];
   const answers=Array.isArray(r.answers)?r.answers:[];
-  for(let index=0;index<answers.length;index++){const a=answers[index];let q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(a.question_id,120)).first();const destination=q?.destination_id||await ensureLegacyAttemptQuestion(DB,a.question_id,assessment.id,adminId,c,a.marks_awarded,index,started);if(destination&&!mappedQuestionIds.includes(destination))mappedQuestionIds.push(destination);}
+  const answerQuestionIds=answers.map(x=>clean(x?.question_id,120)).filter(Boolean);
+  const sourceQuestionIds=[...new Set([...questionIds,...answerQuestionIds])];
+  const questionMap=new Map();
+  if(sourceQuestionIds.length){
+    const placeholders=sourceQuestionIds.map(()=>'?').join(',');
+    const mappedRows=await DB.prepare("SELECT source_id,destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id IN ("+placeholders+")").bind(...sourceQuestionIds).all();
+    for(const row of mappedRows.results||[])questionMap.set(row.source_id,row.destination_id);
+  }
+  for(let index=0;index<sourceQuestionIds.length;index++){
+    const qid=sourceQuestionIds[index];
+    if(questionMap.has(qid))continue;
+    const answer=answers.find(x=>clean(x?.question_id,120)===qid);
+    const destination=await ensureLegacyAttemptQuestion(DB,qid,assessment.id,adminId,c,answer?.marks_awarded,index,started);
+    if(destination)questionMap.set(qid,destination);
+  }
+  const mappedQuestionIds=sourceQuestionIds.map(qid=>questionMap.get(qid)).filter(Boolean);
   const id=existingAttemptId||'b44attempt-'+sourceId.slice(-24);
   const score=num(r.is_moderated&&r.moderated_score!==null&&r.moderated_score!==undefined?r.moderated_score:r.score);
   const flagged=Math.max(0,Math.round(num(r.tab_switches)+(Array.isArray(r.cheating_flags)?r.cheating_flags.length:0)));
@@ -450,15 +463,15 @@ async function importExamAttempt(DB,r,adminId,c) {
     .bind(id,assessment.id,student.id,Math.max(1,Math.round(num(r.attempt_number)||1)),started,expiry,submitted,status,
       Math.round(num(r.score)),Math.round(score),flagged,submitted||clean(r.updated_date,60)||started,
       JSON.stringify(mappedQuestionIds),'{}').run();
-  for(const answer of answers){
-    const q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(answer.question_id,120)).first();
-    const questionId=q?.destination_id||await ensureLegacyAttemptQuestion(DB,answer.question_id,assessment.id,adminId,c,answer.marks_awarded,0,started);
-    if(!questionId)continue;
-    await DB.prepare("INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct,updated_at) VALUES(?,?,?,?,?,NULL,?) ON CONFLICT(id) DO UPDATE SET attempt_id=excluded.attempt_id,question_id=excluded.question_id,answer_json=excluded.answer_json,points_awarded=excluded.points_awarded,updated_at=excluded.updated_at")
+  const answerStatements=answers.flatMap(answer=>{
+    const questionId=questionMap.get(clean(answer?.question_id,120));
+    if(!questionId)return [];
+    return [DB.prepare("INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct,updated_at) VALUES(?,?,?,?,?,NULL,?) ON CONFLICT(id) DO UPDATE SET attempt_id=excluded.attempt_id,question_id=excluded.question_id,answer_json=excluded.answer_json,points_awarded=excluded.points_awarded,updated_at=excluded.updated_at")
       .bind('b44ans-'+sourceId.slice(-12)+'-'+clean(answer.question_id,24),id,questionId,JSON.stringify(answer.answer??null),
         answer.marks_awarded===null||answer.marks_awarded===undefined?null:Math.max(0,Math.round(num(answer.marks_awarded))),
-        submitted||clean(r.updated_date,60)||started).run();
-  }
+        submitted||clean(r.updated_date,60)||started)];
+  });
+  if(answerStatements.length)await DB.batch(answerStatements);
   if(r.is_published===true&&(r.score!==null&&r.score!==undefined||r.moderated_score!==null&&r.moderated_score!==undefined)){
     const raw=score,paperMax=Math.max(1,Number(assessment.max_points)||100),publishedMax=Math.max(1,Number(assessment.category_out_of)||paperMax);
     const published=Math.max(0,Math.round(raw/paperMax*publishedMax));
