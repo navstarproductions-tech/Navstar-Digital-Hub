@@ -1,5 +1,6 @@
 import { getSession, requireRole } from '../_shared/auth.js';
 import { error,isSameOrigin,json,readJson,safeString,uuid } from '../_shared/http.js';
+import { syncModuleResult } from '../_shared/module-marks.js';
 
 const admins=['admin','principal'];
 const staff=['admin','principal','tutor'];
@@ -90,10 +91,10 @@ export async function onRequestPost({request,env}){
   const totalMax=components.reduce((n,c)=>n+Number(c.max),0);
   if(total>Number(a.max_points)||totalMax>Number(a.max_points))return error('Component totals cannot exceed the assessment maximum.');
   const cfg=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();let allConfig={};try{allConfig=JSON.parse(cfg?.value||'{}')}catch{}const gradeText=String(allConfig.grading?.gradeScale||'');const parsedBands=gradeText.split(/\r?\n/).map(line=>line.split('|').map(part=>part.trim())).filter(p=>p[0]&&p[2]!==''&&p[3]!==''&&p[2]!=='—'&&p[3]!=='—'&&Number.isFinite(Number(p[2]))&&Number.isFinite(Number(p[3]))).map(p=>({grade:p[0],min:Number(p[2]),max:Number(p[3]),remarks:p.slice(4).join(' | ')}));const examConfig={publishedMaximum:Number(allConfig.grading?.publishedMaximum)||100,gradingScale:parsedBands.length?parsedBands:[{grade:'A',min:80,max:100,remarks:'Exceptional performance'},{grade:'B+',min:70,max:79,remarks:'Strong technical skills'},{grade:'B',min:60,max:69,remarks:'Competent work'},{grade:'C',min:50,max:59,remarks:'Satisfactory work'},{grade:'D',min:40,max:49,remarks:'Developing'},{grade:'F',min:0,max:39,remarks:'Essential requirements not met'}]};
-  const paper=await env.DB.prepare('SELECT assessment_type FROM course_assessments WHERE id=?').bind(assessmentId).first();
+  const paper=await env.DB.prepare('SELECT assessment_type,module_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
   const targetMax=categoryMaximum(paper?.assessment_type,examConfig),published=scaleScore(total,totalMax,targetMax);
   statements.push(env.DB.prepare('INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points').bind(uuid(),assessmentId,studentId,published,clean(b.feedback,2000),b.publish===true?new Date().toISOString():null,user.id,total,targetMax));
-  await env.DB.batch(statements);return json({saved:true,total,published,publishedMaximum:targetMax,rawMaximum:totalMax});
+  await env.DB.batch(statements);if(paper?.module_id)await syncModuleResult(env.DB,studentId,paper.module_id,user.id);return json({saved:true,total,published,publishedMaximum:targetMax,rawMaximum:totalMax});
  }
  if(action==='issue-report-card'){
   const access=await requireRole(request,env,admins);if(access.response)return access.response;
