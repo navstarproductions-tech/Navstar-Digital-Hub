@@ -72,6 +72,16 @@ export async function onRequestGet({request,env}){
  }else if(!student){
   questions=bank.map(q=>({id:q.id,questionText:q.questionText,questionType:q.questionType,options:JSON.parse(q.optionsJson||'[]'),points:q.points,sortOrder:q.sortOrder,correctAnswer:q.correctAnswerJson?JSON.parse(q.correctAnswerJson):null,explanation:q.explanation}));
  }
+ let attemptAnswers=[];
+ if(!student&&attemptId){
+  const staffAttempt=await env.DB.prepare('SELECT id,status,attempt_number,started_at,submitted_at,objective_score,total_score,flagged_count FROM exam_runtime_attempts WHERE id=? AND assessment_id=?').bind(attemptId,assessmentId).first();
+  if(!staffAttempt)return error('Examination attempt not found.',404);
+  const answerRows=(await env.DB.prepare('SELECT a.question_id,a.answer_json,a.points_awarded,a.is_correct,q.question_text,q.question_type,q.points,q.options_json,q.correct_answer_json,q.explanation FROM exam_runtime_answers a JOIN course_exam_questions q ON q.id=a.question_id WHERE a.attempt_id=? ORDER BY q.sort_order,q.id').bind(attemptId).all()).results||[];
+  attemptAnswers=answerRows.map(row=>{let answer=null,options=[],correctAnswer=null;try{answer=JSON.parse(row.answer_json||'null')}catch{}try{options=JSON.parse(row.options_json||'[]')}catch{}try{correctAnswer=row.correct_answer_json?JSON.parse(row.correct_answer_json):null}catch{}return {questionId:row.question_id,questionText:row.question_text,questionType:row.question_type,points:Number(row.points||0),answer,pointsAwarded:row.points_awarded,isCorrect:row.is_correct,options,correctAnswer,explanation:row.explanation};});
+  const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first().catch(()=>null);
+  let securitySettings={};try{securitySettings=JSON.parse(examSettingsRow?.settings_json||'{}')}catch{securitySettings={};}
+  return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:paperMaximum,durationMinutes:assessment.duration_minutes},questions,questionCount:bank.length,attempt:staffAttempt,attemptAnswers,securitySettings});
+ }
  const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first().catch(()=>null);
  let securitySettings={};try{securitySettings=JSON.parse(examSettingsRow?.settings_json||'{}')}catch{securitySettings={};}
  return json({assessment:{id:assessment.id,title:assessment.title,courseTitle:assessment.course_title,moduleTitle:assessment.module_title,moduleCode:assessment.module_code,maxPoints:paperMaximum,durationMinutes:assessment.duration_minutes,questionSelectionMode:assessment.question_selection_mode||'marks',questionCount:assessment.question_count||10},questions,questionCount:bank.length,...(student?{securitySettings,savedAnswers}: {})});
