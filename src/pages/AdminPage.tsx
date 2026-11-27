@@ -28,8 +28,7 @@ import { TutorSpecialisationWorkspace } from '@/components/TutorSpecialisationWo
 import { EmployeeRecordsWorkspace } from '@/components/EmployeeRecordsWorkspace';
 import { AcademicAttendanceWorkspace } from '@/components/AcademicAttendanceWorkspace';
 import { ScholarshipManagementWorkspace } from '@/components/ScholarshipManagementWorkspace';
-import { CertificateManagementWorkspace } from '@/components/CertificateManagementWorkspace';
-import { CertificateTemplateStudio } from '@/components/CertificateTemplateStudio';
+import { CertificateAdminTabs } from '@/components/CertificateAdminTabs';
 import { OnlineFormsWorkspace } from '@/components/OnlineFormsWorkspace';
 import { InstitutionContentWorkspace } from '@/components/InstitutionContentWorkspace';
 import { CustomerCartWorkspace } from '@/components/CustomerCartWorkspace';
@@ -1314,7 +1313,7 @@ export function AdminPage() {
 
           {active === 'attendance' && <AcademicAttendanceWorkspace/>}
           {active === 'scholarships' && <ScholarshipManagementWorkspace courses={courses}/ >}
-          {active === 'certificates' && <div className="space-y-6"><CertificateManagementWorkspace/><CertificateTemplateStudio/></div>}
+          {active === 'certificates' && <CertificateAdminTabs selectedTab={selectedSubtab || 'Dashboard'} />}
           {active === 'online-forms' && <OnlineFormsWorkspace/>}
           {active === 'news-updates' && <InstitutionContentWorkspace type="news"/>}
           {active === 'events' && <InstitutionContentWorkspace type="event"/>}
