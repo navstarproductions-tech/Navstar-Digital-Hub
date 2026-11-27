@@ -333,12 +333,12 @@ async function importAssignmentSubmission(DB,r,adminId,c) {
   const targetId=existing?.id||id;
   if(existing){
     await DB.prepare("UPDATE course_assignment_submissions SET response_text=?,attachment_url=?,status=?,points_awarded=?,feedback=?,submitted_at=?,graded_by=?,graded_at=?,approval_status=?,approved_by=?,approved_at=? WHERE id=?")
-      .bind(response,files.length?JSON.stringify(files):null,status,score,clean(r.feedback,5000),submitted,
+      .bind(response,files[0]||null,status,score,clean(r.feedback,5000),submitted,
         status==='graded'?adminId:null,status==='graded'?clean(r.updated_date,40)||submitted:null,approval,
         status==='graded'&&approval==='approved'?adminId:null,status==='graded'&&approval==='approved'?clean(r.updated_date,40)||submitted:null,targetId).run();
   }else{
     await DB.prepare("INSERT OR IGNORE INTO course_assignment_submissions(id,assignment_id,user_id,response_text,attachment_url,status,points_awarded,feedback,submitted_at,graded_by,graded_at,approval_status,approved_by,approved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-      .bind(targetId,assignment.destination_id,student.id,response,files.length?JSON.stringify(files):null,status,score,
+      .bind(targetId,assignment.destination_id,student.id,response,files[0]||null,status,score,
         clean(r.feedback,5000),submitted,status==='graded'?adminId:null,status==='graded'?clean(r.updated_date,40)||submitted:null,
         approval,status==='graded'&&approval==='approved'?adminId:null,status==='graded'&&approval==='approved'?clean(r.updated_date,40)||submitted:null).run();
   }
