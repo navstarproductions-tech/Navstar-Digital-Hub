@@ -23,6 +23,8 @@ function downloadJson(name: string, data: unknown) {
 export function Base44MigrationPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [bundle, setBundle] = useState<Bundle | null>(null);
+  const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
+  const [previewEntity, setPreviewEntity] = useState('');
   const [fileName, setFileName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -35,6 +37,7 @@ export function Base44MigrationPage() {
 
   const entityNames = useMemo(() => Object.keys(bundle?.entities || {}).sort((a,b)=>a.localeCompare(b)), [bundle]);
   const counts = useMemo(() => Object.fromEntries(entityNames.map(name => [name, bundle?.entities?.[name]?.length || 0])), [bundle, entityNames]);
+  const selectedCount = selectedEntities.reduce((sum, name) => sum + (bundle?.entities?.[name]?.length || 0), 0);
   const visibleArchiveRecords = useMemo(() => {
     const records = archive?.records || [];
     const query = archiveSearch.trim().toLowerCase();
@@ -47,7 +50,7 @@ export function Base44MigrationPage() {
   }, [archive, archiveSearch]);
 
   async function selectFile(file?: File) {
-    setError(''); setResult(null); setBundle(null); setFileName('');
+    setError(''); setResult(null); setBundle(null); setFileName(''); setSelectedEntities([]); setPreviewEntity('');
     if (!file) return;
     try {
       if (!file.name.toLowerCase().endsWith('.json')) throw new Error('Please select the single Navstar migration JSON file.');
@@ -75,7 +78,7 @@ export function Base44MigrationPage() {
       const total = Object.values(normalized).reduce((sum, rows) => sum + rows.length, 0);
       if (!Object.keys(normalized).length || !total) throw new Error('No entity arrays containing records were found. Upload the Base44 JSON export (not a PDF, CSV or ZIP file).');
       const parsed: Bundle = { format: 'navstar-base44-migration', version: 1, exportedAt: String(raw.exportedAt || raw.exported_at || new Date().toISOString()), source: 'Base44', entities: normalized };
-      setBundle(parsed); setFileName(file.name);
+      setBundle(parsed); setFileName(file.name); setSelectedEntities(Object.keys(normalized)); setPreviewEntity(Object.keys(normalized).sort()[0] || '');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not read the migration file.');
     }
@@ -119,18 +122,19 @@ export function Base44MigrationPage() {
       if (!tokenResponse.ok || !tokenData.token) throw new Error(tokenData.error || 'Could not start the secure import.');
       const token = tokenData.token;
       let transferred = 0;
-      const names = Object.keys(bundle.entities);
+      const names = selectedEntities.filter(name => (bundle.entities[name] || []).length > 0);
+      if (!names.length) throw new Error('Select at least one entity to import.');
       const total = names.reduce((sum, name) => sum + (bundle.entities[name]?.length || 0), 0);
       for (const name of names) {
         const rows = bundle.entities[name] || [];
         for (let offset = 0; offset < rows.length; offset += 100) {
           setProgress('Uploading ' + name + ' records (' + Math.min(offset + 100, rows.length) + ' of ' + rows.length + ')…');
           const response = await fetch('/api/admin/base44-migration/import', {
-            method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            method: 'POST', credentials: 'same-origin', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
             body: JSON.stringify({ entityName: name, records: rows.slice(offset, offset + 100) })
           });
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.error || 'Could not upload ' + name + ' records.');
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || 'Could not upload ' + name + ' records (HTTP ' + response.status + ').');
           transferred += Number(data.received || 0);
           setProgress('Securely received ' + transferred + ' of ' + total + ' records…');
         }
@@ -139,13 +143,14 @@ export function Base44MigrationPage() {
       const completeResponse = await fetch('/api/admin/base44-migration/complete', {
         method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }, body: '{}'
       });
-      const completion = await completeResponse.json();
+      const completion = await completeResponse.json().catch(() => ({}));
       if (!completeResponse.ok) { const detail = [completion.detail, completion.progress ? 'Import progress: ' + JSON.stringify(completion.progress) : ''].filter(Boolean).join('\\n'); throw new Error([completion.error || 'Operational import did not complete.', detail].filter(Boolean).join('\\n')); }
       setResult({ ...completion, recordsReceived: transferred, detectedEntities: names.length, detectedEntityNames: names });
       await loadArchive('');
       setProgress('Import completed. Review the saved record totals below.');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The import could not be completed.');
+      const message = cause instanceof Error ? cause.message : 'The import could not be completed.';
+      setError(message === 'Failed to fetch' ? 'Network request failed before the server returned a response. Open this page on navstardigitalhub.co.ke (not an editor preview), confirm your admin session is active, and check that the latest Cloudflare deployment is live. No successful import is being reported.' : message);
       setProgress('');
     } finally { setBusy(false); }
   }
@@ -172,7 +177,7 @@ export function Base44MigrationPage() {
           <input ref={inputRef} type="file" accept=".json,application/json" className="hidden" onChange={event=>void selectFile(event.target.files?.[0])}/>
           <button onClick={()=>inputRef.current?.click()} disabled={busy} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-50"><UploadCloud className="h-4 w-4"/>Choose migration JSON file</button>
           {fileName&&<p className="mt-3 break-all text-sm font-semibold text-slate-700"><FileJson className="mr-2 inline h-4 w-4"/>{fileName}</p>}
-          {bundle&&<div className="mt-4 rounded-xl border border-slate-200 p-4"><h3 className="font-bold">Complete export detected</h3><p className="mt-1 text-sm text-slate-600">{entityNames.length} entities found. All detected entity names and record counts are listed below.</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{entityNames.map(name=><div key={name} className="rounded-lg bg-slate-50 p-3"><p className="break-words text-xs text-slate-500">{name}</p><p className="text-xl font-black tabular-nums">{counts[name]}</p></div>)}</div><p className="mt-3 text-xs text-slate-500">Total records: {entityNames.reduce((sum,name)=>sum+(counts[name] as number),0).toLocaleString()}</p><button onClick={()=>void runImport()} disabled={busy} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{busy?'Importing…':'Import and save all records'}</button></div>}
+          {bundle&&<div className="mt-4 rounded-xl border border-slate-200 p-4"><h3 className="font-bold">Export contents detected</h3><p className="mt-1 text-sm text-slate-600">{entityNames.length} entities and {entityNames.reduce((sum,name)=>sum+(counts[name] as number),0).toLocaleString()} total records detected. Tick only the data groups you want to import. Existing matching records will be skipped rather than duplicated.</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={()=>setSelectedEntities(entityNames)} className="rounded-lg border px-3 py-1.5 text-xs font-bold">Select all</button><button type="button" onClick={()=>setSelectedEntities([])} className="rounded-lg border px-3 py-1.5 text-xs font-bold">Clear selection</button></div><div className="mt-3 space-y-2">{entityNames.map(name=><div key={name} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3"><label className="flex min-w-0 items-center gap-3"><input type="checkbox" checked={selectedEntities.includes(name)} onChange={event=>setSelectedEntities(current=>event.target.checked?[...current,name]:current.filter(item=>item!==name))} className="h-4 w-4"/><span className="break-all text-sm font-semibold">{name}</span><span className="text-xs text-slate-500">{counts[name]} records</span></label><button type="button" onClick={()=>setPreviewEntity(current=>current===name?'':name)} className="text-xs font-bold text-blue-800 underline">{previewEntity===name?'Hide records':'Preview records'}</button>{previewEntity===name&&<pre className="max-h-72 w-full overflow-auto whitespace-pre-wrap break-words rounded bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(bundle.entities[name],null,2)}</pre>}</div>)}</div><p className="mt-3 text-sm font-bold">Selected: {selectedEntities.length} entities · {selectedCount.toLocaleString()} records</p><button onClick={()=>void runImport()} disabled={busy||selectedCount===0} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{busy?'Importing…':'Import selected data'}</button></div>}
           {busy&&<p role="status" className="mt-4 rounded-lg bg-blue-50 p-3 text-sm font-medium text-blue-900">{progress}</p>}
           {error&&<p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
           {result&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h3 className="font-bold text-emerald-950">Import completed</h3><p className="mt-1 text-sm text-emerald-900">Records received: {String(result.recordsReceived ?? 0)}. Student enrolments imported: {String(result.studentEnrollmentsImported ?? 0)}. Fee structures saved: {String(result.feeStructuresImported ?? 0)}. Fee payments saved: {String(result.feePaymentsImported ?? 0)}.</p><p className="mt-2 text-xs text-emerald-900">All detected entities: {String(result.detectedEntities ?? 0)}. Records received and archived from the uploaded export: {String(result.recordsReceived ?? 0)}. Additional entities are preserved in the archive even when no live module mapping exists.</p>{Array.isArray(result.warnings)&&result.warnings.length>0&&<ul className="mt-3 list-disc pl-5 text-xs text-amber-900">{(result.warnings as string[]).map((warning,index)=><li key={index}>{warning}</li>)}</ul>}</div>}
