@@ -23,15 +23,22 @@ export async function onRequestDelete({ request, env }) {
   const course = await env.DB.prepare("SELECT id,status FROM courses WHERE id=?").bind(id).first();
   if (!course) return error('Course not found.', 404);
   if (course.status === 'active') return error('Archive the course before permanently deleting it.', 409);
-  const [enrolments, modules, feeItems] = await Promise.all([
-    env.DB.prepare('SELECT COUNT(*) AS count FROM enrollments WHERE course_id=?').bind(id).first(),
-    env.DB.prepare('SELECT COUNT(*) AS count FROM course_modules WHERE course_id=?').bind(id).first(),
-    env.DB.prepare('SELECT COUNT(*) AS count FROM course_fee_items WHERE course_id=?').bind(id).first()
-  ]);
-  const linked = Number(enrolments?.count || 0) + Number(modules?.count || 0) + Number(feeItems?.count || 0);
-  if (linked) return error('This archived course still has linked records (' + Number(enrolments?.count || 0) + ' enrolments, ' + Number(modules?.count || 0) + ' modules, ' + Number(feeItems?.count || 0) + ' fee items). It has been kept safely to protect those records.', 409);
-  await env.DB.prepare('DELETE FROM courses WHERE id=? AND status != ?').bind(id, 'active').run();
+  // Fee structures and modules are dependent course data, not reasons to block deletion.
+  // Preserve the course only when a learner is actually enrolled or has completed/graduated.
+  const learners = await env.DB.prepare(`
+    SELECT COUNT(*) AS count
+    FROM enrollments
+    WHERE course_id = ?
+      AND lower(trim(status)) IN ('accepted','active','enrolled','registered','completed','complete','graduated','graduate','candidate')
+  `).bind(id).first();
+  const learnerCount = Number(learners?.count || 0);
+  if (learnerCount > 0) {
+    return error('This course cannot be permanently deleted because ' + learnerCount + ' learner enrolment(s) are linked to it. Active, accepted, registered, completed and graduated learners are protected. Remove or transfer the learner enrolments through the academic process first.', 409);
+  }
+  // Course foreign keys use ON DELETE CASCADE for modules, fee items and other course-owned records.
+  const deleted = await env.DB.prepare("DELETE FROM courses WHERE id = ? AND status != 'active'").bind(id).run();
+  if (!deleted.meta?.changes) return error('The archived course could not be deleted. Refresh the list and try again.', 409);
   await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
-    .bind(uuid(), access.user.id, 'archived_course_permanently_deleted', 'course', id).run();
+    .bind(uuid(), access.user.id, 'archived_course_permanently_deleted_with_dependents', 'course', id).run();
   return json({ id, deleted: true });
 }
