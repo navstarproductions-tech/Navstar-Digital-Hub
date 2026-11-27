@@ -20,7 +20,7 @@ async function secureRecord(value) {
   if (!value || typeof value !== 'object') return value;
   const out = {};
   for (const [key, item] of Object.entries(value)) {
-    if (/^(biometric_data|fingerprints|parent_password|student_password|password|login_password|portal_password)$/i.test(key)) {
+    if (/password|credential|biometric|fingerprint|approval_token/i.test(key)) {
       continue;
     }
     if (/^(student_password|password|login_password|portal_password)$/i.test(key) && typeof item === 'string' && item.length) {
