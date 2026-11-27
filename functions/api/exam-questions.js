@@ -23,6 +23,7 @@ function selectExamQuestions(bank,maxPoints,mode='marks',questionCount=10,shuffl
  return selected.sort((a,b)=>Number(a.sort_order||0)-Number(b.sort_order||0)||String(a.id).localeCompare(String(b.id)));
 }
 function parseJsonObject(value,fallback={}){try{const parsed=JSON.parse(value||'{}');return parsed&&typeof parsed==='object'?parsed:fallback;}catch{return fallback;}}
+function sameAnswer(submitted,expected){if(Array.isArray(submitted)||Array.isArray(expected)){if(!Array.isArray(submitted)||!Array.isArray(expected))return false;return [...submitted].map(String).sort().join('\u0000')===[...expected].map(String).sort().join('\u0000');}return JSON.stringify(submitted)===JSON.stringify(expected);}
 
 function parseCsv(text){
  const rows=[];let row=[],cell='',quoted=false;
@@ -302,7 +303,7 @@ async function handleQuestionPost({request,env}){
    if(!q)continue;
    const submitted=answer.answer??answer.selected_answer??null;let correct=null,points=null;
    if(['single_choice','multiple_choice','true_false'].includes(q.question_type)){
-    const expected=JSON.parse(q.correct_answer_json||'null');correct=JSON.stringify(submitted)===JSON.stringify(expected);points=correct?Number(q.points):0;if(correct)score+=points;else if(submitted!==null&&submitted!==''&&negativeEnabled){const minus=Math.min(Number(q.points),deduction);score-=minus;negativeDeductions+=minus;}else if((submitted===null||submitted==='')&&penaliseUnanswered&&negativeEnabled){const minus=Math.min(Number(q.points),deduction);score-=minus;negativeDeductions+=minus;}
+    const expected=JSON.parse(q.correct_answer_json||'null');correct=sameAnswer(submitted,expected);points=correct?Number(q.points):0;if(correct)score+=points;else if(submitted!==null&&submitted!==''&&negativeEnabled){const minus=Math.min(Number(q.points),deduction);score-=minus;negativeDeductions+=minus;}else if((submitted===null||submitted==='')&&penaliseUnanswered&&negativeEnabled){const minus=Math.min(Number(q.points),deduction);score-=minus;negativeDeductions+=minus;}
    }else autoMarked=false;
    await env.DB.prepare('INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct) VALUES(?,?,?,?,?,?) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer_json=excluded.answer_json,points_awarded=excluded.points_awarded,is_correct=excluded.is_correct,updated_at=CURRENT_TIMESTAMP').bind(uuid(),attempt.id,q.id,JSON.stringify(submitted),points,correct===null?null:(correct?1:0)).run();
   }
