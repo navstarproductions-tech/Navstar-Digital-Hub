@@ -24,19 +24,24 @@ export async function onRequestPost({request,env}){
  ]);
  const courses=c.results||[],modules=m.results||[];
  if(action==='generate'){
-  const usedCourse=new Set(courses.map(x=>String(x.course_code||'').toUpperCase()).filter(Boolean));
+  const replaceExisting=body.replaceExisting===true;
+  const usedCourse=new Set(replaceExisting?[]:courses.map(x=>String(x.course_code||'').toUpperCase()).filter(Boolean));
   let sequence=1;const courseCodes=[];
-  for(const course of courses){if(/^NAV-\d{3}$/.test(String(course.course_code||'').toUpperCase()))continue;while(usedCourse.has('NAV-'+String(sequence).padStart(3,'0')))sequence++;const code='NAV-'+String(sequence++).padStart(3,'0');usedCourse.add(code);courseCodes.push({id:course.id,title:course.title,code});}
-  const usedMods=new Set(modules.map(x=>String(x.module_code||'').toUpperCase()).filter(Boolean)),moduleCodes=[];
-  for(const mod of modules){if(/^[A-Z]{1,4}\d{3,4}$/.test(String(mod.module_code||'').toUpperCase()))continue;const prefix=codePrefix(mod.course_title);const code=nextModuleCode(prefix,usedMods);if(!code)continue;usedMods.add(code);moduleCodes.push({id:mod.id,courseId:mod.course_id,title:mod.title,courseTitle:mod.course_title,code});}
-  return json({courseCodes,moduleCodes,generatedCourseCount:courseCodes.length,generatedModuleCount:moduleCodes.length});
+  for(const course of courses){if(!replaceExisting&&/^NAV-\d{3}$/.test(String(course.course_code||'').toUpperCase()))continue;while(usedCourse.has('NAV-'+String(sequence).padStart(3,'0')))sequence++;const code='NAV-'+String(sequence++).padStart(3,'0');usedCourse.add(code);courseCodes.push({id:course.id,title:course.title,code});}
+  const usedMods=new Set(replaceExisting?[]:modules.map(x=>String(x.module_code||'').toUpperCase()).filter(Boolean)),moduleCodes=[];
+  for(const mod of modules){if(!replaceExisting&&/^[A-Z]{1,4}\d{3,4}$/.test(String(mod.module_code||'').toUpperCase()))continue;const prefix=codePrefix(mod.course_title);const code=nextModuleCode(prefix,usedMods);if(!code)continue;usedMods.add(code);moduleCodes.push({id:mod.id,courseId:mod.course_id,title:mod.title,courseTitle:mod.course_title,code});}
+  return json({courseCodes,moduleCodes,generatedCourseCount:courseCodes.length,generatedModuleCount:moduleCodes.length,replaceExisting});
  }
  if(action==='save'){
   const cc=Array.isArray(body.courseCodes)?body.courseCodes:[],mc=Array.isArray(body.moduleCodes)?body.moduleCodes:[];
   const courseMap=new Map(courses.map(x=>[x.id,x.course_code||''])),moduleMap=new Map(modules.map(x=>[x.id,x.module_code||'']));
   const proposedCourses=new Map(),proposedModules=new Map();
-  for(const x of cc){const id=safeString(x.id,80),code=safeString(x.code,12).toUpperCase();if(!courseMap.has(id)||!/^NAV-\d{3}$/.test(code))return error('Invalid course code or course record.');if([...courseMap].some(([other,v])=>other!==id&&String(v).toUpperCase()===code)||[...proposedCourses.values()].includes(code))return error('Duplicate course code '+code+'. Each course code must be unique.');proposedCourses.set(id,code);}
-  for(const x of mc){const id=safeString(x.id,80),code=safeString(x.code,12).toUpperCase();if(!moduleMap.has(id)||!/^[A-Z]{1,4}\d{3,4}$/.test(code))return error('Invalid module code or module record.');if([...moduleMap].some(([other,v])=>other!==id&&String(v).toUpperCase()===code)||[...proposedModules.values()].includes(code))return error('Duplicate module code '+code+'. Each module code must be unique.');proposedModules.set(id,code);}
+  for(const x of cc){const id=safeString(x.id,80),code=safeString(x.code,12).toUpperCase();if(!courseMap.has(id)||!/^NAV-\d{3}$/.test(code))return error('Invalid course code or course record.');if([...proposedCourses.values()].includes(code))return error('Duplicate course code '+code+'. Each course code must be unique.');proposedCourses.set(id,code);}
+  const updatingCourseIds=new Set(proposedCourses.keys());
+  for(const [id,value] of courseMap){if(!updatingCourseIds.has(id)&&value&&[...proposedCourses.values()].includes(String(value).toUpperCase()))return error('Duplicate course code '+value+'. Each course code must be unique.');}
+  for(const x of mc){const id=safeString(x.id,80),code=safeString(x.code,12).toUpperCase();if(!moduleMap.has(id)||!/^[A-Z]{1,4}\d{3,4}$/.test(code))return error('Invalid module code or module record.');if([...proposedModules.values()].includes(code))return error('Duplicate module code '+code+'. Each module code must be unique.');proposedModules.set(id,code);}
+  const updatingModuleIds=new Set(proposedModules.keys());
+  for(const [id,value] of moduleMap){if(!updatingModuleIds.has(id)&&value&&[...proposedModules.values()].includes(String(value).toUpperCase()))return error('Duplicate module code '+value+'. Each module code must be unique.');}
   const statements=[];
   for(const [id,code] of proposedCourses)statements.push(env.DB.prepare('UPDATE courses SET course_code=? WHERE id=?').bind(code,id));
   for(const [id,code] of proposedModules)statements.push(env.DB.prepare('UPDATE course_modules SET module_code=? WHERE id=?').bind(code,id));
