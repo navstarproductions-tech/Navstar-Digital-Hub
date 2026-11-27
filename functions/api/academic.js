@@ -1,5 +1,6 @@
 import { getSession, requireRole } from '../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../_shared/http.js';
+import { syncModuleResult, syncStudentModuleResults } from '../_shared/module-marks.js';
 
 const staffRoles=['admin','principal','tutor'];
 const adminRoles=['admin','principal'];
@@ -77,7 +78,7 @@ export async function onRequestGet({request,env}){
   const ids=await visibleCourseIds(env.DB,user);
   if(!ids.length){
     const certificates=user.role==='student'?(await env.DB.prepare('SELECT c.*,co.title AS course_title FROM student_certificates c JOIN courses co ON co.id=c.course_id WHERE c.user_id=? ORDER BY c.issued_at DESC').bind(user.id).all()).results||[]:[];
-    return json({courses:[],learners:[],timetable:[],attendance:[],liveClasses:[],scholarships:[],moduleRegistrations:[],assessments:[],graduation:[],reportCards:[],certificates});
+    return json({courses:[],learners:[],timetable:[],attendance:[],liveClasses:[],scholarships:[],moduleRegistrations:[],assessments:[],assessmentResults:[],assessmentComponents:[],assessmentAttempts:[],examRuntimeAttempts:[],examCandidates:[],moduleResults:[],graduation:[],reportCards:[],certificates});
   }
   const marks=ids.map(()=>'?').join(',');
   const courses=(await env.DB.prepare(`SELECT id,title FROM courses WHERE id IN (${marks}) ORDER BY title`).bind(...ids).all()).results||[];
@@ -91,6 +92,7 @@ export async function onRequestGet({request,env}){
   const examSettingsRow=await env.DB.prepare("SELECT settings_json FROM exam_institute_settings WHERE id='default'").first();
   let examSettings={};try{examSettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{examSettings={};}
   const marksPolicy=await getCentralMarksPolicy(env.DB);examSettings={...examSettings,...marksPolicy};
+  const moduleResults=user.role==='student'?(await env.DB.prepare(`SELECT r.*,m.title AS module_title,c.title AS course_title FROM student_module_results r JOIN course_modules m ON m.id=r.module_id JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY c.title,m.sort_order`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT r.*,m.title AS module_title,c.title AS course_title,u.name AS student_name FROM student_module_results r JOIN course_modules m ON m.id=r.module_id JOIN courses c ON c.id=r.course_id JOIN users u ON u.id=r.user_id WHERE r.course_id IN (${marks}) ORDER BY c.title,m.sort_order,u.name LIMIT 2000`).bind(...ids).all()).results||[];
   const graduation=user.role==='student'?(await env.DB.prepare(`SELECT g.*,c.title AS course_title FROM student_graduation_records g JOIN courses c ON c.id=g.course_id WHERE g.user_id=?`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT g.*,c.title AS course_title,u.name AS student_name FROM student_graduation_records g JOIN courses c ON c.id=g.course_id JOIN users u ON u.id=g.user_id WHERE g.course_id IN (${marks}) ORDER BY c.title,u.name`).bind(...ids).all()).results||[];
   const reportCards=user.role==='student'?(await env.DB.prepare('SELECT r.*,c.title AS course_title FROM student_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY r.issued_at DESC').bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT r.*,c.title AS course_title,u.name AS student_name FROM student_report_cards r JOIN courses c ON c.id=r.course_id JOIN users u ON u.id=r.user_id WHERE r.course_id IN (${marks}) ORDER BY r.issued_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const certificates=user.role==='student'?(await env.DB.prepare('SELECT c.*,co.title AS course_title FROM student_certificates c JOIN courses co ON co.id=c.course_id WHERE c.user_id=? ORDER BY c.issued_at DESC').bind(user.id).all()).results||[]:[];
@@ -100,7 +102,7 @@ export async function onRequestGet({request,env}){
   const examRuntimeAttempts=user.role==='student'?(await env.DB.prepare(`SELECT t.id,t.assessment_id,t.user_id,t.attempt_number,t.started_at,t.expires_at,t.submitted_at,t.status,t.flagged_count,t.objective_score,t.total_score,a.title AS assessment_title,a.course_id,a.max_points,a.instructions,c.title AS course_title,ap.status AS approval_status FROM exam_runtime_attempts t JOIN course_assessments a ON a.id=t.assessment_id JOIN courses c ON c.id=a.course_id LEFT JOIN exam_attempt_approvals ap ON ap.assessment_id=t.assessment_id AND ap.user_id=t.user_id WHERE t.user_id=? ORDER BY t.started_at DESC LIMIT 100`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT t.id,t.assessment_id,t.user_id,t.attempt_number,t.started_at,t.expires_at,t.submitted_at,t.status,t.flagged_count,t.objective_score,t.total_score,a.title AS assessment_title,a.course_id,a.max_points,u.name AS student_name,c.title AS course_title,ap.status AS approval_status FROM exam_runtime_attempts t JOIN course_assessments a ON a.id=t.assessment_id JOIN users u ON u.id=t.user_id JOIN courses c ON c.id=a.course_id LEFT JOIN exam_attempt_approvals ap ON ap.assessment_id=t.assessment_id AND ap.user_id=t.user_id WHERE a.course_id IN (${marks}) ORDER BY t.started_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const examCandidates=user.role==='student'?[]:(await env.DB.prepare(`SELECT a.id AS assessment_id,a.title AS assessment_title,a.course_id,a.require_admin_approval,u.id AS user_id,u.name AS student_name,c.title AS course_title,ap.status AS approval_status FROM course_assessments a JOIN courses c ON c.id=a.course_id JOIN enrollments e ON e.course_id=a.course_id AND e.status='accepted' JOIN users u ON lower(u.email)=lower(e.email) LEFT JOIN exam_attempt_approvals ap ON ap.assessment_id=a.id AND ap.user_id=u.id WHERE a.course_id IN (${marks}) AND a.status='published' ORDER BY a.title,u.name LIMIT 500`).bind(...ids).all()).results||[];
   const scholarshipApplications=user.role==='student'?[]:(await env.DB.prepare(`SELECT a.*,s.title AS scholarship_title,s.course_id,u.name AS student_name,u.email,c.title AS course_title FROM scholarship_applications a JOIN course_scholarships s ON s.id=a.scholarship_id JOIN users u ON u.id=a.user_id LEFT JOIN courses c ON c.id=s.course_id WHERE (s.course_id IS NULL OR s.course_id IN (${marks})) ORDER BY a.created_at DESC LIMIT 500`).bind(...ids).all()).results||[];
-  return json({courses,learners,timetable,attendance,liveClasses,scholarships,moduleRegistrations,assessments,assessmentResults,assessmentComponents,assessmentAttempts,examRuntimeAttempts,examCandidates,scholarshipApplications,graduation,reportCards,certificates,examSettings,role:user.role});
+  return json({courses,learners,timetable,attendance,liveClasses,scholarships,moduleRegistrations,assessments,assessmentResults,assessmentComponents,assessmentAttempts,examRuntimeAttempts,examCandidates,moduleResults,scholarshipApplications,graduation,reportCards,certificates,examSettings,role:user.role});
 }
 export async function onRequestPost({request,env}){
   if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
@@ -403,7 +405,7 @@ export async function onRequestPost({request,env}){
   if(action==='record_assessment_result'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),points=Number(body.pointsAwarded);
-    const assessment=await env.DB.prepare('SELECT id,course_id,max_points FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    const assessment=await env.DB.prepare('SELECT id,course_id,module_id,max_points FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id)))return error('Assessment is not available to your account.',403);
     if(!Number.isSafeInteger(points)||points<0||points>Number(assessment.max_points))return error('Score must be between zero and the maximum score.');
     const student=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(studentId,assessment.course_id).first();
@@ -413,6 +415,7 @@ export async function onRequestPost({request,env}){
     const targetMaximum=publishedMaximum(paper?.assessment_type,policy);
     const publishedPoints=scaledPoints(points,Number(assessment.max_points),targetMaximum);
     await env.DB.prepare('INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=excluded.published_at,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points').bind(uuid(),assessmentId,studentId,publishedPoints,safeString(body.feedback,3000),body.publish===false?null:new Date().toISOString(),user.id,points,targetMaximum).run();
+    if(assessment.module_id)await syncModuleResult(env.DB,studentId,assessment.module_id,user.id);
     return json({saved:true,rawPoints:points,publishedPoints,publishedMaximum:targetMaximum});
   }
 
@@ -436,7 +439,8 @@ export async function onRequestPost({request,env}){
     if(!student)return error('Only an active student with an accepted enrolment can receive a report card.',409);
     const assignmentStats=await env.DB.prepare("SELECT COUNT(*) AS total,AVG(CASE WHEN points_awarded IS NOT NULL THEN points_awarded*100.0/(SELECT max_points FROM course_assignments WHERE id=assignment_id) END) AS average FROM course_assignment_submissions WHERE user_id=? AND assignment_id IN (SELECT id FROM course_assignments WHERE course_id=?)").bind(studentId,courseId).first();
     const examStats=await env.DB.prepare("SELECT COUNT(*) AS total,AVG(r.points_awarded*100.0/COALESCE(r.published_max_points,a.max_points)) AS average FROM course_assessment_results r JOIN course_assessments a ON a.id=r.assessment_id WHERE r.user_id=? AND a.course_id=? AND r.published_at IS NOT NULL").bind(studentId,courseId).first();
-    const summary={assignments:assignmentStats||{},assessments:examStats||{},issuedAt:new Date().toISOString()};
+    const moduleResults=await syncStudentModuleResults(env.DB,studentId,courseId,user.id);
+    const summary={assignments:assignmentStats||{},assessments:examStats||{},moduleResults,issuedAt:new Date().toISOString()};
     await env.DB.prepare('INSERT INTO student_report_cards(id,user_id,course_id,period_label,summary_json,issued_by) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,course_id,period_label) DO UPDATE SET summary_json=excluded.summary_json,issued_by=excluded.issued_by,issued_at=CURRENT_TIMESTAMP').bind(uuid(),studentId,courseId,period,JSON.stringify(summary),user.id).run();
     return json({issued:true,summary});
   }
