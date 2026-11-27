@@ -417,3 +417,23 @@ body::-webkit-scrollbar,
 .navstar-student .text-cyan-950 { color:#09264d !important; }
 .navstar-student .bg-cyan-50 { background-color:#edf4ff !important; }
 .navstar-student .border-cyan-200 { border-color:#c4d7ed !important; }
+
+/* Strong Navstar identity enforcement for the complete student workspace. */
+.navstar-student { background:#edf3fb !important; color:#10213c !important; }
+.navstar-student > header { background:rgba(255,255,255,.97) !important; border-bottom:1px solid #cbd8ea !important; }
+.navstar-student > div > section { background:transparent; }
+.navstar-student > div > aside { background:linear-gradient(180deg,#0b2348 0%,#071a38 100%) !important; color:#e7eefc !important; }
+.navstar-student > div > aside nav button[aria-expanded="true"],
+.navstar-student > div > aside nav button.bg-cyan-900 { background:linear-gradient(100deg,#0755b8,#073a79) !important; color:#fff !important; box-shadow:inset 3px 0 #f5c542 !important; }
+.navstar-student .bg-cyan-950,
+.navstar-student .bg-blue-950 { background-color:#071a38 !important; }
+.navstar-student .bg-cyan-800,
+.navstar-student .bg-cyan-900,
+.navstar-student .bg-blue-800 { background:linear-gradient(100deg,#0755b8,#073a79) !important; color:#fff !important; }
+.navstar-student .text-cyan-800,
+.navstar-student .text-cyan-900,
+.navstar-student .text-cyan-950 { color:#0755a6 !important; }
+.navstar-student .focus\:border-cyan-700:focus { border-color:#0755a6 !important; }
+.navstar-student button:focus-visible,
+.navstar-student a:focus-visible { outline:2px solid #f5c542; outline-offset:2px; }
+
