@@ -374,6 +374,24 @@ async function ensureExamForAttempt(DB,r,adminId,c,sourceCourses,sourceModules,s
   return id;
 }
 
+async function ensureLegacyAttemptQuestion(DB,sourceQuestionId,assessmentId,adminId,c,markHint=0,sortOrder=0,createdAt='') {
+  const sourceId=clean(sourceQuestionId,120);
+  if(!sourceId)return null;
+  const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(sourceId).first();
+  if(mapped?.destination_id)return mapped.destination_id;
+  const id='b44q-legacy-'+sourceId.slice(-24);
+  await DB.prepare("INSERT OR IGNORE INTO course_exam_questions(id,assessment_id,question_text,question_type,options_json,correct_answer_json,explanation,points,sort_order,status,created_by,created_at) VALUES(?,?,?,'legacy_unavailable','[]',NULL,?,?,?,'active',?,?)")
+    .bind(id,assessmentId,
+      'Original question text was not included in the Base44 export. The student response and awarded mark are retained below.',
+      'Original maximum marks and marking guidance were not present in the export; do not infer or recreate the question.',
+      Math.max(1,Math.ceil(num(markHint)||1)),Math.max(0,Math.round(num(sortOrder)||0)),adminId,
+      clean(createdAt,40)||new Date().toISOString()).run();
+  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('ExamQuestion',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING")
+    .bind(sourceId,id,adminId).run();
+  c.legacyQuestionsRecovered++;
+  return id;
+}
+
 async function importExamAttempt(DB,r,adminId,c) {
   const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamAttempt' AND source_id=?").bind(sourceId).first();
@@ -404,9 +422,9 @@ async function importExamAttempt(DB,r,adminId,c) {
   const status=sourceStatus==='moderated'?'graded':sourceStatus==='submitted'?'submitted':sourceStatus==='in_progress'?'in_progress':'expired';
   const questionIds=Array.isArray(r.question_ids)?r.question_ids:[];
   const mappedQuestionIds=[];
-  for(const qid of questionIds){const q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(qid,120)).first();if(q?.destination_id)mappedQuestionIds.push(q.destination_id);}
+  for(let index=0;index<questionIds.length;index++){const qid=questionIds[index];let q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(qid,120)).first();const destination=q?.destination_id||await ensureLegacyAttemptQuestion(DB,qid,assessment.id,adminId,c,0,index,started);if(destination&&!mappedQuestionIds.includes(destination))mappedQuestionIds.push(destination);}
   const answers=Array.isArray(r.answers)?r.answers:[];
-  for(const a of answers){const q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(a.question_id,120)).first();if(q?.destination_id&&!mappedQuestionIds.includes(q.destination_id))mappedQuestionIds.push(q.destination_id);}
+  for(let index=0;index<answers.length;index++){const a=answers[index];let q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(a.question_id,120)).first();const destination=q?.destination_id||await ensureLegacyAttemptQuestion(DB,a.question_id,assessment.id,adminId,c,a.marks_awarded,index,started);if(destination&&!mappedQuestionIds.includes(destination))mappedQuestionIds.push(destination);}
   const id='b44attempt-'+sourceId.slice(-24);
   const score=num(r.is_moderated?r.moderated_score:r.score);
   const flagged=Math.max(0,Math.round(num(r.tab_switches)+(Array.isArray(r.cheating_flags)?r.cheating_flags.length:0)));
@@ -416,9 +434,10 @@ async function importExamAttempt(DB,r,adminId,c) {
       JSON.stringify(mappedQuestionIds),'{}').run();
   for(const answer of answers){
     const q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(answer.question_id,120)).first();
-    if(!q?.destination_id)continue;
+    const questionId=q?.destination_id||await ensureLegacyAttemptQuestion(DB,answer.question_id,assessment.id,adminId,c,answer.marks_awarded,0,started);
+    if(!questionId)continue;
     await DB.prepare("INSERT OR IGNORE INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct,updated_at) VALUES(?,?,?,?,?,NULL,?)")
-      .bind('b44ans-'+sourceId.slice(-12)+'-'+clean(answer.question_id,24),id,q.destination_id,JSON.stringify(answer.answer??null),
+      .bind('b44ans-'+sourceId.slice(-12)+'-'+clean(answer.question_id,24),id,questionId,JSON.stringify(answer.answer??null),
         answer.marks_awarded===null||answer.marks_awarded===undefined?null:Math.max(0,Math.round(num(answer.marks_awarded))),
         submitted||clean(r.updated_date,60)||started).run();
   }
@@ -727,7 +746,7 @@ export async function onRequestPost({request,env}) {
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
   }
   // A complete export may contain entities beyond student enrolments. Archive-only packages are valid; the operational student/fee importer simply has nothing to process.
-  const c={sourceBatch,sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,warnings:[]};
+  const c={sourceBatch,sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,legacyQuestionsRecovered:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,warnings:[]};
   try {
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
     const sourceCourses=new Map(groups.Course.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
@@ -856,7 +875,7 @@ export async function onRequestPost({request,env}) {
       studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,admissionNumbersUpdated:c.admissionNumbersUpdated,admissionNumberConflicts:c.admissionNumberConflicts,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
-      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,examsRecoveredFromAttempts:c.examsRecoveredFromAttempts,modulesImported:c.modulesImported,modulesAlreadyPresent:c.modulesAlreadyPresent,modulesSkipped:c.modulesSkipped,moduleAssignmentsImported:c.moduleAssignmentsImported,moduleAssignmentsAlreadyPresent:c.moduleAssignmentsAlreadyPresent,moduleAssignmentsSkipped:c.moduleAssignmentsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,assignmentsImported:c.assignmentsImported,assignmentsAlreadyPresent:c.assignmentsAlreadyPresent,assignmentsSkipped:c.assignmentsSkipped,assignmentSubmissionsImported:c.assignmentSubmissionsImported,assignmentSubmissionsAlreadyPresent:c.assignmentSubmissionsAlreadyPresent,assignmentSubmissionsSkipped:c.assignmentSubmissionsSkipped,examAttemptsImported:c.examAttemptsImported,examAttemptsAlreadyPresent:c.examAttemptsAlreadyPresent,examAttemptsSkipped:c.examAttemptsSkipped,examApprovalsImported:c.examApprovalsImported,studentResultsImported:c.studentResultsImported,studentResultsAlreadyPresent:c.studentResultsAlreadyPresent,studentResultsSkipped:c.studentResultsSkipped,marksConflictsImported:c.marksConflictsImported,marksConflictsAlreadyPresent:c.marksConflictsAlreadyPresent,marksConflictsSkipped:c.marksConflictsSkipped,warnings:c.warnings
+      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,examsRecoveredFromAttempts:c.examsRecoveredFromAttempts,legacyQuestionsRecovered:c.legacyQuestionsRecovered,modulesImported:c.modulesImported,modulesAlreadyPresent:c.modulesAlreadyPresent,modulesSkipped:c.modulesSkipped,moduleAssignmentsImported:c.moduleAssignmentsImported,moduleAssignmentsAlreadyPresent:c.moduleAssignmentsAlreadyPresent,moduleAssignmentsSkipped:c.moduleAssignmentsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,assignmentsImported:c.assignmentsImported,assignmentsAlreadyPresent:c.assignmentsAlreadyPresent,assignmentsSkipped:c.assignmentsSkipped,assignmentSubmissionsImported:c.assignmentSubmissionsImported,assignmentSubmissionsAlreadyPresent:c.assignmentSubmissionsAlreadyPresent,assignmentSubmissionsSkipped:c.assignmentSubmissionsSkipped,examAttemptsImported:c.examAttemptsImported,examAttemptsAlreadyPresent:c.examAttemptsAlreadyPresent,examAttemptsSkipped:c.examAttemptsSkipped,examApprovalsImported:c.examApprovalsImported,studentResultsImported:c.studentResultsImported,studentResultsAlreadyPresent:c.studentResultsAlreadyPresent,studentResultsSkipped:c.studentResultsSkipped,marksConflictsImported:c.marksConflictsImported,marksConflictsAlreadyPresent:c.marksConflictsAlreadyPresent,marksConflictsSkipped:c.marksConflictsSkipped,warnings:c.warnings
     }),{status:200,headers:{...headers,'Content-Type':'application/json'}});
   } catch(cause) {
     console.error('Focused Base44 student/fee migration failed:',String(cause?.message||cause));
