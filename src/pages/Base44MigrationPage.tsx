@@ -129,7 +129,7 @@ export function Base44MigrationPage() {
       });
       const completion = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error([completion.error || 'Saved academic records could not be connected.', completion.detail || '', completion.progress ? JSON.stringify(completion.progress) : ''].filter(Boolean).join(' · '));
-      setResult({ ...completion, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: (archive?.entities || []).filter(x => ['Course','CourseUnit','ModuleAssignment','SystemUser','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksConflict'].includes(x.entityName)).length });
+      setResult({ ...completion, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: (archive?.entities || []).filter(x => ['Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','ModuleAssignment','SystemUser','StaffApplication','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksApproval','MarksConflict'].includes(x.entityName)).length });
       await loadArchive(selectedBatch);
       setProgress('Saved system records have been processed. Refresh the relevant portals to view the connected records.');
     } catch (cause) {
