@@ -131,6 +131,7 @@ export async function onRequestPost(context) {
       enrollment.location || null, enrollment.sub_location || null, enrollment.address || null
     ).run();
   }
+  await env.DB.prepare("UPDATE user_profiles SET student_status='active',updated_at=CURRENT_TIMESTAMP WHERE user_id=?").bind(user.id).run();
   let setupUrl = new URL('/login?role=student', new URL(request.url).origin).toString();
   let passwordSetupSent = false;
   if (needsPasswordSetup) {
