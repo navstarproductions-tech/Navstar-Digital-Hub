@@ -55,8 +55,10 @@ export async function onRequestPut({ request, env }) {
   let values;
   try { values = clean(body.values); } catch (e) { return error(e instanceof Error ? e.message : 'Invalid settings values.'); }
   if(body.section==='grading'){
-    const maximum=Number(values.publishedMaximum);
-    if(!Number.isFinite(maximum)||maximum<1||maximum>100)return error('The institution-wide published marks maximum must be between 1 and 1000.');
+    const cat=Number(values.catOutOf??30),practical=Number(values.practicalOutOf??20),final=Number(values.finalOutOf??50);
+    if(![cat,practical,final].every(value=>Number.isFinite(value)&&value>0&&value<100)||cat+practical+final!==100)return error('CAT, Practical and Final maxima must each be positive and add up to exactly 100.');
+    if(Number(values.publishedMaximum??100)!==100)return error('The overall module maximum is fixed at 100.');
+    values={...values,catOutOf:cat,practicalOutOf:practical,finalOutOf:final,publishedMaximum:100};
     const bands=String(values.gradeScale||'').split(/\r?\n/).map(line=>line.split('|').map(part=>part.trim())).filter(parts=>parts[0]&&parts[2]!==''&&parts[3]!==''&&Number.isFinite(Number(parts[2]))&&Number.isFinite(Number(parts[3]))).map(parts=>({grade:parts[0],min:Number(parts[2]),max:Number(parts[3])})).sort((a,b)=>a.min-b.min);
     if(!bands.length||bands[0].min!==0||bands[bands.length-1].max!==100)return error('The official grading scale must cover 0% through 100%.');
     for(let i=0;i<bands.length;i++){if(!bands[i].grade||bands[i].min<0||bands[i].max>100||bands[i].min>bands[i].max)return error('Check the official percentage grading bands.');if(i&&bands[i].min!==bands[i-1].max+1)return error('Official grading bands must be continuous, without gaps or overlaps.');}
