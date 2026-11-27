@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Mail, MessageCircle, Plus, RefreshCw, Send, UserRound, LoaderCircle } from 'lucide-react';
 
 type Contact = { id: string; name: string; role: string };
@@ -70,6 +71,10 @@ export function PortalMessagesWorkspace({ userId, userName }: { userId: string; 
     : '';
 
   useEffect(() => {
+    if (selected && !compose) setRecipientId(selected.latest.senderId === userId ? selected.latest.recipientId : selected.latest.senderId);
+  }, [selectedId, compose, userId, messages]);
+
+  useEffect(() => {
     if (!selectedId || compose) return;
     fetch('/api/messages', {
       method: 'PATCH', credentials: 'same-origin',
@@ -93,7 +98,7 @@ export function PortalMessagesWorkspace({ userId, userName }: { userId: string; 
     setError('');
   };
 
-  const send = async (event: React.FormEvent<HTMLFormElement>) => {
+  const send = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!recipientId || body.trim().length < 2 || sending) return;
     setSending(true);
