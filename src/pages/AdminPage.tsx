@@ -28,9 +28,7 @@ import { TutorSpecialisationWorkspace } from '@/components/TutorSpecialisationWo
 import { EmployeeRecordsWorkspace } from '@/components/EmployeeRecordsWorkspace';
 import { AcademicAttendanceWorkspace } from '@/components/AcademicAttendanceWorkspace';
 import { ScholarshipManagementWorkspace } from '@/components/ScholarshipManagementWorkspace';
-import { CertificateManagementWorkspace } from '@/components/CertificateManagementWorkspace';
 import { CertificateAdminTabs } from '@/components/CertificateAdminTabs';
-import { CertificateTemplateStudio } from '@/components/CertificateTemplateStudio';
 import { OnlineFormsWorkspace } from '@/components/OnlineFormsWorkspace';
 import { InstitutionContentWorkspace } from '@/components/InstitutionContentWorkspace';
 import { CustomerCartWorkspace } from '@/components/CustomerCartWorkspace';
