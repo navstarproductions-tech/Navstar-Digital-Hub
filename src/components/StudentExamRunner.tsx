@@ -1,10 +1,16 @@
 import { useEffect,useRef,useState } from 'react';
 type Exam={id:string;title:string;course_id:string;course_title?:string;instructions?:string;starts_at?:string|null;due_at?:string|null;duration_minutes?:number;max_points:number;max_attempts?:number;pass_mark?:number;status:string;strict_time_limit?:number};
 type Question={id:string;questionText:string;questionType:string;options:string[];points:number};
-export function StudentExamRunner({exams}:{exams:Exam[]}){
+export function StudentExamRunner({exams,attempts=[]}:{exams:Exam[];attempts?:any[]}){
  const [examId,setExamId]=useState(''),[questions,setQuestions]=useState<Question[]>([]),[answers,setAnswers]=useState<Record<string,any>>({}),[attempt,setAttempt]=useState(''),[attemptNumber,setAttemptNumber]=useState(0),[expires,setExpires]=useState(''),[index,setIndex]=useState(0),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[remaining,setRemaining]=useState(''),[security,setSecurity]=useState<Record<string,boolean>>({});
  const submittingRef=useRef(false),autoSubmitRef=useRef(false);
  const selected=exams.find(x=>x.id===examId),question=questions[index];
+ const selectedAttempts=selected?attempts.filter(item=>item.assessment_id===selected.id):[];
+ const activeAttempt=selectedAttempts.find(item=>item.status==='in_progress');
+ const attemptLimit=Math.max(1,Number(selected?.max_attempts||1));
+ const isUpcoming=Boolean(selected?.starts_at&&Date.parse(selected.starts_at)>Date.now());
+ const isClosed=Boolean(selected?.due_at&&Date.parse(selected.due_at)<Date.now());
+ const attemptsExhausted=selectedAttempts.length>=attemptLimit&&!activeAttempt;
  useEffect(()=>{if(!exams.length){setExamId('');return;}if(!examId||!exams.some(x=>x.id===examId))setExamId(exams[0].id);},[exams,examId]);
  useEffect(()=>{if(!attempt||!expires)return;const update=()=>{const ms=Math.max(0,Date.parse(expires)-Date.now());setRemaining(Math.floor(ms/60000)+'m '+Math.floor((ms%60000)/1000)+'s');};update();const timer=window.setInterval(update,1000);return()=>window.clearInterval(timer);},[attempt,expires]);
  const start=async()=>{
@@ -63,9 +69,10 @@ export function StudentExamRunner({exams}:{exams:Exam[]}){
   {!attempt?<div className="space-y-3">
    <label className="block text-sm font-bold text-slate-700">Published examination<select className="mt-1 w-full rounded-lg border px-3 py-2.5" value={examId} onChange={e=>setExamId(e.target.value)}>{exams.map(e=><option key={e.id} value={e.id}>{e.course_title?e.course_title+' · ':''}{e.title} · {e.duration_minutes||60} min</option>)}</select></label>
    {selected&&<div className="grid gap-2 sm:grid-cols-3"><div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Duration</p><b>{selected.duration_minutes||60} minutes</b></div><div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Maximum marks</p><b>{selected.max_points}</b></div><div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Allowed attempts</p><b>{selected.max_attempts||1}</b></div></div>}
+   {selected&&<p className={'rounded-lg p-3 text-xs font-semibold '+(isUpcoming?'bg-blue-50 text-blue-900':isClosed?'bg-slate-100 text-slate-600':attemptsExhausted?'bg-amber-50 text-amber-900':'bg-emerald-50 text-emerald-900')}>{isUpcoming?'Opens '+new Date(selected.starts_at!).toLocaleString('en-KE',{timeZone:'Africa/Nairobi'}):isClosed?'This paper has closed. Check your previous attempt or results below.':attemptsExhausted?'You have used all permitted attempts.':activeAttempt?'You have an active saved attempt. Resume it to continue.':'This paper is currently within its scheduled attempt window.'}</p>}
    {selected?.instructions&&<div className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700"><b className="mb-1 block">Instructions</b>{selected.instructions}</div>}
    <p className="text-xs leading-5 text-slate-500">Your eligibility is checked by the server. The paper may require tutor/admin approval, full fee payment or an assignment submission. Once started, the server timer continues even if you leave this page.</p>
-   <button disabled={busy||!selected} onClick={()=>void start()} className="rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy?'Preparing exam…':'Start examination'}</button>
+   <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs font-semibold text-slate-500">Attempts used: {selectedAttempts.length} / {attemptLimit}{activeAttempt?' · A saved attempt is in progress':''}</p><button disabled={busy||!selected||((isUpcoming||isClosed||attemptsExhausted)&&!activeAttempt)} onClick={()=>void start()} className="rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy?'Preparing exam…':activeAttempt?'Resume examination':isUpcoming?'Not yet open':isClosed?'Examination closed':attemptsExhausted?'No attempts remaining':'Start examination'}</button></div>
   </div>:<div className="space-y-4">
    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-blue-950 p-3 text-white"><div><b>{selected?.title}</b><p className="text-xs text-blue-200">Attempt {attemptNumber} · {index+1} of {questions.length} questions</p></div><span className="font-mono text-sm">Time remaining: {remaining}</span></div>
    {question?<div className="space-y-4 rounded-xl border p-4"><div className="flex justify-between text-xs font-bold text-slate-500"><span>Question {index+1} of {questions.length}</span><span>{question.points} mark(s)</span></div><h4 className="text-base font-bold text-slate-900">{question.questionText}</h4>
