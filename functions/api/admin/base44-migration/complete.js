@@ -111,7 +111,7 @@ async function activeCourseFor(DB,title) {
   return DB.prepare("SELECT id,title,status FROM courses WHERE lower(trim(title))=lower(trim(?)) AND status='active' LIMIT 1").bind(t).first();
 }
 async function importCourseModule(DB,r,adminId,c,sourceCourses) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const sourceId=sourceRecordId(r);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='CourseUnit' AND source_id=?").bind(sourceId).first();
   if(mapped?.destination_id){c.modulesAlreadyPresent++;return;}
   const courseTitle=sourceCourseTitle(r.course_id,sourceCourses),course=await activeCourseFor(DB,courseTitle);
@@ -147,7 +147,7 @@ async function mappedModule(DB,courseId,sourceModuleId,moduleCode,moduleTitle,so
   return {row,code,title};
 }
 async function importModuleAssignment(DB,r,adminId,c,sourceUsers) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const sourceId=sourceRecordId(r);if(!sourceId)return;
   const prior=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ModuleAssignment' AND source_id=?").bind(sourceId).first();
   if(prior?.destination_id){c.moduleAssignmentsAlreadyPresent++;return;}
   const module=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='CourseUnit' AND source_id=?").bind(clean(r.module_id,120)).first();
@@ -166,7 +166,7 @@ async function importModuleAssignment(DB,r,adminId,c,sourceUsers) {
     .bind(sourceId,id,tutor.id).run();
 }
 async function importExam(DB,r,adminId,c,sourceCourses,sourceModules) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);
+  const sourceId=sourceRecordId(r);
   if(!sourceId)return;
   const existingMap=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Exam' AND source_id=?").bind(sourceId).first();
   if(existingMap?.destination_id){c.examsAlreadyPresent++;return;}
@@ -238,7 +238,7 @@ async function importExam(DB,r,adminId,c,sourceCourses,sourceModules) {
   if(Number(result.meta?.changes||0)===0)c.examsAlreadyPresent++;
 }
 async function importExamQuestion(DB,r,adminId,c) {
-  const sourceId=clean(r.id||r._id||r.uuid,120),sourceExamId=clean(r.exam_id,120);
+  const sourceId=sourceRecordId(r),sourceExamId=clean(r.exam_id,120);
   if(!sourceId||!sourceExamId)return;
   const existingMap=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(sourceId).first();
   if(existingMap?.destination_id){c.questionsAlreadyPresent++;return;}
@@ -274,7 +274,7 @@ async function findDestinationStudent(DB,email,courseId,sourceEnrollmentId='') {
   return DB.prepare("SELECT u.id,e.id AS enrollment_id,e.admission_number FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' AND u.role='student' ORDER BY e.created_at LIMIT 1").bind(clean(email,254).toLowerCase(),courseId).first();
 }
 async function importAssignment(DB,r,adminId,c,sourceCourses,sourceModules) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const sourceId=sourceRecordId(r);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Assignment' AND source_id=?").bind(sourceId).first();
   if(mapped?.destination_id){c.assignmentsAlreadyPresent++;return;}
   const courseTitle=clean(r.course_title,160)||sourceCourseTitle(r.course_id,sourceCourses);
@@ -306,7 +306,7 @@ async function importAssignment(DB,r,adminId,c,sourceCourses,sourceModules) {
   if(Number(result.meta?.changes||0)>0)c.assignmentsImported++;else c.assignmentsAlreadyPresent++;
 }
 async function importAssignmentSubmission(DB,r,adminId,c) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const sourceId=sourceRecordId(r);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='AssignmentSubmission' AND source_id=?").bind(sourceId).first();
   const assignment=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Assignment' AND source_id=?").bind(clean(r.assignment_id,120)).first();
   if(!assignment?.destination_id){c.assignmentSubmissionsSkipped++;return;}
@@ -365,7 +365,7 @@ async function ensureExamForAttempt(DB,r,adminId,c,sourceCourses,sourceModules,s
     const moduleTitle=title.split(/\s+[—–-]\s+/)[0].trim();
     const module=moduleTitle?await DB.prepare("SELECT id FROM course_modules WHERE course_id=? AND lower(trim(title))=lower(trim(?)) LIMIT 1").bind(course.id,moduleTitle).first():null;
     const selectedIds=Array.isArray(r.question_ids)?new Set(r.question_ids.map(x=>clean(x,120))):new Set();
-    const selectedMarks=(sourceQuestions||[]).filter(q=>selectedIds.has(clean(q.id||q._id||q.uuid,120))).reduce((sum,q)=>sum+Math.max(0,num(q.marks)),0);
+    const selectedMarks=(sourceQuestions||[]).filter(q=>selectedIds.has(sourceRecordId(q))).reduce((sum,q)=>sum+Math.max(0,num(q.marks)),0);
     const bankMarks=(sourceQuestions||[]).filter(q=>clean(q.exam_id,120)===sourceExamId).reduce((sum,q)=>sum+Math.max(0,num(q.marks)),0);
     const maximum=Math.max(1,Math.min(10000,Math.round(selectedMarks||bankMarks||100)));
     const lowerTitle=title.toLowerCase();
@@ -409,7 +409,7 @@ async function ensureLegacyAttemptQuestion(DB,sourceQuestionId,assessmentId,admi
 }
 
 async function importExamAttempt(DB,r,adminId,c) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const sourceId=sourceRecordId(r);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamAttempt' AND source_id=?").bind(sourceId).first();
   const existingAttemptId=mapped?.destination_id&&!String(mapped.destination_id).startsWith('b44approval-')?mapped.destination_id:null;
   if(mapped?.destination_id&&!existingAttemptId){c.examAttemptsAlreadyPresent++;return;}
@@ -470,7 +470,7 @@ async function importExamAttempt(DB,r,adminId,c) {
   if(existingAttemptId)c.examAttemptsAlreadyPresent++;else c.examAttemptsImported++;
 }
 async function importMarksConflict(DB,r,adminId,c,sourceCourses,sourceModules) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const sourceId=sourceRecordId(r);if(!sourceId)return;
   const prior=await DB.prepare("SELECT id FROM base44_marks_conflicts WHERE source_id=?").bind(sourceId).first();
   if(prior){c.marksConflictsAlreadyPresent++;return;}
   const course=await activeCourseFor(DB,sourceCourseTitle(r.course_id,sourceCourses));
@@ -494,7 +494,7 @@ async function importMarksConflict(DB,r,adminId,c,sourceCourses,sourceModules) {
   c.marksConflictsImported++;
 }
 async function importStudentResult(DB,r,adminId,c,sourceCourses,sourceModules) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
+  const sourceId=sourceRecordId(r);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='StudentResult' AND source_id=?").bind(sourceId).first();
   const courseTitle=sourceCourseTitle(r.course_id,sourceCourses);
   const course=await activeCourseFor(DB,courseTitle);
@@ -565,7 +565,7 @@ async function importGradingSystem(DB,rows) {
   await DB.prepare("INSERT INTO system_state(key,value) VALUES('admin-configuration',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
 }
 async function importStaffApplication(DB,r,adminId,c) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);
+  const sourceId=sourceRecordId(r);
   const email=clean(r.email,254).toLowerCase();
   const name=clean(r.full_name||r.applicant_name||r.name,140);
   if(!sourceId||!email||!name){c.staffApplicationsSkipped++;return;}
@@ -617,7 +617,7 @@ async function importMarksWeights(DB,rows) {
 }
 
 async function importStudent(DB,r,adminId,c) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);
+  const sourceId=sourceRecordId(r);
   const email=clean(r.student_email||r.email,254).toLowerCase();
   const name=clean(r.student_name||r.full_name||r.name,120);
   const phone=clean(r.student_phone||r.phone,40);
@@ -817,7 +817,7 @@ export async function onRequestPost({request,env}) {
   try {
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
     const sourceCourses=new Map(groups.Course.map(x=>[sourceRecordId(x),x]));
-    const sourceModules=new Map(groups.CourseUnit.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
+    const sourceModules=new Map(groups.CourseUnit.map(x=>[sourceRecordId(x),x]));
     const imported=[];
     for(const student of groups.Enrollment){const item=await importStudent(env.DB,student,tokenRow.created_by,c);if(item&&!academicOnly)imported.push(item);}
     await importExamSettings(env.DB,groups.ExamSettings);
@@ -873,7 +873,7 @@ export async function onRequestPost({request,env}) {
     }
     const paidByEnrollment=new Map();
     for(const payment of groups.FeePayment) {
-      const sourcePaymentId=clean(payment.id||payment._id||payment.uuid,120);
+      const sourcePaymentId=sourceRecordId(payment);
       const sourceEnrollmentId=clean(payment.enrollment_id,120);
       if(!sourcePaymentId||!sourceEnrollmentId)continue;
       const mapping=await env.DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceEnrollmentId).first();
