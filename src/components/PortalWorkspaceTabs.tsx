@@ -113,7 +113,6 @@ const extraTabs:Partial<Record<Role,Tab[]>>={
   {id:'grade-assignments',label:'Grade Assignments',title:'Grade assignments',description:'Review and grade learner submissions.',href:'/learning',icon:FileText},
   {id:'ai-grading',label:'AI Grading',title:'AI grading',description:'Open AI-assisted assessment tools.',href:'/learning',icon:BookOpen},
   {id:'results-entry',label:'Results Entry',title:'Results entry',description:'Open authorised results entry.',href:'/learning',icon:GraduationCap},
-  {id:'exams',label:'Set Exams',title:'Set examinations',description:'Open examination management.',href:'/learning',icon:FileText},
   {id:'modules',label:'Course Modules',title:'Course modules',description:'Manage course module content.',href:'/learning',icon:BookOpen},
   {id:'certificates',label:'Cert Recommendation',title:'Certificate recommendations',description:'Review certificate recommendations.',href:'/learning',icon:GraduationCap},
   {id:'cv',label:'My CV Builder',title:'My CV builder',description:'Create and maintain your tutor CV.',href:'/my-account',icon:FileText}
