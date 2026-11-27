@@ -158,7 +158,7 @@ const navGroups:Partial<Record<Role,NavGroup[]>>={
  student:[
   {id:'home',label:'Home',items:['overview','applications','notifications']},
   {id:'academics',label:'Academics',items:['academic','courses']},
-  {id:'assessments',label:'Assessments',items:['exams','assignments','projects']},
+  {id:'assessments',label:'Assessments',items:['exams']},
   {id:'assignments',label:'Assignments',items:['assignments','projects']},
   {id:'finance',label:'Finance',items:['fees']},
   {id:'chat',label:'Chat',items:['support','ai']},
