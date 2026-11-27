@@ -1,7 +1,7 @@
 import { hashPassword, sha256 } from '../../../_shared/auth.js';
 import { error, json, uuid } from '../../../_shared/http.js';
 
-const allowedOrigins = new Set(['https://navstardigitalhub.base44.app']);
+const allowedOrigins = new Set(['https://navstardigitalhub.base44.app', 'https://app.base44.com']);
 const corsHeaders = origin => ({ 'Access-Control-Allow-Origin': allowedOrigins.has(origin) ? origin : 'null', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '600', 'Vary': 'Origin' });
 const clean = (v, n=500) => String(v ?? '').trim().slice(0,n);
 const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
