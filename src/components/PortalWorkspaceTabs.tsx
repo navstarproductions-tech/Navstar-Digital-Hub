@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LearningPage } from '@/pages/LearningPage';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, CalendarDays, CircleDollarSign, FileText, GraduationCap, Headphones, Users, Wallet } from 'lucide-react';
+import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, CircleDollarSign, FileText, GraduationCap, Headphones, ShieldCheck, Users, Wallet } from 'lucide-react';
 
 type Role='student'|'tutor'|'admissions'|'principal'|'finance'|'admin'|'customer';
 type Enrollment={id:string;full_name:string;course_id:string;course_title?:string;phone?:string;status:string;payment_status:string;created_at:string;course_fee?:number;admission_fee?:number;amount_paid?:number};
