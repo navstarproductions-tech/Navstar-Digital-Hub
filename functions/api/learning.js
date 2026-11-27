@@ -372,7 +372,7 @@ export async function onRequestPost({ request, env }) {
     const attachmentUrl = safeString(body.attachmentUrl, 500);
     if (!responseText && !attachmentUrl) return error('Write your answer or provide a resource link before submitting.');
     if (attachmentUrl && !/^https:\/\//i.test(attachmentUrl)) return error('Attachment links must use HTTPS.');
-    const assignment = await env.DB.prepare("SELECT id, course_id FROM course_assignments WHERE id = ? AND status = 'published'").bind(assignmentId).first();
+    const assignment = await env.DB.prepare("SELECT id, course_id, module_id FROM course_assignments WHERE id = ? AND status = 'published'").bind(assignmentId).first();
     if (!assignment || !(await hasCourseAccess(env.DB, user, assignment.course_id))) return error('This assignment is not available to your account.', 403);
     await env.DB.prepare(`
       INSERT INTO course_assignment_submissions (id, assignment_id, user_id, response_text, attachment_url, status, approval_status, submitted_at)
@@ -388,6 +388,7 @@ export async function onRequestPost({ request, env }) {
         approval_status = 'pending', approved_by = NULL, approved_at = NULL,
         submitted_at = CURRENT_TIMESTAMP
     `).bind(uuid(), assignmentId, user.id, responseText, attachmentUrl || null).run();
+    if(assignment.module_id)await syncModuleResult(env.DB,user.id,assignment.module_id,user.id);
     return json({ assignmentId, status: 'submitted' }, 201);
   }
 
