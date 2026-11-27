@@ -6,6 +6,7 @@ const corsHeaders = origin => ({ 'Access-Control-Allow-Origin': allowedOrigins.h
 const clean = (v, n=500) => String(v ?? '').trim().slice(0,n);
 const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
 const norm = v => clean(v,160).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const sourceRecordId = r => clean(r?.id ?? r?._id ?? r?.uuid ?? r?.ID ?? r?.Id ?? r?._migration_source_id,120);
 const dateOnly = v => { const m=clean(v,40).match(/^\d{4}-\d{2}-\d{2}/); return m ? m[0] : ''; };
 function kenyaDateTime(date,time) { const d=dateOnly(date),m=clean(time,30).match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i); if(!d||!m)return ''; let h=Number(m[1]); const minute=Number(m[2]); if(m[3])h=(h%12)+(m[3].toUpperCase()==='PM'?12:0); if(h>23||minute>59)return ''; const iso=new Date(d+'T'+String(h).padStart(2,'0')+':'+String(minute).padStart(2,'0')+':00+03:00'); return Number.isNaN(iso.getTime())?'':iso.toISOString(); }
 const aliases = {
@@ -76,7 +77,7 @@ function passwordCredential(r) {
   return c&&c.algorithm==='PBKDF2-SHA256'&&c.salt&&c.hash?{salt:c.salt,hash:c.hash,mustChange:0}:null;
 }
 async function importFeeStructure(DB,r,c) {
-  const sourceId=clean(r.id||r._id||r.uuid,120);
+  const sourceId=sourceRecordId(r);
   if(!sourceId)return;
   const course=await courseFor(DB,r.course_title,r.total_fee);
   if(course.created)c.archivedCoursesCreated++;
@@ -808,14 +809,14 @@ export async function onRequestPost({request,env}) {
   if(academicOnly&&!stagedRows.length)return new Response(JSON.stringify({error:'This saved package contains no archived academic records to import.'}),{status:404,headers:{...headers,'Content-Type':'application/json'}});
   const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],GradingSystem:[],SystemUser:[],ModuleAssignment:[],MarksApproval:[],MarksConflict:[],StaffApplication:[]};
   for(const row of stagedRows) {
-    try{groups[row.entity_name].push(JSON.parse(row.record_json));}
+    try{const parsed=JSON.parse(row.record_json);if(!parsed.id&&!parsed._id&&!parsed.uuid&&!parsed.ID&&!parsed.Id)parsed._migration_source_id=row.source_id;groups[row.entity_name].push(parsed);}
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
   }
   // A complete export may contain entities beyond student enrolments. Archive-only packages are valid; the operational student/fee importer simply has nothing to process.
   const c={sourceBatch,sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,legacyQuestionsRecovered:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,staffApplicationsImported:0,staffApplicationsAlreadyPresent:0,staffApplicationsSkipped:0,warnings:[]};
   try {
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
-    const sourceCourses=new Map(groups.Course.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
+    const sourceCourses=new Map(groups.Course.map(x=>[sourceRecordId(x),x]));
     const sourceModules=new Map(groups.CourseUnit.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
     const imported=[];
     for(const student of groups.Enrollment){const item=await importStudent(env.DB,student,tokenRow.created_by,c);if(item&&!academicOnly)imported.push(item);}
@@ -836,7 +837,7 @@ export async function onRequestPost({request,env}) {
     for(const result of groups.StudentResult)await importStudentResult(env.DB,result,tokenRow.created_by,c,sourceCourses,sourceModules);
     for(const application of groups.StaffApplication)await importStaffApplication(env.DB,application,tokenRow.created_by,c);
     for(const fee of groups.AdditionalFee) {
-      const sourceId=clean(fee.id||fee._id||fee.uuid,120);
+      const sourceId=sourceRecordId(fee);
       const sourceEnrollmentId=clean(fee.enrollment_id,120);
       const mapping=await env.DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceEnrollmentId).first();
       const amount=Math.round(num(fee.amount));
