@@ -229,7 +229,7 @@ async function handleQuestionPost({request,env}){
   for(const answer of answers){
    const questionId=safeString(answer.questionId,80);
    if(!questionId||!servedSet.has(questionId))continue;
-   const question=await env.DB.prepare("SELECT id FROM course_exam_questions WHERE id=? AND assessment_id=? AND status='active'").bind(questionId,assessmentId).first();
+   const question=await env.DB.prepare("SELECT id FROM course_exam_questions WHERE id=? AND assessment_id=?").bind(questionId,assessmentId).first();
    if(!question)continue;
    statements.push(env.DB.prepare("INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct) VALUES(?,?,?,?,NULL,NULL) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer_json=excluded.answer_json,updated_at=CURRENT_TIMESTAMP").bind(uuid(),attemptId,questionId,JSON.stringify(answer.answer??null)));
   }
