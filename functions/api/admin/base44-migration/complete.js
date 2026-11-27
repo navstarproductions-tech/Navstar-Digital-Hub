@@ -395,7 +395,8 @@ async function ensureLegacyAttemptQuestion(DB,sourceQuestionId,assessmentId,admi
 async function importExamAttempt(DB,r,adminId,c) {
   const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamAttempt' AND source_id=?").bind(sourceId).first();
-  if(mapped?.destination_id){c.examAttemptsAlreadyPresent++;return;}
+  const existingAttemptId=mapped?.destination_id&&!String(mapped.destination_id).startsWith('b44approval-')?mapped.destination_id:null;
+  if(mapped?.destination_id&&!existingAttemptId){c.examAttemptsAlreadyPresent++;return;}
   const exam=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Exam' AND source_id=?").bind(clean(r.exam_id,120)).first();
   if(!exam?.destination_id){c.examAttemptsSkipped++;return;}
   const assessment=await DB.prepare("SELECT id,course_id,max_points,category_out_of FROM course_assessments WHERE id=?").bind(exam.destination_id).first();
@@ -407,7 +408,7 @@ async function importExamAttempt(DB,r,adminId,c) {
   const sourceStatus=clean(r.status,30).toLowerCase();
   const approvalStatus=sourceStatus==='approved'?'approved':sourceStatus==='rejected'?'rejected':'pending';
   if(['waiting','approved','rejected'].includes(sourceStatus)){
-    await DB.prepare("INSERT OR IGNORE INTO exam_attempt_approvals(id,assessment_id,user_id,status,reviewed_by,reviewed_at,note) VALUES(?,?,?,?,?,?,?)")
+    await DB.prepare("INSERT INTO exam_attempt_approvals(id,assessment_id,user_id,status,reviewed_by,reviewed_at,note) VALUES(?,?,?,?,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET status=excluded.status,reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at,note=excluded.note")
       .bind('b44approval-'+sourceId.slice(-20),assessment.id,student.id,approvalStatus,
         sourceStatus==='waiting'?null:adminId,sourceStatus==='waiting'?null:clean(r.updated_date,40)||null,clean(r.admin_notes,1000)).run();
     c.examApprovalsImported++;
@@ -425,10 +426,10 @@ async function importExamAttempt(DB,r,adminId,c) {
   for(let index=0;index<questionIds.length;index++){const qid=questionIds[index];let q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(qid,120)).first();const destination=q?.destination_id||await ensureLegacyAttemptQuestion(DB,qid,assessment.id,adminId,c,0,index,started);if(destination&&!mappedQuestionIds.includes(destination))mappedQuestionIds.push(destination);}
   const answers=Array.isArray(r.answers)?r.answers:[];
   for(let index=0;index<answers.length;index++){const a=answers[index];let q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(a.question_id,120)).first();const destination=q?.destination_id||await ensureLegacyAttemptQuestion(DB,a.question_id,assessment.id,adminId,c,a.marks_awarded,index,started);if(destination&&!mappedQuestionIds.includes(destination))mappedQuestionIds.push(destination);}
-  const id='b44attempt-'+sourceId.slice(-24);
+  const id=existingAttemptId||'b44attempt-'+sourceId.slice(-24);
   const score=num(r.is_moderated&&r.moderated_score!==null&&r.moderated_score!==undefined?r.moderated_score:r.score);
   const flagged=Math.max(0,Math.round(num(r.tab_switches)+(Array.isArray(r.cheating_flags)?r.cheating_flags.length:0)));
-  await DB.prepare("INSERT OR IGNORE INTO exam_runtime_attempts(id,assessment_id,user_id,attempt_number,started_at,expires_at,submitted_at,status,objective_score,total_score,flagged_count,last_activity_at,served_question_ids_json,option_order_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+  await DB.prepare("INSERT INTO exam_runtime_attempts(id,assessment_id,user_id,attempt_number,started_at,expires_at,submitted_at,status,objective_score,total_score,flagged_count,last_activity_at,served_question_ids_json,option_order_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET assessment_id=excluded.assessment_id,user_id=excluded.user_id,attempt_number=excluded.attempt_number,started_at=excluded.started_at,expires_at=excluded.expires_at,submitted_at=excluded.submitted_at,status=excluded.status,objective_score=excluded.objective_score,total_score=excluded.total_score,flagged_count=excluded.flagged_count,last_activity_at=excluded.last_activity_at,served_question_ids_json=excluded.served_question_ids_json,option_order_json=excluded.option_order_json")
     .bind(id,assessment.id,student.id,Math.max(1,Math.round(num(r.attempt_number)||1)),started,expiry,submitted,status,
       Math.round(num(r.score)),Math.round(score),flagged,submitted||clean(r.updated_date,60)||started,
       JSON.stringify(mappedQuestionIds),'{}').run();
@@ -436,7 +437,7 @@ async function importExamAttempt(DB,r,adminId,c) {
     const q=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(clean(answer.question_id,120)).first();
     const questionId=q?.destination_id||await ensureLegacyAttemptQuestion(DB,answer.question_id,assessment.id,adminId,c,answer.marks_awarded,0,started);
     if(!questionId)continue;
-    await DB.prepare("INSERT OR IGNORE INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct,updated_at) VALUES(?,?,?,?,?,NULL,?)")
+    await DB.prepare("INSERT INTO exam_runtime_answers(id,attempt_id,question_id,answer_json,points_awarded,is_correct,updated_at) VALUES(?,?,?,?,?,NULL,?) ON CONFLICT(id) DO UPDATE SET attempt_id=excluded.attempt_id,question_id=excluded.question_id,answer_json=excluded.answer_json,points_awarded=excluded.points_awarded,updated_at=excluded.updated_at")
       .bind('b44ans-'+sourceId.slice(-12)+'-'+clean(answer.question_id,24),id,questionId,JSON.stringify(answer.answer??null),
         answer.marks_awarded===null||answer.marks_awarded===undefined?null:Math.max(0,Math.round(num(answer.marks_awarded))),
         submitted||clean(r.updated_date,60)||started).run();
@@ -450,7 +451,7 @@ async function importExamAttempt(DB,r,adminId,c) {
   }
   await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('ExamAttempt',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING")
     .bind(sourceId,id,student.id).run();
-  c.examAttemptsImported++;
+  if(existingAttemptId)c.examAttemptsAlreadyPresent++;else c.examAttemptsImported++;
 }
 async function importMarksConflict(DB,r,adminId,c,sourceCourses,sourceModules) {
   const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
