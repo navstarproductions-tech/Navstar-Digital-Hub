@@ -632,6 +632,11 @@ async function importStaffApplication(DB,r,adminId,c) {
   if(!sourceId||!email||!name){c.staffApplicationsSkipped++;return;}
   const prior=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='StaffApplication' AND source_id=?").bind(sourceId).first();
   if(prior?.destination_id){c.staffApplicationsAlreadyPresent++;return;}
+  const sameEmail=await DB.prepare('SELECT id FROM staff_applications WHERE lower(email)=lower(?) ORDER BY created_at ASC LIMIT 1').bind(email).first();
+  if(sameEmail?.id){
+    await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('StaffApplication',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP").bind(sourceId,sameEmail.id,adminId).run();
+    c.staffApplicationsAlreadyPresent++;return;
+  }
   const sourceStatus=clean(r.status,40).toLowerCase().replace(/[ -]+/g,'_');
   const status=sourceStatus==='approved'||sourceStatus==='accepted'?'approved':
     sourceStatus==='shortlisted'?'shortlisted':sourceStatus==='rejected'?'rejected':
