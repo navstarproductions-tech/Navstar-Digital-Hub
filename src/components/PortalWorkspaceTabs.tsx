@@ -34,7 +34,7 @@ const tabSets:Record<Role,Tab[]> = {
   {id:'student-notes',label:'Student Notes',title:'Student notes',description:'Open learner notes and academic support records.',href:'/learning',icon:FileText},
   {id:'grade-assignments',label:'Grade Assignments',title:'Grade assignments',description:'Review and grade submitted course assignments.',href:'/learning',icon:FileText},
   {id:'results-entry',label:'Results Entry',title:'Results entry',description:'Open the authorised results and assessment workspace.',href:'/learning',icon:GraduationCap},
-  {id:'exams',label:'Set Exams',title:'Set examinations',description:'Open examination management for assigned courses.',href:'/learning',icon:FileText},
+  {id:'exams',label:'Set Exams',title:'Set examinations',description:'Create and manage papers, question banks, candidate approvals and marking for assigned courses.',icon:FileText},
   {id:'messages',label:'Student Chat & Messages',title:'Student communication',description:'Open the approved communication workspace.',href:'/learning',icon:Headphones},
   {id:'reports',label:'Reports',title:'Teaching reports',description:'Review available teaching and learner progress reports.',href:'/learning',icon:FileText},
  ],
@@ -87,6 +87,7 @@ const tabSets:Record<Role,Tab[]> = {
   {id:'courses',label:'Courses & Learning',title:'Courses and learning management',description:'Manage course catalogues, modules, lessons and assignments.',href:'/admin',icon:BookOpen},
   {id:'finance',label:'Finance',title:'Finance administration',description:'Manage verified payments, fees and reports.',href:'/admin',icon:CircleDollarSign},
   {id:'documents',label:'Documents',title:'Documents and downloads',description:'Publish approved institutional documents.',href:'/admin',icon:FileText},
+  {id:'exams',label:'Examinations',title:'Examination management',description:'Administrator access to all tutor examination functions across the institution, plus central oversight.',icon:FileText},
  ],
  customer:[
   {id:'overview',label:'Overview',title:'Customer service desk',description:'Browse services and request support.',href:'/services',icon:Headphones},
@@ -112,7 +113,6 @@ const extraTabs:Partial<Record<Role,Tab[]>>={
   {id:'grade-assignments',label:'Grade Assignments',title:'Grade assignments',description:'Review and grade learner submissions.',href:'/learning',icon:FileText},
   {id:'ai-grading',label:'AI Grading',title:'AI grading',description:'Open AI-assisted assessment tools.',href:'/learning',icon:BookOpen},
   {id:'results-entry',label:'Results Entry',title:'Results entry',description:'Open authorised results entry.',href:'/learning',icon:GraduationCap},
-  {id:'exams',label:'Set Exams',title:'Set examinations',description:'Open examination management.',href:'/learning',icon:FileText},
   {id:'modules',label:'Course Modules',title:'Course modules',description:'Manage course module content.',href:'/learning',icon:BookOpen},
   {id:'certificates',label:'Cert Recommendation',title:'Certificate recommendations',description:'Review certificate recommendations.',href:'/learning',icon:GraduationCap},
   {id:'cv',label:'My CV Builder',title:'My CV builder',description:'Create and maintain your tutor CV.',href:'/my-account',icon:FileText}
@@ -198,7 +198,7 @@ export function PortalWorkspaceTabs({role,name,enrollments,overview,payments,cas
  const current=tabs.find(tab=>tab.id===active)||tabs[0];
  const currentGroup=groups.find(group=>group.items.includes(active))||groups[0];
  const visibleGroupTabs=(currentGroup?.items||[]).map(id=>tabs.find(tab=>tab.id===id)).filter((tab):tab is Tab=>Boolean(tab)).sort((a,b)=>a.label.localeCompare(b.label));
- const embeddedLearning=(role==='tutor'&&['classes','resources','assignments','progress'].includes(active))||(role==='student'&&['courses','assignments'].includes(active));
+ const embeddedLearning=(role==='tutor'&&(['classes','resources','assignments','progress'].includes(active)||active==='exams'))||(role==='admin'&&active==='exams')||(role==='student'&&['courses','assignments'].includes(active));
  const accentByRole:Record<Role,string>={student:'bg-blue-800',tutor:'bg-blue-800',admissions:'bg-blue-800',principal:'bg-blue-800',finance:'bg-blue-800',admin:'bg-blue-800',customer:'bg-blue-800'};
  const activeAccent=accentByRole[role]||'bg-blue-800';
  const myEnrollments=enrollments;
