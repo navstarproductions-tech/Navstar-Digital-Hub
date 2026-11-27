@@ -418,7 +418,8 @@ export async function onRequestPost({ request, env }) {
       console.error('Navstar bulk marks import failed:', String(cause?.stack || cause));
       return error('The marks import could not be saved. Existing marks were not changed. Check the template and try again.', 500);
     }
-    return json({ imported: prepared.length, message: `${prepared.length} marks saved successfully.` }, 200);
+    if(approvalStatus==='approved')for(const row of prepared){const link=await env.DB.prepare(`SELECT s.user_id,a.module_id FROM course_assignment_submissions s JOIN course_assignments a ON a.id=s.assignment_id WHERE s.id=?`).bind(row.submissionId).first();if(link?.module_id)await syncModuleResult(env.DB,link.user_id,link.module_id,user.id);}
+    return json({ imported: prepared.length, approvalStatus, message: approvalStatus==='approved'?`${prepared.length} marks saved and published successfully.`:`${prepared.length} tutor marks saved for administrator approval.` }, 200);
   }
 
   if(action==='approve_assignment_mark'){
