@@ -428,6 +428,17 @@ async function importExamSettings(DB,rows) {
     confirmBeforeSubmit:source.confirm_before_submit!==false,requireAllAnswers:source.require_all_answers===true};
   await DB.prepare("UPDATE exam_institute_settings SET settings_json=? WHERE id='default' AND (settings_json='{}' OR settings_json='')").bind(JSON.stringify(normalized)).run();
 }
+async function importGradingSystem(DB,rows) {
+  const bands=rows.filter(x=>x.is_conditional!==true&&clean(x.grade,12)&&Number.isFinite(Number(x.min_percentage))&&Number.isFinite(Number(x.max_percentage)))
+    .sort((a,b)=>Number(a.min_percentage)-Number(b.min_percentage));
+  if(!bands.length)return;
+  const row=await DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
+  let config={};try{config=JSON.parse(row?.value||'{}')}catch{}
+  config.grading={...(config.grading||{}),gradeScale:bands.map(x=>[
+    clean(x.grade,12),clean(x.classification,100),Number(x.min_percentage),Number(x.max_percentage),clean(x.remarks,300)
+  ].join('|')).join('\n')};
+  await DB.prepare("INSERT INTO system_state(key,value) VALUES('admin-configuration',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
+}
 async function importMarksWeights(DB,rows) {
   const setting=rows.find(x=>clean(x.setting_key,80)==='marks_category_weights');
   if(!setting)return;
@@ -619,10 +630,10 @@ export async function onRequestPost({request,env}) {
   const academicOnly=body.academicOnly===true;
   const sourceBatch=academicOnly?clean(body.batchId,80):tokenHash;
   if(academicOnly&&!sourceBatch)return new Response(JSON.stringify({error:'Select a saved migration package first.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
-  const entityFilter=academicOnly?"'Enrollment','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict'":"'Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict'";
+  const entityFilter=academicOnly?"'Enrollment','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksApproval','MarksConflict'":"'Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict'";
   const staged=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM base44_legacy_records WHERE migration_batch=? AND entity_name IN ("+entityFilter+") ORDER BY entity_name,source_id").bind(sourceBatch).all();
   if(academicOnly&&!(staged.results||[]).length)return new Response(JSON.stringify({error:'This saved package contains no archived academic records to import.'}),{status:404,headers:{...headers,'Content-Type':'application/json'}});
-  const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],MarksApproval:[],MarksConflict:[]};
+  const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],GradingSystem:[],MarksApproval:[],MarksConflict:[]};
   for(const row of staged.results||[]) {
     try{groups[row.entity_name].push(JSON.parse(row.record_json));}
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
@@ -637,6 +648,7 @@ export async function onRequestPost({request,env}) {
     for(const student of groups.Enrollment){const item=await importStudent(env.DB,student,tokenRow.created_by,c);if(item&&!academicOnly)imported.push(item);}
     await importExamSettings(env.DB,groups.ExamSettings);
     await importMarksWeights(env.DB,groups.SystemSettings);
+    await importGradingSystem(env.DB,groups.GradingSystem);
     for(const module of groups.CourseUnit)await importCourseModule(env.DB,module,tokenRow.created_by,c,sourceCourses);
     for(const exam of groups.Exam)await importExam(env.DB,exam,tokenRow.created_by,c,sourceCourses,sourceModules);
     for(const question of groups.ExamQuestion)await importExamQuestion(env.DB,question,tokenRow.created_by,c);
@@ -747,7 +759,7 @@ export async function onRequestPost({request,env}) {
     await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
       .bind(uuid(),tokenRow.created_by,academicOnly?'base44_academic_archive_import_completed':'base44_student_and_fee_migration_completed','migration',sourceBatch.slice(0,24)).run();
     return new Response(JSON.stringify({
-      completed:true,scope:academicOnly?['Enrollment','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict']:['Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict'],sourceBatch,
+      completed:true,scope:academicOnly?['Enrollment','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksApproval','MarksConflict']:['Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict'],sourceBatch,
       studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,admissionNumbersUpdated:c.admissionNumbersUpdated,admissionNumberConflicts:c.admissionNumberConflicts,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
