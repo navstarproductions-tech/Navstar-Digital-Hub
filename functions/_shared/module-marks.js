@@ -26,12 +26,12 @@ export async function syncModuleResult(db, userId, moduleId, actorId = null) {
   if (!module || !userId) return null;
 
   const [assignmentRows, examRow, config] = await Promise.all([
-    db.prepare(`SELECT a.marks_category,COALESCE(SUM(s.points_awarded),0) AS points,COALESCE(SUM(a.max_points),0) AS maximum
+    db.prepare(`SELECT a.marks_category,COALESCE(SUM(s.points_awarded* a.category_out_of / a.max_points),0) AS points,COALESCE(SUM(a.category_out_of),0) AS maximum
       FROM course_assignments a JOIN course_assignment_submissions s ON s.assignment_id=a.id
       WHERE a.module_id=? AND s.user_id=? AND s.status='graded' AND s.approval_status='approved'
       GROUP BY a.marks_category`).bind(moduleId,userId).all(),
-    db.prepare(`SELECT a.marks_category,COALESCE(SUM(COALESCE(r.raw_points_awarded,r.points_awarded)),0) AS points,
-      COALESCE(SUM(a.max_points),0) AS maximum,COUNT(r.id) AS papers
+    db.prepare(`SELECT a.marks_category,COALESCE(SUM(COALESCE(r.raw_points_awarded,r.points_awarded)*COALESCE(NULLIF(a.category_out_of,0),a.max_points)/a.max_points),0) AS points,
+      COALESCE(SUM(COALESCE(NULLIF(a.category_out_of,0),a.max_points)),0) AS maximum,COUNT(r.id) AS papers
       FROM course_assessments a JOIN course_assessment_results r ON r.assessment_id=a.id
       WHERE a.module_id=? AND r.user_id=? AND r.published_at IS NOT NULL GROUP BY a.marks_category`).bind(moduleId,userId).all(),
     configuration(db),
