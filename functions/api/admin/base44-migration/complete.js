@@ -331,6 +331,49 @@ async function importAssignmentSubmission(DB,r,adminId,c) {
   if(Number(result.meta?.changes||0)>0)c.assignmentSubmissionsImported++;else c.assignmentSubmissionsAlreadyPresent++;
   await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('AssignmentSubmission',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING").bind(sourceId,id,student.id).run();
 }
+async function ensureExamForAttempt(DB,r,adminId,c,sourceCourses,sourceModules,sourceQuestions) {
+  const sourceExamId=clean(r.exam_id,120);
+  if(!sourceExamId)return null;
+  const prior=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Exam' AND source_id=?").bind(sourceExamId).first();
+  if(prior?.destination_id)return prior.destination_id;
+  const title=clean(r.exam_title,160)||'Historical Base44 examination';
+  const courseTitle=clean(r.course_title,160)||sourceCourseTitle(r.course_id,sourceCourses);
+  const course=await activeCourseFor(DB,courseTitle);
+  if(!course){
+    c.warnings.push("Historical exam '"+title+"' was not reconstructed because its course could not be matched to an active official course.");
+    return null;
+  }
+  const existing=await DB.prepare("SELECT id FROM course_assessments WHERE course_id=? AND lower(trim(title))=lower(trim(?)) LIMIT 1").bind(course.id,title).first();
+  const id=existing?.id||'b44exam-'+sourceExamId.slice(-24);
+  if(!existing){
+    const moduleTitle=title.split(/\s+[—–-]\s+/)[0].trim();
+    const module=moduleTitle?await DB.prepare("SELECT id FROM course_modules WHERE course_id=? AND lower(trim(title))=lower(trim(?)) LIMIT 1").bind(course.id,moduleTitle).first():null;
+    const selectedIds=Array.isArray(r.question_ids)?new Set(r.question_ids.map(x=>clean(x,120))):new Set();
+    const selectedMarks=(sourceQuestions||[]).filter(q=>selectedIds.has(clean(q.id||q._id||q.uuid,120))).reduce((sum,q)=>sum+Math.max(0,num(q.marks)),0);
+    const bankMarks=(sourceQuestions||[]).filter(q=>clean(q.exam_id,120)===sourceExamId).reduce((sum,q)=>sum+Math.max(0,num(q.marks)),0);
+    const maximum=Math.max(1,Math.min(10000,Math.round(selectedMarks||bankMarks||100)));
+    const lowerTitle=title.toLowerCase();
+    const type=lowerTitle.includes('practical')?'practical':/(\bcat\b|quiz|midterm)/i.test(title)?'cat':'exam';
+    const now=clean(r.created_date,40)||clean(r.start_time,40)||new Date().toISOString();
+    await DB.prepare(`INSERT OR IGNORE INTO course_assessments
+      (id,course_id,module_id,title,assessment_type,instructions,starts_at,due_at,max_points,status,created_by,created_at,
+       description,duration_minutes,pass_mark,max_attempts,require_full_fee_payment,require_assignment_submission,
+       allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit,require_admin_approval,
+       marks_category,category_out_of,question_selection_mode,question_count,shuffle_options,security_settings_json)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(id,course.id,module?.id||null,title,type,'Historical paper recovered from Base44 attempt history.',
+        clean(r.start_time,60)||null,clean(r.submitted_at,60)||null,maximum,'draft',adminId,now,
+        'Recovered automatically from a historical Base44 examination attempt. Kept as a draft so it cannot be started as a new live exam.',
+        60,0,1,0,0,0,0,0,1,0,'Final',maximum,'marks',10,0,'{}').run();
+    c.examsRecoveredFromAttempts++;
+  }
+  const saved=await DB.prepare("SELECT id FROM course_assessments WHERE id=?").bind(id).first();
+  if(!saved)return null;
+  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Exam',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING")
+    .bind(sourceExamId,id,adminId).run();
+  return id;
+}
+
 async function importExamAttempt(DB,r,adminId,c) {
   const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamAttempt' AND source_id=?").bind(sourceId).first();
@@ -684,7 +727,7 @@ export async function onRequestPost({request,env}) {
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
   }
   // A complete export may contain entities beyond student enrolments. Archive-only packages are valid; the operational student/fee importer simply has nothing to process.
-  const c={sourceBatch,sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,warnings:[]};
+  const c={sourceBatch,sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,warnings:[]};
   try {
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
     const sourceCourses=new Map(groups.Course.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
@@ -697,6 +740,9 @@ export async function onRequestPost({request,env}) {
     for(const module of groups.CourseUnit)await importCourseModule(env.DB,module,tokenRow.created_by,c,sourceCourses);
     for(const assignment of groups.ModuleAssignment)await importModuleAssignment(env.DB,assignment,tokenRow.created_by,c,groups.SystemUser);
     for(const exam of groups.Exam)await importExam(env.DB,exam,tokenRow.created_by,c,sourceCourses,sourceModules);
+    // Recover legacy exam shells from attempt metadata when Base44 no longer has the parent Exam row.
+    // This preserves historical attempts and their questions without publishing a new live paper.
+    for(const attempt of groups.ExamAttempt)await ensureExamForAttempt(env.DB,attempt,tokenRow.created_by,c,sourceCourses,sourceModules,groups.ExamQuestion);
     for(const question of groups.ExamQuestion)await importExamQuestion(env.DB,question,tokenRow.created_by,c);
     for(const assignment of groups.Assignment)await importAssignment(env.DB,assignment,tokenRow.created_by,c,sourceCourses,sourceModules);
     for(const submission of groups.AssignmentSubmission)await importAssignmentSubmission(env.DB,submission,tokenRow.created_by,c);
@@ -810,7 +856,7 @@ export async function onRequestPost({request,env}) {
       studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,admissionNumbersUpdated:c.admissionNumbersUpdated,admissionNumberConflicts:c.admissionNumberConflicts,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
-      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,modulesImported:c.modulesImported,modulesAlreadyPresent:c.modulesAlreadyPresent,modulesSkipped:c.modulesSkipped,moduleAssignmentsImported:c.moduleAssignmentsImported,moduleAssignmentsAlreadyPresent:c.moduleAssignmentsAlreadyPresent,moduleAssignmentsSkipped:c.moduleAssignmentsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,assignmentsImported:c.assignmentsImported,assignmentsAlreadyPresent:c.assignmentsAlreadyPresent,assignmentsSkipped:c.assignmentsSkipped,assignmentSubmissionsImported:c.assignmentSubmissionsImported,assignmentSubmissionsAlreadyPresent:c.assignmentSubmissionsAlreadyPresent,assignmentSubmissionsSkipped:c.assignmentSubmissionsSkipped,examAttemptsImported:c.examAttemptsImported,examAttemptsAlreadyPresent:c.examAttemptsAlreadyPresent,examAttemptsSkipped:c.examAttemptsSkipped,examApprovalsImported:c.examApprovalsImported,studentResultsImported:c.studentResultsImported,studentResultsAlreadyPresent:c.studentResultsAlreadyPresent,studentResultsSkipped:c.studentResultsSkipped,marksConflictsImported:c.marksConflictsImported,marksConflictsAlreadyPresent:c.marksConflictsAlreadyPresent,marksConflictsSkipped:c.marksConflictsSkipped,warnings:c.warnings
+      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,examsRecoveredFromAttempts:c.examsRecoveredFromAttempts,modulesImported:c.modulesImported,modulesAlreadyPresent:c.modulesAlreadyPresent,modulesSkipped:c.modulesSkipped,moduleAssignmentsImported:c.moduleAssignmentsImported,moduleAssignmentsAlreadyPresent:c.moduleAssignmentsAlreadyPresent,moduleAssignmentsSkipped:c.moduleAssignmentsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,assignmentsImported:c.assignmentsImported,assignmentsAlreadyPresent:c.assignmentsAlreadyPresent,assignmentsSkipped:c.assignmentsSkipped,assignmentSubmissionsImported:c.assignmentSubmissionsImported,assignmentSubmissionsAlreadyPresent:c.assignmentSubmissionsAlreadyPresent,assignmentSubmissionsSkipped:c.assignmentSubmissionsSkipped,examAttemptsImported:c.examAttemptsImported,examAttemptsAlreadyPresent:c.examAttemptsAlreadyPresent,examAttemptsSkipped:c.examAttemptsSkipped,examApprovalsImported:c.examApprovalsImported,studentResultsImported:c.studentResultsImported,studentResultsAlreadyPresent:c.studentResultsAlreadyPresent,studentResultsSkipped:c.studentResultsSkipped,marksConflictsImported:c.marksConflictsImported,marksConflictsAlreadyPresent:c.marksConflictsAlreadyPresent,marksConflictsSkipped:c.marksConflictsSkipped,warnings:c.warnings
     }),{status:200,headers:{...headers,'Content-Type':'application/json'}});
   } catch(cause) {
     console.error('Focused Base44 student/fee migration failed:',String(cause?.message||cause));
