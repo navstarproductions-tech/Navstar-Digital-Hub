@@ -30,15 +30,17 @@ export async function syncModuleResult(db, userId, moduleId, actorId = null) {
       FROM course_assignments a JOIN course_assignment_submissions s ON s.assignment_id=a.id
       WHERE a.module_id=? AND s.user_id=? AND s.status='graded' AND s.approval_status='approved'
       GROUP BY a.marks_category`).bind(moduleId,userId).all(),
-    db.prepare(`SELECT COALESCE(SUM(COALESCE(r.raw_points_awarded,r.points_awarded)),0) AS points,
+    db.prepare(`SELECT a.marks_category,COALESCE(SUM(COALESCE(r.raw_points_awarded,r.points_awarded)),0) AS points,
       COALESCE(SUM(a.max_points),0) AS maximum,COUNT(r.id) AS papers
       FROM course_assessments a JOIN course_assessment_results r ON r.assessment_id=a.id
-      WHERE a.module_id=? AND r.user_id=? AND r.published_at IS NOT NULL`).bind(moduleId,userId).first(),
+      WHERE a.module_id=? AND r.user_id=? AND r.published_at IS NOT NULL GROUP BY a.marks_category`).bind(moduleId,userId).all(),
     configuration(db),
   ]);
 
-  const raw = { CAT: 0, Practical: 0, Final: Number(examRow?.points || 0) };
-  const maxima = { CAT: 0, Practical: 0, Final: Number(examRow?.maximum || 0) };
+  const raw = { CAT: 0, Practical: 0, Final: 0 };
+  const maxima = { CAT: 0, Practical: 0, Final: 0 };
+  let finalExamPapers=0;
+  for(const row of examRow.results||[]){const category=['CAT','Practical','Final'].includes(String(row.marks_category))?String(row.marks_category):'Final';raw[category]+=Number(row.points||0);maxima[category]+=Number(row.maximum||0);if(category==='Final')finalExamPapers+=Number(row.papers||0);}
   let assignmentScore = 0;
   for (const row of assignmentRows.results || []) {
     const category = ['CAT','Practical','Final'].includes(String(row.marks_category)) ? String(row.marks_category) : 'CAT';
@@ -56,7 +58,7 @@ export async function syncModuleResult(db, userId, moduleId, actorId = null) {
   const maxScore = outs.CAT + outs.Practical + outs.Final;
   const score = categoryScore.CAT + categoryScore.Practical + categoryScore.Final;
   const hasAnyMarks = maxima.CAT > 0 || maxima.Practical > 0 || maxima.Final > 0;
-  const hasFinal = maxima.Final > 0 && Number(examRow?.papers || 0) > 0;
+  const hasFinal = maxima.Final > 0 && finalExamPapers > 0;
   const bands = parseBands(config.grading?.gradeScale);
   const defaults = [
     { grade: 'A', min: 80, max: 100, remarks: 'Excellent performance' },
