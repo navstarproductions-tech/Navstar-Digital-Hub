@@ -101,8 +101,13 @@ export async function onRequestPost({request,env}){
   if(!studentId||!period||!await canCourse(env.DB,user,courseId))return error('Select a valid course, student and reporting period.');
   const student=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake,e.course_fee,e.amount_paid,e.id AS enrollment_id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted'").bind(studentId,courseId).first();
   if(!student)return error('Student is not enrolled in this course.',404);
-  const course=await env.DB.prepare('SELECT id,title FROM courses WHERE id=?').bind(courseId).first();
-  const modules=(await env.DB.prepare('SELECT id,code,title FROM course_modules WHERE course_id=? ORDER BY sort_order,title').bind(courseId).all()).results||[];
+  const course=await env.DB.prepare('SELECT id,title,course_code FROM courses WHERE id=?').bind(courseId).first();
+  let modules=(await env.DB.prepare('SELECT id,code,title,sort_order FROM course_modules WHERE course_id=? ORDER BY sort_order,title').bind(courseId).all()).results||[];
+  const modulePrefix=String(course?.course_code||course?.title||'NAV').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6)||'NAV';
+  const usedCodes=new Set(modules.map(m=>String(m.code||'').toUpperCase()).filter(Boolean));
+  let moduleSequence=1;
+  for(const module of modules){if(module.code&&String(module.code).trim())continue;let candidate='';do{candidate=modulePrefix+String(moduleSequence++).padStart(3,'0')}while(usedCodes.has(candidate));usedCodes.add(candidate);await env.DB.prepare('UPDATE course_modules SET code=? WHERE id=? AND (code IS NULL OR trim(code)=\'\')').bind(candidate,module.id).run();module.code=candidate;}
+  modules=modules.map(({id,code,title})=>({id,code,title}));
   const results=(await env.DB.prepare('SELECT m.id,m.code,m.title, CASE WHEN SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.published_max_points,a.max_points) ELSE 0 END)>0 THEN SUM(CASE WHEN r.published_at IS NOT NULL THEN r.points_awarded ELSE 0 END)*100.0/SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.published_max_points,a.max_points) ELSE 0 END) ELSE NULL END AS percentage, SUM(CASE WHEN r.published_at IS NOT NULL THEN r.points_awarded ELSE 0 END) AS total_points, SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.published_max_points,a.max_points) ELSE 0 END) AS max_points FROM course_modules m LEFT JOIN course_assessments a ON a.module_id=m.id LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=? AND r.published_at IS NOT NULL WHERE m.course_id=? GROUP BY m.id ORDER BY m.sort_order,m.title').bind(studentId,courseId).all()).results||[];
   const cfgRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
   let allConfig={};try{allConfig=JSON.parse(cfgRow?.value||'{}')}catch{}
