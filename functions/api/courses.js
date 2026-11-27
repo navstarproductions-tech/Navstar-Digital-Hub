@@ -1,9 +1,13 @@
 import { requireRole } from '../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../_shared/http.js';
 
+const OFFICIAL_COURSE_IDS = ['computer-programming','advanced-programming','web-design','graphic-design','robotics-automation','video-editing','html-css','computer-maintenance','integrated-digital-services','python-programming'];
+
 export async function onRequestGet({ env }) {
   if (!env.DB) return json({ courses: [] });
-  const rows = await env.DB.prepare("SELECT id, title, description, duration, image_url AS image, category, price, status, level, course_code FROM courses WHERE status = 'active' ORDER BY title").all();
+  const placeholders = OFFICIAL_COURSE_IDS.map(() => '?').join(',');
+  const order = OFFICIAL_COURSE_IDS.map((id, index) => `WHEN '${id}' THEN ${index}`).join(' ');
+  const rows = await env.DB.prepare(`SELECT id, title, description, duration, image_url AS image, category, price, status, level, course_code FROM courses WHERE status = 'active' AND id IN (${placeholders}) ORDER BY CASE id ${order} END`).bind(...OFFICIAL_COURSE_IDS).all();
   return json({ courses: rows.results ?? [] });
 }
 
