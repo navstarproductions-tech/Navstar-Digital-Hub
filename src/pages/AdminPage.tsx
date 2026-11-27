@@ -1239,7 +1239,7 @@ export function AdminPage() {
                   <Icon className="h-4 w-4 shrink-0"/><span className={sidebarCollapsed ? "md:hidden" : "min-w-0 flex-1 truncate"}>{label}</span>
                   {children.length>0 && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${selected ? 'rotate-180 text-cyan-300' : 'text-slate-500'}`}/>}
                 </button>
-                {selected && !sidebarCollapsed && children.length>0 && <div className={`mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3 ${id==='pos'?'ml-2 flex w-[calc(100%-0.5rem)] flex-col':'ml-5'}`}>
+                {selected && !sidebarCollapsed && children.length>0 && id !== 'pos' && <div className="mt-1 space-y-1 border-l border-cyan-400/30 py-1 pl-3 ml-5">
                   {children.map((tab) => {
                     const isCurrent = expandedSection === id && selectedSubtab === tab.label && active === tab.target;
                     return <button key={tab.label} type="button" onClick={() => { setExpandedSection(id); setActive(tab.target); setSelectedSubtab(tab.label); if(id==='pos' && tab.label==='New Sale'){setPosPendingMode('');setPosChooserOpen(true);} if(tab.settingsTab)setSettingsTab(tab.settingsTab); if(tab.coursesTab)setCoursesSubTab(tab.coursesTab); if(tab.learningTab)setLearningSubTab(tab.learningTab); setNotice(''); setMobileNavOpen(false); setSubtabMenuOpen(false); contentRef.current?.scrollTo({top:0,behavior:'smooth'}); }} aria-current={isCurrent?'page':undefined} className={`navstar-subtab flex min-h-9 w-full items-center justify-start rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${isCurrent ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><span className="mr-2 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-70"/><span className="min-w-0 text-left">{tab.label}</span></button>;
@@ -1280,6 +1280,15 @@ export function AdminPage() {
             <button type="button" onClick={()=>void signOut()} title="Log out" aria-label="Log out" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-500/10 hover:text-rose-300"><LogOut className="h-4 w-4"/></button>
           </header>
 
+          {active === 'pos' && <div className="sticky top-[58px] z-20 border-b border-white/10 bg-[#0c111e]/95 px-4 py-3 shadow-lg backdrop-blur-xl sm:px-5 lg:px-6">
+            <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Point of Sale workspaces">
+              {['POS Dashboard','New Sale','Packing & Delivery','Payment Approvals','Sales History'].map(tab => <button key={tab} type="button" role="tab" aria-selected={selectedSubtab===tab} onClick={()=>{setExpandedSection('pos');setActive('pos');setSelectedSubtab(tab);if(tab==='New Sale'){setPosPendingMode('');setPosChooserOpen(true);}contentRef.current?.scrollTo({top:0,behavior:'smooth'});}} className={`rounded-xl px-4 py-2.5 text-xs font-extrabold transition sm:text-sm ${selectedSubtab===tab?'bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-950/30':'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>{tab}</button>)}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2">
+              <span className="mr-1 text-[10px] font-black uppercase tracking-[.16em] text-slate-500">Quick tools</span>
+              {['New Sale','Scan & Sell','Print Barcode Labels','Generate Missing Barcodes'].map(tab => <button key={`quick-${tab}`} type="button" onClick={()=>{setExpandedSection('pos');setActive('pos');setSelectedSubtab(tab==='New Sale'?'New Sale':tab);if(tab==='New Sale'){setPosPendingMode('');setPosChooserOpen(true);}contentRef.current?.scrollTo({top:0,behavior:'smooth'});}} className="rounded-lg border border-cyan-400/20 bg-cyan-400/5 px-3 py-2 text-[11px] font-bold text-cyan-200 transition hover:border-cyan-300/50 hover:bg-cyan-400/10">{tab}</button>)}
+            </div>
+          </div>}
 
           <div className="px-4 py-4 sm:px-6 lg:px-7">
           {notice && <p role="status" className="mb-5 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</p>}
