@@ -51,10 +51,10 @@ export function Base44MigrationPage() {
     if (!file) return;
     try {
       if (!file.name.toLowerCase().endsWith('.json')) throw new Error('Please select the single Navstar migration JSON file.');
-      if (file.size > 25 * 1024 * 1024) throw new Error('The migration file is larger than 25 MB. Export a smaller JSON bundle.');
+      if (file.size > 100 * 1024 * 1024) throw new Error('The migration JSON is larger than 100 MB. Split the export into smaller JSON files to avoid browser memory limits.');
       const raw = JSON.parse(await file.text()) as Record<string, unknown>;
-      const candidate = (raw.entities && typeof raw.entities === 'object' ? raw.entities :
-        raw.data && typeof raw.data === 'object' ? raw.data : raw) as Record<string, unknown>;
+      const candidateValue = raw.entities && typeof raw.entities === 'object' ? raw.entities : raw.data && typeof raw.data === 'object' ? raw.data : raw;
+      const candidate = (Array.isArray(candidateValue) ? Object.fromEntries(candidateValue.filter(item => item && typeof item === 'object').map(item => { const entry=item as Record<string,unknown>; return [String(entry.entityName||entry.entity_name||entry.name||''), entry.records||entry.items||entry.data]; })) : candidateValue) as Record<string, unknown>;
       const normalized: Record<string, Record<string, unknown>[]> = {};
       for (const [entityName, value] of Object.entries(candidate)) {
         if (['format','version','exportedAt','exported_at','source','metadata','schema'].includes(entityName)) continue;
@@ -63,10 +63,13 @@ export function Base44MigrationPage() {
             throw new Error('Entity "' + entityName + '" contains a value that is not a record object. No records have been uploaded.');
           }
           normalized[entityName] = value as Record<string, unknown>[];
-        } else if (value && typeof value === 'object' && Array.isArray((value as Record<string, unknown>).items)) {
-          const rows = (value as {items: unknown[]}).items;
+        } else if (value && typeof value === 'object' && (Array.isArray((value as Record<string, unknown>).items) || Array.isArray((value as Record<string, unknown>).records) || Array.isArray((value as Record<string, unknown>).data))) {
+          const group=value as Record<string, unknown>;
+          const rows=(group.items||group.records||group.data) as unknown[];
           if (rows.some(row => !row || typeof row !== 'object' || Array.isArray(row))) throw new Error('Entity "' + entityName + '" contains invalid records.');
           normalized[entityName] = rows as Record<string, unknown>[];
+        } else if (!['format','version','exportedAt','exported_at','source','metadata','schema','createdAt','created_at'].includes(entityName)) {
+          throw new Error('The export contains "' + entityName + '" but its structure is not a record array. Nothing has been uploaded. This entity must be exported as an array of records.');
         }
       }
       const total = Object.values(normalized).reduce((sum, rows) => sum + rows.length, 0);
