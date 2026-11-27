@@ -3,4 +3,4 @@
 ALTER TABLE user_profiles ADD COLUMN student_status TEXT NOT NULL DEFAULT 'active'
   CHECK (student_status IN ('active','suspended','archived'));
 UPDATE user_profiles SET student_status='archived'
-WHERE user_id IN (SELECT id FROM users WHERE status='disabled');
+WHERE portal_role='student' AND user_id IN (SELECT id FROM users WHERE status='disabled');
