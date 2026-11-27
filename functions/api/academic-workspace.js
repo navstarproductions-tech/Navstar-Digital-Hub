@@ -21,19 +21,26 @@ export async function onRequestGet({request,env}){
  if(action==='verify-report-card'){
   const key=clean(url.searchParams.get('token'),100);if(!key)return error('Verification token required.');
   const row=await env.DB.prepare("SELECT report_card_no,period_label,snapshot_json,issued_at FROM academic_report_cards WHERE public_token=? AND status='published'").bind(key).first();
-  if(!row)return error('Report card not found.',404);
-  let snapshot={};try{snapshot=JSON.parse(row.snapshot_json)}catch{}
-  return json({reportCardNo:row.report_card_no,period:row.period_label,issuedAt:row.issued_at,student:snapshot.student,course:snapshot.course,results:snapshot.results,summary:snapshot.summary,verification:'verified'});
+  if(row){
+   let snapshot={};try{snapshot=JSON.parse(row.snapshot_json)}catch{}
+   return json({reportCardNo:row.report_card_no,documentType:'Report Card',period:row.period_label,issuedAt:row.issued_at,student:snapshot.student,course:snapshot.course,results:snapshot.results,summary:snapshot.summary,verification:'verified'});
+  }
+  const award=await env.DB.prepare("SELECT award_no,period_label,snapshot_json,created_at,published_at,award_rank,score FROM academic_merit_awards WHERE public_token=? AND status='published'").bind(key).first();
+  if(!award)return error('Academic document not found.',404);
+  let awardSnapshot={};try{awardSnapshot=JSON.parse(award.snapshot_json)}catch{}
+  return json({reportCardNo:award.award_no,documentType:'Merit Award',rank:award.award_rank,score:award.score,period:award.period_label,issuedAt:award.published_at||award.created_at,student:awardSnapshot.student,course:awardSnapshot.course,results:[],summary:{mean:award.score},verification:'verified'});
  }
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  if(action==='report-cards'){
   if(user.role==='student'){
-   const rows=await env.DB.prepare("SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.course_id,r.snapshot_json,c.title AS course_title FROM academic_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? AND r.status='published' ORDER BY r.published_at DESC,r.issued_at DESC").bind(user.id).all();
-   return json({reportCards:rows.results||[]});
+   const rows=await env.DB.prepare("SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.course_id,r.snapshot_json,c.title AS course_title,'Report Card' AS document_type FROM academic_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? AND r.status='published' ORDER BY r.published_at DESC,r.issued_at DESC").bind(user.id).all();
+   const awards=await env.DB.prepare("SELECT a.id,a.award_no AS report_card_no,a.period_label,a.public_token,a.created_at AS issued_at,a.published_at,a.status,a.course_id,a.snapshot_json,c.title AS course_title,a.award_rank AS award_rank,a.score,'Merit Award' AS document_type FROM academic_merit_awards a JOIN courses c ON c.id=a.course_id WHERE a.user_id=? AND a.status='published' ORDER BY a.published_at DESC").bind(user.id).all();
+   return json({reportCards:[...(rows.results||[]),...(awards.results||[])]});
   }
   if(!staff.includes(user.role))return error('Not authorised.',403);
-  const rows=await env.DB.prepare("SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.approved_at,r.published_at,r.course_id,r.snapshot_json,u.name AS student_name,c.title AS course_title FROM academic_report_cards r JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=r.course_id ORDER BY CASE r.status WHEN 'draft' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,r.issued_at DESC LIMIT 500").all();
-  return json({reportCards:rows.results||[]});
+  const rows=await env.DB.prepare("SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.approved_at,r.published_at,r.course_id,r.snapshot_json,u.name AS student_name,c.title AS course_title,'Report Card' AS document_type FROM academic_report_cards r JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=r.course_id ORDER BY CASE r.status WHEN 'draft' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,r.issued_at DESC LIMIT 500").all();
+  const awards=await env.DB.prepare("SELECT a.id,a.award_no AS report_card_no,a.period_label,a.public_token,a.created_at AS issued_at,a.status,a.published_at,a.course_id,a.snapshot_json,u.name AS student_name,c.title AS course_title,a.award_rank,a.score,'Merit Award' AS document_type FROM academic_merit_awards a JOIN users u ON u.id=a.user_id JOIN courses c ON c.id=a.course_id ORDER BY CASE a.status WHEN 'draft' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,a.created_at DESC LIMIT 500").all();
+  return json({reportCards:[...(rows.results||[]),...(awards.results||[])]});
  }
  if(action==='messages'){
   const rows=await env.DB.prepare(`SELECT c.*,s.name AS student_name,t.name AS tutor_name,
