@@ -6,6 +6,23 @@ const admin=['admin','principal'];
 function categoryMaximum(type,settings={}){const value=Number(settings?.publishedMaximum);return Number.isFinite(value)&&value>0?value:100;}
 
 function scaleScore(raw,rawMax,target){return Math.round((Number(raw||0)/(Number(rawMax)>0?Number(rawMax):100))*Number(target)*100)/100;}
+function shuffled(items){const result=[...items];for(let i=result.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}return result;}
+function selectExamQuestions(bank,maxPoints,mode='marks',questionCount=10,shuffleOrder=true){
+ const pool=shuffled(bank),target=Math.max(1,Math.floor(Number(maxPoints)||100));
+ let selected=[];
+ if(mode==='count'){
+  let total=0;for(const q of pool){const points=Math.max(1,Number(q.points)||1);if(selected.length>=Math.max(1,Math.min(500,Number(questionCount)||10)))break;if(total+points<=target){selected.push(q);total+=points;}}
+ }else{
+  const reachable=new Uint8Array(target+1),previousSum=new Int32Array(target+1),previousIndex=new Int32Array(target+1);
+  previousSum.fill(-1);previousIndex.fill(-1);reachable[0]=1;
+  for(let i=0;i<pool.length;i++){const points=Math.max(1,Number(pool[i].points)||1);if(points>target)continue;for(let sum=target;sum>=points;sum--){if(!reachable[sum]&&reachable[sum-points]){reachable[sum]=1;previousSum[sum]=sum-points;previousIndex[sum]=i;}}if(reachable[target])break;}
+  let best=target;while(best>0&&!reachable[best])best--;
+  while(best>0){const index=previousIndex[best];if(index<0)break;selected.push(pool[index]);best=previousSum[best];}
+ }
+ if(shuffleOrder)return shuffled(selected);
+ return selected.sort((a,b)=>Number(a.sort_order||0)-Number(b.sort_order||0)||String(a.id).localeCompare(String(b.id)));
+}
+function parseJsonObject(value,fallback={}){try{const parsed=JSON.parse(value||'{}');return parsed&&typeof parsed==='object'?parsed:fallback;}catch{return fallback;}}
 
 function parseCsv(text){
  const rows=[];let row=[],cell='',quoted=false;
