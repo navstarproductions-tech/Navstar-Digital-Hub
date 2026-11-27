@@ -3,7 +3,7 @@ import { FileDown, FileText, Search, Users, RefreshCw } from 'lucide-react';
 
 type Course={id:string;title:string};
 type Student={id:string;name:string;email:string;admission_number?:string;preferred_intake?:string};
-type Report={id:string;report_card_no:string;period_label:string;public_token:string;status:string;course_id:string;snapshot_json:string;student_name?:string;course_title?:string};
+type Report={id:string;report_card_no:string;period_label:string;public_token:string;status:string;course_id:string;snapshot_json:string;issued_at?:string;student_name?:string;course_title?:string};
 type DocumentType='student-report'|'admin-report'|'student-transcript'|'admin-transcript';
 type Scope='individual'|'intake'|'all';
 const types:{id:DocumentType;title:string;description:string}[]=[
@@ -37,7 +37,7 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
  useEffect(()=>{if(!courseId){setStudents([]);return;}fetch('/api/academic-workspace?action=students&courseId='+encodeURIComponent(courseId),{credentials:'same-origin'}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Could not load active students.');setStudents(j.students||[]);}).catch(e=>{setStudents([]);setNotice(e instanceof Error?e.message:'Could not load active students.');});},[courseId]);
  async function refreshReports(){const r=await fetch('/api/academic-workspace?action=report-cards',{credentials:'same-origin'});const j=await r.json();if(r.ok)setReports(j.reportCards||[]);}
  useEffect(()=>{void refreshReports().catch(()=>undefined)},[]);
- function printDocument(report:Report){
+ function printDocument(report:Report,targetWindow?:Window|null){
   let snap:any={};try{snap=typeof report.snapshot_json==='string'?JSON.parse(report.snapshot_json):report.snapshot_json||{}}catch{}
   const transcript=documentType.endsWith('transcript');
   const admin=documentType.startsWith('admin');
@@ -48,7 +48,7 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
   const student=snap.student||{},summary=snap.summary||{},attendance=snap.attendance||{};
   const main='<header><div><h1>NAVSTAR DIGITAL HUB</h1><b>HOME OF TECHNOCRATS</b><p>'+(transcript?'OFFICIAL ACADEMIC TRANSCRIPT':'OFFICIAL ACADEMIC REPORT CARD')+'</p></div><div><b>'+(transcript?'TRANSCRIPT NO: ':'REPORT CARD NO: ')+esc(no)+'</b>'+(transcript?'<p>Linked Report Card No: '+esc(report.report_card_no)+'</p>':'')+'<p>'+esc(report.period_label)+'</p>'+verify+'</div></header><div class="meta"><section><p><b>Student:</b> '+esc(student.name)+'</p><p><b>Admission No:</b> '+esc(student.admissionNumber)+'</p><p><b>Email:</b> '+esc(student.email)+'</p><p><b>Intake:</b> '+esc(student.intake)+'</p></section><section><p><b>Course:</b> '+esc(snap.course?.title)+'</p><p><b>Period:</b> '+esc(report.period_label)+'</p><p><b>Issued:</b> '+esc(report.issued_at||new Date().toISOString())+'</p></section></div><table><thead><tr>'+headings+'</tr></thead><tbody>'+rows+'</tbody></table><div class="meta"><section><b>'+(transcript?'Grade classification':'Performance summary')+'</b><p>Mean: '+(summary.mean==null?'—':Number(summary.mean).toFixed(1)+'%')+'</p><p>Published graded modules: '+(snap.results||[]).filter((r:any)=>r.result_status==='published').length+' / '+(snap.results||[]).length+'</p></section>'+(transcript?'':'<section><b>Grading scale</b><p>'+(snap.grading||[]).map((g:any)=>esc(g.grade)+' '+esc(g.min)+'–'+esc(g.max)).join(' · ')+'</p></section>')+'</div>'+(transcript?'':'<section><b>Tutor comments:</b> '+esc(snap.tutorComment||'')+'<p><b>Principal / Administrator comments:</b> '+esc(snap.principalComment||'')+'</p><p><b>Recommendation:</b> '+esc(snap.recommendation||'Pending academic review')+'</p><p><b>Attendance:</b> '+(Number(attendance.percentage||0).toFixed(1))+'% ('+Number(attendance.present||0)+' present, '+Number(attendance.late||0)+' late, '+Number(attendance.absent||0)+' absent)</p></section>')+'<footer>Navstar Digital Hub · Academic Records · '+(report.status==='published'?'Published official record':'Draft for internal review')+'</footer>';
   const adminPage=admin?'<div class="admin-page"><h1>ADMIN COPY — INTERNAL USE ONLY</h1><p>This page is not issued to the student.</p><div class="meta"><section><h3>FINANCIAL POSITION</h3><p>Fees: KSh '+Number(summary.fee||0).toLocaleString()+'</p><p>Paid: KSh '+Number(summary.paid||0).toLocaleString()+'</p><p>Balance: KSh '+Number(summary.balance||0).toLocaleString()+'</p><p>Payment completion: '+Number(summary.paymentPercentage||0).toFixed(1)+'%</p></section><section><h3>ATTENDANCE & FLAGS</h3><p>Attendance: '+Number(attendance.percentage||0).toFixed(1)+'%</p><p>Present: '+Number(attendance.present||0)+' · Late: '+Number(attendance.late||0)+' · Absent: '+Number(attendance.absent||0)+'</p><p>Academic status: '+esc(report.status)+'</p><p>Internal notes: '+esc(snap.principalComment||'None recorded')+'</p></section></div><h3>INTERNAL COMMENTS</h3><p>Tutor: '+esc(snap.tutorComment||'None recorded')+'</p><p>Administrator: '+esc(snap.principalComment||'None recorded')+'</p><p>Recommendation: '+esc(snap.recommendation||'Pending academic review')+'</p></div>':'';
-  const w=window.open('','_blank','width=1000,height=1200');if(!w){setNotice('Please allow pop-ups to generate and download the PDF.');return;}
+  const w=targetWindow||window.open('','_blank','width=1000,height=1200');if(!w){setNotice('Please allow pop-ups to generate and download the PDF.');return;}
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(no)+'</title><style>@page{size:A4;margin:12mm}body{font:11px Arial;color:#14213d}header{display:flex;justify-content:space-between;border-bottom:3px solid #087eaa;padding-bottom:12px}h1{font-size:20px;color:#082b59;margin:0}table{width:100%;border-collapse:collapse;margin:14px 0}th,td{border:1px solid #ccd6e2;padding:6px;text-align:left;font-size:9px}th{background:#eaf4fb}.meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}section{border:1px solid #ccd6e2;padding:10px;margin:10px 0}.draft{color:#b45309;font-weight:bold}footer{margin-top:24px;border-top:1px solid #ccd6e2;padding-top:10px;font-size:9px}.admin-page{page-break-before:always;border:3px solid #b91c1c;padding:18px;color:#7f1d1d}.admin-page h1{color:#b91c1c;font-size:24px}.admin-page section{border-color:#fecaca}.admin-page h3{color:#991b1b}</style></head><body>'+main+adminPage+'<script>window.onload=()=>window.print()</script></body></html>');
   w.document.close();
  }
@@ -58,6 +58,7 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
   if(scope==='individual'&&!studentId){setNotice('Select a student first.');return;}
   if(scope==='intake'&&!intake){setNotice('Select an intake first.');return;}
   if(!targets.length){setNotice('No active students match the selected generation scope.');return;}
+  const printWindow=scope==='individual'?window.open('','_blank','width=1000,height=1200'):null;
   setBusy(true);setNotice('Generating documents for '+targets.length+' active student(s)…');setGenerated([]);setSkipped(0);setFailed(0);
   let skipCount=0,failCount=0;const ids:string[]=[];
   try{
@@ -68,8 +69,8 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
    const list=await fetch('/api/academic-workspace?action=report-cards',{credentials:'same-origin'});const data=await list.json();const rows:Report[]=(data.reportCards||[]).filter((r:Report)=>ids.includes(r.id));
    setGenerated(rows);setSkipped(skipCount);setFailed(failCount);setReports(data.reportCards||[]);
    setNotice('Generation finished. '+rows.length+' document record(s) created; '+skipCount+' existing record(s) skipped; '+failCount+' failed. Admin-generated records remain drafts until approved and published.');
-   if(scope==='individual'&&rows[0])printDocument(rows[0]);
-  }catch(e){setNotice(e instanceof Error?e.message:'Documents could not be generated.');}
+   if(scope==='individual'&&rows[0])printDocument(rows[0],printWindow);else if(printWindow&&!printWindow.closed)printWindow.close();
+  }catch(e){if(scope==='individual'&&typeof printWindow!=='undefined'&&printWindow&&!printWindow.closed)printWindow.close();setNotice(e instanceof Error?e.message:'Documents could not be generated.');}
   finally{setBusy(false);}
  }
  const activeType=types.find(t=>t.id===documentType)!;
