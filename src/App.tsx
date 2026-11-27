@@ -12,6 +12,7 @@ import { LearningPage } from '@/pages/LearningPage';
 import { EnrollmentPage } from '@/pages/EnrollmentPage';
 import { StudentPasswordSetupPage } from '@/pages/StudentPasswordSetupPage';
 import { AdminPage } from '@/pages/AdminPage';
+import { Base44MigrationPage } from '@/pages/Base44MigrationPage';
 import { ServicesPage } from '@/pages/ServicesPage';
 import { DonationsPage } from '@/pages/DonationsPage';
 import { PortalsPage } from '@/pages/PortalsPage';
@@ -183,6 +184,7 @@ function AppShell() {
             <Route path="/admin-reset" element={<Navigate to="/student-recovery" replace />} />
             <Route path="/enroll/:id" element={<EnrollmentPage />} />
             <Route path="/admin" element={<PortalMaintenanceGate role="admin"><AdminPage /></PortalMaintenanceGate>} />
+            <Route path="/admin/migration" element={<PortalMaintenanceGate role="admin"><Base44MigrationPage /></PortalMaintenanceGate>} />
             <Route path="/admin/community" element={<PortalMaintenanceGate role="admin"><AdminCommunityPage /></PortalMaintenanceGate>} />
             <Route path="/admin/receipts" element={<PortalMaintenanceGate role="admin"><PaymentReceiptsPage /></PortalMaintenanceGate>} />
             <Route path="/payment-receipt/:id" element={<PaymentReceiptsPage />} />
