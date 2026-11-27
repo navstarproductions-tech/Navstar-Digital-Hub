@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LearningPage } from '@/pages/LearningPage';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, CalendarDays, CircleDollarSign, FileText, GraduationCap, Headphones, Users, Wallet } from 'lucide-react';
+import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, CircleDollarSign, FileText, GraduationCap, Headphones, ShieldCheck, Users, Wallet } from 'lucide-react';
 
 type Role='student'|'tutor'|'admissions'|'principal'|'finance'|'admin'|'customer';
 type Enrollment={id:string;full_name:string;course_id:string;course_title?:string;phone?:string;status:string;payment_status:string;created_at:string;course_fee?:number;admission_fee?:number;amount_paid?:number};
@@ -96,10 +96,108 @@ const tabSets:Record<Role,Tab[]> = {
  ],
 };
 
+
+const extraTabs:Partial<Record<Role,Tab[]>>={
+ student:[
+  {id:'academic',label:'Academic Records',title:'Academic records',description:'Open academic records and updates.',href:'/learning',icon:GraduationCap},
+  {id:'projects',label:'Projects',title:'Projects',description:'View and submit project work.',href:'/learning',icon:FileText},
+  {id:'ai',label:'Navstar AI',title:'Student chat assistant',description:'Open the Navstar learning assistant.',href:'/ai',icon:BookOpen},
+  {id:'profile',label:'My Profile',title:'Student profile',description:'Manage personal account details.',href:'/my-account',icon:Users}
+ ],
+ tutor:[
+  {id:'student-profiles',label:'Student Profiles',title:'Student profiles',description:'View learners in assigned course rosters.',href:'/learning',icon:Users},
+  {id:'mark-attendance',label:'Mark Attendance',title:'Mark attendance',description:'Open attendance tools for assigned classes.',href:'/learning',icon:CalendarDays},
+  {id:'student-notes',label:'Student Notes',title:'Student notes',description:'Open learner notes and support records.',href:'/learning',icon:FileText},
+  {id:'upload-notes',label:'Upload Notes',title:'Upload learning materials',description:'Open the tutor learning-material workspace.',href:'/learning',icon:BookOpen},
+  {id:'grade-assignments',label:'Grade Assignments',title:'Grade assignments',description:'Review and grade learner submissions.',href:'/learning',icon:FileText},
+  {id:'ai-grading',label:'AI Grading',title:'AI grading',description:'Open AI-assisted assessment tools.',href:'/learning',icon:BookOpen},
+  {id:'results-entry',label:'Results Entry',title:'Results entry',description:'Open authorised results entry.',href:'/learning',icon:GraduationCap},
+  {id:'exams',label:'Set Exams',title:'Set examinations',description:'Open examination management.',href:'/learning',icon:FileText},
+  {id:'modules',label:'Course Modules',title:'Course modules',description:'Manage course module content.',href:'/learning',icon:BookOpen},
+  {id:'certificates',label:'Cert Recommendation',title:'Certificate recommendations',description:'Review certificate recommendations.',href:'/learning',icon:GraduationCap},
+  {id:'cv',label:'My CV Builder',title:'My CV builder',description:'Create and maintain your tutor CV.',href:'/my-account',icon:FileText}
+ ],
+ finance:[
+  {id:'fee-structures',label:'Fee Structures',title:'Fee structures',description:'Review approved student fee structures.',href:'/admin',icon:FileText},
+  {id:'invoices',label:'Create Invoices',title:'Student invoices',description:'Open authorised student billing.',href:'/admin',icon:FileText},
+  {id:'scholarships',label:'Discounts & Scholarships',title:'Discounts and scholarships',description:'Review scholarships and fee adjustments.',href:'/admin',icon:GraduationCap},
+  {id:'cash-payments',label:'Cash Payments',title:'Cash payments',description:'Review recorded cash payments.',href:'/admin',icon:Wallet},
+  {id:'mpesa-payments',label:'M-Pesa Payments',title:'M-Pesa payments',description:'Review verified M-Pesa payments.',href:'/admin',icon:CircleDollarSign},
+  {id:'bank-payments',label:'Bank Payments',title:'Bank payments',description:'Review bank payment records.',href:'/admin',icon:CircleDollarSign},
+  {id:'pending-payments',label:'Pending Payments',title:'Pending payments',description:'Review payments awaiting confirmation.',href:'/admin',icon:Wallet},
+  {id:'paid-students',label:'Paid Students',title:'Paid student accounts',description:'Review fully paid student fee accounts.',href:'/admin',icon:Users},
+  {id:'unpaid-students',label:'Unpaid Students',title:'Unpaid student accounts',description:'Review student accounts with balances.',href:'/admin',icon:Users},
+  {id:'defaulters',label:'Defaulters',title:'Fee defaulters',description:'Review overdue fee balances.',href:'/admin',icon:Users},
+  {id:'installments',label:'Installment Plans',title:'Installment plans',description:'Review student fee instalments.',href:'/admin',icon:FileText},
+  {id:'receipts',label:'All Receipts',title:'Receipts centre',description:'Review issued payment receipts.',href:'/admin',icon:FileText},
+  {id:'generate-receipt',label:'Generate Receipt',title:'Generate receipt',description:'Open the authorised receipt workflow.',href:'/admin',icon:FileText},
+  {id:'verify-receipt',label:'Receipt Verification',title:'Receipt verification',description:'Verify issued receipts.',href:'/admin',icon:ShieldCheck},
+  {id:'documents',label:'Fee Documents',title:'Fee documents',description:'Open published fee documents.',href:'/admin',icon:FileText},
+  {id:'expenses',label:'All Expenses',title:'Expense management',description:'Review authorised expense records.',href:'/admin',icon:Wallet},
+  {id:'add-expense',label:'Add Expense',title:'Add expense',description:'Open the authorised expense-entry workflow.',href:'/admin',icon:Wallet},
+  {id:'approve-expense',label:'Approve Expenses',title:'Approve expenses',description:'Review expenses awaiting approval.',href:'/admin',icon:CheckCircle2},
+  {id:'payslips',label:'Payslips',title:'Payslips',description:'Review authorised staff payslips.',href:'/admin',icon:FileText},
+  {id:'deductions',label:'Deductions',title:'Payroll deductions',description:'Review payroll deductions.',href:'/admin',icon:FileText},
+  {id:'income-stmt',label:'Income Statement',title:'Income statement',description:'Open financial statements.',href:'/admin',icon:FileText},
+  {id:'balance',label:'Balance Sheet',title:'Balance sheet',description:'Open financial statements.',href:'/admin',icon:FileText},
+  {id:'cashflow',label:'Cash Flow',title:'Cash flow',description:'Open financial statements.',href:'/admin',icon:FileText},
+  {id:'banking',label:'Bank Accounts',title:'Bank accounts',description:'Review institution banking records.',href:'/admin',icon:CircleDollarSign},
+  {id:'reconcile',label:'Reconciliation',title:'Payment reconciliation',description:'Compare provider receipts with internal records.',href:'/admin',icon:CircleDollarSign},
+  {id:'daily-reports',label:'Daily Revenue',title:'Daily revenue',description:'Open daily financial reporting.',href:'/admin',icon:FileText},
+  {id:'monthly-reports',label:'Monthly Revenue',title:'Monthly revenue',description:'Open monthly financial reporting.',href:'/admin',icon:FileText},
+  {id:'annual-reports',label:'Annual Revenue',title:'Annual revenue',description:'Open annual financial reporting.',href:'/admin',icon:FileText},
+  {id:'profit-loss',label:'Profit & Loss',title:'Profit and loss',description:'Open financial reporting.',href:'/admin',icon:FileText},
+  {id:'inventory',label:'Inventory',title:'Inventory',description:'Open the central inventory workspace.',href:'/admin',icon:BookOpen},
+  {id:'settings',label:'Settings',title:'Finance settings',description:'Settings are controlled by authorised administrators.',href:'/admin',icon:CircleDollarSign}
+ ]
+};
+type NavGroup={id:string;label:string;items:string[]};
+const navGroups:Partial<Record<Role,NavGroup[]>>={
+ student:[
+  {id:'home',label:'Home',items:['overview','applications','notifications']},
+  {id:'academics',label:'Academics',items:['academic','courses']},
+  {id:'assignments',label:'Assignments',items:['assignments','projects']},
+  {id:'finance',label:'Finance',items:['fees']},
+  {id:'chat',label:'Chat',items:['support','ai']},
+  {id:'settings',label:'Settings',items:['profile']}
+ ],
+ tutor:[
+  {id:'dashboard',label:'Dashboard',items:['overview']},
+  {id:'classes',label:'Class Management',items:['classes','timetable','online-classes']},
+  {id:'students',label:'Students',items:['student-profiles','mark-attendance','attendance','student-notes']},
+  {id:'materials',label:'Learning Materials',items:['upload-notes','resources']},
+  {id:'assessments',label:'Assessments',items:['assignments','grade-assignments','ai-grading','results-entry','exams']},
+  {id:'modules',label:'Course Modules',items:['modules']},
+  {id:'communication',label:'Communication',items:['messages']},
+  {id:'certificates',label:'Cert Recommendation',items:['certificates']},
+  {id:'cv',label:'My CV Builder',items:['cv']},
+  {id:'reports',label:'Reports',items:['reports']}
+ ],
+ finance:[
+  {id:'dashboard',label:'Dashboard',items:['overview']},
+  {id:'billing',label:'Student Billing',items:['fee-structures','invoices','scholarships']},
+  {id:'payments',label:'Payments',items:['payments','cashouts','cash-payments','mpesa-payments','bank-payments','pending-payments']},
+  {id:'fees',label:'Fee Tracking',items:['fees','paid-students','unpaid-students','defaulters','installments']},
+  {id:'receipts',label:'Receipts Center',items:['receipts','generate-receipt','verify-receipt']},
+  {id:'documents',label:'Fee Documents',items:['documents']},
+  {id:'expenses',label:'Expense Management',items:['expenses','add-expense','approve-expense']},
+  {id:'payroll',label:'Payroll',items:['payroll','payslips','deductions']},
+  {id:'accounting',label:'Accounting',items:['accounting','income-stmt','balance','cashflow']},
+  {id:'banking',label:'Banking',items:['banking','reconcile']},
+  {id:'reports',label:'Reports & Analytics',items:['reports','daily-reports','monthly-reports','annual-reports','profit-loss']},
+  {id:'inventory',label:'Inventory',items:['inventory']},
+  {id:'settings',label:'Settings',items:['settings']}
+ ]
+};
+
 export function PortalWorkspaceTabs({role,name,enrollments,overview,payments,cashouts,onPay,payingId=''}:Props){
  const [active,setActive]=useState('overview');
- const tabs=tabSets[role]||tabSets.student;
+ const tabs=[...(tabSets[role]||tabSets.student),...(extraTabs[role]||[])];
+ const groups=(navGroups[role]||tabs.map(tab=>({id:tab.id,label:tab.label,items:[tab.id]}))).slice();
+ if(role==='tutor'||role==='finance')groups.sort((a,b)=>a.id==='dashboard'?-1:b.id==='dashboard'?1:a.label.localeCompare(b.label));
  const current=tabs.find(tab=>tab.id===active)||tabs[0];
+ const currentGroup=groups.find(group=>group.items.includes(active))||groups[0];
+ const visibleGroupTabs=(currentGroup?.items||[]).map(id=>tabs.find(tab=>tab.id===id)).filter((tab):tab is Tab=>Boolean(tab)).sort((a,b)=>a.label.localeCompare(b.label));
  const embeddedLearning=(role==='tutor'&&['classes','resources','assignments','progress'].includes(active))||(role==='student'&&['courses','assignments'].includes(active));
  const accentByRole:Record<Role,string>={student:'bg-blue-800',tutor:'bg-blue-800',admissions:'bg-blue-800',principal:'bg-blue-800',finance:'bg-blue-800',admin:'bg-blue-800',customer:'bg-blue-800'};
  const activeAccent=accentByRole[role]||'bg-blue-800';
@@ -112,9 +210,14 @@ export function PortalWorkspaceTabs({role,name,enrollments,overview,payments,cas
    ? [['Verified payments',payments.length],['Cashout requests',cashouts.length],['Verified collections',`KSh ${(overview?.verifiedPayments||0).toLocaleString()}`],['Verified donations',`KSh ${(overview?.verifiedDonations||0).toLocaleString()}`]]
    : [['Students',overview?.students??'—'],['Applications',overview?.applications??'—'],['Active courses',overview?.courses??'—'],['Verified payments',`KSh ${(overview?.verifiedPayments||0).toLocaleString()}`]];
  return <section className="w-full min-w-0 space-y-5">
-  <nav aria-label={`${role} portal sections`} className="sticky top-0 z-30 flex w-full gap-2 overflow-x-auto rounded-2xl border border-blue-100 bg-white/95 p-2 shadow-lg backdrop-blur-xl">
-   {tabs.map(tab=>{const Icon=tab.icon;return <button key={tab.id} type="button" onClick={()=>setActive(tab.id)} aria-current={active===tab.id?'page':undefined} className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition sm:text-sm ${active===tab.id?activeAccent+' text-white shadow-md':'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}><Icon className="h-4 w-4"/>{tab.label}</button>;})}
-  </nav>
+  <div className="sticky top-0 z-30 space-y-2 rounded-2xl border border-blue-100 bg-white/95 p-2 shadow-lg backdrop-blur-xl">
+   <nav aria-label={role+' portal categories'} className="flex w-full gap-1.5 overflow-x-auto">
+    {groups.map(group=><button key={group.id} type="button" onClick={()=>setActive(group.items[0])} aria-current={currentGroup?.id===group.id?'page':undefined} className={'shrink-0 rounded-xl px-3 py-2.5 text-xs font-extrabold transition sm:text-sm '+(currentGroup?.id===group.id?activeAccent+' text-white shadow-md':'text-slate-600 hover:bg-slate-50')}>{group.label}</button>)}
+   </nav>
+   {visibleGroupTabs.length>1&&<nav aria-label={(currentGroup?.label||role)+' sections'} className="flex w-full gap-1.5 overflow-x-auto border-t border-slate-100 pt-2">
+    {visibleGroupTabs.map(tab=>{const Icon=tab.icon;return <button key={tab.id} type="button" onClick={()=>setActive(tab.id)} aria-current={active===tab.id?'page':undefined} className={'inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition '+(active===tab.id?'bg-blue-50 text-blue-900 ring-1 ring-blue-100':'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}><Icon className="h-3.5 w-3.5"/>{tab.label}</button>;})}
+   </nav>}
+  </div>
   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-cyan-800">{role} portal · {name}</p><h2 className="mt-1 text-xl font-extrabold text-slate-950">{current.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{current.description}</p></div>{current.href&&!embeddedLearning&&<Link to={current.href} className={"inline-flex items-center gap-2 rounded-lg " + activeAccent + " px-4 py-2.5 text-sm font-bold text-white hover:opacity-90"}>Open workspace <ArrowRight className="h-4 w-4"/></Link>}</div>
    {embeddedLearning&&<div className="mt-5 min-w-0"><LearningPage section={active}/></div>}
