@@ -44,11 +44,23 @@ export async function onRequestGet({ request, env }) {
     SELECT u.id, u.name, u.email, COALESCE(p.portal_role,u.role) AS role, u.status, u.created_at,
       p.staff_id AS staffId, p.profile_photo_url AS profilePhotoUrl, p.national_id AS nationalId, p.phone, p.citizenship, p.country, p.province, p.county,
       p.sub_county AS subCounty, p.constituency, p.ward, p.location, p.sub_location AS subLocation,
-      p.date_of_birth AS dateOfBirth, p.gender, p.department, p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn, p.address, (SELECT e.course_id FROM enrollments e WHERE lower(e.email)=lower(u.email) AND e.status='accepted' ORDER BY e.created_at DESC LIMIT 1) AS activeCourseId
+      p.date_of_birth AS dateOfBirth, p.gender, p.department, p.job_title AS jobTitle, p.employment_type AS employmentType, p.joined_on AS joinedOn, p.address, (SELECT e.course_id FROM enrollments e WHERE lower(e.email)=lower(u.email) AND e.status='accepted' ORDER BY e.created_at DESC LIMIT 1) AS activeCourseId,
+      NULL AS enrollmentId, 0 AS pendingActivation
     FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id
     ORDER BY u.created_at DESC LIMIT 300
   `).all();
-  return json({ users: users.results ?? [] });
+  const missingAccounts = await env.DB.prepare(`
+    SELECT 'pending:' || e.id AS id,e.full_name AS name,e.email,'student' AS role,'pending_activation' AS status,e.created_at,
+      NULL AS staffId,NULL AS profilePhotoUrl,e.identity_number AS nationalId,e.phone,NULL AS citizenship,'Kenya' AS country,NULL AS province,
+      e.county,NULL AS subCounty,NULL AS constituency,NULL AS ward,e.town AS location,NULL AS subLocation,e.date_of_birth AS dateOfBirth,
+      e.gender,NULL AS department,NULL AS jobTitle,e.study_mode AS employmentType,NULL AS joinedOn,e.address,e.course_id AS activeCourseId,
+      e.id AS enrollmentId,1 AS pendingActivation
+    FROM enrollments e
+    WHERE e.status='accepted'
+      AND NOT EXISTS(SELECT 1 FROM users u WHERE lower(u.email)=lower(e.email) AND u.role='student')
+    ORDER BY e.created_at DESC LIMIT 300
+  `).all();
+  return json({ users: [...(users.results ?? []), ...(missingAccounts.results ?? [])] });
 }
 
 export async function onRequestPost({ request, env }) {
