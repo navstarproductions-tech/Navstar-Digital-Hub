@@ -1,6 +1,7 @@
 import { json } from '../_shared/http.js';
 
-const BACKGROUND_KEYS = [
+const BRANDING_KEYS = [
+  'logoAssetUrl',
   'loginBackgroundUrl',
   'adminGateBackgroundUrl',
   'customerGateBackgroundUrl',
@@ -19,6 +20,6 @@ export async function onRequestGet({ env }) {
     settings = {};
   }
   const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
-  const safeBranding = Object.fromEntries(BACKGROUND_KEYS.map(key => [key, typeof branding[key] === 'string' ? branding[key] : '']));
+  const safeBranding = Object.fromEntries(BRANDING_KEYS.map(key => [key, typeof branding[key] === 'string' ? branding[key] : '']));
   return json({ branding: safeBranding }, 200, { 'Cache-Control': 'no-store' });
 }
