@@ -802,15 +802,22 @@ export function AdminPage() {
 
   const updateApplicationStatus = async (applicationId: string, status: string) => {
     try {
-      const response = await fetch(`/api/enrollments/${encodeURIComponent(applicationId)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      const result = await response.json() as { error?: string; status?: string };
-      if (!response.ok) throw new Error(result.error ?? 'Application status could not be updated.');
+      let response: Response;
+      if (status === 'accepted') {
+        response = await fetch('/api/admin/enrollment-decisions', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enrollmentId: applicationId, action: 'accept', reason: 'Accepted through the Admissions application review.' }),
+        });
+      } else {
+        response = await fetch(`/api/enrollments/${encodeURIComponent(applicationId)}`, {
+          method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+      }
+      const result = await response.json() as { error?: string; status?: string; saved?: boolean };
+      if (!response.ok || (status === 'accepted' && !result.saved)) throw new Error(result.error ?? 'Application status could not be updated.');
       setApplications((current) => current.map((item) => item.id === applicationId ? { ...item, status: result.status ?? status } : item));
-      setNotice(status === 'accepted' ? 'Application accepted. The learner can now access the course in the Learning Workspace.' : 'Application status updated.');
+      setNotice(status === 'accepted' ? 'Admission confirmed. A student account and profile have been created, secure portal setup instructions sent, and the learner moved to Students → Student Status.' : 'Application status updated.');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Application status could not be updated.');
     }
