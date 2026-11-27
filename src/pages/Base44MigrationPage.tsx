@@ -3,8 +3,7 @@ import { ArrowLeft, Database, Download, FileJson, FileUp, RefreshCw, Search, Shi
 import { Link } from 'react-router-dom';
 
 const ENTITY_NAMES = ['Enrollment','FeeStructure','FeePayment','AdditionalFee','SystemUser','StaffApplication'] as const;
-type EntityName = typeof ENTITY_NAMES[number];
-type Bundle = { format: string; version: number; exportedAt?: string; source?: string; entities: Partial<Record<EntityName, Record<string, unknown>[]>> };
+type Bundle = { format?: string; version?: number; exportedAt?: string; source?: string; entities: Record<string, Record<string, unknown>[]> };
 const blankBundle: Bundle = {
   format: 'navstar-base44-migration',
   version: 1,
@@ -34,7 +33,8 @@ export function Base44MigrationPage() {
   const [selectedBatch, setSelectedBatch] = useState('');
   const [archiveError, setArchiveError] = useState('');
 
-  const counts = useMemo(() => Object.fromEntries(ENTITY_NAMES.map(name => [name, bundle?.entities?.[name]?.length || 0])), [bundle]);
+  const entityNames = useMemo(() => Object.keys(bundle?.entities || {}).sort((a,b)=>a.localeCompare(b)), [bundle]);
+  const counts = useMemo(() => Object.fromEntries(entityNames.map(name => [name, bundle?.entities?.[name]?.length || 0])), [bundle, entityNames]);
   const visibleArchiveRecords = useMemo(() => {
     const records = archive?.records || [];
     const query = archiveSearch.trim().toLowerCase();
@@ -52,18 +52,26 @@ export function Base44MigrationPage() {
     try {
       if (!file.name.toLowerCase().endsWith('.json')) throw new Error('Please select the single Navstar migration JSON file.');
       if (file.size > 25 * 1024 * 1024) throw new Error('The migration file is larger than 25 MB. Export a smaller JSON bundle.');
-      const parsed = JSON.parse(await file.text()) as Bundle;
-      if (parsed?.format !== 'navstar-base44-migration' || parsed?.version !== 1 || !parsed.entities || typeof parsed.entities !== 'object') {
-        throw new Error('This file is not a supported Navstar migration bundle. Download the template and use its exact format.');
-      }
-      for (const name of ENTITY_NAMES) {
-        const rows = parsed.entities[name];
-        if (rows !== undefined && (!Array.isArray(rows) || rows.some(row => !row || typeof row !== 'object' || Array.isArray(row)))) {
-          throw new Error(name + ' must be an array of record objects.');
+      const raw = JSON.parse(await file.text()) as Record<string, unknown>;
+      const candidate = (raw.entities && typeof raw.entities === 'object' ? raw.entities :
+        raw.data && typeof raw.data === 'object' ? raw.data : raw) as Record<string, unknown>;
+      const normalized: Record<string, Record<string, unknown>[]> = {};
+      for (const [entityName, value] of Object.entries(candidate)) {
+        if (['format','version','exportedAt','exported_at','source','metadata','schema'].includes(entityName)) continue;
+        if (Array.isArray(value)) {
+          if (value.some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
+            throw new Error('Entity "' + entityName + '" contains a value that is not a record object. No records have been uploaded.');
+          }
+          normalized[entityName] = value as Record<string, unknown>[];
+        } else if (value && typeof value === 'object' && Array.isArray((value as Record<string, unknown>).items)) {
+          const rows = (value as {items: unknown[]}).items;
+          if (rows.some(row => !row || typeof row !== 'object' || Array.isArray(row))) throw new Error('Entity "' + entityName + '" contains invalid records.');
+          normalized[entityName] = rows as Record<string, unknown>[];
         }
       }
-      const total = ENTITY_NAMES.reduce((sum, name) => sum + (parsed.entities[name]?.length || 0), 0);
-      if (!total) throw new Error('The selected file contains no records.');
+      const total = Object.values(normalized).reduce((sum, rows) => sum + rows.length, 0);
+      if (!Object.keys(normalized).length || !total) throw new Error('No entity arrays containing records were found. Upload the Base44 JSON export (not a PDF, CSV or ZIP file).');
+      const parsed: Bundle = { format: 'navstar-base44-migration', version: 1, exportedAt: String(raw.exportedAt || raw.exported_at || new Date().toISOString()), source: 'Base44', entities: normalized };
       setBundle(parsed); setFileName(file.name);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not read the migration file.');
@@ -86,10 +94,6 @@ export function Base44MigrationPage() {
 
   async function runImport() {
     if (!bundle) return;
-    if (!(bundle.entities.Enrollment?.length)) {
-      setError('This migration package has no student Enrollment records. Upload a complete export containing the student records as well as any fee and staff data.');
-      return;
-    }
     setBusy(true); setError(''); setResult(null);
     try {
       setProgress('Creating a secure one-time transfer session…');
@@ -98,8 +102,9 @@ export function Base44MigrationPage() {
       if (!tokenResponse.ok || !tokenData.token) throw new Error(tokenData.error || 'Could not start the secure import.');
       const token = tokenData.token;
       let transferred = 0;
-      const total = ENTITY_NAMES.reduce((sum, name) => sum + (bundle.entities[name]?.length || 0), 0);
-      for (const name of ENTITY_NAMES) {
+      const names = Object.keys(bundle.entities);
+      const total = names.reduce((sum, name) => sum + (bundle.entities[name]?.length || 0), 0);
+      for (const name of names) {
         const rows = bundle.entities[name] || [];
         for (let offset = 0; offset < rows.length; offset += 100) {
           setProgress('Uploading ' + name + ' records (' + Math.min(offset + 100, rows.length) + ' of ' + rows.length + ')…');
@@ -119,7 +124,7 @@ export function Base44MigrationPage() {
       });
       const completion = await completeResponse.json();
       if (!completeResponse.ok) { const detail = [completion.detail, completion.progress ? 'Import progress: ' + JSON.stringify(completion.progress) : ''].filter(Boolean).join('\\n'); throw new Error([completion.error || 'Operational import did not complete.', detail].filter(Boolean).join('\\n')); }
-      setResult({ ...completion, recordsReceived: transferred, archiveOnlyStaffAccounts: bundle.entities.SystemUser?.length || 0, archiveOnlyStaffApplications: bundle.entities.StaffApplication?.length || 0 });
+      setResult({ ...completion, recordsReceived: transferred, detectedEntities: names.length, detectedEntityNames: names });
       await loadArchive('');
       setProgress('Import completed. Review the saved record totals below.');
     } catch (cause) {
@@ -134,11 +139,11 @@ export function Base44MigrationPage() {
         <Link to="/admin" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-800 hover:underline"><ArrowLeft className="h-4 w-4"/>Back to Admin Portal</Link>
         <header className="rounded-2xl bg-gradient-to-r from-[#09224b] to-[#075b9c] p-6 text-white shadow-lg">
           <div className="flex items-center gap-3"><Database className="h-7 w-7 text-amber-300"/><div><p className="text-xs font-bold uppercase tracking-[.18em] text-cyan-200">Navstar Digital Hub</p><h1 className="text-2xl font-black">Data Import & Export Centre</h1></div></div>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-white/85">Use one JSON package for the full Base44 transfer. Download the standard format, place every exported entity array in its matching section without renaming fields, then upload that one file here. The official site validates, reads and saves the records in batches.</p>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-white/85">Upload your Base44 JSON export. The centre detects every entity array it can read, including entities not yet connected to live modules, and archives all records in batches. Only supported student and fee entities are additionally applied to operational records.</p>
         </header>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex items-start gap-3"><ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-emerald-600"/><div><h2 className="font-bold">1. Download the standard file format</h2><p className="mt-1 text-sm text-slate-600">The template contains all supported sections and their exact entity names. Keep the format and field names unchanged. Put the complete records in the matching arrays; no manual field-by-field editing is required.</p></div></div>
+          <div className="flex items-start gap-3"><ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-emerald-600"/><div><h2 className="font-bold">1. Download the standard file format</h2><p className="mt-1 text-sm text-slate-600">This is an optional example format only. You can upload a Base44 JSON export directly; the system detects entity arrays automatically and does not require you to rename fields.</p></div></div>
           <button onClick={()=>downloadJson('Navstar-Base44-Migration-Template.json',blankBundle)} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-900 hover:bg-blue-100"><Download className="h-4 w-4"/>Download JSON template</button>
           <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {ENTITY_NAMES.map(name=><div key={name} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><p className="text-sm font-bold">{name}</p><p className="text-xs text-slate-500">{name==='Enrollment'?'Student records':name==='FeeStructure'?'Course fee structures':name==='FeePayment'?'Fee payment history':name==='AdditionalFee'?'Student additional fees':name==='SystemUser'?'Staff user accounts': 'Staff applications'}</p></div>)}
@@ -150,10 +155,10 @@ export function Base44MigrationPage() {
           <input ref={inputRef} type="file" accept=".json,application/json" className="hidden" onChange={event=>void selectFile(event.target.files?.[0])}/>
           <button onClick={()=>inputRef.current?.click()} disabled={busy} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-50"><UploadCloud className="h-4 w-4"/>Choose migration JSON file</button>
           {fileName&&<p className="mt-3 break-all text-sm font-semibold text-slate-700"><FileJson className="mr-2 inline h-4 w-4"/>{fileName}</p>}
-          {bundle&&<div className="mt-4 rounded-xl border border-slate-200 p-4"><h3 className="font-bold">Package validation passed</h3><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{ENTITY_NAMES.map(name=><div key={name} className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">{name}</p><p className="text-xl font-black tabular-nums">{counts[name]}</p></div>)}</div><p className="mt-3 text-xs text-slate-500">Total records: {ENTITY_NAMES.reduce((sum,name)=>sum+(counts[name] as number),0).toLocaleString()}</p><button onClick={()=>void runImport()} disabled={busy} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{busy?'Importing…':'Import and save all records'}</button></div>}
+          {bundle&&<div className="mt-4 rounded-xl border border-slate-200 p-4"><h3 className="font-bold">Complete export detected</h3><p className="mt-1 text-sm text-slate-600">{entityNames.length} entities found. All detected entity names and record counts are listed below.</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{entityNames.map(name=><div key={name} className="rounded-lg bg-slate-50 p-3"><p className="break-words text-xs text-slate-500">{name}</p><p className="text-xl font-black tabular-nums">{counts[name]}</p></div>)}</div><p className="mt-3 text-xs text-slate-500">Total records: {entityNames.reduce((sum,name)=>sum+(counts[name] as number),0).toLocaleString()}</p><button onClick={()=>void runImport()} disabled={busy} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{busy?'Importing…':'Import and save all records'}</button></div>}
           {busy&&<p role="status" className="mt-4 rounded-lg bg-blue-50 p-3 text-sm font-medium text-blue-900">{progress}</p>}
           {error&&<p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-          {result&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h3 className="font-bold text-emerald-950">Import completed</h3><p className="mt-1 text-sm text-emerald-900">Records received: {String(result.recordsReceived ?? 0)}. Student enrolments imported: {String(result.studentEnrollmentsImported ?? 0)}. Fee structures saved: {String(result.feeStructuresImported ?? 0)}. Fee payments saved: {String(result.feePaymentsImported ?? 0)}.</p><p className="mt-2 text-xs text-emerald-900">Staff accounts received for secure archive: {String(result.archiveOnlyStaffAccounts ?? 0)}. Staff applications received for secure archive: {String(result.archiveOnlyStaffApplications ?? 0)}. Staff records are preserved in the migration archive and are not yet activated as operational staff/application records.</p>{Array.isArray(result.warnings)&&result.warnings.length>0&&<ul className="mt-3 list-disc pl-5 text-xs text-amber-900">{(result.warnings as string[]).map((warning,index)=><li key={index}>{warning}</li>)}</ul>}</div>}
+          {result&&<div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h3 className="font-bold text-emerald-950">Import completed</h3><p className="mt-1 text-sm text-emerald-900">Records received: {String(result.recordsReceived ?? 0)}. Student enrolments imported: {String(result.studentEnrollmentsImported ?? 0)}. Fee structures saved: {String(result.feeStructuresImported ?? 0)}. Fee payments saved: {String(result.feePaymentsImported ?? 0)}.</p><p className="mt-2 text-xs text-emerald-900">All detected entities: {String(result.detectedEntities ?? 0)}. Records received and archived from the uploaded export: {String(result.recordsReceived ?? 0)}. Additional entities are preserved in the archive even when no live module mapping exists.</p>{Array.isArray(result.warnings)&&result.warnings.length>0&&<ul className="mt-3 list-disc pl-5 text-xs text-amber-900">{(result.warnings as string[]).map((warning,index)=><li key={index}>{warning}</li>)}</ul>}</div>}
         </section>
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
