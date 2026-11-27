@@ -87,7 +87,7 @@ export function LearningPage({section}:{section?:string}) {
   const isAdmin = ['admin','principal','tutor'].includes(data?.role || '');
   const isStudent = data?.role === 'student';
   const showModules = !activeSection || ['courses','resources'].includes(activeSection);
-  const showAssignments = !activeSection || activeSection === 'assignments';
+  const showAssignments = !activeSection || ['assignments','exams'].includes(activeSection);
   const showAcademic = !activeSection || ['classes','progress'].includes(activeSection);
 
   const sendAction = async (payload: Record<string, unknown>) => {
