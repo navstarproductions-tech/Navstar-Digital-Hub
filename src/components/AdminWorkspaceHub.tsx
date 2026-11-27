@@ -119,7 +119,7 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
  const [galleryCategory,setGalleryCategory]=useState('CEO');
  const [galleryCaption,setGalleryCaption]=useState('');
  const definition=definitions[section];
- const endpoint=section==='pos'&&['Scan & Sells','Print Barcode Labels','Generate Missing Barcodes'].includes(subtab)?undefined:section==='pos'&&subtab==='Packing & Delivery'?'/api/admin/service-requests':section==='finance'&&subtab==='Cashouts'?'/api/admin/cashouts':section==='fees'&&subtab==='Enrollment Fee Offers'?undefined:definition?.endpoint;
+ const endpoint=section==='fingerprint'?'/api/admin/workspaces?section=fingerprint&subtab='+encodeURIComponent(subtab):section==='navstar-analytics'?'/api/admin/workspaces?section=navstar-analytics&subtab='+encodeURIComponent(subtab):section==='pos'&&['Scan & Sells','Print Barcode Labels','Generate Missing Barcodes'].includes(subtab)?undefined:section==='pos'&&subtab==='Packing & Delivery'?'/api/admin/service-requests':section==='finance'&&subtab==='Cashouts'?'/api/admin/cashouts':section==='fees'&&subtab==='Enrollment Fee Offers'?undefined:definition?.endpoint;
  useEffect(()=>{
   let live=true;
   if(!endpoint){setRecords([]);return;}
@@ -170,7 +170,7 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
  const source=definition?.source||'Dedicated register for this section';
  const columns=section==='student-status'?['name','email','staffId','status']:section==='pos'&&subtab==='Packing & Delivery'?['reference','customerName','serviceName','status','createdAt']:section==='finance'&&subtab==='Cashouts'?['reference','amount','status','created_at','requested_by']:section==='users'&&subtab==='Staff IDs & Roles'?['name','staffId','role','department','status']:definition?.columns||['Record','Category','Status','Updated'];
  const rows=filtered.slice(0,30);
- if(section==='customer-accounts'||(!endpoint&&!['navstar-analytics','fingerprint'].includes(section)))return <AdminWorkspaceRecords section={section} subtab={subtab}/>;
+ if(section==='customer-accounts'||section==='fingerprint'||section==='navstar-analytics'||(!endpoint))return <AdminWorkspaceRecords section={section} subtab={subtab/>;
  const isConnected=Boolean(endpoint)||['courses','school','student-status','employees','applications','enrollment-summary','services'].includes(section);
  return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -195,7 +195,7 @@ export function AdminWorkspaceHub({section,subtab,courses,users,applications,ser
   <div className="overflow-x-auto rounded-xl border border-slate-200">
    <table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr>{columns.map(column=><th key={column} className="p-3">{titleCase(column)}</th>)}</tr></thead><tbody>{rows.map((row,index)=><tr key={String(row.id||index)} className="border-t border-slate-100">{columns.map(column=><td key={column} className="max-w-[260px] truncate p-3 text-slate-700">{String(row[column]??'—')}</td>)}</tr>)}{!loading&&rows.length===0&&<tr><td colSpan={columns.length} className="p-7 text-center text-sm text-slate-500">{error?'Records could not be loaded.':isConnected?'No records match this view yet.':'No records have been connected to this register yet. No sample records have been invented.'}</td></tr>}</tbody></table>
   </div>
-  {!endpoint&&<div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><Database className="mt-0.5 h-4 w-4 shrink-0"/><p><strong>Backend connection required:</strong> This workspace now has its own screen and purpose, but its dedicated save, edit, approval and reporting service is not yet present. I have not stored records in an unrelated register or displayed fabricated data.</p></div>}
+  
   <div className="flex flex-wrap items-center gap-2 border-t pt-3 text-xs text-slate-500"><FileText className="h-4 w-4"/>This is the {subtab||titleCase(section)} workspace. Its view is kept separate from other tabs.</div>
  </section>;
 }
