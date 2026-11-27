@@ -1,7 +1,7 @@
 import { sha256 } from '../../../_shared/auth.js';
 import { error, json, uuid } from '../../../_shared/http.js';
 
-const allowedOrigins = new Set(['https://navstardigitalhub.base44.app']);
+const allowedOrigins = new Set(['https://navstardigitalhub.base44.app', 'https://app.base44.com']);
 const corsHeaders = (origin) => ({
   'Access-Control-Allow-Origin': allowedOrigins.has(origin) ? origin : 'null',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -62,8 +62,8 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return new Response(JSON.stringify({ error: 'Invalid JSON payload.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } }); }
   const entityName = String(body?.entityName || '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 63);
-  const allowedEntities = new Set(['Enrollment', 'FeeStructure', 'FeePayment', 'AdditionalFee']);
-  if (!allowedEntities.has(entityName)) return new Response(JSON.stringify({ error: 'This migration accepts student enrolments and fee records only (Enrollment, FeeStructure, FeePayment).' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
+  const allowedEntities = new Set(['Enrollment', 'FeeStructure', 'FeePayment', 'AdditionalFee', 'SystemUser', 'StaffApplication']);
+  if (!allowedEntities.has(entityName)) return new Response(JSON.stringify({ error: 'This migration accepts student enrolments, fee records, staff accounts and staff applications. Passwords and biometric data are excluded; accounts require password reset on the official site.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
   const records = Array.isArray(body?.records) ? body.records : [];
   const batchId = tokenHash;
   if (!entityName || records.length < 1 || records.length > 100) return new Response(JSON.stringify({ error: 'Each batch must contain 1–100 records and a valid entity name.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
