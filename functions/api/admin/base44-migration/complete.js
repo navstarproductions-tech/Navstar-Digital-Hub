@@ -564,6 +564,66 @@ async function importGradingSystem(DB,rows) {
   ].join('|')).join('\n')};
   await DB.prepare("INSERT INTO system_state(key,value) VALUES('admin-configuration',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
 }
+async function importSystemUsers(DB,rows,adminId,c) {
+  const roleMap={tutor:'tutor',admin:'admin',principal:'principal',finance:'finance',admissions:'admissions'};
+  const priority={admin:5,principal:4,finance:3,admissions:2,tutor:1};
+  const grouped=new Map();
+  for(const row of rows){
+    const email=clean(row.email,254).toLowerCase();
+    if(!email)continue;
+    const list=grouped.get(email)||[];list.push(row);grouped.set(email,list);
+  }
+  for(const [email,records] of grouped){
+    const candidates=records.map(row=>({row,role:roleMap[clean(row.role,40).toLowerCase()]})).filter(x=>x.role)
+      .sort((a,b)=>(priority[b.role]||0)-(priority[a.role]||0));
+    if(!candidates.length){c.systemUsersSkipped+=records.length;c.warnings.push('Staff account '+email+' uses an unsupported Base44 role and remains safely archived.');continue;}
+    const selected=candidates[0],source=selected.row,portalRole=selected.role;
+    let user=await DB.prepare("SELECT id,role,status FROM users WHERE lower(email)=lower(?)").bind(email).first();
+    if(user&&user.role==='student'){
+      c.systemUsersSkipped+=records.length;
+      c.warnings.push('Staff account '+email+' was not created because the same email already belongs to a student account.');
+      continue;
+    }
+    if(!user){
+      const credential=await hashPassword(crypto.randomUUID()+crypto.randomUUID());
+      const id='b44staffusr-'+sourceRecordId(source).slice(-20);
+      const baseRole=portalRole==='finance'?'admissions':portalRole;
+      const active=source.is_active===false? 'disabled':'active';
+      await DB.prepare("INSERT OR IGNORE INTO users(id,name,email,role,password_hash,password_salt,must_change_password,status,created_at) VALUES(?,?,?,?,?, ?,1,?,?)")
+        .bind(id,clean(source.full_name||source.name,140)||email, email,baseRole,credential.hash,credential.salt,active,
+          clean(source.created_date,40)||new Date().toISOString()).run();
+      user=await DB.prepare("SELECT id,role,status FROM users WHERE lower(email)=lower(?)").bind(email).first();
+      if(!user){c.systemUsersSkipped+=records.length;continue;}
+      if(user.id===id)c.systemUsersImported++;
+      else c.systemUsersAlreadyPresent++;
+    }else c.systemUsersAlreadyPresent++;
+    const priorProfile=await DB.prepare("SELECT user_id,staff_id FROM user_profiles WHERE user_id=?").bind(user.id).first();
+    if(!priorProfile){
+      let staffId=clean(source.staff_id,40);
+      if(staffId){
+        const collision=await DB.prepare("SELECT user_id FROM user_profiles WHERE staff_id=? AND user_id<>? LIMIT 1").bind(staffId,user.id).first();
+        if(collision)staffId='';
+      }
+      if(!staffId)staffId='B44'+sourceRecordId(source).replace(/[^a-z0-9]/gi,'').slice(-12).toUpperCase();
+      await DB.prepare(`INSERT INTO user_profiles(user_id,staff_id,portal_role,phone,date_of_birth,gender,citizenship,country,province,county,sub_county,ward,location,profile_photo_url,national_id,department,job_title,employment_type,joined_on)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .bind(user.id,staffId,portalRole,clean(source.phone,32)||null,dateOnly(source.date_of_birth)||null,
+          clean(source.gender,30)||null,clean(source.nationality,80)||null,clean(source.country,80)||'Kenya',
+          clean(source.province,80)||null,clean(source.county,80)||null,clean(source.subcounty,80)||null,
+          clean(source.ward,80)||null,clean(source.location,100)||null,clean(source.photo_url,1000)||null,
+          clean(source.national_id,80)||null,portalRole==='tutor'?'Academic':portalRole==='finance'?'Finance':'Administration',
+          clean(source.role,80),source.is_teaching_staff===true?'Teaching':'Non-teaching',
+          dateOnly(source.hire_date)||dateOnly(source.created_date)||null).run();
+    }
+    for(const record of records){
+      const sourceId=sourceRecordId(record);if(!sourceId)continue;
+      await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('SystemUser',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+        .bind(sourceId,user.id,user.id).run();
+    }
+    if(candidates.length<records.length)c.systemUsersSkipped+=records.length-candidates.length;
+  }
+}
+
 async function importStaffApplication(DB,r,adminId,c) {
   const sourceId=sourceRecordId(r);
   const email=clean(r.email,254).toLowerCase();
@@ -813,7 +873,7 @@ export async function onRequestPost({request,env}) {
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
   }
   // A complete export may contain entities beyond student enrolments. Archive-only packages are valid; the operational student/fee importer simply has nothing to process.
-  const c={sourceBatch,sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,legacyQuestionsRecovered:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,staffApplicationsImported:0,staffApplicationsAlreadyPresent:0,staffApplicationsSkipped:0,warnings:[]};
+  const c={sourceBatch,sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,legacyQuestionsRecovered:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,staffApplicationsImported:0,staffApplicationsAlreadyPresent:0,staffApplicationsSkipped:0,systemUsersImported:0,systemUsersAlreadyPresent:0,systemUsersSkipped:0,warnings:[]};
   try {
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
     const sourceCourses=new Map(groups.Course.map(x=>[sourceRecordId(x),x]));
@@ -824,6 +884,7 @@ export async function onRequestPost({request,env}) {
     await importMarksWeights(env.DB,groups.SystemSettings);
     await importGradingSystem(env.DB,groups.GradingSystem);
     for(const module of groups.CourseUnit)await importCourseModule(env.DB,module,tokenRow.created_by,c,sourceCourses);
+    await importSystemUsers(env.DB,groups.SystemUser,tokenRow.created_by,c);
     for(const assignment of groups.ModuleAssignment)await importModuleAssignment(env.DB,assignment,tokenRow.created_by,c,groups.SystemUser);
     for(const exam of groups.Exam)await importExam(env.DB,exam,tokenRow.created_by,c,sourceCourses,sourceModules);
     // Recover legacy exam shells from attempt metadata when Base44 no longer has the parent Exam row.
@@ -943,7 +1004,7 @@ export async function onRequestPost({request,env}) {
       studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,admissionNumbersUpdated:c.admissionNumbersUpdated,admissionNumberConflicts:c.admissionNumberConflicts,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
-      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,examsRecoveredFromAttempts:c.examsRecoveredFromAttempts,legacyQuestionsRecovered:c.legacyQuestionsRecovered,modulesImported:c.modulesImported,modulesAlreadyPresent:c.modulesAlreadyPresent,modulesSkipped:c.modulesSkipped,moduleAssignmentsImported:c.moduleAssignmentsImported,moduleAssignmentsAlreadyPresent:c.moduleAssignmentsAlreadyPresent,moduleAssignmentsSkipped:c.moduleAssignmentsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,assignmentsImported:c.assignmentsImported,assignmentsAlreadyPresent:c.assignmentsAlreadyPresent,assignmentsSkipped:c.assignmentsSkipped,assignmentSubmissionsImported:c.assignmentSubmissionsImported,assignmentSubmissionsAlreadyPresent:c.assignmentSubmissionsAlreadyPresent,assignmentSubmissionsSkipped:c.assignmentSubmissionsSkipped,examAttemptsImported:c.examAttemptsImported,examAttemptsAlreadyPresent:c.examAttemptsAlreadyPresent,examAttemptsSkipped:c.examAttemptsSkipped,examApprovalsImported:c.examApprovalsImported,studentResultsImported:c.studentResultsImported,studentResultsAlreadyPresent:c.studentResultsAlreadyPresent,studentResultsSkipped:c.studentResultsSkipped,marksConflictsImported:c.marksConflictsImported,marksConflictsAlreadyPresent:c.marksConflictsAlreadyPresent,marksConflictsSkipped:c.marksConflictsSkipped,staffApplicationsImported:c.staffApplicationsImported,staffApplicationsAlreadyPresent:c.staffApplicationsAlreadyPresent,staffApplicationsSkipped:c.staffApplicationsSkipped,stagedRecordsProcessed:stagedRows.length,warnings:c.warnings
+      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,examsRecoveredFromAttempts:c.examsRecoveredFromAttempts,legacyQuestionsRecovered:c.legacyQuestionsRecovered,modulesImported:c.modulesImported,modulesAlreadyPresent:c.modulesAlreadyPresent,modulesSkipped:c.modulesSkipped,moduleAssignmentsImported:c.moduleAssignmentsImported,moduleAssignmentsAlreadyPresent:c.moduleAssignmentsAlreadyPresent,moduleAssignmentsSkipped:c.moduleAssignmentsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,assignmentsImported:c.assignmentsImported,assignmentsAlreadyPresent:c.assignmentsAlreadyPresent,assignmentsSkipped:c.assignmentsSkipped,assignmentSubmissionsImported:c.assignmentSubmissionsImported,assignmentSubmissionsAlreadyPresent:c.assignmentSubmissionsAlreadyPresent,assignmentSubmissionsSkipped:c.assignmentSubmissionsSkipped,examAttemptsImported:c.examAttemptsImported,examAttemptsAlreadyPresent:c.examAttemptsAlreadyPresent,examAttemptsSkipped:c.examAttemptsSkipped,examApprovalsImported:c.examApprovalsImported,studentResultsImported:c.studentResultsImported,studentResultsAlreadyPresent:c.studentResultsAlreadyPresent,studentResultsSkipped:c.studentResultsSkipped,marksConflictsImported:c.marksConflictsImported,marksConflictsAlreadyPresent:c.marksConflictsAlreadyPresent,marksConflictsSkipped:c.marksConflictsSkipped,staffApplicationsImported:c.staffApplicationsImported,staffApplicationsAlreadyPresent:c.staffApplicationsAlreadyPresent,staffApplicationsSkipped:c.staffApplicationsSkipped,systemUsersImported:c.systemUsersImported,systemUsersAlreadyPresent:c.systemUsersAlreadyPresent,systemUsersSkipped:c.systemUsersSkipped,stagedRecordsProcessed:stagedRows.length,warnings:c.warnings
     }),{status:200,headers:{...headers,'Content-Type':'application/json'}});
   } catch(cause) {
     console.error('Focused Base44 student/fee migration failed:',String(cause?.message||cause));
