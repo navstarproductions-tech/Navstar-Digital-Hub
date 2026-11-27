@@ -228,6 +228,32 @@ async function handleQuestionPost({request,env}){
   await env.DB.prepare("INSERT INTO exam_runtime_attempts(id,assessment_id,user_id,attempt_number,started_at,expires_at,last_activity_at,served_question_ids_json,option_order_json) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,assessmentId,user.id,attemptNumber,started,expires,started,JSON.stringify(paper.ids),JSON.stringify(paper.optionOrder)).run();
   return json({started:true,attemptId:id,expiresAt:expires,attemptNumber,servedQuestionCount:paper.ids.length});
  }
+ if(action==='grade_runtime_attempt'){
+  const access=await requireRole(request,env,staff);if(access.response)return access.response;
+  const attemptId=safeString(body.attemptId,80),attempt=await env.DB.prepare("SELECT id,status,objective_score FROM exam_runtime_attempts WHERE id=? AND assessment_id=?").bind(attemptId,assessmentId).first();
+  if(!attempt||!['submitted','expired','graded'].includes(attempt.status))return error('This examination attempt is not ready for marking.',404);
+  const answerRows=(await env.DB.prepare('SELECT a.question_id,a.points_awarded,q.question_type,q.points FROM exam_runtime_answers a JOIN course_exam_questions q ON q.id=a.question_id WHERE a.attempt_id=?').bind(attemptId).all()).results||[];
+  const manualMarks=Array.isArray(body.manualMarks)?body.manualMarks:[],markMap=new Map(manualMarks.map(item=>[safeString(item.questionId,80),item]));
+  let total=0,objective=0;
+  for(const row of answerRows){
+   let awarded=Number(row.points_awarded||0);
+   if(!['single_choice','multiple_choice','true_false'].includes(row.question_type)){
+    const supplied=markMap.get(row.question_id);
+    if(supplied){awarded=Number(supplied.pointsAwarded);if(!Number.isInteger(awarded)||awarded<0||awarded>Number(row.points))return error('Enter a whole-number mark between 0 and '+row.points+' for every written answer.');await env.DB.prepare('UPDATE exam_runtime_answers SET points_awarded=?,is_correct=NULL,updated_at=CURRENT_TIMESTAMP WHERE attempt_id=? AND question_id=?').bind(awarded,attemptId,row.question_id).run();}
+    else if(row.points_awarded===null||row.points_awarded===undefined)return error('Mark every written answer before completing this review.');
+   }else objective+=awarded;
+   total+=awarded;
+  }
+  total=Math.max(0,Math.min(paperMaximum,total));
+  const feedback=safeString(body.feedback,3000);
+  await env.DB.prepare("UPDATE exam_runtime_attempts SET status='graded',objective_score=?,total_score=?,last_activity_at=CURRENT_TIMESTAMP WHERE id=?").bind(objective,total,attemptId).run();
+  const configRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first().catch(()=>null);let config={};try{config=JSON.parse(configRow?.value||'{}')}catch{config={};}
+  const gradeText=String(config.grading?.gradeScale||''),bands=gradeText.split(/\r?\n/).map(line=>line.split('|').map(part=>part.trim())).filter(parts=>parts[0]&&parts[2]!==''&&parts[3]!==''&&parts[2]!=='—'&&parts[3]!=='—'&&Number.isFinite(Number(parts[2]))&&Number.isFinite(Number(parts[3]))).map(parts=>({grade:parts[0],min:Number(parts[2]),max:Number(parts[3])}));
+  const targetMaximum=categoryMaximum(assessment.assessment_type,{publishedMaximum:Number(config.grading?.publishedMaximum)||100}),scaled=scaleScore(total,paperMaximum,targetMaximum);
+  await env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,NULL,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=NULL,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points").bind(uuid(),assessmentId,user.id,scaled,feedback||'Written answers marked by tutor/administrator.',user.id,total,targetMaximum).run();
+  await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'exam_runtime_attempt_graded','exam_attempt',attemptId).run().catch(()=>undefined);
+  return json({graded:true,attemptId,objectiveScore:objective,rawScore:total,rawMaximum:paperMaximum,publishedScore:scaled,publishedMaximum:targetMaximum,published:false,feedback});
+ }
  if(action==='save_runtime_answers'){
   if(user.role!=='student')return error('Only students can save examination answers.',403);
   const attemptId=safeString(body.attemptId,80),attempt=await env.DB.prepare("SELECT id,expires_at,served_question_ids_json FROM exam_runtime_attempts WHERE id=? AND assessment_id=? AND user_id=? AND status='in_progress'").bind(attemptId,assessmentId,user.id).first();
