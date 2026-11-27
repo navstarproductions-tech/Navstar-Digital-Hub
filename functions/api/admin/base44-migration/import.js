@@ -70,19 +70,19 @@ export async function onRequestPost({ request, env }) {
   let imported = 0;
   let skipped = 0;
   for (const source of records) {
-    if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return new Response(JSON.stringify({ error: 'Every imported row must be a JSON record object. The batch was rejected before saving.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
     const suppliedId = source.id ?? source._id ?? source.uuid ?? source.ID ?? source.Id;
     const sourceId = String(suppliedId ?? ('auto-' + (await sha256(JSON.stringify(source))))).slice(0, 200);
     const safe = await secureRecord(source);
     const jsonValue = JSON.stringify(safe);
     const write = await env.DB.prepare(`
-      INSERT OR IGNORE INTO base44_legacy_records (id, entity_name, source_id, source_created_at, source_updated_at, record_json, migration_batch)
+      INSERT OR IGNORE INTO base44_legacy_archive_records (id, entity_name, source_id, source_created_at, source_updated_at, record_json, migration_batch)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(uuid(), entityName, sourceId, source.created_date || source.created_at || null, source.updated_date || source.updated_at || null, jsonValue, batchId).run();
     if (Number(write.meta?.changes || 0) > 0) imported += 1;
     else skipped += 1;
   }
   await env.DB.prepare('UPDATE base44_migration_tokens SET records_received=records_received+? WHERE token_hash=?').bind(imported, tokenHash).run();
-  const savedCount = await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_records WHERE migration_batch=? AND entity_name=?').bind(batchId, entityName).first();
+  const savedCount = await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_archive_records WHERE migration_batch=? AND entity_name=?').bind(batchId, entityName).first();
   return new Response(JSON.stringify({ entityName, received: imported, skipped, saved: Number(savedCount?.count || 0), batchId }), { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } });
 }
