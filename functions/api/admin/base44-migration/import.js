@@ -67,12 +67,12 @@ export async function onRequestPost({ request, env }) {
   const records = Array.isArray(body?.records) ? body.records : [];
   const batchId = tokenHash;
   if (!entityName || records.length < 1 || records.length > 100) return new Response(JSON.stringify({ error: 'Each batch must contain 1–100 records and a valid entity name.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
+  if(records.some(source=>!source||typeof source!=='object'||Array.isArray(source)))return new Response(JSON.stringify({error:'Every imported row must be a JSON record object. No records in this batch were saved.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
   let imported = 0;
   let skipped = 0;
   for (const source of records) {
-    if (!source || typeof source !== 'object' || Array.isArray(source)) return new Response(JSON.stringify({ error: 'Every imported row must be a JSON record object. The batch was rejected before saving.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
     const suppliedId = source.id ?? source._id ?? source.uuid ?? source.ID ?? source.Id;
-    const sourceId = String(suppliedId ?? ('auto-' + (await sha256(JSON.stringify(source))))).slice(0, 200);
+    const sourceId = String((typeof suppliedId==='string'||typeof suppliedId==='number')&&String(suppliedId).trim()?String(suppliedId).trim():'auto-'+(await sha256(JSON.stringify(source)))).slice(0, 200);
     const safe = await secureRecord(source);
     const jsonValue = JSON.stringify(safe);
     const write = await env.DB.prepare(`
