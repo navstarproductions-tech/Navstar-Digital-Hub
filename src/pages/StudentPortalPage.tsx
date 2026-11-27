@@ -32,6 +32,8 @@ const kes=(v:number)=>'KSh '+Number(v||0).toLocaleString('en-KE');
 const badge=(v:string)=>['accepted','paid','graded','completed'].includes((v||'').toLowerCase())?'bg-emerald-50 text-emerald-700':['rejected','failed'].includes((v||'').toLowerCase())?'bg-rose-50 text-rose-700':'bg-amber-50 text-amber-800';
 
 export function StudentPortalPage(){
+ const [institutionLogo,setInstitutionLogo]=useState('/Navstar_Official_Logo.jpg');
+ useEffect(()=>{let live=true;fetch('/api/public-branding',{cache:'no-store'}).then(r=>r.json()).then(result=>{if(live&&typeof result?.branding?.logoAssetUrl==='string'&&result.branding.logoAssetUrl)setInstitutionLogo(result.branding.logoAssetUrl)}).catch(()=>undefined);return()=>{live=false}},[]);
  const navigate=useNavigate();
  const [user,setUser]=useState<User|null>(null),[profile,setProfile]=useState<Profile|null>(null),[enrollments,setEnrollments]=useState<Enrollment[]>([]),[courses,setCourses]=useState<Course[]>([]),[notices,setNotices]=useState<Notice[]>([]),[academic,setAcademic]=useState<any>({timetable:[],attendance:[],liveClasses:[],scholarships:[],moduleRegistrations:[],assessments:[],graduation:[],reportCards:[],certificates:[]});
  const [institutionNews,setInstitutionNews]=useState<any[]>([]),[institutionEvents,setInstitutionEvents]=useState<any[]>([]);
