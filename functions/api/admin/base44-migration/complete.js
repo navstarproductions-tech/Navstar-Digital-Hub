@@ -307,7 +307,6 @@ async function importAssignment(DB,r,adminId,c,sourceCourses,sourceModules) {
 async function importAssignmentSubmission(DB,r,adminId,c) {
   const sourceId=clean(r.id||r._id||r.uuid,120);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='AssignmentSubmission' AND source_id=?").bind(sourceId).first();
-  if(mapped?.destination_id){c.assignmentSubmissionsAlreadyPresent++;return;}
   const assignment=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Assignment' AND source_id=?").bind(clean(r.assignment_id,120)).first();
   if(!assignment?.destination_id){c.assignmentSubmissionsSkipped++;return;}
   const details=await DB.prepare("SELECT course_id,max_points FROM course_assignments WHERE id=?").bind(assignment.destination_id).first();
@@ -320,16 +319,32 @@ async function importAssignmentSubmission(DB,r,adminId,c) {
   const scoreValue=r.score!==null&&r.score!==undefined?r.score:r.auto_score;
   const score=scoreValue===null||scoreValue===undefined||scoreValue===''?null:Math.max(0,Math.min(Number(details.max_points)||100,Math.round(num(scoreValue))));
   const answers=Array.isArray(r.question_answers)?r.question_answers:[];
-  const response=[clean(r.submission_text,30000),answers.length?"\n\nQuestion answers:\n"+answers.map((x,i)=>(i+1)+". "+clean(x,4000)).join("\n"):""].filter(Boolean).join("");
-  const files=Array.isArray(r.file_urls)?r.file_urls.filter(Boolean):[];
+  const answerText=answers.map((item,i)=>{
+    if(item&&typeof item==='object')return (i+1)+". "+clean(item.question_text||item.question||item.prompt,2000)+"\nAnswer: "+clean(item.answer||item.response||item.value,4000);
+    return (i+1)+". "+clean(item,4000);
+  }).join("\n");
+  const files=Array.isArray(r.file_urls)?r.file_urls.filter(x=>typeof x==='string'&&/^https:\/\//i.test(x)):[];
+  const response=[clean(r.submission_text,30000),answerText?"\n\nQuestion answers:\n"+answerText:"",files.length?"\n\nOriginal attachment links (retained from Base44):\n"+files.join("\n"):""].filter(Boolean).join("");
   const submitted=clean(r.submitted_date,40)||clean(r.created_date,40)||new Date().toISOString();
-  const id='b44sub-'+sourceId.slice(-24);
-  const result=await DB.prepare("INSERT OR IGNORE INTO course_assignment_submissions(id,assignment_id,user_id,response_text,attachment_url,status,points_awarded,feedback,submitted_at,graded_by,graded_at,approval_status,approved_by,approved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(id,assignment.destination_id,student.id,response,files.length?JSON.stringify(files):null,status,score,
-      clean(r.feedback,5000),submitted,status==='graded'?adminId:null,status==='graded'?clean(r.updated_date,40)||submitted:null,
-      approval,status==='graded'&&approval==='approved'?adminId:null,status==='graded'&&approval==='approved'?clean(r.updated_date,40)||submitted:null).run();
-  if(Number(result.meta?.changes||0)>0)c.assignmentSubmissionsImported++;else c.assignmentSubmissionsAlreadyPresent++;
-  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('AssignmentSubmission',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING").bind(sourceId,id,student.id).run();
+  const id=mapped?.destination_id||'b44sub-'+sourceId.slice(-24);
+  const existing=await DB.prepare("SELECT id FROM course_assignment_submissions WHERE assignment_id=? AND user_id=?").bind(assignment.destination_id,student.id).first();
+  const targetId=existing?.id||id;
+  if(existing){
+    await DB.prepare("UPDATE course_assignment_submissions SET response_text=?,attachment_url=?,status=?,points_awarded=?,feedback=?,submitted_at=?,graded_by=?,graded_at=?,approval_status=?,approved_by=?,approved_at=? WHERE id=?")
+      .bind(response,files.length?JSON.stringify(files):null,status,score,clean(r.feedback,5000),submitted,
+        status==='graded'?adminId:null,status==='graded'?clean(r.updated_date,40)||submitted:null,approval,
+        status==='graded'&&approval==='approved'?adminId:null,status==='graded'&&approval==='approved'?clean(r.updated_date,40)||submitted:null,targetId).run();
+  }else{
+    await DB.prepare("INSERT OR IGNORE INTO course_assignment_submissions(id,assignment_id,user_id,response_text,attachment_url,status,points_awarded,feedback,submitted_at,graded_by,graded_at,approval_status,approved_by,approved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(targetId,assignment.destination_id,student.id,response,files.length?JSON.stringify(files):null,status,score,
+        clean(r.feedback,5000),submitted,status==='graded'?adminId:null,status==='graded'?clean(r.updated_date,40)||submitted:null,
+        approval,status==='graded'&&approval==='approved'?adminId:null,status==='graded'&&approval==='approved'?clean(r.updated_date,40)||submitted:null).run();
+  }
+  const saved=await DB.prepare("SELECT id FROM course_assignment_submissions WHERE assignment_id=? AND user_id=?").bind(assignment.destination_id,student.id).first();
+  if(!saved?.id){c.assignmentSubmissionsSkipped++;return;}
+  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('AssignmentSubmission',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+    .bind(sourceId,saved.id,student.id).run();
+  if(mapped?.destination_id||existing)c.assignmentSubmissionsAlreadyPresent++;else c.assignmentSubmissionsImported++;
 }
 async function ensureExamForAttempt(DB,r,adminId,c,sourceCourses,sourceModules,sourceQuestions) {
   const sourceExamId=clean(r.exam_id,120);
