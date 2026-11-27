@@ -118,7 +118,7 @@ export async function onRequestPost({request,env}){
   if(action==='delete_assessment_result'){
     const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80);
-    const assessment=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    const assessment=await env.DB.prepare('SELECT id,course_id,module_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id)))return error('Assessment access denied.',403);
     await env.DB.batch([
       env.DB.prepare('DELETE FROM assessment_component_marks WHERE assessment_id=? AND user_id=?').bind(assessmentId,studentId),
@@ -277,7 +277,6 @@ export async function onRequestPost({request,env}){
     const maxPoints=Number(body.maxPoints),duration=Number(body.durationMinutes),passMark=Number(body.passMark),attempts=Number(body.maxAttempts),selectionMode=safeString(body.questionSelectionMode,12)||'marks',questionCount=Number(body.questionCount??10);
     const existingQuestions=await env.DB.prepare("SELECT COUNT(*) AS count,COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status='active'").bind(assessmentId).first();
     if(existingQuestions?.count&&Number(existingQuestions.count)>0&&Number(existingQuestions.total)>maxPoints)return error('The new paper total is below the marks already allocated to its questions.');
-    if(existingQuestions?.count&&Number(existingQuestions.count)>0&&(existing.course_id!==courseId||existing.module_id!==moduleId))return error('A paper with saved questions cannot be moved to another course or module. Create a new paper to preserve its question history.');
 
     const startsAt=safeString(body.startsAt,40),endsAt=safeString(body.endsAt,40);
     if(!validDate(startsAt)||!validDate(endsAt)||Date.parse(endsAt)<=Date.parse(startsAt))return error('Enter a valid scheduled date and expiry time.');
