@@ -11,14 +11,13 @@ async function configuration(db) {
 function categoryOuts(config, rawMaxima) {
   const grading = config.grading || {};
   const weights = grading.marksWeights || grading.marks_weights || grading.weights || config.marksWeights || config.marks_weights || {};
-  const cat = toNumber(weights.CAT ?? weights.cat ?? weights.cat_out_of ?? weights.category_out_of?.CAT ?? weights.category_out_of?.cat);
-  const practical = toNumber(weights.Practical ?? weights.practical ?? weights.practical_out_of ?? weights.category_out_of?.Practical ?? weights.category_out_of?.practical);
-  const final = toNumber(weights.Final ?? weights.final ?? weights.exam ?? weights.exam_out_of ?? weights.category_out_of?.Final ?? weights.category_out_of?.final);
-  return {
-    CAT: cat || rawMaxima.CAT || 0,
-    Practical: practical || rawMaxima.Practical || 0,
-    Final: final || rawMaxima.Final || 0,
-  };
+  const cat = toNumber(grading.catOutOf ?? grading.cat_out_of ?? weights.CAT ?? weights.cat ?? weights.cat_out_of ?? weights.category_out_of?.CAT ?? weights.category_out_of?.cat);
+  const practical = toNumber(grading.practicalOutOf ?? grading.practical_out_of ?? weights.Practical ?? weights.practical ?? weights.practical_out_of ?? weights.category_out_of?.Practical ?? weights.category_out_of?.practical);
+  const final = toNumber(grading.finalOutOf ?? grading.final_out_of ?? weights.Final ?? weights.final ?? weights.exam ?? weights.exam_out_of ?? weights.category_out_of?.Final ?? weights.category_out_of?.final);
+  const configured = cat > 0 && practical > 0 && final > 0 && cat + practical + final === 100;
+  return configured
+    ? { CAT: cat, Practical: practical, Final: final }
+    : { CAT: 30, Practical: 20, Final: 50 };
 }
 
 export async function syncModuleResult(db, userId, moduleId, actorId = null) {
