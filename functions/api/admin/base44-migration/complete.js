@@ -93,6 +93,100 @@ async function importFeeStructure(DB,r,c) {
     .bind(sourceId,course.id).run();
   c.feeStructuresImported++;
 }
+
+function sourceCourseTitle(sourceId, sourceCourses) {
+  const row=sourceCourses.get(clean(sourceId,120));
+  return clean(row?.title||row?.course_title||row?.name,160);
+}
+async function activeCourseFor(DB,title) {
+  const t=clean(title,160),n=norm(t);
+  if(!n)return null;
+  const alias=aliases[n];
+  if(alias) {
+    const c=await DB.prepare("SELECT id,title,status FROM courses WHERE id=? AND status='active'").bind(alias).first();
+    if(c)return c;
+  }
+  return DB.prepare("SELECT id,title,status FROM courses WHERE lower(trim(title))=lower(trim(?)) AND status='active' LIMIT 1").bind(t).first();
+}
+async function mappedModule(DB,courseId,sourceModuleId,moduleCode,moduleTitle,sourceModules) {
+  const source=sourceModules.get(clean(sourceModuleId,120));
+  const code=clean(moduleCode||source?.module_code,30).toUpperCase();
+  const title=clean(moduleTitle||source?.title,160);
+  let row=null;
+  if(code)row=await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE course_id=? AND upper(COALESCE(module_code,''))=? LIMIT 1").bind(courseId,code).first();
+  if(!row&&title)row=await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE course_id=? AND lower(trim(title))=lower(trim(?)) LIMIT 1").bind(courseId,title).first();
+  return {row,code,title};
+}
+async function importExam(DB,r,adminId,c,sourceCourses,sourceModules) {
+  const sourceId=clean(r.id||r._id||r.uuid,120);
+  if(!sourceId)return;
+  const existingMap=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Exam' AND source_id=?").bind(sourceId).first();
+  if(existingMap?.destination_id){c.examsAlreadyPresent++;return;}
+  const courseTitle=clean(r.course_title,160)||sourceCourseTitle(r.course_id,sourceCourses);
+  const course=await activeCourseFor(DB,courseTitle);
+  if(!course){c.examsSkipped++;c.warnings.push("Exam '"+clean(r.title,120)+"' was archived but not activated because no matching active official course was found: "+(courseTitle||"missing course title")+".");return;}
+  const module=await mappedModule(DB,course.id,r.module_id,r.module_code,r.module_title,sourceModules);
+  if(!module.row)c.warnings.push("Exam '"+clean(r.title,120)+"' was linked to course '"+course.title+"' but its module could not be matched; it remains course-wide.");
+  const sourceType=clean(r.exam_type,30).toLowerCase();
+  const type=sourceType==='practical'?'practical':(['cat','midterm','quiz'].includes(sourceType)?'cat':'exam');
+  const category=['CAT','Practical','Final'].includes(clean(r.score_category,20))?clean(r.score_category,20):(type==='cat'?'CAT':type==='practical'?'Practical':'Final');
+  const rawStatus=clean(r.status,40).toLowerCase();
+  const status=rawStatus==='active'?'published':rawStatus==='closed'?'closed':'draft';
+  const start=clean(r.availability_start,60)||(()=>{const d=dateOnly(r.scheduled_date),tm=clean(r.scheduled_time,20);return d&&tm?new Date(d+'T'+tm+':00+03:00').toISOString():'';})();
+  const end=clean(r.availability_end,60)||(()=>{if(!start)return '';const d=new Date(start);d.setMinutes(d.getMinutes()+Math.max(1,num(r.duration_minutes)||60));return d.toISOString();})();
+  const creatorEmail=clean(r.created_by,254).toLowerCase();
+  const creator=creatorEmail?await DB.prepare("SELECT id FROM users WHERE lower(email)=lower(?)").bind(creatorEmail).first():null;
+  const createdBy=creator?.id||adminId;
+  const id='b44exam-'+sourceId.slice(-24);
+  const maximum=Math.max(1,Math.min(10000,Math.round(num(r.total_marks)||num(r.exam_out_of)||100)));
+  const duration=Math.max(1,Math.min(600,Math.round(num(r.duration_minutes)||60)));
+  const questionMode=r.randomize_questions&&r.random_by_marks===false?'count':'marks';
+  const questionCount=Math.max(1,Math.min(500,Math.round(num(r.random_question_count)||10)));
+  const result=await DB.prepare(`INSERT OR IGNORE INTO course_assessments
+    (id,course_id,module_id,title,assessment_type,instructions,starts_at,due_at,max_points,status,created_by,created_at,
+     description,duration_minutes,pass_mark,max_attempts,require_full_fee_payment,require_assignment_submission,
+     allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit,require_admin_approval,
+     marks_category,category_out_of,question_selection_mode,question_count,shuffle_options)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .bind(id,course.id,module.row?.id||null,clean(r.title,160)||'Imported Base44 examination',type,
+      clean(r.instructions,12000)||clean(r.description,4000),start||null,end||null,maximum,status,createdBy,
+      clean(r.created_date,40)||new Date().toISOString(),clean(r.description,4000),
+      duration,Math.max(0,Math.min(maximum,Math.round(num(r.pass_mark)||0))),Math.max(1,Math.min(10,Math.round(num(r.max_attempts)||1))),
+      r.require_full_payment?1:0,r.require_assignment_submission?1:0,r.allow_review?1:0,
+      r.security_shuffle||r.randomize_questions?1:0,r.security_no_copy||r.security_block_paste?1:0,
+      r.security_time_limit===false?0:1,rawStatus==='pending approval'?1:0,category,
+      Math.max(0,num(r.category_out_of)||num(r.exam_out_of)||maximum),questionMode,questionCount,
+      r.randomize_options?1:0).run();
+  const saved=await DB.prepare("SELECT id FROM course_assessments WHERE id=?").bind(id).first();
+  if(!saved){c.examsSkipped++;c.warnings.push("Exam '"+clean(r.title,120)+"' could not be saved.");return;}
+  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Exam',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING").bind(sourceId,id,createdBy).run();
+  c.examsImported+=Number(result.meta?.changes||0)>0?1:0;
+  if(Number(result.meta?.changes||0)===0)c.examsAlreadyPresent++;
+}
+async function importExamQuestion(DB,r,adminId,c) {
+  const sourceId=clean(r.id||r._id||r.uuid,120),sourceExamId=clean(r.exam_id,120);
+  if(!sourceId||!sourceExamId)return;
+  const existingMap=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='ExamQuestion' AND source_id=?").bind(sourceId).first();
+  if(existingMap?.destination_id){c.questionsAlreadyPresent++;return;}
+  const examMap=await DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Exam' AND source_id=?").bind(sourceExamId).first();
+  if(!examMap?.destination_id){c.questionsSkipped++;return;}
+  const typeName=clean(r.question_type,40).toLowerCase();
+  const type=typeName.includes('true')?'true_false':typeName.includes('short')?'short_answer':typeName.includes('essay')?'essay':typeName.includes('multiple')?'multiple_choice':'single_choice';
+  const options=Array.isArray(r.options)?r.options.map(x=>clean(x,500)).filter(Boolean):[];
+  const answer=r.correct_answer===null||r.correct_answer===undefined||r.correct_answer===''?null:r.correct_answer;
+  const points=Math.max(1,Math.min(1000,Math.round(num(r.marks)||1)));
+  const id='b44q-'+sourceId.slice(-24);
+  const createdBy=examMap.user_id||adminId;
+  const result=await DB.prepare("INSERT OR IGNORE INTO course_exam_questions(id,assessment_id,question_text,question_type,options_json,correct_answer_json,explanation,points,sort_order,status,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,'active',?,?)")
+    .bind(id,examMap.destination_id,clean(r.question_text,4000)||'Imported question',type,JSON.stringify(options),
+      answer===null?null:JSON.stringify(answer),clean(r.explanation,2000),points,
+      Math.max(0,Math.round(num(r.order)||0)),createdBy,clean(r.created_date,40)||new Date().toISOString()).run();
+  if(Number(result.meta?.changes||0)>0)c.questionsImported++;
+  else c.questionsAlreadyPresent++;
+  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('ExamQuestion',?,?,?) ON CONFLICT(entity_name,source_id) DO NOTHING")
+    .bind(sourceId,id,createdBy).run();
+}
+
 async function importStudent(DB,r,adminId,c) {
   const sourceId=clean(r.id||r._id||r.uuid,120);
   const email=clean(r.student_email||r.email,254).toLowerCase();
@@ -262,16 +356,20 @@ export async function onRequestPost({request,env}) {
   const tokenHash=await sha256(token);
   const tokenRow=await env.DB.prepare('SELECT token_hash,expires_at,used_at,records_received,created_by FROM base44_migration_tokens WHERE token_hash=?').bind(tokenHash).first();
   if(!tokenRow||tokenRow.used_at||new Date(tokenRow.expires_at).getTime()<Date.now())return new Response(JSON.stringify({error:'Migration token is invalid, expired, or already completed.'}),{status:401,headers:{...headers,'Content-Type':'application/json'}});
-  const staged=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM base44_legacy_records WHERE migration_batch=? AND entity_name IN ('Enrollment','FeeStructure','FeePayment','AdditionalFee') ORDER BY entity_name,source_id").bind(tokenHash).all();
-  const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[]};
+  const staged=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM base44_legacy_records WHERE migration_batch=? AND entity_name IN ('Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion') ORDER BY entity_name,source_id").bind(tokenHash).all();
+  const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[]};
   for(const row of staged.results||[]) {
     try{groups[row.entity_name].push(JSON.parse(row.record_json));}
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
   }
   // A complete export may contain entities beyond student enrolments. Archive-only packages are valid; the operational student/fee importer simply has nothing to process.
-  const c={sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,warnings:[]};
+  const c={sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,warnings:[]};
   try {
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
+    const sourceCourses=new Map(groups.Course.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
+    const sourceModules=new Map(groups.CourseUnit.map(x=>[clean(x.id||x._id||x.uuid,120),x]));
+    for(const exam of groups.Exam)await importExam(env.DB,exam,tokenRow.created_by,c,sourceCourses,sourceModules);
+    for(const question of groups.ExamQuestion)await importExamQuestion(env.DB,question,tokenRow.created_by,c);
     const imported=[];
     for(const student of groups.Enrollment){const item=await importStudent(env.DB,student,tokenRow.created_by,c);if(item)imported.push(item);}
     for(const fee of groups.AdditionalFee) {
@@ -377,11 +475,11 @@ export async function onRequestPost({request,env}) {
     await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
       .bind(uuid(),tokenRow.created_by,'base44_student_and_fee_migration_completed','migration',tokenHash.slice(0,24)).run();
     return new Response(JSON.stringify({
-      completed:true,scope:['Enrollment','FeeStructure','FeePayment','AdditionalFee'],
+      completed:true,scope:['Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion'],
       studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
-      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,warnings:c.warnings
+      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,warnings:c.warnings
     }),{status:200,headers:{...headers,'Content-Type':'application/json'}});
   } catch(cause) {
     console.error('Focused Base44 student/fee migration failed:',String(cause?.message||cause));
