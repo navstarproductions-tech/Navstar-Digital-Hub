@@ -154,8 +154,8 @@ async function importModuleAssignment(DB,r,adminId,c,sourceUsers) {
   const sourceTutor=sourceUsers.find(x=>clean(x.staff_id,80)===clean(r.tutor_id,80));
   if(sourceTutor?.is_active===false){c.moduleAssignmentsSkipped++;return;}
   const email=clean(sourceTutor?.email,254).toLowerCase();
-  let tutor=email?await DB.prepare("SELECT id,role,status FROM users WHERE lower(email)=lower(?)").bind(email).first():null;
-  if(!tutor&&clean(r.tutor_id,80))tutor=await DB.prepare("SELECT u.id,u.role,u.status FROM users u JOIN user_profiles p ON p.user_id=u.id WHERE p.staff_id=? LIMIT 1").bind(clean(r.tutor_id,80)).first();
+  let tutor=email?await DB.prepare("SELECT u.id,COALESCE(p.portal_role,u.role) AS role,u.status FROM users u LEFT JOIN user_profiles p ON p.user_id=u.id WHERE lower(u.email)=lower(?)").bind(email).first():null;
+  if(!tutor&&clean(r.tutor_id,80))tutor=await DB.prepare("SELECT u.id,COALESCE(p.portal_role,u.role) AS role,u.status FROM users u JOIN user_profiles p ON p.user_id=u.id WHERE p.staff_id=? LIMIT 1").bind(clean(r.tutor_id,80)).first();
   if(!tutor||tutor.status!=='active'||!['tutor','admin','principal'].includes(tutor.role)){c.moduleAssignmentsSkipped++;return;}
   const id='b44mta-'+sourceId.slice(-24);
   const result=await DB.prepare("INSERT OR IGNORE INTO module_tutor_assignments(id,module_id,tutor_user_id,assigned_by,created_at) VALUES(?,?,?,?,?)")
@@ -765,7 +765,8 @@ async function importStudent(DB,r,adminId,c) {
 export async function onRequestOptions({request}) { return new Response(null,{status:204,headers:corsHeaders(request.headers.get('Origin')||'')}); }
 export async function onRequestPost({request,env}) {
   const origin=request.headers.get('Origin')||'';
-  if(!allowedOrigins.has(origin))return error('Origin not allowed.',403);
+  const sameOrigin=origin===new URL(request.url).origin;
+  if(!allowedOrigins.has(origin)&&!sameOrigin)return error('Origin not allowed.',403);
   const headers=corsHeaders(origin);
   const auth=request.headers.get('Authorization')||'';
   const token=auth.startsWith('Bearer ')?auth.slice(7).trim():'';
@@ -779,9 +780,11 @@ export async function onRequestPost({request,env}) {
   if(academicOnly&&!sourceBatch)return new Response(JSON.stringify({error:'Select a saved migration package first.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
   const entityFilter=academicOnly?"'Enrollment','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'":"'Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict'";
   const stagedRows=[];
+  const newArchiveCount=await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_archive_records WHERE migration_batch=?').bind(sourceBatch).first();
+  const archiveTable=Number(newArchiveCount?.count||0)>0?'base44_legacy_archive_records':'base44_legacy_records';
   // Read the entire saved package in bounded pages. A single D1 .all() response can be truncated for large exports.
   for(let offset=0;;offset+=500){
-    const page=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM base44_legacy_records WHERE migration_batch=? AND entity_name IN ("+entityFilter+") ORDER BY entity_name,source_id LIMIT 500 OFFSET ?").bind(sourceBatch,offset).all();
+    const page=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM "+archiveTable+" WHERE migration_batch=? AND entity_name IN ("+entityFilter+") ORDER BY entity_name,source_id LIMIT 500 OFFSET ?").bind(sourceBatch,offset).all();
     const rows=page.results||[];stagedRows.push(...rows);if(rows.length<500)break;
     if(offset>=50000)throw new Error('The saved migration package exceeds the safe 50,000-record processing limit. Split the export into smaller packages.');
   }
