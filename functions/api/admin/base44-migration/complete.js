@@ -187,7 +187,12 @@ async function importStudent(DB,r,adminId,c) {
     await DB.prepare("INSERT INTO student_graduation_records(id,user_id,course_id,status,completed_at,updated_by) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,course_id) DO UPDATE SET status=excluded.status,completed_at=COALESCE(excluded.completed_at,student_graduation_records.completed_at),updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
       .bind('b44grad-'+sourceId.slice(-20),user.id,course.id,state.graduation,dateOnly(r.completion_date)||dateOnly(r.updated_date)||null,adminId).run();
   }
-  return {sourceId,enrollmentId,userId:user.id,amountPaid:Math.max(0,num(r.amount_paid)),totalFee:Math.max(0,num(r.total_fee)),source:r};
+  const additionalFee=Math.max(0,Math.round(num(r.additional_fee)));
+  if(additionalFee>0) {
+    await DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,?,?,'anytime',?)")
+      .bind('b44enradd-'+sourceId.slice(-24),enrollmentId,'Additional fee - '+(clean(r.additional_fee_reason,80)||'Other'),additionalFee,clean(r.created_date,40)||new Date().toISOString()).run();
+  }
+  return {sourceId,enrollmentId,userId:user.id,amountPaid:Math.max(0,num(r.amount_paid)),totalFee:Math.max(0,num(r.total_fee))+additionalFee,source:r};
 }
 export async function onRequestOptions({request}) { return new Response(null,{status:204,headers:corsHeaders(request.headers.get('Origin')||'')}); }
 export async function onRequestPost({request,env}) {
@@ -200,18 +205,31 @@ export async function onRequestPost({request,env}) {
   const tokenHash=await sha256(token);
   const tokenRow=await env.DB.prepare('SELECT token_hash,expires_at,used_at,records_received,created_by FROM base44_migration_tokens WHERE token_hash=?').bind(tokenHash).first();
   if(!tokenRow||tokenRow.used_at||new Date(tokenRow.expires_at).getTime()<Date.now())return new Response(JSON.stringify({error:'Migration token is invalid, expired, or already completed.'}),{status:401,headers:{...headers,'Content-Type':'application/json'}});
-  const staged=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM base44_legacy_records WHERE migration_batch=? AND entity_name IN ('Enrollment','FeeStructure','FeePayment') ORDER BY entity_name,source_id").bind(tokenHash).all();
-  const groups={Enrollment:[],FeeStructure:[],FeePayment:[]};
+  const staged=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM base44_legacy_records WHERE migration_batch=? AND entity_name IN ('Enrollment','FeeStructure','FeePayment','AdditionalFee') ORDER BY entity_name,source_id").bind(tokenHash).all();
+  const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[]};
   for(const row of staged.results||[]) {
     try{groups[row.entity_name].push(JSON.parse(row.record_json));}
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
   }
-  if(!groups.Enrollment.length)return new Response(JSON.stringify({error:'No student records received. Export Enrollment, FeeStructure and FeePayment from Base44, then retry.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
-  const c={sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,openingBalanceEntries:0,archivedCoursesCreated:0,warnings:[]};
+  if(!groups.Enrollment.length)return new Response(JSON.stringify({error:'No student records received. Export Enrollment, FeeStructure, FeePayment and AdditionalFee from Base44, then retry.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
+  const c={sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,warnings:[]};
   try {
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
     const imported=[];
     for(const student of groups.Enrollment){const item=await importStudent(env.DB,student,tokenRow.created_by,c);if(item)imported.push(item);}
+    for(const fee of groups.AdditionalFee) {
+      const sourceId=clean(fee.id||fee._id||fee.uuid,120);
+      const sourceEnrollmentId=clean(fee.enrollment_id,120);
+      const mapping=await env.DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceEnrollmentId).first();
+      const amount=Math.round(num(fee.amount));
+      if(!sourceId||!mapping||amount<=0||clean(fee.status,40).toLowerCase()==='deactivated') { c.additionalFeesSkipped++; continue; }
+      const itemName='Additional fee - '+(clean(fee.reason||fee.description,80)||'Other');
+      await env.DB.prepare("INSERT OR IGNORE INTO enrollment_fee_items(id,enrollment_id,fee_item_id,item_name,amount,due_stage,created_at) VALUES(?,?,NULL,? ,?,'anytime',?)")
+        .bind('b44addfee-'+sourceId.slice(-24),mapping.destination_id,itemName,amount,clean(fee.issued_date||fee.created_date,40)||new Date().toISOString()).run();
+      await env.DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('AdditionalFee',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+        .bind(sourceId,'b44addfee-'+sourceId.slice(-24),mapping.user_id).run();
+      c.additionalFeesImported++;
+    }
     const paidByEnrollment=new Map();
     for(const payment of groups.FeePayment) {
       const sourcePaymentId=clean(payment.id||payment._id||payment.uuid,120);
@@ -261,11 +279,11 @@ export async function onRequestPost({request,env}) {
     await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
       .bind(uuid(),tokenRow.created_by,'base44_student_and_fee_migration_completed','migration',tokenHash.slice(0,24)).run();
     return new Response(JSON.stringify({
-      completed:true,scope:['Enrollment','FeeStructure','FeePayment'],
+      completed:true,scope:['Enrollment','FeeStructure','FeePayment','AdditionalFee'],
       importedStudents:c.sourceStudents-c.skippedStudents,accountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
-      feePaymentsImported:c.feePaymentsImported,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,warnings:c.warnings
+      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,warnings:c.warnings
     }),{status:200,headers:{...headers,'Content-Type':'application/json'}});
   } catch(cause) {
     console.error('Focused Base44 student/fee migration failed:',String(cause?.message||cause));
