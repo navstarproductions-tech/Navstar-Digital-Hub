@@ -2,14 +2,14 @@ import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Database, Download, FileJson, FileUp, RefreshCw, Search, ShieldCheck, UploadCloud } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const ENTITY_NAMES = ['Course','CourseUnit','Enrollment','FeeStructure','FeePayment','AdditionalFee','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','MarksApproval','MarksConflict','SystemUser','StaffApplication'] as const;
+const ENTITY_NAMES = ['Course','CourseUnit','Enrollment','FeeStructure','FeePayment','AdditionalFee','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksApproval','MarksConflict','SystemUser','StaffApplication'] as const;
 type Bundle = { format?: string; version?: number; exportedAt?: string; source?: string; entities: Record<string, Record<string, unknown>[]> };
 const blankBundle: Bundle = {
   format: 'navstar-base44-migration',
   version: 1,
   exportedAt: new Date().toISOString(),
   source: 'Base44',
-  entities: { Course: [], CourseUnit: [], Enrollment: [], FeeStructure: [], FeePayment: [], AdditionalFee: [], Exam: [], ExamQuestion: [], ExamAttempt: [], StudentResult: [], Assignment: [], AssignmentSubmission: [], ExamSettings: [], SystemSettings: [], MarksApproval: [], MarksConflict: [], SystemUser: [], StaffApplication: [] }
+  entities: { Course: [], CourseUnit: [], Enrollment: [], FeeStructure: [], FeePayment: [], AdditionalFee: [], Exam: [], ExamQuestion: [], ExamAttempt: [], StudentResult: [], Assignment: [], AssignmentSubmission: [], ExamSettings: [], SystemSettings: [], GradingSystem: [], MarksApproval: [], MarksConflict: [], SystemUser: [], StaffApplication: [] }
 };
 
 function downloadJson(name: string, data: unknown) {
@@ -38,7 +38,7 @@ export function Base44MigrationPage() {
   const entityNames = useMemo(() => Object.keys(bundle?.entities || {}).sort((a,b)=>a.localeCompare(b)), [bundle]);
   const counts = useMemo(() => Object.fromEntries(entityNames.map(name => [name, bundle?.entities?.[name]?.length || 0])), [bundle, entityNames]);
   const selectedCount = selectedEntities.reduce((sum, name) => sum + (bundle?.entities?.[name]?.length || 0), 0);
-  const hasAcademicArchive = (archive?.entities || []).some(item => ['Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings'].includes(item.entityName) && item.count > 0);
+  const hasAcademicArchive = (archive?.entities || []).some(item => ['Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem'].includes(item.entityName) && item.count > 0);
   const visibleArchiveRecords = useMemo(() => {
     const records = archive?.records || [];
     const query = archiveSearch.trim().toLowerCase();
@@ -196,7 +196,7 @@ export function Base44MigrationPage() {
           <div className="flex items-start gap-3"><ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-emerald-600"/><div><h2 className="font-bold">1. Download the standard file format</h2><p className="mt-1 text-sm text-slate-600">This is an optional example format only. You can upload a Base44 JSON export directly; the system detects entity arrays automatically and does not require you to rename fields.</p></div></div>
           <button onClick={()=>downloadJson('Navstar-Base44-Migration-Template.json',blankBundle)} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-900 hover:bg-blue-100"><Download className="h-4 w-4"/>Download JSON template</button>
           <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {ENTITY_NAMES.map(name=><div key={name} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><p className="text-sm font-bold">{name}</p><p className="text-xs text-slate-500">{name==='Enrollment'?'Student records':name==='FeeStructure'?'Course fee structures':name==='FeePayment'?'Fee payment history':name==='AdditionalFee'?'Student additional fees':name==='Exam'?'Examination papers':name==='ExamQuestion'?'Exam question bank':name==='ExamAttempt'?'Student exam attempts and marks':name==='StudentResult'?'Module-level student results':name==='Assignment'?'Assignments and question sets':name==='AssignmentSubmission'?'Student assignment submissions':name==='Course'?'Course identity mapping':name==='CourseUnit'?'Module identity mapping':name==='ExamSettings'?'Exam security and display settings':name==='SystemSettings'?'Marks and grading configuration':name==='MarksApproval'?'Marks approval history':name==='MarksConflict'?'Marks conflict history':name==='SystemUser'?'Staff user accounts':'Staff applications'}</p></div>)}
+            {ENTITY_NAMES.map(name=><div key={name} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><p className="text-sm font-bold">{name}</p><p className="text-xs text-slate-500">{name==='Enrollment'?'Student records':name==='FeeStructure'?'Course fee structures':name==='FeePayment'?'Fee payment history':name==='AdditionalFee'?'Student additional fees':name==='Exam'?'Examination papers':name==='ExamQuestion'?'Exam question bank':name==='ExamAttempt'?'Student exam attempts and marks':name==='StudentResult'?'Module-level student results':name==='Assignment'?'Assignments and question sets':name==='AssignmentSubmission'?'Student assignment submissions':name==='Course'?'Course identity mapping':name==='CourseUnit'?'Module identity mapping':name==='ExamSettings'?'Exam security and display settings':name==='SystemSettings'?'Marks and grading configuration':name==='GradingSystem'?'Official grade bands and classifications':name==='MarksApproval'?'Marks approval history':name==='MarksConflict'?'Marks conflict history':name==='SystemUser'?'Staff user accounts':'Staff applications'}</p></div>)}
           </div>
         </section>
 
