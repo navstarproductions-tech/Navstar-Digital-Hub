@@ -10,10 +10,16 @@ export async function onRequestGet({ request, env }) {
   // newest package containing records so an empty token cannot hide a saved import.
   const packages = await env.DB.prepare(`
     SELECT t.token_hash, t.created_at, t.used_at, t.records_received,
-      COUNT(r.id) AS saved_records
+      COALESCE(n.saved_records,o.saved_records,0) AS saved_records
     FROM base44_migration_tokens t
-    LEFT JOIN base44_legacy_records r ON r.migration_batch = t.token_hash
-    GROUP BY t.token_hash
+    LEFT JOIN (
+      SELECT migration_batch,COUNT(*) AS saved_records
+      FROM base44_legacy_archive_records GROUP BY migration_batch
+    ) n ON n.migration_batch=t.token_hash
+    LEFT JOIN (
+      SELECT migration_batch,COUNT(*) AS saved_records
+      FROM base44_legacy_records GROUP BY migration_batch
+    ) o ON o.migration_batch=t.token_hash
     ORDER BY t.created_at DESC
     LIMIT 30
   `).all();
@@ -30,9 +36,11 @@ export async function onRequestGet({ request, env }) {
     : batches.find(item => item.savedRecords > 0) || batches[0];
   if (!selected) return json({ batch: null, batches, entities: [], records: [], truncated: false });
 
+  const newArchiveCount=await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_archive_records WHERE migration_batch=?').bind(selected.id).first();
+  const archiveTable=Number(newArchiveCount?.count||0)>0?'base44_legacy_archive_records':'base44_legacy_records';
   const entityRows = await env.DB.prepare(`
     SELECT entity_name, COUNT(*) AS count
-    FROM base44_legacy_records
+    FROM ${archiveTable}
     WHERE migration_batch = ?
     GROUP BY entity_name
     ORDER BY entity_name
@@ -42,7 +50,7 @@ export async function onRequestGet({ request, env }) {
   const offset = Math.max(0, Number(params.get('offset') || 0));
   const rows = await env.DB.prepare(`
     SELECT entity_name, source_id, source_created_at, source_updated_at, record_json, imported_at
-    FROM base44_legacy_records
+    FROM ${archiveTable}
     WHERE migration_batch = ?
     ORDER BY entity_name, source_id
     LIMIT ? OFFSET ?
