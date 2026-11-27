@@ -1,6 +1,5 @@
 import { requireRole } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../../_shared/http.js';
-import { assignAdmissionNumber } from '../../_shared/admissions.js';
 
 const allowedStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 
@@ -20,17 +19,10 @@ export async function onRequestPatch(context) {
   const existing = await env.DB.prepare('SELECT id FROM enrollments WHERE id = ?').bind(id).first();
   if (!existing) return error('Application not found.', 404);
 
-  let admissionNumber=null;
-  if(status==='accepted'){
-    try{
-      const admission=await assignAdmissionNumber(context,id,access.user.id);
-      admissionNumber=admission.admissionNumber;
-    }catch(cause){
-      return error(cause instanceof Error?cause.message:'Admission number must be generated before acceptance.',Number(cause?.status)||409);
-    }
-  }
+  if(status==='accepted') return error('Use the Admissions confirmation action so the student account, profile, admission number and secure portal setup are created together.',409);
+
   await env.DB.prepare('UPDATE enrollments SET status = ? WHERE id = ?').bind(status, id).run();
   await env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
     .bind(uuid(), access.user.id, 'enrollment_status_updated', 'enrollment', id).run();
-  return json({ id, status, admissionNumber });
+  return json({ id, status });
 }
