@@ -103,8 +103,9 @@ export async function onRequestGet({ request, env }) {
     ? await env.DB.prepare('SELECT lesson_id, completed, completed_at FROM course_lesson_progress WHERE user_id = ?').bind(user.id).all()
     : { results: [] };
   const submissionSql = `
-    SELECT s.id, s.assignment_id, s.user_id, u.name AS learner_name, s.response_text, s.attachment_url,
-      s.status, s.points_awarded, s.feedback, s.submitted_at, a.max_points
+    SELECT s.id, s.assignment_id, s.user_id, u.name AS learner_name,
+      (SELECT e.admission_number FROM enrollments e WHERE lower(e.email)=lower(u.email) AND e.course_id=a.course_id AND e.status='accepted' ORDER BY e.created_at DESC LIMIT 1) AS admission_number,
+      s.response_text, s.attachment_url, s.status, s.points_awarded, s.feedback, s.submitted_at, s.graded_at, s.graded_by, a.max_points
     FROM course_assignment_submissions s
     JOIN course_assignments a ON a.id = s.assignment_id
     JOIN users u ON u.id = s.user_id
