@@ -140,7 +140,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   overview: [],
   courses: [{label:'Course Catalogue',target:'courses',coursesTab:'catalogue'},{label:'Manage Courses',target:'courses',coursesTab:'manage'},{label:'Course Codes & Intakes',target:'courses',coursesTab:'manage'},{label:'Auto-Generate Course Codes',target:'courses',coursesTab:'manage'},{label:'Fee Structures',target:'courses'},{label:'Course Modules',target:'learning',learningTab:'modules'}],
   learning: [{label:'View Modules',target:'learning',learningTab:'modules'},{label:'Module Catalogue',target:'learning',learningTab:'modules'},{label:'Lessons & Resources',target:'learning',learningTab:'modules'},{label:'Assignments',target:'learning',learningTab:'modules'},{label:'Tests & Exams',target:'learning',learningTab:'modules'},{label:'Tutor Allocation',target:'learning',learningTab:'modules'},{label:'Bulk Module Import',target:'learning',learningTab:'bulk'},{label:'Assign Modules',target:'learning',learningTab:'modules'},{label:'Auto-Assign Modules',target:'learning',learningTab:'bulk'},{label:'Module Codes',target:'learning',learningTab:'modules'},{label:'Auto-Generate Module Codes',target:'learning',learningTab:'modules'}],
-  school: [{label:'Active Students',target:'school'},{label:'Add New Student',target:'student-directory'},...makeTabs(['Bulk Enrollment','Completed → Graduates','Edit Student Details','Assign Intakes & Years','Detail Edit Requests','Print Basic List','Students List PDF (Filters & Select)','Manage Logins','Deleted Students & Recovery','Enrollment Links','Generate Bulk PDFs','Student Detail PDF'],'school')],
+  school: [{label:'Active Students',target:'school'},{label:'All Students & Accounts',target:'school'},{label:'Add New Student',target:'student-directory'},...makeTabs(['Bulk Enrollment','Completed → Graduates','Edit Student Details','Assign Intakes & Years','Detail Edit Requests','Print Basic List','Students List PDF (Filters & Select)','Manage Logins','Deleted Students & Recovery','Enrollment Links','Generate Bulk PDFs','Student Detail PDF'],'school')],
   employees: makeTabs(['Employee Directory','Add Employee','Edit Employee Details','Staff Roles & Departments','Staff Attendance','Employee Documents'],'employees'),
   'staff-applications': makeTabs(['All Applications','Pending Review','Approved Applications','Rejected Applications','Application Documents'],'staff-applications'),
   'ai-intake-advisor': makeTabs(['AI Intake Advisor','Review Recommendations','Intake Forecasts'],'ai-intake-advisor'),
@@ -1113,6 +1113,19 @@ export function AdminPage() {
     }
   };
 
+  const deleteStudentAccount = async (student: PortalUser) => {
+    if (!window.confirm(`Delete portal access for ${student.name}? This safely deactivates the account and preserves enrolments, marks, certificates, fee history and audit records. The account can be restored by an administrator.`)) return;
+    try {
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(student.id)}`, { method: 'DELETE', credentials: 'same-origin' });
+      const result = await response.json() as { error?: string; status?: string };
+      if (!response.ok) throw new Error(result.error || 'Student account could not be deleted.');
+      setPortalUsers(current => current.map(item => item.id === student.id ? { ...item, status: 'dismissed' } : item));
+      setNotice(`Student account for ${student.name} has been deactivated. Academic and financial records are preserved.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Student account could not be deleted.');
+    }
+  };
+
   const savePortalUserEdit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editingPortalUser) return;
@@ -1365,6 +1378,7 @@ export function AdminPage() {
             courses={courses}
             selectedSubtab={selectedSubtab || 'Active Students'}
             onEditStudent={(student) => { setEditingPortalUser(student); setEditingPhotoFile(null); setEditingPhotoPreview(''); setEditingPhotoZoom(1); setEditingGeo({ county: student.county || '', subCounty: student.subCounty || '', ward: student.ward || '', location: student.location || '', subLocation: student.subLocation || '' }); }}
+            onDeleteStudent={(student) => void deleteStudentAccount(student as PortalUser)}
             onAddStudent={() => { setActive('student-directory'); setSelectedSubtab('Add New Student'); }}
           />}
 
