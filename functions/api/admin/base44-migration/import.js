@@ -61,17 +61,16 @@ export async function onRequestPost({ request, env }) {
   }
   let body;
   try { body = await request.json(); } catch { return new Response(JSON.stringify({ error: 'Invalid JSON payload.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } }); }
-  const entityName = String(body?.entityName || '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 63);
-  const allowedEntities = new Set(['Enrollment', 'FeeStructure', 'FeePayment', 'AdditionalFee', 'SystemUser', 'StaffApplication']);
-  if (!allowedEntities.has(entityName)) return new Response(JSON.stringify({ error: 'This migration accepts student enrolments, fee records, staff accounts and staff applications. Passwords and biometric data are excluded; accounts require password reset on the official site.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
+  const entityName = String(body?.entityName || '').trim().replace(/[^A-Za-z0-9_. -]/g, '_').slice(0, 63);
+  if (!entityName || !/^[A-Za-z0-9_]/.test(entityName)) return new Response(JSON.stringify({ error: 'A valid Base44 entity name is required.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
   const records = Array.isArray(body?.records) ? body.records : [];
   const batchId = tokenHash;
   if (!entityName || records.length < 1 || records.length > 100) return new Response(JSON.stringify({ error: 'Each batch must contain 1–100 records and a valid entity name.' }), { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } });
   let imported = 0;
   for (const source of records) {
     if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
-    const sourceId = String(source.id ?? source._id ?? source.uuid ?? '').slice(0, 200);
-    if (!sourceId) continue;
+    const suppliedId = source.id ?? source._id ?? source.uuid ?? source.ID ?? source.Id;
+    const sourceId = String(suppliedId ?? ('auto-' + (await sha256(JSON.stringify(source))))).slice(0, 200);
     const safe = await secureRecord(source);
     const jsonValue = JSON.stringify(safe);
     await env.DB.prepare(`
@@ -87,5 +86,6 @@ export async function onRequestPost({ request, env }) {
     imported += 1;
   }
   await env.DB.prepare('UPDATE base44_migration_tokens SET records_received=records_received+? WHERE token_hash=?').bind(imported, tokenHash).run();
-  return new Response(JSON.stringify({ entityName, received: imported, batchId }), { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } });
+  const savedCount = await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_records WHERE migration_batch=? AND entity_name=?').bind(batchId, entityName).first();
+  return new Response(JSON.stringify({ entityName, received: imported, saved: Number(savedCount?.count || 0), batchId }), { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } });
 }
