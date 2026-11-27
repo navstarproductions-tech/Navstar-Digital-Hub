@@ -54,9 +54,9 @@ export async function syncModuleResult(db, userId, moduleId, actorId = null) {
 
   const outs = categoryOuts(config, maxima);
   const categoryScore = {
-    CAT: maxima.CAT > outs.CAT && maxima.CAT > 0 ? raw.CAT / maxima.CAT * outs.CAT : raw.CAT,
-    Practical: maxima.Practical > outs.Practical && maxima.Practical > 0 ? raw.Practical / maxima.Practical * outs.Practical : raw.Practical,
-    Final: maxima.Final > outs.Final && maxima.Final > 0 ? raw.Final / maxima.Final * outs.Final : raw.Final,
+    CAT: maxima.CAT > 0 ? raw.CAT / maxima.CAT * outs.CAT : 0,
+    Practical: maxima.Practical > 0 ? raw.Practical / maxima.Practical * outs.Practical : 0,
+    Final: maxima.Final > 0 ? raw.Final / maxima.Final * outs.Final : 0,
   };
   const maxScore = outs.CAT + outs.Practical + outs.Final;
   const score = categoryScore.CAT + categoryScore.Practical + categoryScore.Final;
