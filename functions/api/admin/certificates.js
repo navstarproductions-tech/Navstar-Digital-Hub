@@ -32,15 +32,16 @@ export async function onRequestPost({ request, env }) {
   if (!studentId || !courseId) return error('Select a student and course.');
   const eligible = await env.DB.prepare(`
     SELECT u.id,u.name,u.email,p.staff_id AS student_id,e.admission_number,co.id AS course_id,
-      co.title AS course_title,co.course_code,g.completed_at
+      co.title AS course_title,co.course_code,g.completed_at,rc.report_card_no,rc.snapshot_json AS report_card_snapshot
     FROM users u JOIN user_profiles p ON p.user_id=u.id
     JOIN enrollments e ON lower(e.email)=lower(u.email) AND e.course_id=? AND e.status='accepted'
     JOIN courses co ON co.id=e.course_id
     JOIN student_graduation_records g ON g.user_id=u.id AND g.course_id=e.course_id AND g.status='graduated'
+    JOIN academic_report_cards rc ON rc.id=(SELECT ar.id FROM academic_report_cards ar WHERE ar.user_id=u.id AND ar.course_id=e.course_id AND ar.status='published' ORDER BY ar.published_at DESC,ar.issued_at DESC LIMIT 1)
     WHERE u.id=? AND COALESCE(p.portal_role,u.role)='student'
     ORDER BY e.created_at DESC LIMIT 1
   `).bind(courseId,studentId).first();
-  if (!eligible) return error('A certificate can only be issued to a student with an accepted enrolment and a recorded Graduated decision for this course.',409);
+  if (!eligible) return error('A certificate requires an accepted enrolment, a recorded Graduated decision and a published report card for this course.',409);
   const duplicate = await env.DB.prepare('SELECT certificate_no FROM student_certificates WHERE user_id=? AND course_id=?').bind(studentId,courseId).first();
   if (duplicate) return error('A certificate record already exists for this student and course: '+duplicate.certificate_no,409);
   const year = String(new Date().getFullYear());
@@ -50,10 +51,15 @@ export async function onRequestPost({ request, env }) {
   const certificateNo = 'NDH/'+year+'/'+String(sequence.last_number).padStart(5,'0');
   const publicToken = token();
   const issuedAt = new Date().toISOString();
+  let academicSnapshot={};try{academicSnapshot=JSON.parse(eligible.report_card_snapshot||'{}')}catch{}
   const snapshot = {
     certificateNo,studentName:eligible.name,studentId:eligible.student_id||'',
     courseTitle:eligible.course_title,courseCode:eligible.course_code||'',
     admissionNumber:eligible.admission_number||'',graduationDate:eligible.completed_at||'',
+    reportCardNo:eligible.report_card_no||'',
+    academicResults:Array.isArray(academicSnapshot.results)?academicSnapshot.results:[],
+    grading:Array.isArray(academicSnapshot.grading)?academicSnapshot.grading:[],
+    academicSummary:academicSnapshot.summary||{},
     issuedAt,issuer:'Navstar Digital Hub',motto:'HOME OF TECHNOCRATS',
     statement:'has successfully completed the stated course at Navstar Digital Hub.'
   };
