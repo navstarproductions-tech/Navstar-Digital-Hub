@@ -35,12 +35,13 @@ export async function onRequestPost(context) {
   const enrollmentId = safeString(body.enrollmentId, 80);
   const action = safeString(body.action, 30);
   const reason = safeString(body.reason, 1000).trim();
-  if (!enrollmentId || !['accept','reject','withdraw','defer-payment','reduced-deposit'].includes(action)) return error('Choose a valid admissions action.');
+  if (!enrollmentId || !['accept','activate','reject','withdraw','defer-payment','reduced-deposit'].includes(action)) return error('Choose a valid admissions action.');
   if (['reject','withdraw','defer-payment','reduced-deposit'].includes(action) && reason.length < 8) return error('Enter a clear reason or approval note (at least 8 characters).');
   const enrollment = await env.DB.prepare(`SELECT e.*, c.title AS course_title, c.price AS course_fee
     FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.id = ?`).bind(enrollmentId).first();
   if (!enrollment) return error('Application not found.', 404);
   const now = new Date().toISOString();
+  if (action === 'activate' && enrollment.status !== 'accepted') return error('Only an already accepted admission can be activated from Student Status Management.',409);
   if (action === 'defer-payment' || action === 'reduced-deposit') {
     if (['accepted','rejected','withdrawn'].includes(String(enrollment.status))) return error('Payment exceptions can only be approved for an application that has not received a final decision.', 409);
     const approvedAmount = action === 'defer-payment' ? 0 : Number(body.approvedInitialPayment);
@@ -81,8 +82,8 @@ export async function onRequestPost(context) {
     return json({ saved: true, action, status });
   }
 
-  if (!env.RESEND_API_KEY || !env.MAIL_FROM) return error('Admissions email is not configured. Configure RESEND_API_KEY and MAIL_FROM before accepting applications.', 503);
-  if (enrollment.status === 'accepted') return error('This application has already been accepted.', 409);
+  if (!env.RESEND_API_KEY || !env.MAIL_FROM) return error('Admissions email is not configured. Configure RESEND_API_KEY and MAIL_FROM before accepting or activating student accounts.', 503);
+  if (enrollment.status === 'accepted' && action !== 'activate') return error('This application has already been accepted.', 409);
   if (['rejected','withdrawn'].includes(String(enrollment.status))) return error('A rejected or withdrawn application cannot be accepted. Review the record before making a new application.', 409);
   if (enrollment.payment_exception === 'reduced-initial-payment') {
     const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount),0) AS paid_total FROM payments WHERE purpose='enrollment' AND reference_id=? AND status='paid'").bind(enrollmentId).first();
@@ -90,7 +91,7 @@ export async function onRequestPost(context) {
       return error('The Admin-approved reduced initial payment must be confirmed by M-Pesa before this application can be accepted.', 409);
     }
   }
-  if (!['paid','deferred'].includes(String(enrollment.payment_status)) && !Number(enrollment.special_enrollment)) {
+  if (action !== 'activate' && !['paid','deferred'].includes(String(enrollment.payment_status)) && !Number(enrollment.special_enrollment)) {
     return error('The application must have its required payment confirmed or an authorised payment exception recorded before acceptance.', 409);
   }
   let admissionNumber = enrollment.admission_number || '';
