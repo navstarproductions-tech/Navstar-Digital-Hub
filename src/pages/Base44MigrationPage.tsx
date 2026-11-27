@@ -35,6 +35,16 @@ export function Base44MigrationPage() {
   const [archiveError, setArchiveError] = useState('');
 
   const counts = useMemo(() => Object.fromEntries(ENTITY_NAMES.map(name => [name, bundle?.entities?.[name]?.length || 0])), [bundle]);
+  const visibleArchiveRecords = useMemo(() => {
+    const records = archive?.records || [];
+    const query = archiveSearch.trim().toLowerCase();
+    if (!query) return records;
+    return records.filter(record => [
+      record.entityName,
+      record.sourceId,
+      JSON.stringify(record.data || {})
+    ].join(' ').toLowerCase().includes(query));
+  }, [archive, archiveSearch]);
 
   async function selectFile(file?: File) {
     setError(''); setResult(null); setBundle(null); setFileName('');
@@ -60,10 +70,18 @@ export function Base44MigrationPage() {
     }
   }
 
-  async function loadArchive() {
+  async function loadArchive(batchId?: string) {
     setArchiveError('');
-    try { const response = await fetch('/api/admin/base44-migration/archive', { credentials: 'same-origin' }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Could not load the saved archive.'); setArchive(data); }
-    catch (cause) { setArchiveError(cause instanceof Error ? cause.message : 'Could not load the saved archive.'); }
+    try {
+      const query = batchId ? '?batch=' + encodeURIComponent(batchId) : '';
+      const response = await fetch('/api/admin/base44-migration/archive' + query, { credentials: 'same-origin' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load the saved archive.');
+      setArchive(data);
+      setSelectedBatch(data.batch?.id || '');
+    } catch (cause) {
+      setArchiveError(cause instanceof Error ? cause.message : 'Could not load the saved archive.');
+    }
   }
 
   async function runImport() {
