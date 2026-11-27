@@ -1,5 +1,6 @@
 import { getSession, requireRole } from '../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString, uuid } from '../_shared/http.js';
+import { syncModuleResult } from '../_shared/module-marks.js';
 
 const learnerRoles = ['student'];
 const staffRoles = ['admin', 'tutor', 'principal'];
@@ -92,7 +93,7 @@ export async function onRequestGet({ request, env }) {
     lessons = result.results ?? [];
   }
   const assignmentsResult = await env.DB.prepare(`
-    SELECT a.id, a.course_id, a.module_id, a.assignment_type, a.title, a.instructions, a.due_at, a.max_points, a.status
+    SELECT a.id, a.course_id, a.module_id, a.assignment_type, a.marks_category, a.title, a.instructions, a.due_at, a.max_points, a.status
     FROM course_assignments a
     WHERE a.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND a.status = 'published'" : user.role === 'tutor' ? "AND a.status = 'published' AND a.module_id IS NOT NULL AND EXISTS (SELECT 1 FROM module_tutor_assignments mt WHERE mt.module_id=a.module_id AND mt.tutor_user_id=?)" : "AND a.status != 'archived'"}
     ORDER BY a.due_at IS NULL, a.due_at, a.created_at DESC
@@ -105,7 +106,7 @@ export async function onRequestGet({ request, env }) {
   const submissionSql = `
     SELECT s.id, s.assignment_id, s.user_id, u.name AS learner_name,
       (SELECT e.admission_number FROM enrollments e WHERE lower(e.email)=lower(u.email) AND e.course_id=a.course_id AND e.status='accepted' ORDER BY e.created_at DESC LIMIT 1) AS admission_number,
-      s.response_text, s.attachment_url, s.status, s.points_awarded, s.feedback, s.submitted_at, s.graded_at, s.graded_by, a.max_points
+      s.response_text, s.attachment_url, s.status, s.points_awarded, s.feedback, s.submitted_at, s.graded_at, s.graded_by, s.approval_status, s.approved_by, s.approved_at, a.max_points
     FROM course_assignment_submissions s
     JOIN course_assignments a ON a.id = s.assignment_id
     JOIN users u ON u.id = s.user_id
@@ -124,7 +125,8 @@ export async function onRequestGet({ request, env }) {
     const raw=Number(submission.points_awarded),rawMax=Number(submission.max_points)||100;
     const percentage=submission.points_awarded===null||submission.points_awarded===undefined?null:Math.round(raw/rawMax*10000)/100;
     const grade=percentage===null?null:marksPolicy.bands.find(b=>percentage>=b.min&&percentage<=b.max)?.grade||'—';
-    const enriched={...submission,percentage,published_maximum:marksPolicy.maximum,published_points_awarded:percentage===null?null:Math.round(percentage*marksPolicy.maximum)/100,grade};
+    const visibleToStudent=user.role!=='student'||submission.approval_status==='approved';
+    const enriched={...submission,status:submission.approval_status==='pending'&&submission.points_awarded!==null?'pending_approval':submission.status,points_awarded:visibleToStudent?submission.points_awarded:null,feedback:visibleToStudent?submission.feedback:null,percentage:visibleToStudent?percentage:null,published_maximum:marksPolicy.maximum,published_points_awarded:visibleToStudent&&percentage!==null?Math.round(percentage*marksPolicy.maximum)/100:null,grade:visibleToStudent?grade:null};
     const current = submissionsByAssignment.get(submission.assignment_id) ?? [];
     current.push(enriched);
     submissionsByAssignment.set(submission.assignment_id, current);
@@ -172,6 +174,7 @@ export async function onRequestPost({ request, env }) {
     const access = await requireRole(request, env, ['admin','principal','tutor']);
     if (access.response) return access.response;
   }
+  if (action === 'approve_assignment_mark') { const access=await requireRole(request,env,['admin','principal']); if(access.response)return access.response; }
   if (['assign_tutor','remove_tutor','assign_module_tutor','remove_module_tutor'].includes(action)) {
     const access = await requireRole(request, env, ['admin','principal']);
     if (access.response) return access.response;
@@ -330,9 +333,10 @@ export async function onRequestPost({ request, env }) {
     if (dueAt && Number.isNaN(Date.parse(dueAt))) return error('Enter a valid assignment deadline.');
     const status = body.status === 'published' ? 'published' : 'draft';
     const assignmentType = body.assignmentType === 'project' ? 'project' : 'assignment';
+    const marksCategory = ['CAT','Practical','Final'].includes(String(body.marksCategory)) ? String(body.marksCategory) : 'CAT';
     const id = uuid();
-    await env.DB.prepare('INSERT INTO course_assignments (id, course_id, module_id, assignment_type, title, instructions, due_at, max_points, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, courseId, moduleId, assignmentType, title, instructions, dueAt, maxPoints, status, user.id).run();
+    await env.DB.prepare('INSERT INTO course_assignments (id, course_id, module_id, assignment_type, marks_category, title, instructions, due_at, max_points, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, courseId, moduleId, assignmentType, marksCategory, title, instructions, dueAt, maxPoints, status, user.id).run();
     await writeAudit(env.DB, user.id, assignmentType === 'project' ? 'lms_project_created' : 'lms_assignment_created', 'course_assignment', id);
     return json({ id, status }, 201);
   }
@@ -368,8 +372,8 @@ export async function onRequestPost({ request, env }) {
     const assignment = await env.DB.prepare("SELECT id, course_id FROM course_assignments WHERE id = ? AND status = 'published'").bind(assignmentId).first();
     if (!assignment || !(await hasCourseAccess(env.DB, user, assignment.course_id))) return error('This assignment is not available to your account.', 403);
     await env.DB.prepare(`
-      INSERT INTO course_assignment_submissions (id, assignment_id, user_id, response_text, attachment_url, status, submitted_at)
-      VALUES (?, ?, ?, ?, ?, 'submitted', CURRENT_TIMESTAMP)
+      INSERT INTO course_assignment_submissions (id, assignment_id, user_id, response_text, attachment_url, status, approval_status, submitted_at)
+      VALUES (?, ?, ?, ?, ?, 'submitted', 'pending', CURRENT_TIMESTAMP)
       ON CONFLICT(assignment_id,user_id) DO UPDATE SET
         response_text = excluded.response_text,
         attachment_url = excluded.attachment_url,
@@ -378,6 +382,7 @@ export async function onRequestPost({ request, env }) {
         feedback = NULL,
         graded_by = NULL,
         graded_at = NULL,
+        approval_status = 'pending', approved_by = NULL, approved_at = NULL,
         submitted_at = CURRENT_TIMESTAMP
     `).bind(uuid(), assignmentId, user.id, responseText, attachmentUrl || null).run();
     return json({ assignmentId, status: 'submitted' }, 201);
@@ -392,17 +397,18 @@ export async function onRequestPost({ request, env }) {
       const points = Number(rows[index]?.pointsAwarded);
       const feedback = safeString(rows[index]?.feedback, 4000);
       const submission = await env.DB.prepare(`
-        SELECT s.id, a.max_points, a.course_id, a.module_id FROM course_assignment_submissions s
-        JOIN course_assignments a ON a.id = s.assignment_id WHERE s.id = ?
+        SELECT s.id,s.approval_status,a.max_points,a.course_id,a.module_id
+        FROM course_assignment_submissions s JOIN course_assignments a ON a.id=s.assignment_id WHERE s.id=?
       `).bind(submissionId).first();
-      if (!submission || !(await hasCourseAccess(env.DB,user,submission.course_id)) || (user.role==='tutor'&&(!submission.module_id||!(await hasModuleAccess(env.DB,user,submission.module_id,submission.course_id)))) || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) {
-        return error(`Marks row ${index + 1} has an unknown submission or a score outside the allowed range. Nothing was imported.`);
+      if (!submission || !(await hasCourseAccess(env.DB,user,submission.course_id)) || (user.role==='tutor'&&(!submission.module_id||!(await hasModuleAccess(env.DB,user,submission.module_id,submission.course_id))||submission.approval_status==='approved')) || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) {
+        return error(`Marks row ${index + 1} has an unknown submission, an approved mark, or a score outside the allowed range. Nothing was imported.`);
       }
       prepared.push({ submissionId, points, feedback });
     }
+    const approvalStatus=user.role==='tutor'?'pending':'approved';
     const statements = prepared.flatMap(row => [
-      env.DB.prepare("UPDATE course_assignment_submissions SET status = 'graded', points_awarded = ?, feedback = ?, graded_by = ?, graded_at = CURRENT_TIMESTAMP WHERE id = ?")
-        .bind(row.points, row.feedback, user.id, row.submissionId),
+      env.DB.prepare("UPDATE course_assignment_submissions SET status='graded',points_awarded=?,feedback=?,graded_by=?,graded_at=CURRENT_TIMESTAMP,approval_status=?,approved_by=?,approved_at=CASE WHEN ?='approved' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=?")
+        .bind(row.points,row.feedback,user.id,approvalStatus,approvalStatus==='approved'?user.id:null,approvalStatus,row.submissionId),
       env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
         .bind(uuid(), user.id, 'lms_submission_graded', 'course_assignment_submission', row.submissionId),
     ]);
@@ -414,19 +420,31 @@ export async function onRequestPost({ request, env }) {
     return json({ imported: prepared.length, message: `${prepared.length} marks saved successfully.` }, 200);
   }
 
+  if(action==='approve_assignment_mark'){
+    const submissionId=safeString(body.submissionId,80);
+    const submission=await env.DB.prepare(`SELECT s.id,s.user_id,a.module_id,a.course_id FROM course_assignment_submissions s JOIN course_assignments a ON a.id=s.assignment_id WHERE s.id=? AND s.points_awarded IS NOT NULL`).bind(submissionId).first();
+    if(!submission)return error('A tutor-marked assignment submission is required.',404);
+    await env.DB.prepare("UPDATE course_assignment_submissions SET status='graded',approval_status='approved',approved_by=?,approved_at=CURRENT_TIMESTAMP WHERE id=?").bind(user.id,submissionId).run();
+    await writeAudit(env.DB,user.id,'lms_submission_mark_approved','course_assignment_submission',submissionId);
+    if(submission.module_id)await syncModuleResult(env.DB,submission.user_id,submission.module_id,user.id);
+    return json({id:submissionId,approvalStatus:'approved',published:true});
+  }
+
   if (action === 'grade_submission') {
     const submissionId = safeString(body.submissionId, 80);
     const points = Number(body.pointsAwarded);
     const feedback = safeString(body.feedback, 4000);
     const submission = await env.DB.prepare(`
-      SELECT s.id, a.max_points, a.course_id FROM course_assignment_submissions s
-      JOIN course_assignments a ON a.id = s.assignment_id WHERE s.id = ?
+      SELECT s.id,s.approval_status,a.max_points,a.course_id,a.module_id
+      FROM course_assignment_submissions s JOIN course_assignments a ON a.id=s.assignment_id WHERE s.id=?
     `).bind(submissionId).first();
-    if (!submission || !(await hasCourseAccess(env.DB,user,submission.course_id)) || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) return error('Enter a valid score within the assignment maximum for a course assigned to your account.');
-    await env.DB.prepare("UPDATE course_assignment_submissions SET status = 'graded', points_awarded = ?, feedback = ?, graded_by = ?, graded_at = CURRENT_TIMESTAMP WHERE id = ?")
-      .bind(points, feedback, user.id, submissionId).run();
-    await writeAudit(env.DB, user.id, 'lms_submission_graded', 'course_assignment_submission', submissionId);
-    return json({ id: submissionId, status: 'graded', pointsAwarded: points });
+    if (!submission || !(await hasCourseAccess(env.DB,user,submission.course_id)) || (user.role==='tutor'&&(!submission.module_id||!(await hasModuleAccess(env.DB,user,submission.module_id,submission.course_id))||submission.approval_status==='approved')) || !Number.isSafeInteger(points) || points < 0 || points > submission.max_points) return error('Enter a valid score for an assigned module. Tutors cannot overwrite an administrator-approved mark.');
+    const approvalStatus=user.role==='tutor'?'pending':'approved';
+    await env.DB.prepare("UPDATE course_assignment_submissions SET status='graded',points_awarded=?,feedback=?,graded_by=?,graded_at=CURRENT_TIMESTAMP,approval_status=?,approved_by=?,approved_at=CASE WHEN ?='approved' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=?")
+      .bind(points,feedback,user.id,approvalStatus,approvalStatus==='approved'?user.id:null,approvalStatus,submissionId).run();
+    await writeAudit(env.DB,user.id,'lms_submission_graded','course_assignment_submission',submissionId);
+    if(approvalStatus==='approved'&&submission.module_id)await syncModuleResult(env.DB,(await env.DB.prepare('SELECT user_id FROM course_assignment_submissions WHERE id=?').bind(submissionId).first())?.user_id,submission.module_id,user.id);
+    return json({id:submissionId,status:approvalStatus==='approved'?'graded':'pending_approval',approvalStatus,pointsAwarded:points});
   }
 
   return error('Unknown learning action.');
