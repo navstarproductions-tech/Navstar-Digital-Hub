@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { ExamManagementWorkspace } from '@/components/ExamManagementWorkspace';
 import { StudentExamRunner } from '@/components/StudentExamRunner';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -18,7 +20,9 @@ const fieldClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2
 const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60';
 
 export function LearningPage({section}:{section?:string}) {
-  const [data, setData] = useState<LearningData | null>(null);
+  const [searchParams] = useSearchParams();
+  const activeSection = section || searchParams.get('section') || undefined;
+  const [data, setData = useState<LearningData | null>(null);
   const [academic, setAcademic] = useState<AcademicData>({});
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedLessonId, setSelectedLessonId] = useState('');
@@ -82,9 +86,9 @@ export function LearningPage({section}:{section?:string}) {
   const totalLessons = selectedCourse?.modules.reduce((total, module) => total + module.lessons.length, 0) ?? 0;
   const isAdmin = ['admin','principal','tutor'].includes(data?.role || '');
   const isStudent = data?.role === 'student';
-  const showModules = !section || ['courses','resources'].includes(section);
-  const showAssignments = !section || section === 'assignments';
-  const showAcademic = !section || ['classes','progress'].includes(section);
+  const showModules = !activeSection || ['courses','resources'].includes(activeSection);
+  const showAssignments = !activeSection || activeSection === 'assignments';
+  const showAcademic = !activeSection || ['classes','progress'].includes(activeSection);
 
   const sendAction = async (payload: Record<string, unknown>) => {
     setBusy(true);
@@ -198,7 +202,7 @@ export function LearningPage({section}:{section?:string}) {
         <section className="min-w-0 space-y-6">
           {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
           {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
-          {selectedCourse ? <>
+          {activeSection === 'exams' && isAdmin ? <ExamManagementWorkspace courses={(data?.courses || []).map(course => ({ id: course.id, title: course.title }))} exams={(academic.assessments || []).map((exam:any) => ({ ...exam, instructions: exam.instructions || '', max_points: Number(exam.max_points) || 100 }))} onRefresh={load} /> : selectedCourse ? <>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start"><div><p className="text-xs font-bold uppercase tracking-wider text-blue-700">Selected programme</p><h2 className="mt-2 text-2xl font-black text-slate-950">{selectedCourse.title}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{selectedCourse.description}</p></div><div className="min-w-32 rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">Lesson progress</p><p className="mt-1 text-2xl font-black text-slate-950">{completedLessons}/{totalLessons}</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-emerald-500" style={{ width: totalLessons ? `${completedLessons / totalLessons * 100}%` : '0%' }} /></div></div></div>
             </div>
