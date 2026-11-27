@@ -6,7 +6,7 @@ const staffRoles=['admin','principal','tutor'];
 const adminRoles=['admin','principal'];
 const dateTimePattern=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
-const requiredAcademicTables=['course_timetable','course_attendance','course_live_classes','course_scholarships','scholarship_applications','student_graduation_records','student_report_cards','student_certificates','course_assessments','course_assessment_results','course_assessment_attempts','student_module_registrations','module_tutor_assignments','exam_institute_settings','course_exam_questions','exam_runtime_attempts','exam_runtime_answers','assessment_component_marks','academic_report_cards','academic_conversations','academic_messages','timetable_generation_rules','exam_attempt_approvals'];
+const requiredAcademicTables=['course_timetable','course_attendance','course_live_classes','course_scholarships','scholarship_applications','student_graduation_records','student_report_cards','student_certificates','course_assessments','course_assessment_results','course_assessment_attempts','student_module_registrations','module_tutor_assignments','exam_institute_settings','course_exam_questions','exam_runtime_attempts','exam_runtime_answers','assessment_component_marks','academic_report_cards','academic_conversations','academic_messages','timetable_generation_rules','exam_attempt_approvals','base44_marks_conflicts'];
 async function requireAcademicSchema(db){
   const placeholders=requiredAcademicTables.map(()=>'?').join(',');
   const result=await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ("+placeholders+")").bind(...requiredAcademicTables).all();
@@ -84,7 +84,7 @@ export async function onRequestGet({request,env}){
   const ids=await visibleCourseIds(env.DB,user);
   if(!ids.length){
     const certificates=user.role==='student'?(await env.DB.prepare('SELECT c.*,co.title AS course_title FROM student_certificates c JOIN courses co ON co.id=c.course_id WHERE c.user_id=? ORDER BY c.issued_at DESC').bind(user.id).all()).results||[]:[];
-    return json({courses:[],learners:[],timetable:[],attendance:[],liveClasses:[],scholarships:[],moduleRegistrations:[],assessments:[],assessmentResults:[],assessmentComponents:[],assessmentAttempts:[],examRuntimeAttempts:[],examCandidates:[],moduleResults:[],graduation:[],reportCards:[],certificates});
+    return json({courses:[],learners:[],timetable:[],attendance:[],liveClasses:[],scholarships:[],moduleRegistrations:[],assessments:[],assessmentResults:[],assessmentComponents:[],assessmentAttempts:[],examRuntimeAttempts:[],examCandidates:[],moduleResults:[],marksConflicts:[],graduation:[],reportCards:[],certificates});
   }
   const marks=ids.map(()=>'?').join(',');
   const courses=(await env.DB.prepare(`SELECT id,title FROM courses WHERE id IN (${marks}) ORDER BY title`).bind(...ids).all()).results||[];
@@ -99,6 +99,7 @@ export async function onRequestGet({request,env}){
   let examSettings={};try{examSettings=JSON.parse(examSettingsRow?.settings_json||'{}');}catch{examSettings={};}
   const marksPolicy=await getCentralMarksPolicy(env.DB);examSettings={...examSettings,...marksPolicy};
   const moduleResults=user.role==='student'?(await env.DB.prepare(`SELECT r.*,m.title AS module_title,c.title AS course_title FROM student_module_results r JOIN course_modules m ON m.id=r.module_id JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY c.title,m.sort_order`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT r.*,m.title AS module_title,c.title AS course_title,u.name AS student_name,(SELECT e.admission_number FROM enrollments e WHERE e.course_id=r.course_id AND lower(e.email)=lower(u.email) AND e.status='accepted' LIMIT 1) AS admission_number FROM student_module_results r JOIN course_modules m ON m.id=r.module_id JOIN courses c ON c.id=r.course_id JOIN users u ON u.id=r.user_id WHERE r.course_id IN (${marks}) ORDER BY c.title,m.sort_order,u.name LIMIT 2000`).bind(...ids).all()).results||[];
+  const marksConflicts=user.role==='student'?[]:(await env.DB.prepare(`SELECT x.*,COALESCE(u.name,x.student_name) AS student_name,(SELECT e.admission_number FROM enrollments e WHERE e.course_id=x.course_id AND lower(e.email)=lower(x.student_email) AND e.status='accepted' LIMIT 1) AS admission_number FROM base44_marks_conflicts x LEFT JOIN users u ON u.id=x.user_id WHERE x.course_id IN (${marks}) ORDER BY CASE WHEN x.status='pending' THEN 0 ELSE 1 END,x.created_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const graduation=user.role==='student'?(await env.DB.prepare(`SELECT g.*,c.title AS course_title FROM student_graduation_records g JOIN courses c ON c.id=g.course_id WHERE g.user_id=?`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT g.*,c.title AS course_title,u.name AS student_name FROM student_graduation_records g JOIN courses c ON c.id=g.course_id JOIN users u ON u.id=g.user_id WHERE g.course_id IN (${marks}) ORDER BY c.title,u.name`).bind(...ids).all()).results||[];
   const reportCards=user.role==='student'?(await env.DB.prepare('SELECT r.*,c.title AS course_title FROM student_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY r.issued_at DESC').bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT r.*,c.title AS course_title,u.name AS student_name FROM student_report_cards r JOIN courses c ON c.id=r.course_id JOIN users u ON u.id=r.user_id WHERE r.course_id IN (${marks}) ORDER BY r.issued_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const certificates=user.role==='student'?(await env.DB.prepare('SELECT c.*,co.title AS course_title FROM student_certificates c JOIN courses co ON co.id=c.course_id WHERE c.user_id=? ORDER BY c.issued_at DESC').bind(user.id).all()).results||[]:[];
@@ -108,7 +109,7 @@ export async function onRequestGet({request,env}){
   const examRuntimeAttempts=user.role==='student'?(await env.DB.prepare(`SELECT t.id,t.assessment_id,t.user_id,t.attempt_number,t.started_at,t.expires_at,t.submitted_at,t.status,t.flagged_count,t.objective_score,t.total_score,a.title AS assessment_title,a.course_id,a.max_points,a.instructions,c.title AS course_title,ap.status AS approval_status FROM exam_runtime_attempts t JOIN course_assessments a ON a.id=t.assessment_id JOIN courses c ON c.id=a.course_id LEFT JOIN exam_attempt_approvals ap ON ap.assessment_id=t.assessment_id AND ap.user_id=t.user_id WHERE t.user_id=? ORDER BY t.started_at DESC LIMIT 100`).bind(user.id).all()).results||[]:(await env.DB.prepare(`SELECT t.id,t.assessment_id,t.user_id,t.attempt_number,t.started_at,t.expires_at,t.submitted_at,t.status,t.flagged_count,t.objective_score,t.total_score,a.title AS assessment_title,a.course_id,a.max_points,u.name AS student_name,c.title AS course_title,(SELECT e.admission_number FROM enrollments e WHERE e.course_id=a.course_id AND lower(e.email)=lower(u.email) AND e.status='accepted' LIMIT 1) AS admission_number,ap.status AS approval_status FROM exam_runtime_attempts t JOIN course_assessments a ON a.id=t.assessment_id JOIN users u ON u.id=t.user_id JOIN courses c ON c.id=a.course_id LEFT JOIN exam_attempt_approvals ap ON ap.assessment_id=t.assessment_id AND ap.user_id=t.user_id WHERE a.course_id IN (${marks}) ORDER BY t.started_at DESC LIMIT 500`).bind(...ids).all()).results||[];
   const examCandidates=user.role==='student'?[]:(await env.DB.prepare(`SELECT a.id AS assessment_id,a.title AS assessment_title,a.course_id,a.require_admin_approval,u.id AS user_id,u.name AS student_name,c.title AS course_title,(SELECT e.admission_number FROM enrollments e WHERE e.course_id=a.course_id AND lower(e.email)=lower(u.email) AND e.status='accepted' LIMIT 1) AS admission_number,ap.status AS approval_status FROM course_assessments a JOIN courses c ON c.id=a.course_id JOIN enrollments e ON e.course_id=a.course_id AND e.status='accepted' JOIN users u ON lower(u.email)=lower(e.email) LEFT JOIN exam_attempt_approvals ap ON ap.assessment_id=a.id AND ap.user_id=u.id WHERE a.course_id IN (${marks}) AND a.status='published' ORDER BY a.title,u.name LIMIT 500`).bind(...ids).all()).results||[];
   const scholarshipApplications=user.role==='student'?[]:(await env.DB.prepare(`SELECT a.*,s.title AS scholarship_title,s.course_id,u.name AS student_name,u.email,c.title AS course_title FROM scholarship_applications a JOIN course_scholarships s ON s.id=a.scholarship_id JOIN users u ON u.id=a.user_id LEFT JOIN courses c ON c.id=s.course_id WHERE (s.course_id IS NULL OR s.course_id IN (${marks})) ORDER BY a.created_at DESC LIMIT 500`).bind(...ids).all()).results||[];
-  return json({courses,learners,timetable,attendance,liveClasses,scholarships,moduleRegistrations,assessments,assessmentResults,assessmentComponents,assessmentAttempts,examRuntimeAttempts,examCandidates,moduleResults,scholarshipApplications,graduation,reportCards,certificates,examSettings,role:user.role});
+  return json({courses,learners,timetable,attendance,liveClasses,scholarships,moduleRegistrations,assessments,assessmentResults,assessmentComponents,assessmentAttempts,examRuntimeAttempts,examCandidates,moduleResults,marksConflicts,scholarshipApplications,graduation,reportCards,certificates,examSettings,role:user.role});
 }
 export async function onRequestPost({request,env}){
   if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
@@ -123,6 +124,29 @@ export async function onRequestPost({request,env}){
   const moduleId=safeString(body.moduleId,80);
   const title=safeString(body.title,160);
   const audit=async(name,type,id)=>env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,name,type,id).run();
+  if(action==='resolve_base44_marks_conflict'){
+    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
+    const conflictId=safeString(body.conflictId,80),choice=String(body.choice||'').toUpperCase();
+    if(!conflictId||!['A','B'].includes(choice))return error('Select a conflict and choose source A or source B.');
+    const conflict=await env.DB.prepare("SELECT * FROM base44_marks_conflicts WHERE id=? AND status='pending'").bind(conflictId).first();
+    if(!conflict)return error('Pending marks conflict not found.',404);
+    if(!conflict.user_id||!conflict.module_id||!conflict.course_id)return error('This conflict has no safe student, course or module match. It remains in the review queue.');
+    const suffix=choice.toLowerCase(),scoreValue=conflict['score_'+suffix];
+    if(scoreValue===null||scoreValue===undefined)return error('The selected source has no total score.');
+    const cat=Number(conflict['cat_score_'+suffix]||0),practical=Number(conflict['assignment_score_'+suffix]||0),exam=Number(conflict['exam_score_'+suffix]||0),score=Number(scoreValue);
+    const cfg=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();let config={};try{config=JSON.parse(cfg?.value||'{}')}catch{}
+    const lines=String(config.grading?.gradeScale||'').split(/\r?\n/).map(line=>line.split('|').map(part=>part.trim())).filter(p=>p[0]&&Number.isFinite(Number(p[2]))&&Number.isFinite(Number(p[3])));
+    const band=lines.find(p=>score>=Number(p[2])&&score<=Number(p[3]));
+    const grade=band?.[0]||'MM',remarks=band?.slice(4).join(' | ')||'Imported marks conflict resolved by administrator.';
+    await env.DB.prepare(`INSERT INTO student_module_results(id,user_id,course_id,module_id,cat_score,practical_score,exam_score,assignment_score,score,max_score,grade,remarks,status,published_at,updated_by,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,100,?,?,'published',CURRENT_TIMESTAMP,?,CURRENT_TIMESTAMP)
+      ON CONFLICT(user_id,module_id) DO UPDATE SET cat_score=excluded.cat_score,practical_score=excluded.practical_score,exam_score=excluded.exam_score,assignment_score=excluded.assignment_score,score=excluded.score,max_score=excluded.max_score,grade=excluded.grade,remarks=excluded.remarks,status='published',published_at=CURRENT_TIMESTAMP,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP`)
+      .bind(uuid(),conflict.user_id,conflict.course_id,conflict.module_id,cat,practical,exam,practical,score,grade,remarks,user.id).run();
+    await env.DB.prepare("UPDATE base44_marks_conflicts SET status='resolved',resolved_by=?,published_source=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'")
+      .bind(user.id,choice==='A'?conflict.source_a:conflict.source_b,conflictId).run();
+    await audit('base44_marks_conflict_resolved','base44_marks_conflict',conflictId);
+    return json({saved:true,status:'resolved',publishedSource:choice==='A'?conflict.source_a:conflict.source_b,grade,score});
+  }
   if(action==='delete_assessment_result'){
     const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80);
