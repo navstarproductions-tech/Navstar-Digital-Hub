@@ -230,7 +230,7 @@ async function handleQuestionPost({request,env}){
  }
  if(action==='grade_runtime_attempt'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
-  const attemptId=safeString(body.attemptId,80),attempt=await env.DB.prepare("SELECT id,status,objective_score FROM exam_runtime_attempts WHERE id=? AND assessment_id=?").bind(attemptId,assessmentId).first();
+  const attemptId=safeString(body.attemptId,80),attempt=await env.DB.prepare("SELECT id,status,objective_score,user_id FROM exam_runtime_attempts WHERE id=? AND assessment_id=?").bind(attemptId,assessmentId).first();
   if(!attempt||!['submitted','expired','graded'].includes(attempt.status))return error('This examination attempt is not ready for marking.',404);
   const answerRows=(await env.DB.prepare('SELECT a.question_id,a.points_awarded,q.question_type,q.points FROM exam_runtime_answers a JOIN course_exam_questions q ON q.id=a.question_id WHERE a.attempt_id=?').bind(attemptId).all()).results||[];
   const manualMarks=Array.isArray(body.manualMarks)?body.manualMarks:[],markMap=new Map(manualMarks.map(item=>[safeString(item.questionId,80),item]));
@@ -249,7 +249,7 @@ async function handleQuestionPost({request,env}){
   await env.DB.prepare("UPDATE exam_runtime_attempts SET status='graded',objective_score=?,total_score=?,last_activity_at=CURRENT_TIMESTAMP WHERE id=?").bind(objective,total,attemptId).run();
   const configRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first().catch(()=>null);let config={};try{config=JSON.parse(configRow?.value||'{}')}catch{config={};}
   const targetMaximum=categoryMaximum(assessment.assessment_type,{publishedMaximum:Number(config.grading?.publishedMaximum)||100}),scaled=scaleScore(total,paperMaximum,targetMaximum);
-  await env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,NULL,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=NULL,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points").bind(uuid(),assessmentId,user.id,scaled,feedback||'Written answers marked by tutor/administrator.',user.id,total,targetMaximum).run();
+  await env.DB.prepare("INSERT INTO course_assessment_results(id,assessment_id,user_id,points_awarded,feedback,published_at,marked_by,raw_points_awarded,published_max_points) VALUES(?,?,?,?,?,NULL,?,?,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET points_awarded=excluded.points_awarded,feedback=excluded.feedback,published_at=NULL,marked_by=excluded.marked_by,marked_at=CURRENT_TIMESTAMP,raw_points_awarded=excluded.raw_points_awarded,published_max_points=excluded.published_max_points").bind(uuid(),assessmentId,attempt.user_id,scaled,feedback||'Written answers marked by tutor/administrator.',user.id,total,targetMaximum).run();
   await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'exam_runtime_attempt_graded','exam_attempt',attemptId).run().catch(()=>undefined);
   return json({graded:true,attemptId,objectiveScore:objective,rawScore:total,rawMaximum:paperMaximum,publishedScore:scaled,publishedMaximum:targetMaximum,published:false,feedback});
  }
