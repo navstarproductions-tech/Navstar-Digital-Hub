@@ -230,6 +230,28 @@ export async function onRequestPost({request,env}) {
         .bind(sourceId,'b44addfee-'+sourceId.slice(-24),mapping.user_id).run();
       c.additionalFeesImported++;
     }
+    // A learner may have several course enrolments. Keep one account and derive its overall status from all of them.
+    const lifecycleByEmail=new Map();
+    for(const student of groups.Enrollment) {
+      const email=clean(student.student_email||student.email,254).toLowerCase();
+      if(!email)continue;
+      const st=clean(student.status||student.current_status,40).toLowerCase();
+      const current=lifecycleByEmail.get(email)||{hasActive:false,hasSuspended:false,hasGraduate:false,hasDismissed:false};
+      if(st==='active')current.hasActive=true;
+      if(st==='suspended'||st==='deferred')current.hasSuspended=true;
+      if(st==='graduated'||st==='completed')current.hasGraduate=true;
+      if(st==='dismissed')current.hasDismissed=true;
+      lifecycleByEmail.set(email,current);
+    }
+    for(const [email,state] of lifecycleByEmail) {
+      const accountStatus=state.hasActive||state.hasGraduate?'active':'disabled';
+      const profileStatus=state.hasActive?'active':state.hasSuspended?'suspended':'archived';
+      const account=await env.DB.prepare('SELECT id FROM users WHERE lower(email)=lower(?)').bind(email).first();
+      if(account?.id?.startsWith('b44usr-')) {
+        await env.DB.prepare('UPDATE users SET status=? WHERE id=?').bind(accountStatus,account.id).run();
+        await env.DB.prepare('UPDATE user_profiles SET student_status=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?').bind(profileStatus,account.id).run();
+      }
+    }
     const paidByEnrollment=new Map();
     for(const payment of groups.FeePayment) {
       const sourcePaymentId=clean(payment.id||payment._id||payment.uuid,120);
@@ -280,7 +302,7 @@ export async function onRequestPost({request,env}) {
       .bind(uuid(),tokenRow.created_by,'base44_student_and_fee_migration_completed','migration',tokenHash.slice(0,24)).run();
     return new Response(JSON.stringify({
       completed:true,scope:['Enrollment','FeeStructure','FeePayment','AdditionalFee'],
-      importedStudents:c.sourceStudents-c.skippedStudents,accountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
+      studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
       feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,warnings:c.warnings
