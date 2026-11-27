@@ -301,6 +301,26 @@ export async function onRequestPost({request,env}){
     await audit('assessment_updated','assessment',assessmentId);
     return json({id:assessmentId,updated:true});
   }
+  if(action==='delete_assessment'){
+    const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
+    const assessmentId=safeString(body.assessmentId,80);
+    const existing=await env.DB.prepare('SELECT id,course_id,title FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
+    // Remove dependent runtime answers first, then attempts, approvals, marks and the question bank.
+    // The audit event is retained after the academic records are permanently removed.
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM exam_runtime_answers WHERE attempt_id IN (SELECT id FROM exam_runtime_attempts WHERE assessment_id=?)').bind(assessmentId),
+      env.DB.prepare('DELETE FROM exam_runtime_attempts WHERE assessment_id=?').bind(assessmentId),
+      env.DB.prepare('DELETE FROM exam_attempt_approvals WHERE assessment_id=?').bind(assessmentId),
+      env.DB.prepare('DELETE FROM assessment_component_marks WHERE assessment_id=?').bind(assessmentId),
+      env.DB.prepare('DELETE FROM course_assessment_attempts WHERE assessment_id=?').bind(assessmentId),
+      env.DB.prepare('DELETE FROM course_assessment_results WHERE assessment_id=?').bind(assessmentId),
+      env.DB.prepare('DELETE FROM course_exam_questions WHERE assessment_id=?').bind(assessmentId),
+      env.DB.prepare('DELETE FROM course_assessments WHERE id=?').bind(assessmentId),
+    ]);
+    await audit('assessment_permanently_deleted','assessment',assessmentId);
+    return json({deleted:true,assessmentId,title:existing.title,questionsDeleted:true,attemptsDeleted:true,resultsDeleted:true});
+  }
   if(action==='archive_assessment'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80);
