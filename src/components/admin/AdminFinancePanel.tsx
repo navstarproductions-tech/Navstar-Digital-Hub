@@ -10,7 +10,7 @@ type FinancePayment = {
   debt_description?: string; created_at?: string; updated_at?: string;
 };
 type FinanceTotals = { transaction_count?: number; mpesa_received?: number; admin_confirmed?: number; awaiting_mpesa?: number; awaiting_admin_review?: number; failed_amount?: number; successful_count?: number; pending_count?: number; failed_count?: number };
-type Balance = { balance_text?: string; balance_amount?: number | null; currency?: string; received_at?: string; result_description?: string };
+type Balance = { balance_text?: string; balance_amount?: number | null; currency?: string; received_at?: string; created_at?: string; latest_request_at?: string; result_description?: string };
 type Cashout = { id: string; reference?: string; amount: number; status: string; recipient_phone?: string; requested_by?: string; payout_status?: string; payout_description?: string; transaction_id?: string; submitted_at?: string; received_at?: string };
 type FinanceResponse = { payments?: FinancePayment[]; totals?: FinanceTotals; mpesaBalance?: Balance | null; error?: string };
 type CashoutResponse = { requests?: Cashout[]; error?: string };
@@ -25,6 +25,8 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
   const [notice, setNotice] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [lastRefresh, setLastRefresh] = useState('');
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  const [balanceRequestedAt, setBalanceRequestedAt] = useState('');
 
   const refresh = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -51,6 +53,11 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
   }, [ledger]);
 
   useEffect(() => {
+    const clock = window.setInterval(() => setClockNow(Date.now()), 30000);
+    return () => window.clearInterval(clock);
+  }, []);
+
+  useEffect(() => {
     if (!role) return;
     void refresh();
     const timer = window.setInterval(() => {
@@ -60,6 +67,19 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
     document.addEventListener('visibilitychange', onVisible);
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [role, refresh]);
+
+  useEffect(() => {
+    if (!balanceRequestedAt) return;
+    const started = Date.parse(balanceRequestedAt);
+    const poll = window.setInterval(() => {
+      void refresh(true);
+      if (Date.now() - started >= 120000) {
+        window.clearInterval(poll);
+        setBalanceRequestedAt('');
+      }
+    }, 3000);
+    return () => window.clearInterval(poll);
+  }, [balanceRequestedAt, refresh]);
 
   const review = async (paymentId: string, decision: 'confirmed' | 'flagged') => {
     try {
@@ -82,13 +102,19 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
       });
       const data = await response.json() as { message?: string; error?: string };
       if (!response.ok) throw new Error(data.error || 'Balance enquiry failed.');
-      setNotice(data.message || 'Balance enquiry submitted. Waiting for Safaricom callback; the balance will refresh automatically.');
-      window.setTimeout(() => void refresh(true), 5000);
+      const requestedAt = new Date().toISOString();
+      setBalanceRequestedAt(requestedAt);
+      setNotice(data.message || 'Safaricom accepted the enquiry. Waiting for its callback; the last confirmed balance remains visible until a new result arrives.');
+      void refresh(true);
     } catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Balance enquiry failed.'); }
     finally { setBalanceLoading(false); }
   };
 
   const money = (value: unknown) => Number(value || 0).toLocaleString('en-KE', { maximumFractionDigits: 2 });
+  const balanceAgeMs = balance?.received_at ? Math.max(0, clockNow - Date.parse(balance.received_at)) : null;
+  const balanceAgeMinutes = balanceAgeMs === null ? null : Math.floor(balanceAgeMs / 60000);
+  const balanceFreshness = balanceAgeMs === null ? 'No confirmed balance yet' : balanceAgeMs < 120000 ? 'Fresh · just received' : balanceAgeMs < 900000 ? 'Delayed · awaiting next update' : 'Stale · request a new Safaricom enquiry';
+  const balanceAgeLabel = balanceAgeMs === null ? 'Not available' : balanceAgeMinutes < 1 ? 'less than a minute ago' : balanceAgeMinutes < 60 ? `${balanceAgeMinutes} minutes ago` : `${Math.floor(balanceAgeMinutes / 60)}h ${balanceAgeMinutes % 60}m ago`;
   const filteredPayments = useMemo(() => statusFilter === 'all' ? payments : payments.filter(item => {
     if (statusFilter === 'pending') return ['pending', 'initiating', 'processing'].includes(item.status);
     return item.status === statusFilter;
@@ -100,8 +126,10 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
         <div><p className="text-xs font-black uppercase tracking-[.22em] text-cyan-200">NAVSTAR · LIVE SAFARICOM ACCOUNT</p>
           <h2 className="mt-2 text-sm font-semibold text-blue-100">Available M-PESA balance</h2>
           <p className="mt-1 text-4xl font-black tracking-tight sm:text-5xl">{balance?.balance_amount !== null && balance?.balance_amount !== undefined ? 'KSh ' + money(balance.balance_amount) : (balance?.balance_text || 'Awaiting live balance')}</p>
-          <p className="mt-3 text-xs text-blue-100">{balance?.received_at ? 'Last confirmed: ' + formatEATDateTime(balance.received_at) : (balance?.result_description || 'Request a Safaricom balance enquiry to retrieve the latest confirmed amount.')}</p>
-          <p className="mt-1 text-[11px] text-cyan-100">Automatic register refresh every 15 seconds · Balance updates when Safaricom returns its callback.</p>
+          <p className="mt-3 text-xs text-blue-100">{balance?.received_at ? 'Safaricom confirmed: ' + formatEATDateTime(balance.received_at) : 'No successful Safaricom balance callback has been received yet.'}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs"><span className="rounded-full bg-white/15 px-2.5 py-1 font-bold">{balanceFreshness}</span><span className="text-cyan-100">{balanceAgeLabel}</span></div>
+          {balanceRequestedAt && <p className="mt-2 text-xs text-amber-100">New enquiry sent {formatEATDateTime(balanceRequestedAt)} · checking for Safaricom callback…</p>}
+          <p className="mt-2 text-[11px] text-cyan-100">Payment register refreshes every 15 seconds. Balance amount changes only after Safaricom confirms a new callback.</p>
         </div>
         <Button type="button" variant="secondary" onClick={() => void requestBalance()} disabled={balanceLoading || role !== 'admin'}>{balanceLoading ? 'Requesting…' : 'Refresh Safaricom balance'}</Button>
       </div>
