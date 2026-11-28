@@ -126,10 +126,12 @@ export async function onRequestPost({request,env}) {
     const status=action==='publish'?'published':(['draft','published'].includes(body.status)?body.status:existing.status);
     if(action==='update'&&(title.length<2||instructions.length<2))return error('Enter a task title and clear instructions.');
     if(dueAt&&Number.isNaN(Date.parse(dueAt)))return error('Enter a valid deadline.');
-    await env.DB.prepare('UPDATE staff_assignments SET title=?,instructions=?,due_at=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')
-      .bind(action==='publish'?existing.title:title,action==='publish'?undefined:instructions,dueAt,status,id).run().catch(async()=>{
-        if(action==='publish')await env.DB.prepare("UPDATE staff_assignments SET status='published',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
-      });
+    if(action==='publish'){
+      await env.DB.prepare("UPDATE staff_assignments SET status='published',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
+    }else{
+      await env.DB.prepare('UPDATE staff_assignments SET title=?,instructions=?,due_at=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')
+        .bind(title,instructions,dueAt,status,id).run();
+    }
     await audit(env.DB,user.id,action==='publish'?'staff_assignment_published':'staff_assignment_updated',id);
     return json({id,status});
   }
