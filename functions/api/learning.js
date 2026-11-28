@@ -79,7 +79,7 @@ export async function onRequestGet({ request, env }) {
     FROM course_modules m
     WHERE m.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND m.status = 'published'" : user.role === 'tutor' ? "AND m.status = 'published' AND EXISTS (SELECT 1 FROM module_tutor_assignments a WHERE a.module_id=m.id AND a.tutor_user_id=?)" : "AND m.status != 'archived'"}
     ORDER BY m.course_id, m.sort_order, m.created_at
-  `).bind(...(user.role==='tutor'?[...courseIds,user.id]:courseIds)).all();
+  `).bind(...(['tutor','student'].includes(user.role)?[...courseIds,user.id]:courseIds)).all();
   const modules = moduleRows.results ?? [];
   const moduleIds = modules.map((module) => module.id);
   let lessons = [];
@@ -95,7 +95,7 @@ export async function onRequestGet({ request, env }) {
   const assignmentsResult = await env.DB.prepare(`
     SELECT a.id, a.course_id, a.module_id, a.assignment_type, a.marks_category, a.title, a.instructions, a.due_at, a.max_points, a.category_out_of, a.status
     FROM course_assignments a
-    WHERE a.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND a.status = 'published'" : user.role === 'tutor' ? "AND a.status = 'published' AND a.module_id IS NOT NULL AND EXISTS (SELECT 1 FROM module_tutor_assignments mt WHERE mt.module_id=a.module_id AND mt.tutor_user_id=?)" : "AND a.status != 'archived'"}
+    WHERE a.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND (a.status = 'published' OR EXISTS (SELECT 1 FROM course_assignment_submissions old_s WHERE old_s.assignment_id=a.id AND old_s.user_id=?))" : user.role === 'tutor' ? "AND a.status = 'published' AND a.module_id IS NOT NULL AND EXISTS (SELECT 1 FROM module_tutor_assignments mt WHERE mt.module_id=a.module_id AND mt.tutor_user_id=?)" : "AND a.status != 'archived'"}
     ORDER BY a.due_at IS NULL, a.due_at, a.created_at DESC
   `).bind(...(user.role==='tutor'?[...courseIds,user.id]:courseIds)).all();
   const assignments = assignmentsResult.results ?? [];
