@@ -23,7 +23,13 @@ function resolveIntakeForDate(value,calendar=[],admissionNumber='') {
   }
   if(match)return clean(match.intake_name,40)+' '+clean(match.year,8);
   const d=new Date(date+'T12:00:00Z');
-  if(Number.isFinite(d.getTime()))return d.toLocaleString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'});
+  if(Number.isFinite(d.getTime())){
+   const month=d.getUTCMonth()+1,day=d.getUTCDate();let intakeName='September',intakeYear=d.getUTCFullYear();
+   if(month<=3){intakeName='January';}
+   else if(month<=7||(month===8&&day<15)){intakeName='May';}
+   else if(month===12&&day>=21){intakeName='January';intakeYear++;}
+   return intakeName+' '+intakeYear;
+  }
  }
  const admission=String(admissionNumber||'').toUpperCase();
  const year=(admission.match(/20\d{2}/)||[])[0];
