@@ -132,6 +132,8 @@ export async function onRequestPost({request,env}){
   const schemaResponse=await requireAcademicSchema(env.DB);
   if(schemaResponse)return schemaResponse;
   let body;try{body=await readJson(request,16384);}catch{return error('Invalid academic request.');}
+  const requestReference=uuid();
+  try {
   const action=safeString(body.action,40);
   const courseId=safeString(body.courseId,80);
   const moduleId=safeString(body.moduleId,80);
@@ -544,4 +546,5 @@ export async function onRequestPost({request,env}){
     return json({issued:true,summary});
   }
   return error('Unknown academic action.',400);
+  } catch(cause) { console.error('Navstar academic API failed',JSON.stringify({reference:requestReference,message:String(cause?.message||cause),stack:String(cause?.stack||'').slice(0,1800)})); return json({error:'The service could not save this academic change. Existing records have not been deleted.',reference:requestReference,detail:String(cause?.message||'Database operation failed.').slice(0,300)},500); }
 }
