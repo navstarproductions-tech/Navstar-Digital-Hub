@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Database, Download, FileJson, FileUp, RefreshCw, Search, ShieldCheck, UploadCloud } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -98,6 +98,14 @@ export function Base44MigrationPage() {
       setArchiveError(cause instanceof Error ? cause.message : 'Could not load the saved archive.');
     }
   }
+
+  // Load the latest saved Base44 package automatically so the reconciliation
+  // action is visible without requiring the admin to discover and press Refresh.
+  useEffect(() => {
+    void loadArchive('');
+    // loadArchive is a stable page-local loader; run once when this page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loadMoreArchive() {
     if (!archive?.batch?.id || archive.nextOffset == null) return;
