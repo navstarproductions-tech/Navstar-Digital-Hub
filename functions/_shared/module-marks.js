@@ -74,6 +74,7 @@ export async function syncModuleResult(db, userId, moduleId, actorId = null) {
       WHERE x.entity_name='StudentResult' AND x.destination_id=r.id AND x.user_id=r.user_id) AS imported_legacy
     FROM student_module_results r WHERE r.user_id=? AND r.module_id=?`).bind(userId,moduleId).first();
   if (existing?.imported_legacy && !hasNewMarks) return existing;
+  if (existing?.imported_legacy && hasNewMarks) await db.prepare("UPDATE base44_student_import_map SET is_overridden=1 WHERE entity_name='StudentResult' AND destination_id=?").bind(existing.id).run();
   const bands = parseBands(config.grading?.gradeScale);
   const defaults = [
     { grade: 'A', min: 80, max: 100, remarks: 'Excellent performance' },
