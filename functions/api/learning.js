@@ -85,7 +85,7 @@ export async function onRequestGet({ request, env }) {
   const moduleRows = await env.DB.prepare(`
     SELECT m.id, m.course_id, m.title, m.module_code, m.description, m.sort_order, m.status
     FROM course_modules m
-    WHERE m.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND m.status = 'published'" : user.role === 'tutor' ? "AND m.status = 'published' AND EXISTS (SELECT 1 FROM module_tutor_assignments a WHERE a.module_id=m.id AND a.tutor_user_id=?)" : "AND m.status != 'archived'"}
+    WHERE m.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND m.status = 'published'" : user.role === 'tutor' ? "AND m.status = 'published' AND EXISTS (SELECT 1 FROM module_tutor_assignments a WHERE a.module_id=m.id AND a.tutor_user_id=?)" : "1=1"}
     ORDER BY m.course_id, m.sort_order, m.created_at
   `).bind(...(user.role==='tutor'?[...courseIds,user.id]:courseIds)).all();
   const modules = moduleRows.results ?? [];
