@@ -590,6 +590,8 @@ if (action === 'delete_module') {
 
     const checks=[
       ['lessons','SELECT COUNT(*) AS n FROM course_lessons WHERE module_id=?'],
+      ['lessonProgress','SELECT COUNT(*) AS n FROM course_lesson_progress p JOIN course_lessons l ON l.id=p.lesson_id WHERE l.module_id=?'],
+      ['manualMarks','SELECT COUNT(*) AS n FROM student_module_manual_marks WHERE module_id=?'],
       ['assignments','SELECT COUNT(*) AS n FROM course_assignments WHERE module_id=?'],
       ['exams','SELECT COUNT(*) AS n FROM course_assessments WHERE module_id=?'],
       ['results','SELECT COUNT(*) AS n FROM student_module_results WHERE module_id=?'],
