@@ -19,12 +19,9 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
  const [busy,setBusy]=useState(false);
  const [notice,setNotice]=useState('');
  const [generated,setGenerated]=useState<Report[]>([]);
- const [skipped,setSkipped]=useState(0);
- const [failed,setFailed]=useState(0);
  const [reports,setReports]=useState<Report[]>([]);
  const intakes=useMemo(()=>Array.from(new Set(students.map(s=>String(s.preferred_intake||'').trim()).filter(Boolean))).sort(),[students]);
  const filtered=useMemo(()=>students.filter(s=>(s.name+' '+s.email+' '+(s.admission_number||'')).toLowerCase().includes(search.toLowerCase())),[students,search]);
- const selectedStudent=students.find(s=>s.id===studentId);
  useEffect(()=>{if(courses.length&&!courses.some(c=>c.id===courseId))setCourseId(courses[0].id)},[courses,courseId]);
  useEffect(()=>{if(!courseId){setStudents([]);return;}fetch('/api/academic-workspace?action=students&courseId='+encodeURIComponent(courseId),{credentials:'same-origin'}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Could not load active students.');setStudents(j.students||[]);}).catch(e=>{setStudents([]);setNotice(e instanceof Error?e.message:'Could not load active students.');});},[courseId]);
  async function refreshReports(){const r=await fetch('/api/academic-workspace?action=report-cards',{credentials:'same-origin'});const j=await r.json();if(r.ok)setReports(j.reportCards||[]);}
@@ -36,7 +33,7 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
   const no=transcript?String(report.report_card_no||'').replace(/^RC-/,'TR-'):report.report_card_no;
   const rows=(snap.results||[]).map((r:any,i:number)=>'<tr><td>'+ (i+1)+'</td><td>'+esc(r.code||'—')+'</td><td>'+esc(r.title||'—')+'</td>'+(transcript?'':'<td>'+Number(r.cat_score||0).toFixed(2)+'</td><td>'+Number(r.practical_score||0).toFixed(2)+'</td><td>'+Number(r.exam_score||0).toFixed(2)+'</td><td>'+Number(r.total_points||0).toFixed(2)+' / '+Number(r.max_points||0).toFixed(2)+'</td><td>'+(r.percentage==null?'—':Number(r.percentage).toFixed(1)+'%')+'</td>')+'<td>'+esc(r.grade||'—')+'</td><td>'+esc(r.remarks||'—')+'</td></tr>').join('');
   const headings='<th>#</th><th>Module code</th><th>Module / Unit</th>'+(transcript?'':'<th>CAT</th><th>Practical</th><th>Final</th><th>Total / Max</th><th>Percentage</th>')+'<th>Grade</th><th>Remarks</th>';
-  const verify=report.status==='published'?'<p><b>Verification:</b> '+esc(location.origin+'/verify-result/'+report.public_token)+'</p>':'<p class="draft">DRAFT PREVIEW — NOT VALID UNTIL APPROVED AND PUBLISHED</p>';
+  const verify=report.status==='published'?'<p><b>Verification:</b> '+esc(location.origin+'/verify-result/'+report.public_token)+'</p>':'<p class="draft">UNPUBLISHED ADMIN COPY — NOT RELEASED</p>';
   const student=snap.student||{},summary=snap.summary||{},attendance=snap.attendance||{};
   const main='<header><div><h1>NAVSTAR DIGITAL HUB</h1><b>HOME OF TECHNOCRATS</b><p>'+(transcript?'OFFICIAL ACADEMIC TRANSCRIPT':'OFFICIAL ACADEMIC REPORT CARD')+'</p></div><div><b>'+(transcript?'TRANSCRIPT NO: ':'REPORT CARD NO: ')+esc(no)+'</b>'+(transcript?'<p>Linked Report Card No: '+esc(report.report_card_no)+'</p>':'')+'<p>'+esc(report.period_label)+'</p>'+verify+'</div></header><div class="meta"><section><p><b>Student:</b> '+esc(student.name)+'</p><p><b>Admission No:</b> '+esc(student.admissionNumber)+'</p><p><b>Email:</b> '+esc(student.email)+'</p><p><b>Intake:</b> '+esc(student.intake)+'</p></section><section><p><b>Course:</b> '+esc(snap.course?.title)+'</p><p><b>Period:</b> '+esc(report.period_label)+'</p><p><b>Issued:</b> '+esc(report.issued_at||new Date().toISOString())+'</p></section></div><table><thead><tr>'+headings+'</tr></thead><tbody>'+rows+'</tbody></table><div class="meta"><section><b>'+(transcript?'Grade classification':'Performance summary')+'</b><p>Mean: '+(summary.mean==null?'—':Number(summary.mean).toFixed(1)+'%')+'</p><p>Published graded modules: '+(snap.results||[]).filter((r:any)=>r.result_status==='published').length+' / '+(snap.results||[]).length+'</p></section>'+(transcript?'':'<section><b>Grading scale</b><p>'+(snap.grading||[]).map((g:any)=>esc(g.grade)+' '+esc(g.min)+'–'+esc(g.max)).join(' · ')+'</p></section>')+'</div>'+(transcript?'':'<section><b>Tutor comments:</b> '+esc(snap.tutorComment||'')+'<p><b>Principal / Administrator comments:</b> '+esc(snap.principalComment||'')+'</p><p><b>Recommendation:</b> '+esc(snap.recommendation||'Pending academic review')+'</p><p><b>Attendance:</b> '+(Number(attendance.percentage||0).toFixed(1))+'% ('+Number(attendance.present||0)+' present, '+Number(attendance.late||0)+' late, '+Number(attendance.absent||0)+' absent)</p></section>')+'<footer>Navstar Digital Hub · Academic Records · '+(report.status==='published'?'Published official record':'Draft for internal review')+'</footer>';
   const adminPage=admin?'<div class="admin-page"><h1>ADMIN COPY — INTERNAL USE ONLY</h1><p>This page is not issued to the student.</p><div class="meta"><section><h3>FINANCIAL POSITION</h3><p>Fees: KSh '+Number(summary.fee||0).toLocaleString()+'</p><p>Paid: KSh '+Number(summary.paid||0).toLocaleString()+'</p><p>Balance: KSh '+Number(summary.balance||0).toLocaleString()+'</p><p>Payment completion: '+Number(summary.paymentPercentage||0).toFixed(1)+'%</p></section><section><h3>ATTENDANCE & FLAGS</h3><p>Attendance: '+Number(attendance.percentage||0).toFixed(1)+'%</p><p>Present: '+Number(attendance.present||0)+' · Late: '+Number(attendance.late||0)+' · Absent: '+Number(attendance.absent||0)+'</p><p>Academic status: '+esc(report.status)+'</p><p>Internal notes: '+esc(snap.principalComment||'None recorded')+'</p></section></div><h3>INTERNAL COMMENTS</h3><p>Tutor: '+esc(snap.tutorComment||'None recorded')+'</p><p>Administrator: '+esc(snap.principalComment||'None recorded')+'</p><p>Recommendation: '+esc(snap.recommendation||'Pending academic review')+'</p></div>':'';
@@ -51,7 +48,7 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
   if(scope==='intake'&&!intake){setNotice('Select an intake first.');return;}
   if(!targets.length){setNotice('No active students match the selected generation scope.');return;}
   const printWindow=scope==='individual'?window.open('','_blank','width=1000,height=1200'):null;
-  setBusy(true);setNotice('Generating documents for '+targets.length+' active student(s)…');setGenerated([]);setSkipped(0);setFailed(0);
+  setBusy(true);setNotice('Generating transcripts for '+targets.length+' active student(s)…');setGenerated([]);
   let skipCount=0,failCount=0;const ids:string[]=[];
   try{
    for(const student of targets){
@@ -59,8 +56,8 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
     catch{failCount++;}
    }
    const list=await fetch('/api/academic-workspace?action=report-cards',{credentials:'same-origin'});const data=await list.json();const rows:Report[]=(data.reportCards||[]).filter((r:Report)=>ids.includes(r.id));
-   setGenerated(rows);setSkipped(skipCount);setFailed(failCount);setReports(data.reportCards||[]);
-   setNotice('Generation finished. '+rows.length+' document record(s) created; '+skipCount+' existing record(s) skipped; '+failCount+' failed. All generated records remain unpublished.');
+   setGenerated(rows);setReports(data.reportCards||[]);
+   setNotice('Transcript generation finished. '+rows.length+' document record(s) created; '+skipCount+' existing record(s) skipped; '+failCount+' failed. All generated records remain unpublished.');
    if(scope==='individual'&&rows[0])printDocument(rows[0],printWindow);else if(printWindow&&!printWindow.closed)printWindow.close();
   }catch(e){if(scope==='individual'&&typeof printWindow!=='undefined'&&printWindow&&!printWindow.closed)printWindow.close();setNotice(e instanceof Error?e.message:'Documents could not be generated.');}
   finally{setBusy(false);}
@@ -82,14 +79,14 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
      <select value={courseId} onChange={e=>setCourseId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"><option value="">Select course</option>{courses.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select>
     </label>
    </div>
-   <button onClick={()=>void generate()} disabled={busy||!courseId||(scope==='individual'&&!studentId)||(scope==='intake'&&!intake)} className={button+' mt-5'}><FileDown className="h-4 w-4"/>{busy?'Generating…':'Generate & Download PDF'}</button>
+   <button onClick={()=>void generate()} disabled={busy||!courseId||(scope==='individual'&&!studentId)||(scope==='intake'&&!intake)} className={button+' mt-5'}><FileDown className="h-4 w-4"/>{busy?'Generating…':'Generate Admin Transcript'}</button>
    <button onClick={()=>void (async()=>{setRepairing(true);try{const r=await fetch('/api/academic-workspace',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'repair-missing-intakes'})});const j=await r.json();setNotice(r.ok?(j.message+' Scanned: '+j.scanned+'; repaired: '+j.repaired+'; unresolved: '+j.unresolved+'.'):(j.error||'Intake repair failed.'));const s=await fetch('/api/academic-workspace?action=students&courseId='+encodeURIComponent(courseId),{credentials:'same-origin'});const d=await s.json();if(s.ok)setStudents(d.students||[]);}catch{setNotice('Intake repair failed.');}finally{setRepairing(false);}})()} disabled={repairing} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900"><Wrench className="h-4 w-4"/>{repairing?'Repairing intakes…':'Repair Missing Intakes'}</button>
    {notice&&<p role="status" className="mt-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-950">{notice}</p>}
    <p className="mt-3 text-xs text-slate-500">Only active students with accepted enrolments are eligible. Existing records for the same student, course and intake are never overwritten.</p>
   </section>
   {(generated.length>0||reports.length>0)&&<section className={panel}>
-   <div className="flex items-center justify-between gap-3"><h3 className="font-black">Generated documents</h3><button onClick={()=>void refreshReports()} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold"><RefreshCw className="h-3.5 w-3.5"/>Refresh</button></div>
-   <div className="mt-3 space-y-2">{(generated.length?generated:reports).map(r=><article key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><b className="text-sm">{r.report_card_no}</b><p className="text-xs text-slate-500">{r.student_name||'Student'} · {r.course_title||r.period_label} · {r.period_label} · {r.status}</p></div><button onClick={()=>printDocument(r)} className="rounded-lg border px-3 py-2 text-xs font-bold">Download selected PDF</button></article>)}</div>
+   <div className="flex items-center justify-between gap-3"><h3 className="font-black">Generated transcripts</h3><button onClick={()=>void refreshReports()} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold"><RefreshCw className="h-3.5 w-3.5"/>Refresh</button></div>
+   <div className="mt-3 space-y-2">{(generated.length?generated:reports).map(r=><article key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><b className="text-sm">{r.report_card_no}</b><p className="text-xs text-slate-500">{r.student_name||'Student'} · {r.course_title||r.period_label} · {r.period_label} · {r.status}</p></div><button onClick={()=>printDocument(r)} className="rounded-lg border px-3 py-2 text-xs font-bold">Print / Save Transcript</button></article>)}</div>
   </section>}
  </div>;
 }
