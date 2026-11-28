@@ -579,6 +579,53 @@ async function importGradingSystem(DB,rows) {
   ].join('|')).join('\n')};
   await DB.prepare("INSERT INTO system_state(key,value) VALUES('admin-configuration',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
 }
+async function importReportCardSettings(DB,rows) {
+  const settings=Array.isArray(rows)?rows:[];
+  const sourceConfig={};
+  for(const row of settings.filter(x=>clean(x.setting_key,80)==='report_card_config')) {
+    try {
+      const parsed=JSON.parse(row.setting_value||'{}');
+      if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))Object.assign(sourceConfig,parsed);
+    } catch {}
+  }
+  const valueFor=key=>settings.find(x=>clean(x.setting_key,80)===key)?.setting_value;
+  const selfGeneration=String(valueFor('report_card_self_generation')||'').toLowerCase()==='true';
+  const resultsVisible=settings.some(x=>clean(x.setting_key,80)==='results_visibility'&&String(x.setting_value).toLowerCase()==='true');
+  const logo=valueFor('institution_logo')||'';
+  const watermark=sourceConfig.watermark_url||valueFor('institution_watermark')||'';
+  const stamp=sourceConfig.stamp_url||valueFor('official_stamp')||'';
+  const rawOpacity=Number(sourceConfig.watermark_opacity);
+  const opacity=Number.isFinite(rawOpacity)?Math.max(5,Math.min(50,Math.round(rawOpacity<=1?rawOpacity*100:rawOpacity))):12;
+  const row=await DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
+  let config={};try{config=JSON.parse(row?.value||'{}')}catch{}
+  const prior=config['report-card-layout']||{};
+  config['report-card-layout']={
+    ...prior,
+    reportCardTitle:prior.reportCardTitle||'OFFICIAL ACADEMIC REPORT CARD',
+    reportCardSubtitle:prior.reportCardSubtitle||'NAVSTAR DIGITAL HUB · HOME OF TECHNOCRATS',
+    reportCardShowAttendance:prior.reportCardShowAttendance!==false,
+    reportCardShowFees:prior.reportCardShowFees!==false,
+    reportCardShowRemarks:prior.reportCardShowRemarks!==false,
+    reportCardShowModuleCode:prior.reportCardShowModuleCode!==false,
+    reportCardShowMarks:prior.reportCardShowMarks!==false,
+    reportCardShowGrade:prior.reportCardShowGrade!==false,
+    reportCardShowQr:prior.reportCardShowQr!==false,
+    reportCardWatermarkEnabled:Boolean(watermark)||prior.reportCardWatermarkEnabled===true,
+    reportCardWatermarkText:'NAVSTAR DIGITAL HUB',
+    reportCardWatermarkOpacity:opacity,
+    reportCardWatermarkUrl:watermark||prior.reportCardWatermarkUrl||'',
+    reportCardStampEnabled:Boolean(stamp)||prior.reportCardStampEnabled===true,
+    reportCardStampUrl:stamp||prior.reportCardStampUrl||'',
+    trainerSignatureUrl:sourceConfig.signature_trainer_url||prior.trainerSignatureUrl||'',
+    headTrainingSignatureUrl:sourceConfig.signature_hod_url||prior.headTrainingSignatureUrl||'',
+    directorSignatureUrl:sourceConfig.signature_director_url||prior.directorSignatureUrl||'',
+    reportCardLogoUrl:logo||prior.reportCardLogoUrl||'',
+    moduleSort:sourceConfig.module_sort||prior.moduleSort||'code',
+    reportCardSelfGeneration:selfGeneration,
+    resultsVisibility:resultsVisible
+  };
+  await DB.prepare("INSERT INTO system_state(key,value) VALUES('admin-configuration',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
+}
 async function importSystemUsers(DB,rows,adminId,c) {
   const roleMap={tutor:'tutor',admin:'admin',principal:'principal',finance:'finance',admissions:'admissions'};
   const priority={admin:5,principal:4,finance:3,admissions:2,tutor:1};
@@ -912,6 +959,7 @@ export async function onRequestPost({request,env}) {
     for(const student of groups.Enrollment){const item=await importStudent(env.DB,student,tokenRow.created_by,c);if(item&&!academicOnly)imported.push(item);}
     await importExamSettings(env.DB,groups.ExamSettings);
     await importMarksWeights(env.DB,groups.SystemSettings);
+    await importReportCardSettings(env.DB,groups.SystemSettings);
     await importGradingSystem(env.DB,groups.GradingSystem);
     for(const module of groups.CourseUnit)await importCourseModule(env.DB,module,tokenRow.created_by,c,sourceCourses);
     await importSystemUsers(env.DB,groups.SystemUser,tokenRow.created_by,c);
