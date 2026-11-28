@@ -611,7 +611,8 @@ async function importAttendanceRecord(DB,r,entity,adminId,c,sourceCourses,source
 async function importModuleCompletion(DB,r,adminId,c,sourceCourses,sourceModules) {
   const sourceId=sourceRecordId(r);
   const email=clean(r.student_email||r.email,254).toLowerCase();
-  const courseTitle=clean(r.course_title||r.course_name,160)||sourceCourseTitle(r.course_id,sourceCourses);
+  let courseTitle=clean(r.course_title||r.course_name,160)||sourceCourseTitle(r.course_id,sourceCourses);
+  if(!courseTitle&&clean(r.course_id,120)){const mapped=await DB.prepare("SELECT c.title FROM base44_student_import_map m JOIN courses c ON c.id=m.destination_id WHERE m.entity_name='Course' AND m.source_id=? LIMIT 1").bind(clean(r.course_id,120)).first();courseTitle=clean(mapped?.title,160);}
   const moduleTitle=clean(r.module_title||r.module_name||r.unit_title,160);
   if(!sourceId||!email||!courseTitle||!moduleTitle){c.moduleCompletionsSkipped++;return;}
   await importDerivedStudent(DB,r,'ModuleCompletion',adminId,c);
@@ -637,7 +638,8 @@ async function importModuleCompletion(DB,r,adminId,c,sourceCourses,sourceModules
 async function importGraduate(DB,r,adminId,c) {
   const sourceId=sourceRecordId(r);
   const email=clean(r.student_email||r.email,254).toLowerCase();
-  const courseTitle=clean(r.course_title||r.course_name||r.programme,160);
+  let courseTitle=clean(r.course_title||r.course_name||r.programme,160);
+  if(!courseTitle&&clean(r.course_id,120)){const mapped=await DB.prepare("SELECT c.title FROM base44_student_import_map m JOIN courses c ON c.id=m.destination_id WHERE m.entity_name='Course' AND m.source_id=? LIMIT 1").bind(clean(r.course_id,120)).first();courseTitle=clean(mapped?.title,160);}
   if(!sourceId||!email||!courseTitle){c.graduatesSkipped++;return;}
   await importDerivedStudent(DB,r,'Graduate',adminId,c);
   const course=await courseFor(DB,courseTitle,0);
