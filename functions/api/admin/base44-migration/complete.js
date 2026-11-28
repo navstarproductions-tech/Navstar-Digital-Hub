@@ -779,7 +779,8 @@ async function importStudent(DB,r,adminId,c) {
   if(course.created)c.archivedCoursesCreated++;
   const mapping=await DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceId).first();
   const requestedAdmission=clean(r.admission_number,80);
-  const requestedIntake=clean(r.intake_label||r.intake_id,80);
+  let requestedIntake=clean(r.intake_label,80);
+  if(!requestedIntake&&clean(r.intake_id,120)){const sourceIntake=await DB.prepare('SELECT intake_name,year FROM academic_intakes WHERE source_id=? OR id=? LIMIT 1').bind(clean(r.intake_id,120),clean(r.intake_id,120)).first();requestedIntake=sourceIntake?clean(sourceIntake.intake_name,40)+' '+clean(sourceIntake.year,8):clean(r.intake_id,80);}
   let matchedEnrollment=mapping?.destination_id
     ? await DB.prepare('SELECT id,admission_number,email,identity_number,course_id,preferred_intake FROM enrollments WHERE id=?').bind(mapping.destination_id).first()
     : null;
@@ -986,11 +987,11 @@ export async function onRequestPost({request,env}) {
     const sourceCourses=new Map(groups.Course.map(x=>[sourceRecordId(x),x]));
     const sourceModules=new Map(groups.CourseUnit.map(x=>[sourceRecordId(x),x]));
     const imported=[];
+    await importAcademicIntakes(env.DB,groups.AcademicIntake,c);
     for(const student of groups.Enrollment){const item=await importStudent(env.DB,student,tokenRow.created_by,c);if(item&&!academicOnly)imported.push(item);}
     await importExamSettings(env.DB,groups.ExamSettings);
     await importMarksWeights(env.DB,groups.SystemSettings);
     await importReportCardSettings(env.DB,groups.SystemSettings);
-    await importAcademicIntakes(env.DB,groups.AcademicIntake,c);
     await importGradingSystem(env.DB,groups.GradingSystem);
     for(const module of groups.CourseUnit)await importCourseModule(env.DB,module,tokenRow.created_by,c,sourceCourses);
     await importSystemUsers(env.DB,groups.SystemUser,tokenRow.created_by,c);
