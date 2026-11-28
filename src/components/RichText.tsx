@@ -23,8 +23,17 @@ function sanitizeRichHtml(source:string){
   return `<${tag}${attrs}>`;
  });
 }
+function decodeLegacyHtml(value:string){
+ let out=String(value||'');
+ const entities:Record<string,string>={'&lt;':'<','&gt;':'>','&quot;':'"','&#39;':"'",'&#x27;':"'",'&nbsp;':' ','&amp;':'&'};
+ for(let i=0;i<2;i++)out=out.replace(/&(?:lt|gt|quot|#39|#x27|nbsp|amp);/gi,match=>entities[match.toLowerCase()]??match);
+ return out;
+}
 export function richTextHtml(value:string){
- const lines=String(value||'').replace(/\r/g,'').split('\n');const out:string[]=[];let paragraph:string[]=[];let list:'ul'|'ol'|null=null;let code=false;let codeLines:string[]=[];
+ const decoded=decodeLegacyHtml(String(value||''));
+ // Imported Base44 content can be HTML or HTML-escaped HTML. Keep its structure after allow-list sanitization.
+ if(/<\/?(?:p|div|h[1-6]|ul|ol|li|br|hr|strong|b|em|i|u|s|del|blockquote|pre|code|table|thead|tbody|tr|th|td|span|a|sub|sup)\b[^>]*>/i.test(decoded))return sanitizeRichHtml(decoded);
+ const lines=decoded.replace(/\r/g,'').split('\n');const out:string[]=[];let paragraph:string[]=[];let list:'ul'|'ol'|null=null;let code=false;let codeLines:string[]=[];
  const closeList=()=>{if(list){out.push(list==='ul'?'</ul>':'</ol>');list=null;}};
  const flush=()=>{if(paragraph.length){out.push('<p>'+paragraph.map(inline).join('<br/>')+'</p>');paragraph=[];}};
  for(const line of lines){
