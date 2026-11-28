@@ -105,7 +105,7 @@ export async function onRequestGet({request,env}){
   if(!staff.includes(user.role))return error('Not authorised.',403);
   const courseId=clean(url.searchParams.get('courseId'),80);
   if(!await canCourse(env.DB,user,courseId))return error('Course access denied.',403);
-  const rows=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE e.course_id=? AND e.status='accepted' AND u.role='student' AND u.status='active' ORDER BY u.name").bind(courseId).all();
+  const rows=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE e.course_id=? AND e.status='accepted' AND u.role='student' ORDER BY u.name").bind(courseId).all();
   return json({students:rows.results||[]});
  }
  return error('Unknown academic workspace view.',400);
@@ -140,7 +140,7 @@ export async function onRequestPost({request,env}){
  }
  if(action==='repair-missing-intakes'){
   const access=await requireRole(request,env,admins);if(access.response)return access.response;
-  const missing=await env.DB.prepare("SELECT e.id,e.admission_number,COALESCE(NULLIF(e.source_enrollment_date,''),e.created_at) AS enrolled_on FROM enrollments e JOIN users u ON lower(u.email)=lower(e.email) WHERE e.status='accepted' AND u.role='student' AND u.status='active' AND (e.preferred_intake IS NULL OR trim(e.preferred_intake)='' OR e.preferred_intake='Unassigned Intake') ORDER BY enrolled_on,e.admission_number").all();
+  const missing=await env.DB.prepare("SELECT e.id,e.admission_number,COALESCE(NULLIF(e.source_enrollment_date,''),e.created_at) AS enrolled_on FROM enrollments e JOIN users u ON lower(u.email)=lower(e.email) WHERE e.status='accepted' AND u.role='student' AND (e.preferred_intake IS NULL OR trim(e.preferred_intake)='' OR e.preferred_intake='Unassigned Intake') ORDER BY enrolled_on,e.admission_number").all();
   const rows=missing.results||[],calendar=(await env.DB.prepare('SELECT intake_name,year,start_date,end_date,enrollment_open_date,enrollment_close_date FROM academic_intakes ORDER BY start_date').all()).results||[];let repaired=0;
   for(let i=0;i<rows.length;i+=100){
    const batch=rows.slice(i,i+100).map(row=>{const intake=resolveIntakeForDate(row.enrolled_on,calendar,row.admission_number);if(!intake)return null;return env.DB.prepare("UPDATE enrollments SET preferred_intake=? WHERE id=? AND (preferred_intake IS NULL OR trim(preferred_intake)='' OR preferred_intake='Unassigned Intake')").bind(intake,row.id);}).filter(Boolean);
@@ -155,7 +155,7 @@ export async function onRequestPost({request,env}){
   else {const access=await requireRole(request,env,admins);if(access.response)return access.response;}
   const studentId=selfService?user.id:clean(b.studentId,80),courseId=clean(b.courseId,80);
   if(!studentId||!await canCourse(env.DB,user,courseId))return error('Select a valid course and student.');
-  const student=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake,e.created_at,e.source_enrollment_date,e.course_fee,e.amount_paid,e.id AS enrollment_id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' AND u.role='student' AND u.status='active'").bind(studentId,courseId).first();
+  const student=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake,e.created_at,e.source_enrollment_date,e.course_fee,e.amount_paid,e.id AS enrollment_id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' AND u.role='student'").bind(studentId,courseId).first();
   if(!student)return error('A report card is available only to an Active student with an accepted enrolment in the selected course.',404);
   const intakeCalendar=(await env.DB.prepare('SELECT intake_name,year,start_date,end_date,enrollment_open_date,enrollment_close_date FROM academic_intakes ORDER BY start_date').all()).results||[];
   const derivedIntake=resolveIntakeForDate(student.source_enrollment_date||student.created_at,intakeCalendar,student.admission_number)||'Unassigned Intake';
