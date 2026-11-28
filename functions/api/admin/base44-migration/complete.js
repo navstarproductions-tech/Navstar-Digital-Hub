@@ -101,7 +101,15 @@ function embeddedFeePayments(r) {
   const keys=['fee_payments','feePayments','payments','payment_history','paymentHistory','fee_receipts','feeReceipts','receipts','transaction_history','transactionHistory','payment_records','paymentRecords'];
   const rows=[];
   for(const key of keys) if(Array.isArray(r?.[key])) for(const item of r[key]) if(item&&typeof item==='object') rows.push(item);
-  if(rows.length) return rows;
+  if(rows.length) return rows.map(item=>({
+    ...item,
+    amount:item.amount??item.amount_paid??item.paid_amount??item.amount_received,
+    status:item.status||item.payment_status||item.payment_state||item.state||'',
+    mpesa_code:item.mpesa_code||item.mpesa_receipt_number||item.receipt_number||item.receipt_no||item.transaction_code||item.payment_reference||item.payment_ref||'',
+    payment_date:item.payment_date||item.paid_on||item.transaction_date||item.received_at||item.created_date||'',
+    payment_method:item.payment_method||item.payment_mode||item.method||'',
+    payment_phone:item.payment_phone||item.phone||item.phone_number||''
+  }));
   const receipt=clean(r?.mpesa_code||r?.mpesa_receipt_number||r?.receipt_number||r?.receipt_no||r?.transaction_code||r?.payment_reference||r?.payment_ref,100);
   const amount=Math.max(0,num(r?.amount_paid??r?.paid_amount??r?.amount_received));
   // A cumulative amount_paid without a transaction reference remains an opening balance,
