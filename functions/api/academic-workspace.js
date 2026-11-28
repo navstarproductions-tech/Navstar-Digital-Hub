@@ -164,14 +164,14 @@ export async function onRequestPost({request,env}){
   try{await syncStudentModuleResults(env.DB,studentId,courseId,user.id);}catch(e){console.error('Optional module-result synchronization during report-card generation failed',e);}
   const course=await env.DB.prepare('SELECT id,title,course_code FROM courses WHERE id=?').bind(courseId).first();
   const sortRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();let sortConfig={};try{sortConfig=JSON.parse(sortRow?.value||'{}')}catch{}
-  const moduleOrderSql=sortConfig['report-card-layout']?.moduleSort==='code'?'m.code,m.title':'m.sort_order,m.title';
-  let modules=(await env.DB.prepare('SELECT m.id,m.code,m.title,m.sort_order FROM course_modules m WHERE m.course_id=? ORDER BY '+moduleOrderSql).bind(courseId).all()).results||[];
+  const moduleOrderSql=sortConfig['report-card-layout']?.moduleSort==='code'?'m.module_code,m.title':'m.sort_order,m.title';
+  let modules=(await env.DB.prepare('SELECT m.id,m.module_code AS code,m.title,m.sort_order FROM course_modules m WHERE m.course_id=? ORDER BY '+moduleOrderSql).bind(courseId).all()).results||[];
   const modulePrefix=String(course?.course_code||course?.title||'NAV').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6)||'NAV';
   const usedCodes=new Set(modules.map(m=>String(m.code||'').toUpperCase()).filter(Boolean));
   let moduleSequence=1;
-  for(const module of modules){if(module.code&&String(module.code).trim())continue;let candidate='';do{candidate=modulePrefix+String(moduleSequence++).padStart(3,'0')}while(usedCodes.has(candidate));usedCodes.add(candidate);await env.DB.prepare('UPDATE course_modules SET code=? WHERE id=? AND (code IS NULL OR trim(code)=\'\')').bind(candidate,module.id).run();module.code=candidate;}
+  for(const module of modules){if(module.code&&String(module.code).trim())continue;let candidate='';do{candidate=modulePrefix+String(moduleSequence++).padStart(3,'0')}while(usedCodes.has(candidate));usedCodes.add(candidate);await env.DB.prepare('UPDATE course_modules SET module_code=? WHERE id=? AND (module_code IS NULL OR trim(module_code)=\'\')').bind(candidate,module.id).run();module.code=candidate;}
   modules=modules.map(({id,code,title})=>({id,code,title}));
-  let results=[];try{results=(await env.DB.prepare(`SELECT m.id,m.code,m.title,r.cat_score,r.practical_score,r.exam_score,r.assignment_score,
+  let results=[];try{results=(await env.DB.prepare(`SELECT m.id,m.module_code AS code,m.title,r.cat_score,r.practical_score,r.exam_score,r.assignment_score,
     r.score AS total_points,r.max_score AS max_points,
     CASE WHEN r.max_score>0 AND r.status='published' THEN r.score*100.0/r.max_score ELSE NULL END AS percentage,
     COALESCE(r.grade,'MM') AS grade,COALESCE(r.remarks,'Missing Marks') AS remarks,
