@@ -48,19 +48,18 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
   if(scope==='individual'&&!studentId){setNotice('Select a student first.');return;}
   if(scope==='intake'&&!intake){setNotice('Select an intake first.');return;}
   if(!targets.length){setNotice('No active students match the selected generation scope.');return;}
-  const printWindow=scope==='individual'?window.open('','_blank','width=1000,height=1200'):null;
-  setBusy(true);setNotice('Generating transcripts for '+targets.length+' active student(s)…');setGenerated([]);
-  let skipCount=0,failCount=0;const ids:string[]=[];
+  setBusy(true);setNotice('Generating report cards for '+targets.length+' active student(s)…');setGenerated([]);
+  let skipCount=0,failCount=0;const ids:string[]=[],failures:string[]=[];
   try{
    for(const student of targets){
-    try{const r=await fetch('/api/academic-workspace',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'issue-report-card',studentId:student.id,courseId,periodLabel:student.preferred_intake||''})});const j=await r.json();if(r.ok&&j.id)ids.push(j.id);else if(r.status===409)skipCount++;else failCount++;}
-    catch{failCount++;}
+    try{const r=await fetch('/api/academic-workspace',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'issue-report-card',studentId:student.id,courseId,periodLabel:student.preferred_intake||''})});const j=await r.json().catch(()=>({}));if(r.ok&&j.id)ids.push(j.id);else if(r.status===409)skipCount++;else{failCount++;failures.push((student.name||student.id)+': '+(j.error||'Unknown report-card error'));}}
+    catch(e){failCount++;failures.push((student.name||student.id)+': '+(e instanceof Error?e.message:'Network error'));}
    }
    const list=await fetch('/api/academic-workspace?action=report-cards',{credentials:'same-origin'});const data=await list.json();const rows:Report[]=(data.reportCards||[]).filter((r:Report)=>ids.includes(r.id));
    setGenerated(rows);setReports(data.reportCards||[]);
-   setNotice('Report-card generation finished. '+rows.length+' document record(s) created; '+skipCount+' existing record(s) skipped; '+failCount+' failed. All generated records remain unpublished.');
-   if(scope==='individual'&&rows[0])printDocument(rows[0],printWindow);else if(printWindow&&!printWindow.closed)printWindow.close();
-  }catch(e){if(scope==='individual'&&typeof printWindow!=='undefined'&&printWindow&&!printWindow.closed)printWindow.close();setNotice(e instanceof Error?e.message:'Documents could not be generated.');}
+   setNotice('Report-card generation finished. '+rows.length+' saved document record(s); '+skipCount+' existing record(s) skipped; '+failCount+' failed.'+(failures[0]?' First error: '+failures[0]:'')+' All generated records remain unpublished.');
+   if(scope==='individual'&&rows[0])downloadReportCardPdf(rows[0]);
+  }catch(e){setNotice(e instanceof Error?e.message:'Documents could not be generated.');}
   finally{setBusy(false);}
  }
  return <div className="space-y-5">
