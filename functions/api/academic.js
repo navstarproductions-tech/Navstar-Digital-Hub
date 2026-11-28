@@ -215,8 +215,8 @@ export async function onRequestPost({request,env}){
   if(action==='submit_assessment'){
     if(user.role!=='student')return error('Only students can submit tests and examinations.',403);
     const assessmentId=safeString(body.assessmentId,80),responseText=safeString(body.responseText,12000),attachmentUrl=safeString(body.attachmentUrl,500);
-    const assessment=await env.DB.prepare("SELECT id,course_id,status,starts_at,due_at FROM course_assessments WHERE id=?").bind(assessmentId).first();
-    if(!assessment||assessment.status!=='published'||!(await courseAccess(env.DB,user,assessment.course_id)))return error('This assessment is not available to your account.',403);
+    const assessment=await env.DB.prepare("SELECT id,course_id,status,starts_at,due_at,archived_at FROM course_assessments WHERE id=?").bind(assessmentId).first();
+    if(!assessment||assessment.archived_at||assessment.status!=='published'||!(await courseAccess(env.DB,user,assessment.course_id)))return error('This assessment is not available to your account.',403);
     if(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())return error('This assessment has not opened yet. Check the scheduled start time.',409);
     if(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())return error('The submission deadline has passed.',409);
     if(!responseText&&!attachmentUrl)return error('Provide your answer or attach a secure HTTPS document.');
