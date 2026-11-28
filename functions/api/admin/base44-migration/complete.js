@@ -1035,7 +1035,7 @@ export async function onRequestPost({request,env}) {
   const c={sourceBatch,sourceStudents:groups.Enrollment.length,academicIntakesImported:0,academicIntakesAlreadyPresent:0,academicIntakesSkipped:0,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,legacyQuestionsRecovered:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsRestored:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,staffApplicationsImported:0,staffApplicationsAlreadyPresent:0,staffApplicationsSkipped:0,systemUsersImported:0,systemUsersAlreadyPresent:0,systemUsersSkipped:0,staffPasswordSetupRequired:0,warnings:[]};
   try {
     if(questionsOnly){
-      for(const question of groups.ExamQuestion)await migrationGuard('ExamQuestion '+sourceRecordId(question),()=>importExamQuestion(env.DB,question,tokenRow.created_by,c),c);
+      if(!batchMode)for(const question of groups.ExamQuestion)await migrationGuard('ExamQuestion '+sourceRecordId(question),()=>importExamQuestion(env.DB,question,tokenRow.created_by,c),c);
       const offset=Math.max(0,Math.floor(Number(body.offset)||0));
       const limit=Math.min(30,Math.max(1,Math.floor(Number(body.limit)||25)));
       const nextOffset=offset+stagedRows.length;
@@ -1053,32 +1053,32 @@ export async function onRequestPost({request,env}) {
       }
       return new Response(JSON.stringify({completed:done,questionsOnly:true,sourceBatch,processed:stagedRows.length,nextOffset:done?null:nextOffset,total,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,tokenFinalized:done&&body.finalize===true&&!deferTokenUse}),{status:200,headers:{...headers,'Content-Type':'application/json'}});
     }
-    for(const fee of groups.FeeStructure)await migrationGuard('FeeStructure '+sourceRecordId(fee),()=>importFeeStructure(env.DB,fee,c),c);
+    if(!batchMode||batchEntity==='FeeStructure')for(const fee of groups.FeeStructure)await migrationGuard('FeeStructure '+sourceRecordId(fee),()=>importFeeStructure(env.DB,fee,c),c);
     const sourceCourses=new Map(groups.Course.map(x=>[sourceRecordId(x),x]));
     const sourceModules=new Map(groups.CourseUnit.map(x=>[sourceRecordId(x),x]));
     const imported=[];
-    await migrationGuard('AcademicIntake batch',()=>importAcademicIntakes(env.DB,groups.AcademicIntake,c),c);
-    for(const student of groups.Enrollment){const item=await migrationGuard('Enrollment '+sourceRecordId(student),()=>importStudent(env.DB,student,tokenRow.created_by,c),c);if(item&&!academicOnly)imported.push(item);}
-    await migrationGuard('ExamSettings',()=>importExamSettings(env.DB,groups.ExamSettings),c);
-    await migrationGuard('marks category weights',()=>importMarksWeights(env.DB,groups.SystemSettings),c);
-    await migrationGuard('report-card settings',()=>importReportCardSettings(env.DB,groups.SystemSettings),c);
-    await migrationGuard('grading settings',()=>importGradingSystem(env.DB,groups.GradingSystem),c);
-    for(const module of groups.CourseUnit)await migrationGuard('CourseUnit '+sourceRecordId(module),()=>importCourseModule(env.DB,module,tokenRow.created_by,c,sourceCourses),c);
-    await migrationGuard('SystemUser records',()=>importSystemUsers(env.DB,groups.SystemUser,tokenRow.created_by,c),c);
-    for(const assignment of groups.ModuleAssignment)await migrationGuard('ModuleAssignment '+sourceRecordId(assignment),()=>importModuleAssignment(env.DB,assignment,tokenRow.created_by,c,groups.SystemUser),c);
-    for(const exam of groups.Exam)await migrationGuard('Exam '+sourceRecordId(exam),()=>importExam(env.DB,exam,tokenRow.created_by,c,sourceCourses,sourceModules),c);
+    if(!batchMode||batchEntity==='AcademicIntake')await migrationGuard('AcademicIntake batch',()=>importAcademicIntakes(env.DB,groups.AcademicIntake,c),c);
+    if(!batchMode||batchEntity==='Enrollment')for(const student of groups.Enrollment){const item=await migrationGuard('Enrollment '+sourceRecordId(student),()=>importStudent(env.DB,student,tokenRow.created_by,c),c);if(item&&!academicOnly)imported.push(item);}
+    if(!batchMode||batchEntity==='ExamSettings')await migrationGuard('ExamSettings',()=>importExamSettings(env.DB,groups.ExamSettings),c);
+    if(!batchMode||batchEntity==='SystemSettings')await migrationGuard('marks category weights',()=>importMarksWeights(env.DB,groups.SystemSettings),c);
+    if(!batchMode||batchEntity==='SystemSettings')await migrationGuard('report-card settings',()=>importReportCardSettings(env.DB,groups.SystemSettings),c);
+    if(!batchMode||batchEntity==='GradingSystem')await migrationGuard('grading settings',()=>importGradingSystem(env.DB,groups.GradingSystem),c);
+    if(!batchMode||batchEntity==='CourseUnit')for(const module of groups.CourseUnit)await migrationGuard('CourseUnit '+sourceRecordId(module),()=>importCourseModule(env.DB,module,tokenRow.created_by,c,sourceCourses),c);
+    if(!batchMode||batchEntity==='SystemUser')await migrationGuard('SystemUser records',()=>importSystemUsers(env.DB,groups.SystemUser,tokenRow.created_by,c),c);
+    if(!batchMode||batchEntity==='ModuleAssignment')for(const assignment of groups.ModuleAssignment)await migrationGuard('ModuleAssignment '+sourceRecordId(assignment),()=>importModuleAssignment(env.DB,assignment,tokenRow.created_by,c,groups.SystemUser),c);
+    if(!batchMode||batchEntity==='Exam')for(const exam of groups.Exam)await migrationGuard('Exam '+sourceRecordId(exam),()=>importExam(env.DB,exam,tokenRow.created_by,c,sourceCourses,sourceModules),c);
     // Recover legacy exam shells from attempt metadata when Base44 no longer has the parent Exam row.
     // This preserves historical attempts and their questions without publishing a new live paper.
-    for(const attempt of groups.ExamAttempt)await migrationGuard('ExamAttempt parent '+sourceRecordId(attempt),()=>ensureExamForAttempt(env.DB,attempt,tokenRow.created_by,c,sourceCourses,sourceModules,groups.ExamQuestion),c);
+    if(!batchMode||batchEntity==='ExamAttempt')for(const attempt of groups.ExamAttempt)await migrationGuard('ExamAttempt parent '+sourceRecordId(attempt),()=>ensureExamForAttempt(env.DB,attempt,tokenRow.created_by,c,sourceCourses,sourceModules,groups.ExamQuestion),c);
     for(const question of groups.ExamQuestion)await importExamQuestion(env.DB,question,tokenRow.created_by,c);
-    for(const assignment of groups.Assignment)await migrationGuard('Assignment '+sourceRecordId(assignment),()=>importAssignment(env.DB,assignment,tokenRow.created_by,c,sourceCourses,sourceModules),c);
-    for(const submission of groups.AssignmentSubmission)await migrationGuard('AssignmentSubmission '+sourceRecordId(submission),()=>importAssignmentSubmission(env.DB,submission,tokenRow.created_by,c),c);
-    for(const attempt of groups.ExamAttempt)await migrationGuard('ExamAttempt '+sourceRecordId(attempt),()=>importExamAttempt(env.DB,attempt,tokenRow.created_by,c),c);
-    for(const conflict of groups.MarksConflict)await migrationGuard('MarksConflict '+sourceRecordId(conflict),()=>importMarksConflict(env.DB,conflict,tokenRow.created_by,c,sourceCourses,sourceModules),c);
-    groups.StudentResult.sort((a,b)=>Date.parse(clean(a.updated_date||a.created_date,40)||'1970-01-01')-Date.parse(clean(b.updated_date||b.created_date,40)||'1970-01-01'));
-    for(const result of groups.StudentResult)await migrationGuard('StudentResult '+sourceRecordId(result),()=>importStudentResult(env.DB,result,tokenRow.created_by,c,sourceCourses,sourceModules),c);
-    for(const application of groups.StaffApplication)await migrationGuard('StaffApplication '+sourceRecordId(application),()=>importStaffApplication(env.DB,application,tokenRow.created_by,c),c);
-    for(const fee of groups.AdditionalFee) {
+    if(!batchMode||batchEntity==='Assignment')for(const assignment of groups.Assignment)await migrationGuard('Assignment '+sourceRecordId(assignment),()=>importAssignment(env.DB,assignment,tokenRow.created_by,c,sourceCourses,sourceModules),c);
+    if(!batchMode||batchEntity==='AssignmentSubmission')for(const submission of groups.AssignmentSubmission)await migrationGuard('AssignmentSubmission '+sourceRecordId(submission),()=>importAssignmentSubmission(env.DB,submission,tokenRow.created_by,c),c);
+    if(!batchMode||batchEntity==='ExamAttempt')for(const attempt of groups.ExamAttempt)await migrationGuard('ExamAttempt '+sourceRecordId(attempt),()=>importExamAttempt(env.DB,attempt,tokenRow.created_by,c),c);
+    if(!batchMode||batchEntity==='MarksConflict')for(const conflict of groups.MarksConflict)await migrationGuard('MarksConflict '+sourceRecordId(conflict),()=>importMarksConflict(env.DB,conflict,tokenRow.created_by,c,sourceCourses,sourceModules),c);
+    if(!batchMode||batchEntity==='StudentResult')groups.StudentResult.sort((a,b)=>Date.parse(clean(a.updated_date||a.created_date,40)||'1970-01-01')-Date.parse(clean(b.updated_date||b.created_date,40)||'1970-01-01'));
+    if(!batchMode||batchEntity==='StudentResult')for(const result of groups.StudentResult)await migrationGuard('StudentResult '+sourceRecordId(result),()=>importStudentResult(env.DB,result,tokenRow.created_by,c,sourceCourses,sourceModules),c);
+    if(!batchMode||batchEntity==='StaffApplication')for(const application of groups.StaffApplication)await migrationGuard('StaffApplication '+sourceRecordId(application),()=>importStaffApplication(env.DB,application,tokenRow.created_by,c),c);
+    if(!batchMode||batchEntity==='Enrollment')for(const fee of groups.AdditionalFee) {
       const sourceId=sourceRecordId(fee);
       const sourceEnrollmentId=clean(fee.enrollment_id,120);
       const mapping=await env.DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceEnrollmentId).first();
@@ -1092,7 +1092,7 @@ export async function onRequestPost({request,env}) {
       c.additionalFeesImported++;
     }
     // A learner may have several course enrolments. Keep one account and derive its overall status from all of them.
-    const lifecycleByEmail=new Map();
+    if(!batchMode||batchEntity==='Enrollment') { const lifecycleByEmail=new Map();
     for(const student of groups.Enrollment) {
       const email=clean(student.student_email||student.email,254).toLowerCase();
       if(!email)continue;
@@ -1177,6 +1177,7 @@ export async function onRequestPost({request,env}) {
       const paymentStatus=due>0&&paid>=due?'paid':paid>0?'pending':'unpaid';
       await env.DB.prepare('UPDATE enrollments SET payment_status=? WHERE id=?').bind(paymentStatus,item.enrollmentId).run();
     }
+    }
     if(!deferTokenUse)await env.DB.prepare('UPDATE base44_migration_tokens SET used_at=CURRENT_TIMESTAMP WHERE token_hash=? AND used_at IS NULL').bind(tokenHash).run();
     // Audit history is supplementary: a legacy actor reference must never roll back
     // or falsely fail otherwise successful, idempotent archive reconciliation.
@@ -1187,7 +1188,7 @@ export async function onRequestPost({request,env}) {
       c.warnings.push('The records were processed, but the optional audit-history entry could not be written: ' + String(auditError?.message || auditError));
     }
     return new Response(JSON.stringify({
-      completed:true,scope:academicOnly?['Enrollment','AcademicIntake','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'] :['Enrollment','AcademicIntake','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'],sourceBatch,
+      completed:batchMode?body._batchMeta.done:true,batchEntity:batchMode?body._batchMeta.entity:undefined,processed:batchMode?body._batchMeta.processed:undefined,total:batchMode?body._batchMeta.total:undefined,nextOffset:batchMode&&!body._batchMeta.done?body._batchMeta.nextOffset:null,scope:academicOnly?['Enrollment','AcademicIntake','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'] :['Enrollment','AcademicIntake','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'],sourceBatch,
       studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,academicIntakesImported:c.academicIntakesImported,academicIntakesAlreadyPresent:c.academicIntakesAlreadyPresent,academicIntakesSkipped:c.academicIntakesSkipped,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,admissionNumbersUpdated:c.admissionNumbersUpdated,admissionNumberConflicts:c.admissionNumberConflicts,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
