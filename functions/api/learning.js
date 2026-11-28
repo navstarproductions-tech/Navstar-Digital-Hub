@@ -371,10 +371,10 @@ export async function onRequestPost({ request, env }) {
     if(!existing||title.length<2||!Number.isSafeInteger(maxPoints)||maxPoints<1||maxPoints>10000||!Number.isFinite(categoryOutOf)||categoryOutOf<=0||categoryOutOf>10000)return error('Enter valid assignment details and score limits.');
     const courseId=safeString(body.courseId,80),moduleId=safeString(body.moduleId,80)||null;
     const course=await env.DB.prepare('SELECT id FROM courses WHERE id=?').bind(courseId).first();
-    if(!course||!moduleId)return error('Choose a valid course and module for this assignment.');
-    const module=await env.DB.prepare('SELECT id FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first();
-    if(!module)return error('The selected module does not belong to the selected course.');
-    if(user.role==='tutor'&&(!existing.module_id||!(await hasModuleAccess(env.DB,user,existing.module_id,existing.course_id))||!(await hasModuleAccess(env.DB,user,moduleId,courseId)))return error('Tutors can edit assignments only within modules allocated to them.',403);
+    if(!course)return error('Choose a valid course for this assignment.');
+    if(!moduleId&&user.role==='tutor')return error('Tutors must keep assignments linked to an allocated module.',403);
+    if(moduleId){const module=await env.DB.prepare('SELECT id FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first();if(!module)return error('The selected module does not belong to the selected course.');}
+    if(user.role==='tutor'&&(!existing.module_id||!(await hasModuleAccess(env.DB,user,existing.module_id,existing.course_id))||!moduleId||!(await hasModuleAccess(env.DB,user,moduleId,courseId)))return error('Tutors can edit assignments only within modules allocated to them.',403);
     if(dueAt&&Number.isNaN(Date.parse(dueAt)))return error('Enter a valid assignment deadline.');
     await env.DB.prepare(`UPDATE course_assignments SET course_id=?,module_id=?,title=?,instructions=?,due_at=?,max_points=?,category_out_of=?,marks_category=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
       .bind(courseId,moduleId,title,instructions,dueAt,maxPoints,categoryOutOf,marksCategory,status,assignmentId).run();
