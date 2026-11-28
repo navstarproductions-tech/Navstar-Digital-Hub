@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { parseCsv } from '@/lib/navstar-data-tools';
 import { uploadNavstarFile } from '@/lib/storage';
@@ -42,9 +42,31 @@ export function LearningAdminSubtab({subtab,courses:catalogue}:Props){
  const [assignmentPanel,setAssignmentPanel]=useState<'manage'|'mark'>('manage');
  const [aiDrafts,setAiDrafts]=useState<Record<string,{points:string;feedback:string}>>({});
  const [aiBusy,setAiBusy]=useState('');const [aiCreateBusy,setAiCreateBusy]=useState(false);
+ const legacyModuleCleanupStarted=useRef(false);
 
  const load=async()=>{const r=await fetch('/api/learning',{cache:'no-store',credentials:'same-origin'});const j=await r.json();if(!r.ok)throw new Error(j.error||'Learning records could not be loaded.');setData({courses:j.courses||[],tutors:j.tutors||[],moduleTutorAssignments:j.moduleTutorAssignments||[],role:j.role||''});};
  useEffect(()=>{void load().catch(e=>setFailure(e.message||'Unable to load learning records.'));},[]);
+ useEffect(()=>{
+  if(data.role!=='admin'||legacyModuleCleanupStarted.current)return;
+  const unwanted=data.courses.flatMap(course=>course.modules.filter(module=>module.title.trim().toLowerCase()==='practical 001'&&module.status!=='archived'));
+  legacyModuleCleanupStarted.current=true;
+  if(!unwanted.length)return;
+  void (async()=>{
+   setBusy(true);setFailure('');setMessage('');
+   let archived=0,deleted=0,failed=0;
+   for(const module of unwanted){
+    try{
+     const response=await fetch('/api/learning',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete_module',moduleId:module.id})});
+     const result=await response.json();
+     if(!response.ok)throw new Error((result.error||'Module cleanup failed.')+(result.reference?' Support reference: '+result.reference:'')+(result.detail?' ('+result.detail+')':''));
+     if(result.archived)archived++;else if(result.deleted)deleted++;
+    }catch(error){failed++;setFailure(error instanceof Error?error.message:'The legacy module could not be removed.');}
+   }
+   await load();
+   if(!failed)setMessage('Removed the non-catalogue “Practical 001” module label. '+archived+' module record(s) were archived to preserve linked history; '+deleted+' empty module record(s) were deleted. The seven orphan legacy exam attempts remain in the source archive and are not active course modules.');
+   setBusy(false);
+  })();
+ },[data,load]);
  const allCourses=data.courses.length?data.courses:catalogue.map(c=>({...c,modules:[],assignments:[]}));
  useEffect(()=>{
   if(!allCourses.some(c=>c.id===courseId))setCourseId(allCourses[0]?.id||'');
