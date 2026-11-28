@@ -1220,15 +1220,16 @@ async function importStudent(DB,r,adminId,c) {
   if(course.created)c.archivedCoursesCreated++;
   const mapping=await DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceId).first();
   const requestedAdmission=clean(r.admission_number,80);
+  const requestedStudentId=clean(r.student_id,60);
   let requestedIntake=clean(r.intake_label,80);
   if(!requestedIntake&&clean(r.intake_id,120)){const sourceIntake=await DB.prepare('SELECT intake_name,year FROM academic_intakes WHERE source_id=? OR id=? LIMIT 1').bind(clean(r.intake_id,120),clean(r.intake_id,120)).first();requestedIntake=sourceIntake?clean(sourceIntake.intake_name,40)+' '+clean(sourceIntake.year,8):clean(r.intake_id,80);}
   let matchedEnrollment=mapping?.destination_id
-    ? await DB.prepare('SELECT id,admission_number,email,identity_number,course_id,preferred_intake FROM enrollments WHERE id=?').bind(mapping.destination_id).first()
+    ? await DB.prepare('SELECT id,admission_number,student_id,email,identity_number,course_id,preferred_intake FROM enrollments WHERE id=?').bind(mapping.destination_id).first()
     : null;
 
   // Match exact admission numbers first. Reuse only when the student identity agrees.
   if(requestedAdmission) {
-    const byAdmission=await DB.prepare('SELECT id,admission_number,email,identity_number,course_id,preferred_intake FROM enrollments WHERE admission_number=? LIMIT 1').bind(requestedAdmission).first();
+    const byAdmission=await DB.prepare('SELECT id,admission_number,student_id,email,identity_number,course_id,preferred_intake FROM enrollments WHERE admission_number=? LIMIT 1').bind(requestedAdmission).first();
     if(byAdmission && byAdmission.id!==matchedEnrollment?.id) {
       const sameIdentity=clean(byAdmission.email,254).toLowerCase()===email ||
         (clean(r.national_id,80) && clean(byAdmission.identity_number,80)===clean(r.national_id,80));
@@ -1246,7 +1247,7 @@ async function importStudent(DB,r,adminId,c) {
   // Catch a repeated export row even when Base44 supplied a different source record ID.
   if(!matchedEnrollment) {
     matchedEnrollment=await DB.prepare(`
-      SELECT id,admission_number,email,identity_number,course_id,preferred_intake
+      SELECT id,admission_number,student_id,email,identity_number,course_id,preferred_intake
       FROM enrollments
       WHERE lower(email)=lower(?) AND course_id=?
         AND COALESCE(preferred_intake,'')=COALESCE(?, '')
@@ -1314,7 +1315,7 @@ async function importStudent(DB,r,adminId,c) {
     clean(r.ward,80)||null,clean(r.location,100)||null,clean(r.sublocation||r.sub_location,100)||null,
     clean(r.student_photo_url,1000)||null,clean(r.national_id,80)||null,address||null,state.profile
   ).run();
-  const existing=await DB.prepare('SELECT id,admission_number FROM enrollments WHERE id=?').bind(enrollmentId).first();
+  const existing=await DB.prepare('SELECT id,admission_number,student_id FROM enrollments WHERE id=?').bind(enrollmentId).first();
   if(!existing) {
     const ref='B44-'+sourceId.replace(/[^a-z0-9]/gi,'').slice(-16).toUpperCase();
     const createdAt=clean(r.created_date||r.created_at,40)||new Date().toISOString();
@@ -1322,13 +1323,13 @@ async function importStudent(DB,r,adminId,c) {
     const contactPhone=clean(r.next_of_kin_phone||r.guardian_phone||r.mother_phone||r.father_phone,40)||'Not recorded';
     await DB.prepare(`
       INSERT INTO enrollments(
-        id,display_ref,admission_number,course_id,full_name,email,phone,date_of_birth,identity_type,identity_number,gender,nationality,
+        id,display_ref,admission_number,student_id,course_id,full_name,email,phone,date_of_birth,identity_type,identity_number,gender,nationality,
         study_mode,education_level,preferred_intake,experience,county,town,address,sub_county,ward,location,sub_location,
         emergency_contact_name,emergency_contact_phone,emergency_contact_relationship,support_needs,consent,status,payment_status,
         application_details_json,admitted_user_id,created_at
-      ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,'accepted','unpaid',?,?,?)
+      ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,'accepted','unpaid',?,?,?)
     `).bind(
-      enrollmentId,ref,admission,course.id,name,email,phone||'Not recorded',dateOnly(r.date_of_birth)||'',clean(r.id_type,40)||null,
+      enrollmentId,ref,admission,requestedStudentId||null,course.id,name,email,phone||'Not recorded',dateOnly(r.date_of_birth)||'',clean(r.id_type,40)||null,
       clean(r.national_id,80)||null,clean(r.gender,40)||null,clean(r.nationality,80)||null,
       clean(r.study_mode,40)||'Not recorded',clean(r.education_level,80)||'Not recorded',
       clean(r.intake_label||r.intake_id,80)||null,clean(r.previous_school||r.education_year_completed,160)||null,
@@ -1352,6 +1353,7 @@ async function importStudent(DB,r,adminId,c) {
       }
     }
   }
+  if(requestedStudentId)await DB.prepare("UPDATE enrollments SET student_id=? WHERE id=? AND (student_id IS NULL OR trim(student_id)='')").bind(requestedStudentId,enrollmentId).run();
   if(requestedIntake)await DB.prepare("UPDATE enrollments SET preferred_intake=? WHERE id=? AND (preferred_intake IS NULL OR trim(preferred_intake)='' OR preferred_intake='Unassigned Intake')").bind(requestedIntake,enrollmentId).run();
   const sourceEnrollmentDate=clean(r.enrollment_date,40)||clean(r.created_date,40)||'';
   if(sourceEnrollmentDate)await DB.prepare("UPDATE enrollments SET source_enrollment_date=COALESCE(NULLIF(source_enrollment_date,''),?) WHERE id=?").bind(sourceEnrollmentDate,enrollmentId).run();
