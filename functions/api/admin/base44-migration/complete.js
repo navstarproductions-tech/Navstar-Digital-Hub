@@ -1268,7 +1268,7 @@ async function importStudent(DB,r,adminId,c) {
     c.warnings.push('Kept existing admission number '+matchedEnrollment.admission_number+' for '+email+'; conflicting incoming value '+requestedAdmission+' was not allowed to overwrite it.');
   }
   let user=await DB.prepare('SELECT id,role,status FROM users WHERE lower(email)=lower(?)').bind(email).first();
-  if(user&&user.role!=='student'){c.existingAccountsLinked++;}
+  if(user&&user.role!=='student'){c.warnings.push('Linked the accepted course enrolment to the existing '+user.role+' system account without changing its portal role.');}
   if(!user) {
     const credential=passwordCredential(r);
     const generated=credential||await hashPassword(clean(crypto.randomUUID()+crypto.randomUUID(),100));
@@ -1292,7 +1292,7 @@ async function importStudent(DB,r,adminId,c) {
   const address=[r.street,r.location,r.sublocation||r.sub_location,r.ward,r.subcounty||r.sub_county,r.county].map(x=>clean(x,100)).filter(Boolean).join(', ');
   await DB.prepare(`
     INSERT INTO user_profiles(user_id,staff_id,portal_role,phone,date_of_birth,gender,citizenship,country,province,county,sub_county,ward,location,sub_location,profile_photo_url,national_id,address,student_status)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET
       portal_role=CASE WHEN user_profiles.portal_role IN ('admin','principal','tutor','admissions','finance') THEN user_profiles.portal_role ELSE excluded.portal_role END,
       phone=COALESCE(NULLIF(excluded.phone,''),user_profiles.phone),
