@@ -122,13 +122,13 @@ export async function onRequestPost({request,env}){
   const selfService=action==='generate-student-report-card';
   if(selfService){if(user.role!=='student')return error('Only a student may generate a personal report card.',403);}
   else {const access=await requireRole(request,env,admins);if(access.response)return access.response;}
-  const studentId=selfService?user.id:clean(b.studentId,80),courseId=clean(b.courseId,80),requestedPeriod=clean(b.periodLabel,80);
+  const studentId=selfService?user.id:clean(b.studentId,80),courseId=clean(b.courseId,80);
   if(!studentId||!await canCourse(env.DB,user,courseId))return error('Select a valid course and student.');
   const student=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake,e.created_at,e.course_fee,e.amount_paid,e.id AS enrollment_id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' AND u.role='student' AND u.status='active'").bind(studentId,courseId).first();
   if(!student)return error('A report card is available only to an Active student with an accepted enrolment in the selected course.',404);
   const enrolledAt=new Date(student.created_at||Date.now());
   const derivedIntake=Number.isNaN(enrolledAt.getTime())?'Unassigned Intake':enrolledAt.toLocaleString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})+' Intake';
-  const period=clean(student.preferred_intake,60)||requestedPeriod||derivedIntake;
+  const period=clean(student.preferred_intake,60)||derivedIntake;
   if(!student.preferred_intake&&period===derivedIntake)await env.DB.prepare("UPDATE enrollments SET preferred_intake=? WHERE id=? AND (preferred_intake IS NULL OR trim(preferred_intake)='')").bind(derivedIntake,student.enrollment_id).run();
   await syncStudentModuleResults(env.DB,studentId,courseId,user.id);
   const course=await env.DB.prepare('SELECT id,title,course_code FROM courses WHERE id=?').bind(courseId).first();
