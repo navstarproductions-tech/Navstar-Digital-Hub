@@ -736,6 +736,12 @@ async function importStudentEditRequest(DB,r,adminId,c) {
   const result=await DB.prepare("INSERT OR IGNORE INTO student_profile_change_requests(id,user_id,changes_json,status,review_note,reviewed_by,created_at,reviewed_at) VALUES(?,?,?,?,?,?,?,?)")
     .bind(id,user.id,JSON.stringify(safeChanges),status,clean(r.review_note||r.admin_notes,1000),status==='pending'?null:adminId,
       clean(r.created_date||r.created_at,40)||new Date().toISOString(),status==='pending'?null:clean(r.reviewed_at||r.updated_date,40)||new Date().toISOString()).run();
+  if(status==='approved') {
+    const statements=[];
+    if(Object.prototype.hasOwnProperty.call(safeChanges,'name'))statements.push(DB.prepare("UPDATE users SET name=? WHERE id=?").bind(clean(safeChanges.name,120),user.id));
+    for(const [column,value] of Object.entries(safeChanges))if(allowed.has(column)&&column!=='name')statements.push(DB.prepare("UPDATE user_profiles SET "+column+"=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?").bind(value===''?null:value,user.id));
+    if(statements.length)await DB.batch(statements);
+  }
   const saved=await DB.prepare("SELECT id FROM student_profile_change_requests WHERE id=?").bind(id).first();
   if(!saved?.id){c.studentEditRequestsSkipped++;return;}
   await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('StudentEditRequest',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
