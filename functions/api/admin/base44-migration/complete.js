@@ -579,6 +579,31 @@ async function importGradingSystem(DB,rows) {
   ].join('|')).join('\n')};
   await DB.prepare("INSERT INTO system_state(key,value) VALUES('admin-configuration',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
 }
+async function importAcademicIntakes(DB,rows,c) {
+  for(const r of rows||[]) {
+    const sourceId=sourceRecordId(r),name=clean(r.intake_name,40),year=clean(r.year,8);
+    if(!sourceId||!name||!year){c.academicIntakesSkipped++;continue;}
+    const id='b44intake-'+sourceId.slice(-24);
+    const result=await DB.prepare(`INSERT INTO academic_intakes
+      (id,source_id,intake_name,year,start_date,end_date,enrollment_open_date,enrollment_close_date,
+       training_start_date,training_end_date,is_current,course_limits_json,source_json,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(source_id) DO UPDATE SET intake_name=excluded.intake_name,year=excluded.year,
+       start_date=excluded.start_date,end_date=excluded.end_date,enrollment_open_date=excluded.enrollment_open_date,
+       enrollment_close_date=excluded.enrollment_close_date,training_start_date=excluded.training_start_date,
+       training_end_date=excluded.training_end_date,is_current=excluded.is_current,
+       course_limits_json=excluded.course_limits_json,source_json=excluded.source_json,updated_at=excluded.updated_at`)
+      .bind(id,sourceId,name,year,clean(r.start_date,40)||null,clean(r.end_date,40)||null,
+        clean(r.enrollment_open_date,40)||null,clean(r.enrollment_close_date,40)||null,
+        clean(r.training_start_date,40)||null,clean(r.training_end_date,40)||null,
+        r.is_current===true?1:0,JSON.stringify(Array.isArray(r.course_limits)?r.course_limits:[]),
+        JSON.stringify(r),clean(r.created_date,40)||new Date().toISOString(),
+        clean(r.updated_date,40)||clean(r.created_date,40)||new Date().toISOString()).run();
+    await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id) VALUES('AcademicIntake',?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,imported_at=CURRENT_TIMESTAMP")
+      .bind(sourceId,id).run();
+    if(Number(result.meta?.changes||0)>0)c.academicIntakesImported++;else c.academicIntakesAlreadyPresent++;
+  }
+}
 async function importReportCardSettings(DB,rows) {
   const settings=Array.isArray(rows)?rows:[];
   const sourceConfig={};
@@ -805,7 +830,7 @@ async function importStudent(DB,r,adminId,c) {
     const credential=passwordCredential(r);
     const generated=credential||await hashPassword(clean(crypto.randomUUID()+crypto.randomUUID(),100));
     const state=lifecycle(r);
-    const createdAt=clean(r.created_date||r.created_at,40)||new Date().toISOString();
+    const createdAt=clean(r.enrollment_date||r.created_date||r.created_at,40)||new Date().toISOString();
     const userId='b44usr-'+sourceId.slice(-24);
     await DB.prepare("INSERT OR IGNORE INTO users(id,name,email,role,password_hash,password_salt,must_change_password,status,created_at) VALUES(?,?,?,'student',?,?,?,?,?)")
       .bind(userId,name,email,generated.hash,generated.salt,generated.mustChange??1,state.account,createdAt).run();
@@ -885,6 +910,8 @@ async function importStudent(DB,r,adminId,c) {
       }
     }
   }
+  const sourceEnrollmentDate=clean(r.enrollment_date,40)||clean(r.created_date,40)||'';
+  if(sourceEnrollmentDate)await DB.prepare("UPDATE enrollments SET source_enrollment_date=COALESCE(NULLIF(source_enrollment_date,''),?) WHERE id=?").bind(sourceEnrollmentDate,enrollmentId).run();
   await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Enrollment',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
     .bind(sourceId,enrollmentId,user.id).run();
   if(state.graduation) {
@@ -935,7 +962,7 @@ export async function onRequestPost({request,env}) {
   const academicOnly=body.academicOnly===true&&body.archiveReplay!==true;
   const sourceBatch=archiveReplay?clean(body.batchId,80):tokenHash;
   if(archiveReplay&&!sourceBatch)return new Response(JSON.stringify({error:'Select a saved migration package first.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
-  const entityFilter=academicOnly?"'Enrollment','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'":"'Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'";
+  const entityFilter=academicOnly?"'Enrollment','AcademicIntake','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'" :"'Enrollment','AcademicIntake','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'";
   const stagedRows=[];
   const newArchiveCount=await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_archive_records WHERE migration_batch=?').bind(sourceBatch).first();
   const archiveTable=Number(newArchiveCount?.count||0)>0?'base44_legacy_archive_records':'base44_legacy_records';
@@ -946,13 +973,13 @@ export async function onRequestPost({request,env}) {
     if(offset>=50000)throw new Error('The saved migration package exceeds the safe 50,000-record processing limit. Split the export into smaller packages.');
   }
   if(archiveReplay&&!stagedRows.length)return new Response(JSON.stringify({error:'This saved package contains no supported records to import.'}),{status:404,headers:{...headers,'Content-Type':'application/json'}});
-  const groups={Enrollment:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],GradingSystem:[],SystemUser:[],ModuleAssignment:[],MarksApproval:[],MarksConflict:[],StaffApplication:[]};
+  const groups={Enrollment:[],AcademicIntake:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],GradingSystem:[],SystemUser:[],ModuleAssignment:[],MarksApproval:[],MarksConflict:[],StaffApplication:[]};
   for(const row of stagedRows) {
     try{const parsed=JSON.parse(row.record_json);if(!parsed.id&&!parsed._id&&!parsed.uuid&&!parsed.ID&&!parsed.Id)parsed._migration_source_id=row.source_id;groups[row.entity_name].push(parsed);}
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
   }
   // A complete export may contain entities beyond student enrolments. Archive-only packages are valid; the operational student/fee importer simply has nothing to process.
-  const c={sourceBatch,sourceStudents:groups.Enrollment.length,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,legacyQuestionsRecovered:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,staffApplicationsImported:0,staffApplicationsAlreadyPresent:0,staffApplicationsSkipped:0,systemUsersImported:0,systemUsersAlreadyPresent:0,systemUsersSkipped:0,staffPasswordSetupRequired:0,warnings:[]};
+  const c={sourceBatch,sourceStudents:groups.Enrollment.length,academicIntakesImported:0,academicIntakesAlreadyPresent:0,academicIntakesSkipped:0,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,legacyQuestionsRecovered:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,staffApplicationsImported:0,staffApplicationsAlreadyPresent:0,staffApplicationsSkipped:0,systemUsersImported:0,systemUsersAlreadyPresent:0,systemUsersSkipped:0,staffPasswordSetupRequired:0,warnings:[]};
   try {
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
     const sourceCourses=new Map(groups.Course.map(x=>[sourceRecordId(x),x]));
@@ -962,6 +989,7 @@ export async function onRequestPost({request,env}) {
     await importExamSettings(env.DB,groups.ExamSettings);
     await importMarksWeights(env.DB,groups.SystemSettings);
     await importReportCardSettings(env.DB,groups.SystemSettings);
+    await importAcademicIntakes(env.DB,groups.AcademicIntake,c);
     await importGradingSystem(env.DB,groups.GradingSystem);
     for(const module of groups.CourseUnit)await importCourseModule(env.DB,module,tokenRow.created_by,c,sourceCourses);
     await importSystemUsers(env.DB,groups.SystemUser,tokenRow.created_by,c);
@@ -1081,7 +1109,7 @@ export async function onRequestPost({request,env}) {
     await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
       .bind(uuid(),tokenRow.created_by,academicOnly?'base44_academic_archive_import_completed':'base44_student_and_fee_migration_completed','migration',sourceBatch.slice(0,24)).run();
     return new Response(JSON.stringify({
-      completed:true,scope:academicOnly?['Enrollment','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication']:['Enrollment','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'],sourceBatch,
+      completed:true,scope:academicOnly?['Enrollment','AcademicIntake','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'] :['Enrollment','AcademicIntake','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'],sourceBatch,
       studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,admissionNumbersUpdated:c.admissionNumbersUpdated,admissionNumberConflicts:c.admissionNumberConflicts,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
