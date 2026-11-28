@@ -384,9 +384,9 @@ export async function onRequestPost({request,env}){
       if(!(await requireCourse(env.DB,user,course.id)))continue;
       const active=await env.DB.prepare("SELECT COUNT(*) AS n FROM enrollments WHERE course_id=? AND status='accepted'").bind(course.id).first();
       if(Number(active?.n||0)<1)continue;
-      const modules=(await env.DB.prepare("SELECT id,title FROM course_modules WHERE course_id=? AND status='published' ORDER BY sort_order,title").bind(course.id).all()).results||[];
+      const modules=(await env.DB.prepare(`SELECT id,title FROM course_modules WHERE course_id=? AND status='published' ${user.role==='tutor'?'AND EXISTS (SELECT 1 FROM module_tutor_assignments mt WHERE mt.module_id=course_modules.id AND mt.tutor_user_id=?)':''} ORDER BY sort_order,title`).bind(course.id,...(user.role==='tutor'?[user.id]:[])).all()).results||[];
       if(!modules.length)continue;
-      const papers=(await env.DB.prepare("SELECT id,module_id,duration_minutes,title FROM course_assessments WHERE course_id=? AND archived_at IS NULL AND module_id IS NOT NULL ORDER BY title").bind(course.id).all()).results||[];
+      const papers=(await env.DB.prepare(`SELECT id,module_id,duration_minutes,title FROM course_assessments WHERE course_id=? AND archived_at IS NULL AND module_id IS NOT NULL ${user.role==='tutor'?'AND EXISTS (SELECT 1 FROM module_tutor_assignments mt WHERE mt.module_id=course_assessments.module_id AND mt.tutor_user_id=?)':''} ORDER BY title`).bind(course.id,...(user.role==='tutor'?[user.id]:[])).all()).results||[];
       if(modules.some(m=>!papers.some(p=>p.module_id===m.id)))continue;
       ready.push({course,papers});
     }
