@@ -51,7 +51,8 @@ export async function onRequestGet({ request, env }) {
     ]);
     const directPaybill = ledger === 'business' ? (c2bRows.results || []).map(row => ({ ...row, id: 'c2b:' + row.id, purpose: 'paybill', source: 'paybill', phone: row.msisdn, receipt_number: row.transaction_id, mpesa_receipt: row.transaction_id, created_at: row.received_at, updated_at: row.received_at, status: 'paid', admin_status: 'confirmed', description: 'Direct PayBill · ' + (row.bill_reference || 'No account reference') })) : [];
     const combined = [...(rows.results || []), ...directPaybill].sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0, 500);
-        const mergedTotals = { ...(totals || {}), transaction_count: Number(totals?.transaction_count || 0) + (ledger === 'business' ? Number(c2bTotals?.transaction_count || 0) : 0), mpesa_received: Number(totals?.mpesa_received || 0) + (ledger === 'business' ? Number(c2bTotals?.mpesa_received || 0) : 0) };\n    return json({ ledger, payments: combined, totals: mergedTotals, directPaybillCount: ledger === 'business' ? Number(c2bTotals?.transaction_count || 0) : 0, mpesaBalance: ledger==='business'?(balance || null):null });
+        const mergedTotals = { ...(totals || {}), transaction_count: Number(totals?.transaction_count || 0) + (ledger === 'business' ? Number(c2bTotals?.transaction_count || 0) : 0), mpesa_received: Number(totals?.mpesa_received || 0) + (ledger === 'business' ? Number(c2bTotals?.mpesa_received || 0) : 0) };
+    return json({ ledger, payments: combined, totals: mergedTotals, directPaybillCount: ledger === 'business' ? Number(c2bTotals?.transaction_count || 0) : 0, mpesaBalance: ledger==='business'?(balance || null):null });
   } catch (cause) {
     console.error('Admin payment register failed:', String(cause?.message || cause));
     return error('The payment register is not ready. Confirm that the latest database migrations have been applied.', 503);
