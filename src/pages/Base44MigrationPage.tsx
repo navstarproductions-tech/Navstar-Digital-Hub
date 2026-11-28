@@ -132,7 +132,7 @@ export function Base44MigrationPage() {
       const headers = { 'Authorization': 'Bearer ' + tokenData.token, 'Content-Type': 'application/json' };
       const entities = archive?.entities || [];
       const counts = new Map(entities.map(item => [item.entityName, Number(item.count || 0)]));
-      const order = ['AcademicIntake','FeeStructure','Enrollment','CourseUnit','SystemUser','ModuleAssignment','Exam','ExamQuestion','ExamAttempt','Assignment','AssignmentSubmission','StudentResult','MarksConflict','StaffApplication','ExamSettings','SystemSettings','GradingSystem'];
+      const order = ['AcademicIntake','FeeStructure','Enrollment','AttendanceRecord','EClassAttendance','ModuleCompletion','Graduate','Certificate','CertDeliveryConfirmation','CourseUnit','SystemUser','ModuleAssignment','Exam','ExamQuestion','StudentResult','ExamAttempt','Assignment','AssignmentSubmission','MarksConflict','StaffApplication','ExamSettings','SystemSettings','GradingSystem'];
       const totals: Record<string, number> = {};
       const warnings: string[] = [];
       let processed = 0;
