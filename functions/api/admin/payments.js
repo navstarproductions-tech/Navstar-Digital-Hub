@@ -40,7 +40,11 @@ export async function onRequestGet({ request, env }) {
           COALESCE(SUM(CASE WHEN status = 'paid' AND admin_status IN ('pending_review','flagged') THEN amount ELSE 0 END), 0) AS awaiting_admin_review
         FROM payments p ${where}
       `).first(),
-      env.DB.prepare('SELECT balance_text, balance_amount, currency, received_at, result_description FROM mpesa_balance_snapshots ORDER BY created_at DESC LIMIT 1').first()
+      env.DB.prepare(`SELECT balance_text, balance_amount, currency, received_at, result_description, created_at,
+        (SELECT created_at FROM mpesa_balance_snapshots ORDER BY created_at DESC LIMIT 1) AS latest_request_at
+      FROM mpesa_balance_snapshots
+      WHERE result_code = 0 AND received_at IS NOT NULL
+      ORDER BY received_at DESC LIMIT 1`).first()
     ]);
     return json({ ledger, payments: rows.results || [], totals: totals || {}, mpesaBalance: ledger==='business'?(balance || null):null });
   } catch (cause) {
