@@ -59,7 +59,6 @@ async function canCourse(db,user,courseId){
 }
 export async function onRequestGet({request,env}){
  if(!env.DB)return error('Academic workspace database unavailable.',503);
- await ensureModuleTutors(env.DB);
  const url=new URL(request.url),action=url.searchParams.get('action')||'messages';
  if(action==='verify-report-card'){
   const key=clean(url.searchParams.get('token'),100);if(!key)return error('Verification token required.');
@@ -97,6 +96,7 @@ export async function onRequestGet({request,env}){
  }
  if(action==='tutors'){
   if(user.role!=='student')return error('Not authorised.',403);
+  await ensureModuleTutors(env.DB);
   const courseId=clean(url.searchParams.get('courseId'),80);if(!await canCourse(env.DB,user,courseId))return error('Course access denied.',403);
   const rows=await env.DB.prepare("SELECT DISTINCT u.id,u.name,COALESCE(up.portal_role,u.role) AS role FROM users u LEFT JOIN user_profiles up ON up.user_id=u.id LEFT JOIN course_tutor_assignments a ON a.tutor_user_id=u.id AND a.course_id=? LEFT JOIN module_tutor_assignments ma ON ma.tutor_user_id=u.id JOIN course_modules cm ON cm.id=ma.module_id AND cm.course_id=? WHERE u.status='active' AND u.role IN ('tutor','admin','principal') AND (a.id IS NOT NULL OR ma.id IS NOT NULL OR u.role IN ('admin','principal')) ORDER BY u.name").bind(courseId,courseId).all();
   return json({tutors:rows.results||[]});
