@@ -1268,7 +1268,7 @@ async function importStudent(DB,r,adminId,c) {
     c.warnings.push('Kept existing admission number '+matchedEnrollment.admission_number+' for '+email+'; conflicting incoming value '+requestedAdmission+' was not allowed to overwrite it.');
   }
   let user=await DB.prepare('SELECT id,role,status FROM users WHERE lower(email)=lower(?)').bind(email).first();
-  if(user&&user.role!=='student'){c.skippedStudents++;c.warnings.push('Skipped '+email+': the email is already used by a non-student account.');return null;}
+  if(user&&user.role!=='student'){c.existingAccountsLinked++;}
   if(!user) {
     const credential=passwordCredential(r);
     const generated=credential||await hashPassword(clean(crypto.randomUUID()+crypto.randomUUID(),100));
@@ -1286,14 +1286,15 @@ async function importStudent(DB,r,adminId,c) {
   }
   if(!user){c.skippedStudents++;return null;}
   const state=lifecycle(r);
-  const profile=await DB.prepare('SELECT staff_id FROM user_profiles WHERE user_id=?').bind(user.id).first();
+  const profile=await DB.prepare('SELECT staff_id,portal_role FROM user_profiles WHERE user_id=?').bind(user.id).first();
   const staffId=profile?.staff_id||'STB44'+sourceId.replace(/[^a-z0-9]/gi,'').slice(-10).toUpperCase();
+  const profileRole=profile?.portal_role||user.role||'student';
   const address=[r.street,r.location,r.sublocation||r.sub_location,r.ward,r.subcounty||r.sub_county,r.county].map(x=>clean(x,100)).filter(Boolean).join(', ');
   await DB.prepare(`
     INSERT INTO user_profiles(user_id,staff_id,portal_role,phone,date_of_birth,gender,citizenship,country,province,county,sub_county,ward,location,sub_location,profile_photo_url,national_id,address,student_status)
-    VALUES(?,?,'student',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET
-      portal_role='student',
+      portal_role=CASE WHEN user_profiles.portal_role IN ('admin','principal','tutor','admissions','finance') THEN user_profiles.portal_role ELSE excluded.portal_role END,
       phone=COALESCE(NULLIF(excluded.phone,''),user_profiles.phone),
       date_of_birth=COALESCE(NULLIF(excluded.date_of_birth,''),user_profiles.date_of_birth),
       gender=COALESCE(NULLIF(excluded.gender,''),user_profiles.gender),
@@ -1310,7 +1311,7 @@ async function importStudent(DB,r,adminId,c) {
       address=COALESCE(NULLIF(excluded.address,''),user_profiles.address),
       student_status=excluded.student_status,updated_at=CURRENT_TIMESTAMP
   `).bind(
-    user.id,staffId,phone||'',dateOnly(r.date_of_birth)||null,clean(r.gender,40)||null,clean(r.nationality,80)||null,
+    user.id,staffId,profileRole,phone||'',dateOnly(r.date_of_birth)||null,clean(r.gender,40)||null,clean(r.nationality,80)||null,
     clean(r.country,80)||'Kenya',clean(r.province,80)||null,clean(r.county,80)||null,clean(r.subcounty||r.sub_county,80)||null,
     clean(r.ward,80)||null,clean(r.location,100)||null,clean(r.sublocation||r.sub_location,100)||null,
     clean(r.student_photo_url,1000)||null,clean(r.national_id,80)||null,address||null,state.profile
