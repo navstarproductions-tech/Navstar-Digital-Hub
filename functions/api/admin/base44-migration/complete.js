@@ -293,6 +293,16 @@ async function importExamQuestion(DB,r,adminId,c) {
   if(existingMap?.destination_id){c.questionsAlreadyPresent++;return;}
   const examMap=await DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Exam' AND source_id=?").bind(sourceExamId).first();
   if(!examMap?.destination_id){c.questionsSkipped++;return;}
+  const questionText=clean(r.question_text,4000)||'Imported question';
+  const points=Math.max(1,Math.min(1000,Math.round(num(r.marks)||1)));
+  const matchingQuestion=await DB.prepare("SELECT id FROM course_exam_questions WHERE assessment_id=? AND lower(trim(question_text))=lower(trim(?)) AND points=? ORDER BY created_at LIMIT 1")
+    .bind(examMap.destination_id,questionText,points).first();
+  if(matchingQuestion?.id) {
+    await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('ExamQuestion',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+      .bind(sourceId,matchingQuestion.id,examMap.user_id||adminId).run();
+    c.questionsAlreadyPresent++;
+    return;
+  }
   const typeName=clean(r.question_type,40).toLowerCase();
   const type=typeName.includes('true')?'true_false':typeName.includes('short')?'short_answer':typeName.includes('essay')?'essay':typeName.includes('multiple')?'multiple_choice':'single_choice';
   const options=Array.isArray(r.options)?r.options.map(x=>clean(x,500)).filter(Boolean):[];
@@ -301,7 +311,7 @@ async function importExamQuestion(DB,r,adminId,c) {
   const id='b44q-'+sourceId.slice(-24);
   const createdBy=examMap.user_id||adminId;
   const result=await DB.prepare("INSERT OR IGNORE INTO course_exam_questions(id,assessment_id,question_text,question_type,options_json,correct_answer_json,explanation,points,sort_order,status,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,'active',?,?)")
-    .bind(id,examMap.destination_id,clean(r.question_text,4000)||'Imported question',type,JSON.stringify(options),
+    .bind(id,examMap.destination_id,questionText,type,JSON.stringify(options),
       answer===null?null:JSON.stringify(answer),clean(r.explanation,2000),points,
       Math.max(0,Math.round(num(r.order)||0)),createdBy,clean(r.created_date,40)||new Date().toISOString()).run();
   if(Number(result.meta?.changes||0)>0)c.questionsImported++;
@@ -1582,7 +1592,7 @@ export async function onRequestPost({request,env}) {
       const amount=Math.round(num(payment.amount??payment.amount_paid??payment.paid_amount??payment.amount_received));
       if(amount<=0)continue;
       const st=clean(payment.status,40).toLowerCase();
-      const status=st==='verified'||st==='paid'||payment.amount_confirmed===true?'paid':st==='rejected'||st==='failed'?'failed':'pending';
+      const status=['verified','paid','confirmed','completed','successful','success','approved'].includes(st)||payment.amount_confirmed===true?'paid':['rejected','failed','cancelled','canceled'].includes(st)?'failed':'pending';
       const paymentId='b44pay-'+sourcePaymentId.slice(-24);
       const existingPayment=await env.DB.prepare('SELECT id FROM payments WHERE id=?').bind(paymentId).first();
       if(existingPayment) {
