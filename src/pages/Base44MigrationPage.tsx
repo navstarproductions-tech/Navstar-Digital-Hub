@@ -132,7 +132,10 @@ export function Base44MigrationPage() {
       const headers = { 'Authorization': 'Bearer ' + tokenData.token, 'Content-Type': 'application/json' };
       const entities = archive?.entities || [];
       const counts = new Map(entities.map(item => [item.entityName, Number(item.count || 0)]));
-      const order = ['AcademicIntake','Assignment','AttendanceRecord','Campus','CertDeliveryConfirmation','Certificate','CertificateTemplate','ClassRatingForm','CustomerAccount','CvDesign','DeviceSession','DocumentAccessPolicy','EClassAttendance','Exam','ExamAttempt','ExamQuestion','ExamSettings','FeeStructure','Graduate','ICTServiceItem','InstitutionDocument','InstitutionRules','InstitutionSettings','ModuleCompletion','NewsPost','OnlineForm','PaymentMethod','PosCustomerLink','QRSession','ServiceCategory','ServiceOrder','StaffApplication','StampDesign','StudentEditRequest','StudentProject','StudentResult','StudentStatusHistory','SupportTicket','SystemSettings','TrustedPlatform','Venue'];
+      const priorityOrder = ['AcademicIntake','FeeStructure','Enrollment','CourseUnit','SystemUser','ModuleAssignment','Exam','ExamQuestion','ExamAttempt','Assignment','AssignmentSubmission','StudentResult','MarksApproval','MarksConflict','StaffApplication','AttendanceRecord','EClassAttendance','ModuleCompletion','Graduate','Certificate','CertDeliveryConfirmation','StudentStatusHistory','StudentEditRequest','NewsPost','OnlineForm','SupportTicket','ExamSettings','SystemSettings','GradingSystem'];
+      // FeePayment and AdditionalFee are loaded with their parent Enrollment page so
+      // every receipt is reconciled only after its destination enrolment is known.
+      const order = [...priorityOrder.filter(name => counts.has(name)), ...Array.from(counts.keys()).filter(name => !priorityOrder.includes(name) && !['FeePayment','AdditionalFee'].includes(name)).sort((a,b)=>a.localeCompare(b))];
       const totals: Record<string, number> = {};
       const warnings: string[] = [];
       let processed = 0;
@@ -188,7 +191,7 @@ export function Base44MigrationPage() {
               if (lastError) { failed = true; throw lastError; }
             }
           };
-          await Promise.all(Array.from({ length: Math.min(4, total) }, () => worker()));
+          await worker(); // Sequential D1 writes prevent parent/child foreign-key races during recovery.
           continue;
         }
 
