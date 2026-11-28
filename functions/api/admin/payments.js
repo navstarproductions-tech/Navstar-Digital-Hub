@@ -7,7 +7,7 @@ export async function onRequestGet({ request, env }) {
   if (access.response) return access.response;
 
   const ledger=new URL(request.url).searchParams.get('ledger')==='fees'?'fees':'business';
-  const where=ledger==='fees'?"WHERE p.purpose='enrollment' AND p.status='paid'":"WHERE p.purpose IN ('service','donation') AND p.status='paid'";
+  const where=ledger==='fees'?"WHERE p.purpose='enrollment'":"WHERE p.purpose IN ('service','donation')";
   try {
     const [rows, totals, balance] = await Promise.all([
       env.DB.prepare(`
@@ -32,7 +32,11 @@ export async function onRequestGet({ request, env }) {
         SELECT COUNT(*) AS transaction_count,
           COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) AS mpesa_received,
           COALESCE(SUM(CASE WHEN status = 'paid' AND admin_status = 'confirmed' THEN amount ELSE 0 END), 0) AS admin_confirmed,
-          COALESCE(SUM(CASE WHEN status IN ('pending','initiating') THEN amount ELSE 0 END), 0) AS awaiting_mpesa,
+          COALESCE(SUM(CASE WHEN status IN ('pending','initiating','processing') THEN amount ELSE 0 END), 0) AS awaiting_mpesa,
+          COALESCE(SUM(CASE WHEN status = 'failed' THEN amount ELSE 0 END), 0) AS failed_amount,
+          SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) AS successful_count,
+          SUM(CASE WHEN status IN ('pending','initiating','processing') THEN 1 ELSE 0 END) AS pending_count,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count,
           COALESCE(SUM(CASE WHEN status = 'paid' AND admin_status IN ('pending_review','flagged') THEN amount ELSE 0 END), 0) AS awaiting_admin_review
         FROM payments p ${where}
       `).first(),
