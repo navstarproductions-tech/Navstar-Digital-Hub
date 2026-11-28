@@ -229,7 +229,7 @@ export function Base44MigrationPage() {
       if (!finalizeResponse.ok || finalizeData.tokenFinalized !== true) throw new Error(finalizeData.error || 'The records were processed but the migration session could not be finalized.');
       const studentCount = counts.get('Enrollment') || 0;
       if (!studentCount) warnings.unshift('This package has no Enrollment entity. Student accounts and course enrolments were reconstructed only where attendance, module completion, exam, result, graduate or certificate records contained a clear student email, name and course. Records without a safe identity/course match remain in the archive.');
-      const reviewRequired=warnings.length>0||Object.entries(totals).some(([key,value])=>/Skipped$/.test(key)&&value>0);
+      const reviewRequired=warnings.length>0||Object.entries(totals).some(([key,value])=>/Skipped$|Conflicts$/.test(key)&&value>0);
       setResult({ ...totals, completed: true, tokenFinalized: true, reviewRequired, sourceStudents: studentCount, studentEnrollmentsImported: (totals.enrollmentsCreated || 0) + (totals.enrollmentsAlreadyPresent || 0), questionBankImported: totals.questionsImported || 0, questionBankAlreadyPresent: totals.questionsAlreadyPresent || 0, questionBankSkipped: totals.questionsSkipped || 0, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: entities.length, stagedRecordsProcessed: processed, warnings });
       await loadArchive(selectedBatch);
       setProgress('All ' + entities.length + ' detected entity batches have been processed. Review the totals and any identity or mapping warnings before relying on the restored records.');
@@ -274,7 +274,8 @@ export function Base44MigrationPage() {
       });
       const completion = await completeResponse.json().catch(() => ({}));
       if (!completeResponse.ok) { const detail = [completion.detail, completion.progress ? 'Import progress: ' + JSON.stringify(completion.progress) : ''].filter(Boolean).join('\\n'); throw new Error([completion.error || 'Operational import did not complete.', detail].filter(Boolean).join('\\n')); }
-      setResult({ ...completion, recordsReceived: transferred, skippedExisting, detectedEntities: names.length, detectedEntityNames: names });
+      const reviewRequired=(Array.isArray(completion.warnings)&&completion.warnings.length>0)||Object.entries(completion).some(([key,value])=>/Skipped$|Conflicts$/.test(key)&&typeof value==='number'&&value>0);
+      setResult({ ...completion, reviewRequired, recordsReceived: transferred, skippedExisting, detectedEntities: names.length, detectedEntityNames: names });
       await loadArchive('');
       setProgress('Import completed. Review the saved record totals below.');
     } catch (cause) {
