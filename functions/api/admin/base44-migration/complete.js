@@ -848,7 +848,7 @@ async function importLegacyWorkspaceRecord(DB,r,entity,adminId,c) {
   const detailPairs=Object.entries(data).filter(([key,value])=>value!==null&&value!==undefined&&typeof value!=='object'&&String(value).trim()!=='').slice(0,16);
   const details=detailPairs.map(([key,value])=>key.replace(/_/g,' ')+': '+String(value).slice(0,300)).join(' · ').slice(0,12000);
   const id='b44legacy-'+(await sha256(entity+'|'+sourceId)).slice(0,28);
-  const stored={...data,sourceEntity:entity,sourceId};
+  const stored={sourceEntity:entity,sourceId,sourceRecord:data};
   const result=await DB.prepare("INSERT OR IGNORE INTO admin_workspace_records(id,workspace,subtab,title,status,details,data_json,created_by,updated_by,created_at,updated_at) VALUES(?,'base44-imports','All Imported Records',?,'preserved',?,?,?,?,?,?)")
     .bind(id,title,details,JSON.stringify(stored),adminId,adminId,
       clean(r.created_date||r.created_at,40)||new Date().toISOString(),
