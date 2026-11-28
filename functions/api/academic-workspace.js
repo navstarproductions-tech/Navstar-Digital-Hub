@@ -190,6 +190,7 @@ export async function onRequestPost({request,env}){
  }
  if(action==='publish-report-card'){
   const access=await requireRole(request,env,admins);if(access.response)return access.response;
+  return error('Report-card publication is disabled. Generated academic records remain unpublished.',409);
   const id=clean(b.id,80);if(!id)return error('Select a report card.');
   const record=await env.DB.prepare('SELECT id,user_id,report_card_no,status,public_token FROM academic_report_cards WHERE id=?').bind(id).first();
   if(!record)return error('Report card not found.',404);
