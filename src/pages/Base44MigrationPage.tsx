@@ -125,56 +125,79 @@ export function Base44MigrationPage() {
     if (!selectedBatch || !hasAcademicArchive) return;
     setBusy(true); setArchiveError(''); setError(''); setResult(null);
     try {
-      setProgress('Opening a secure session to connect the saved Base44 records…');
+      setProgress('Opening a secure session for resumable Base44 reconciliation…');
       const tokenResponse = await fetch('/api/admin/base44-migration/token', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const tokenData = await tokenResponse.json().catch(() => ({}));
       if (!tokenResponse.ok || !tokenData.token) throw new Error(tokenData.error || 'Could not start the secure archive import.');
       const headers = { 'Authorization': 'Bearer ' + tokenData.token, 'Content-Type': 'application/json' };
-      setProgress('Connecting student, finance, course, staff and assessment records…');
-      const response = await fetch('/api/admin/base44-migration/complete', {
-        method: 'POST', credentials: 'same-origin', headers,
-        body: JSON.stringify({ batchId: selectedBatch, archiveReplay: true, deferTokenUse: true })
-      });
-      const responseText = await response.text();
-      let completion: Record<string, unknown> = {};
-      try { completion = responseText ? JSON.parse(responseText) as Record<string, unknown> : {}; } catch { completion = {}; }
-      if (!response.ok) {
-        const detail = [String(completion.error || ''), String(completion.detail || ''), completion.progress ? JSON.stringify(completion.progress) : '', !completion.error && !completion.detail ? responseText.slice(0, 1200) : '', 'HTTP ' + response.status].filter(Boolean).join(' · ');
-        throw new Error(detail || 'The saved package could not be connected.');
+      const entities = archive?.entities || [];
+      const counts = new Map(entities.map(item => [item.entityName, Number(item.count || 0)]));
+      const order = ['AcademicIntake','FeeStructure','Enrollment','CourseUnit','SystemUser','ModuleAssignment','Exam','ExamAttempt','Assignment','AssignmentSubmission','StudentResult','MarksConflict','StaffApplication','ExamSettings','SystemSettings','GradingSystem'];
+      const totals: Record<string, number> = {};
+      const warnings: string[] = [];
+      let processed = 0;
+      for (const entity of order) {
+        const total = counts.get(entity) || 0;
+        if (!total) continue;
+        let offset = 0;
+        do {
+          setProgress('Reconciling ' + entity + ' records (' + Math.min(offset + 15, total) + ' of ' + total + ')…');
+          const response = await fetch('/api/admin/base44-migration/complete', {
+            method: 'POST', credentials: 'same-origin', headers,
+            body: JSON.stringify({ batchId: selectedBatch, archiveReplay: true, deferTokenUse: true, batchEntity: entity, offset, limit: 15 })
+          });
+          const raw = await response.text();
+          let data: Record<string, unknown> = {};
+          try { data = raw ? JSON.parse(raw) as Record<string, unknown> : {}; } catch {}
+          if (!response.ok) {
+            const detail = [String(data.error || ''), String(data.detail || ''), data.progress ? JSON.stringify(data.progress) : '', !data.error && !data.detail ? raw.slice(0, 1000) : '', 'HTTP ' + response.status].filter(Boolean).join(' · ');
+            throw new Error(entity + ' batch failed at record ' + offset + ': ' + detail);
+          }
+          for (const [key, value] of Object.entries(data)) {
+            if (typeof value === 'number' && /Imported$|Created$|AlreadyPresent$|Skipped$|Conflicts$|Required$|Entries$|Updated$/.test(key)) totals[key] = (totals[key] || 0) + value;
+          }
+          if (Array.isArray(data.warnings)) warnings.push(...data.warnings.map(String));
+          const done = data.completed === true;
+          const next = Number(data.nextOffset ?? total);
+          const count = Number(data.processed || 0);
+          processed += count;
+          if (!done && (count <= 0 || next <= offset)) throw new Error(entity + ' reconciliation made no progress at record ' + offset + '.');
+          offset = next;
+          if (done) break;
+        } while (offset < total);
       }
 
-      const questionCount = Number(archive?.entities?.find(x => x.entityName === 'ExamQuestion')?.count || 0);
-      let offset = 0;
-      let questionImported = 0;
-      let questionExisting = 0;
-      let questionSkipped = 0;
-      do {
-        const limit = 25;
-        const finalBatch = offset + limit >= questionCount;
-        setProgress('Connecting exam question bank (' + Math.min(offset + limit, questionCount) + ' of ' + questionCount + ')…');
-        const questionResponse = await fetch('/api/admin/base44-migration/complete', {
+      const questionCount = counts.get('ExamQuestion') || 0;
+      let qOffset = 0;
+      let qImported = 0, qExisting = 0, qSkipped = 0;
+      while (qOffset < questionCount) {
+        setProgress('Connecting exam question bank (' + Math.min(qOffset + 15, questionCount) + ' of ' + questionCount + ')…');
+        const response = await fetch('/api/admin/base44-migration/complete', {
           method: 'POST', credentials: 'same-origin', headers,
-          body: JSON.stringify({ batchId: selectedBatch, questionsOnly: true, offset, limit, finalize: finalBatch })
+          body: JSON.stringify({ batchId: selectedBatch, questionsOnly: true, deferTokenUse: true, offset: qOffset, limit: 15 })
         });
-        const questionText = await questionResponse.text();
-        let questionData: Record<string, unknown> = {};
-        try { questionData = questionText ? JSON.parse(questionText) as Record<string, unknown> : {}; } catch { questionData = {}; }
-        if (!questionResponse.ok) {
-          const detail = [String(questionData.error || ''), String(questionData.detail || ''), !questionData.error && !questionData.detail ? questionText.slice(0, 1000) : '', 'HTTP ' + questionResponse.status].filter(Boolean).join(' · ');
-          throw new Error('Exam question batch failed at record ' + offset + ': ' + detail);
-        }
-        questionImported += Number(questionData.questionsImported || 0);
-        questionExisting += Number(questionData.questionsAlreadyPresent || 0);
-        questionSkipped += Number(questionData.questionsSkipped || 0);
-        offset = Number(questionData.nextOffset ?? questionCount);
-        if (questionData.completed === true) break;
-        if (Number(questionData.processed || 0) === 0) throw new Error('The exam question import made no progress at record ' + offset + '.');
-      } while (offset < questionCount);
-
-      completion = { ...completion, questionBankImported: questionImported, questionBankAlreadyPresent: questionExisting, questionBankSkipped: questionSkipped, completed: true };
-      setResult({ ...completion, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: (archive?.entities || []).length });
+        const raw = await response.text();
+        let data: Record<string, unknown> = {};
+        try { data = raw ? JSON.parse(raw) as Record<string, unknown> : {}; } catch {}
+        if (!response.ok) throw new Error('ExamQuestion batch failed at record ' + qOffset + ': ' + String(data.detail || data.error || raw.slice(0, 800)) + ' · HTTP ' + response.status);
+        qImported += Number(data.questionsImported || 0);
+        qExisting += Number(data.questionsAlreadyPresent || 0);
+        qSkipped += Number(data.questionsSkipped || 0);
+        const next = Number(data.nextOffset ?? questionCount);
+        if (data.completed !== true && (Number(data.processed || 0) <= 0 || next <= qOffset)) throw new Error('Exam question import made no progress at record ' + qOffset + '.');
+        qOffset = next;
+      }
+      const finalizeResponse = await fetch('/api/admin/base44-migration/complete', {
+        method: 'POST', credentials: 'same-origin', headers,
+        body: JSON.stringify({ batchId: selectedBatch, archiveReplay: true, deferTokenUse: true, finalizeOnly: true })
+      });
+      const finalizeData = await finalizeResponse.json().catch(() => ({}));
+      if (!finalizeResponse.ok || finalizeData.tokenFinalized !== true) throw new Error(finalizeData.error || 'The records were processed but the migration session could not be finalized.');
+      const studentCount = counts.get('Enrollment') || 0;
+      if (!studentCount) warnings.unshift('This saved package contains no Enrollment records. Student accounts and enrolments were not imported; check whether the original export uses a different student entity name.');
+      setResult({ ...totals, completed: true, tokenFinalized: true, sourceStudents: studentCount, studentEnrollmentsImported: totals.enrollmentsCreated || 0, questionBankImported: qImported, questionBankAlreadyPresent: qExisting, questionBankSkipped: qSkipped, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: entities.length, stagedRecordsProcessed: processed, warnings });
       await loadArchive(selectedBatch);
-      setProgress('The saved archive has been connected. Check the student, finance and academic portals for the imported records.');
+      setProgress('All supported reconciliation batches have finished. Review the import totals and warnings before using the live records.');
     } catch (cause) {
       setArchiveError(cause instanceof Error ? cause.message : 'Could not import the saved Base44 records.');
       setProgress('');
