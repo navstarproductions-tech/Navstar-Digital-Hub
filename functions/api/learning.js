@@ -177,6 +177,7 @@ export async function onRequestPost({ request, env }) {
     if (access.response) return access.response;
   }
   if (action === 'approve_assignment_mark') { const access=await requireRole(request,env,['admin','principal']); if(access.response)return access.response; }
+  if (action === 'update_assignment') { const access=await requireRole(request,env,['admin','principal']); if(access.response)return access.response; }
   if (['assign_tutor','remove_tutor','assign_module_tutor','remove_module_tutor'].includes(action)) {
     const access = await requireRole(request, env, ['admin','principal']);
     if (access.response) return access.response;
@@ -342,6 +343,31 @@ export async function onRequestPost({ request, env }) {
       .bind(id, courseId, moduleId, assignmentType, marksCategory, title, instructions, dueAt, maxPoints, categoryOutOf, status, user.id).run();
     await writeAudit(env.DB, user.id, assignmentType === 'project' ? 'lms_project_created' : 'lms_assignment_created', 'course_assignment', id);
     return json({ id, status }, 201);
+  }
+
+  if (action === 'update_assignment') {
+    const assignmentId=safeString(body.assignmentId,80);
+    const title=safeString(body.title,160);
+    const instructions=safeString(body.instructions,6000);
+    const dueAt=safeString(body.dueAt,40)||null;
+    const maxPoints=Number(body.maxPoints);
+    const categoryOutOf=Number(body.categoryOutOf??20);
+    const marksCategory=['CAT','Practical','Final'].includes(String(body.marksCategory))?String(body.marksCategory):'CAT';
+    const status=['draft','published','archived'].includes(body.status)?body.status:'draft';
+    const existing=await env.DB.prepare('SELECT id,course_id FROM course_assignments WHERE id=?').bind(assignmentId).first();
+    if(!existing||title.length<2||!Number.isSafeInteger(maxPoints)||maxPoints<1||maxPoints>10000||!Number.isFinite(categoryOutOf)||categoryOutOf<=0||categoryOutOf>10000)return error('Enter valid assignment details and score limits.');
+    const courseId=safeString(body.courseId,80),moduleId=safeString(body.moduleId,80)||null;
+    const course=await env.DB.prepare('SELECT id FROM courses WHERE id=?').bind(courseId).first();
+    if(!course)return error('The selected course does not exist.');
+    if(moduleId){
+      const module=await env.DB.prepare('SELECT id FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first();
+      if(!module)return error('The selected module does not belong to the selected course.');
+    }
+    if(dueAt&&Number.isNaN(Date.parse(dueAt)))return error('Enter a valid assignment deadline.');
+    await env.DB.prepare(`UPDATE course_assignments SET course_id=?,module_id=?,title=?,instructions=?,due_at=?,max_points=?,category_out_of=?,marks_category=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+      .bind(courseId,moduleId,title,instructions,dueAt,maxPoints,categoryOutOf,marksCategory,status,assignmentId).run();
+    await writeAudit(env.DB,user.id,'lms_assignment_updated','course_assignment',assignmentId);
+    return json({id:assignmentId,status,saved:true});
   }
 
   if (action === 'mark_lesson') {
