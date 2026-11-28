@@ -226,6 +226,33 @@ export async function onRequestPost({request,env}){
     return json({submitted:true});
   }
 
+  if(action==='save_manual_module_mark'){
+    const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
+    const moduleId=safeString(body.moduleId,80),studentId=safeString(body.studentId,80),category=safeString(body.category,30);
+    const points=Number(body.pointsAwarded),maximum=Number(body.maxPoints),feedback=safeString(body.feedback,2000);
+    if(!['CAT','Practical','Final'].includes(category))return error('Choose CAT, Practical or Final marks.',400);
+    const module=await env.DB.prepare('SELECT id,course_id FROM course_modules WHERE id=? AND status!=\'archived\'').bind(moduleId).first();
+    if(!module||!(await requireCourse(env.DB,user,module.course_id))||!(await hasModuleTeachingAccess(env.DB,user,moduleId,module.course_id)))return error('You are not assigned to this module.',403);
+    const enrolled=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' AND u.role='student'").bind(studentId,module.course_id).first();
+    if(!enrolled||!Number.isFinite(points)||!Number.isFinite(maximum)||maximum<=0||points<0||points>maximum)return error('Select an enrolled student and enter a mark within the maximum.',400);
+    await env.DB.prepare(`INSERT INTO student_module_manual_marks(id,user_id,course_id,module_id,category,points_awarded,max_points,feedback,marked_by)
+      VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,module_id,category) DO UPDATE SET
+      points_awarded=excluded.points_awarded,max_points=excluded.max_points,feedback=excluded.feedback,marked_by=excluded.marked_by,updated_at=CURRENT_TIMESTAMP`)
+      .bind(crypto.randomUUID(),studentId,module.course_id,moduleId,category,points,maximum,feedback,user.id).run();
+    const result=await syncModuleResult(env.DB,studentId,moduleId,user.id);
+    await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),user.id,'manual_module_mark_saved','student_module_manual_marks',studentId+':'+moduleId+':'+category).run();
+    return json({saved:true,moduleId,studentId,category,pointsAwarded:points,maxPoints:maximum,moduleResult:result});
+  }
+  if(action==='delete_manual_module_mark'){
+    const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
+    const moduleId=safeString(body.moduleId,80),studentId=safeString(body.studentId,80),category=safeString(body.category,30);
+    const module=await env.DB.prepare('SELECT id,course_id FROM course_modules WHERE id=?').bind(moduleId).first();
+    if(!module||!(await requireCourse(env.DB,user,module.course_id))||!(await hasModuleTeachingAccess(env.DB,user,moduleId,module.course_id)))return error('You are not assigned to this module.',403);
+    if(!['CAT','Practical','Final'].includes(category))return error('Invalid marks category.',400);
+    await env.DB.prepare('DELETE FROM student_module_manual_marks WHERE user_id=? AND module_id=? AND category=?').bind(studentId,moduleId,category).run();
+    const result=await syncModuleResult(env.DB,studentId,moduleId,user.id);
+    return json({deleted:true,moduleResult:result});
+  }
   if(action==='save_manual_assessment_mark'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),feedbackText=safeString(body.feedback,3000);
