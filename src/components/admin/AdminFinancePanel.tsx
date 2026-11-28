@@ -152,6 +152,13 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
         <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => void requestBalance()} disabled={balanceLoading || role !== 'admin'}>{balanceLoading ? 'Requesting…' : 'Refresh Safaricom balance'}</Button><Button type="button" variant="secondary" onClick={() => void registerPaybillCallbacks()} disabled={c2bRegistering || role !== 'admin'}>{c2bRegistering ? 'Registering…' : 'Connect PayBill receipts'}</Button></div>
       </div>
     </section>}
+    {ledger === 'business' && <section className="overflow-hidden rounded-xl border bg-white">
+      <div className="border-b p-4"><h3 className="font-bold text-slate-950">M-PESA phone payouts</h3><p className="text-xs text-slate-500">Safaricom callback status is refreshed automatically. Accepted or submitting does not mean paid.</p></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Reference / recipient</th><th className="p-3">Amount</th><th className="p-3">Request status</th><th className="p-3">Safaricom result</th><th className="p-3">Receipt</th><th className="p-3">Updated</th></tr></thead>
+        <tbody>{cashouts.map(item => <tr key={item.id} className="border-t"><td className="p-3 font-semibold">{item.reference || item.id}<p className="font-normal text-slate-500">{item.recipient_phone || '—'} · {item.requested_by || '—'}</p></td><td className="p-3 font-bold">KSh {money(item.amount)}</td><td className="p-3">{item.status}</td><td className="p-3">{item.payout_status || 'Not submitted'}<p className="text-slate-500">{item.payout_description || ''}</p></td><td className="p-3">{item.transaction_id || 'Pending callback'}</td><td className="p-3">{item.received_at ? formatEATDateTime(item.received_at) : item.submitted_at ? formatEATDateTime(item.submitted_at) : '—'}</td></tr>)}</tbody>
+      </table></div>
+      {cashouts.length === 0 && <p className="p-4 text-sm text-slate-500">No payout requests recorded.</p>}
+    </section>}
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[
         ['Successful received', 'KSh ' + money(totals.mpesa_received)],
@@ -188,13 +195,7 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
       {filteredPayments.length === 0 && <p className="p-5 text-sm text-slate-500">No transactions match this filter.</p>}
       <div className="border-t p-4"><Button type="button" variant="outline" size="sm" onClick={() => { try { exportBrandedData('pdf', ledger === 'fees' ? 'Student Fee Statement Ledger' : 'Navstar Business Account Statement', ['Payer','Purpose','Reference','Amount (KSh)','Status','Date'], filteredPayments.map(item => ({Payer:item.payer_name||'—',Purpose:item.description||item.purpose,Reference:item.display_reference||item.receipt_number||'—','Amount (KSh)':item.amount,Status:item.status,Date:item.created_at?formatEATDateTime(item.created_at):'—'}))); } catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Statement PDF could not be generated.'); } }}>Generate filtered PDF statement</Button></div>
     </section>
-    {ledger === 'business' && <section className="overflow-hidden rounded-xl border bg-white">
-      <div className="border-b p-4"><h3 className="font-bold text-slate-950">M-PESA phone payouts</h3><p className="text-xs text-slate-500">Safaricom callback status is refreshed automatically. Accepted or submitting does not mean paid.</p></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Reference / recipient</th><th className="p-3">Amount</th><th className="p-3">Request status</th><th className="p-3">Safaricom result</th><th className="p-3">Receipt</th><th className="p-3">Updated</th></tr></thead>
-        <tbody>{cashouts.map(item => <tr key={item.id} className="border-t"><td className="p-3 font-semibold">{item.reference || item.id}<p className="font-normal text-slate-500">{item.recipient_phone || '—'} · {item.requested_by || '—'}</p></td><td className="p-3 font-bold">KSh {money(item.amount)}</td><td className="p-3">{item.status}</td><td className="p-3">{item.payout_status || 'Not submitted'}<p className="text-slate-500">{item.payout_description || ''}</p></td><td className="p-3">{item.transaction_id || 'Pending callback'}</td><td className="p-3">{item.received_at ? formatEATDateTime(item.received_at) : item.submitted_at ? formatEATDateTime(item.submitted_at) : '—'}</td></tr>)}</tbody>
-      </table></div>
-      {cashouts.length === 0 && <p className="p-4 text-sm text-slate-500">No payout requests recorded.</p>}
-    </section>}
+
     {notice && <p role="status" className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">{notice}</p>}
   </div>;
 }
