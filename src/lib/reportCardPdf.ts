@@ -46,8 +46,10 @@ function documentHtml(report:Report,options:Options){
  const missingRows=results.map((r:any,i:number)=>{const missing=['CAT','Practical','Final Exam'].filter((label,j)=>{const key=['cat_score','practical_score','exam_score'][j];return r[key]===null||r[key]===undefined||r[key]==='';});if(!missing.length&&r.result_status!=='published')missing.push('Final result / grade verification');return {r,i,missing};}).filter(x=>x.missing.length||x.r.result_status!=='published');
  const pending=missingRows.map(x=>'<tr><td class="center">'+(x.i+1)+'</td><td class="code">'+esc(x.r.code||'—')+'</td><td>'+esc(x.r.title||'—')+'</td><td>'+esc(x.missing.join(', '))+'</td><td class="center incomplete">I</td></tr>').join('');
  const gradeRows=grading.map((g:any)=>'<tr><td class="center"><b>'+esc(g.grade)+'</b></td><td>'+esc(g.classification||g.remarks||gradeName(g.grade,grading)||'')+'</td><td class="center">'+esc(g.min)+'–'+esc(g.max)+'%</td></tr>').join('');
- const grade=missingRows.length?'I':mean===null?'—':(grading.find((g:any)=>mean>=Number(g.min??g.from??0)&&mean<=Number(g.max??g.to??100))?.grade||'—');
- const classification=grade==='I'?'Incomplete':gradeName(grade,grading)||'';
+ const meanGrade=mean===null?'—':(grading.find((g:any)=>mean>=Number(g.min??g.from??0)&&mean<=Number(g.max??g.to??100))?.grade||'—');
+ const meanClassification=gradeName(meanGrade,grading)||'';
+ const grade=missingRows.length?'I':meanGrade;
+ const classification=grade==='I'?'Incomplete':meanClassification;
  const totalMarks=results.reduce((sum:any,r:any)=>sum+(r.total_points===null||r.total_points===undefined?0:n(r.total_points)),0);
  const system=t=>'<div class="comment"><b>'+esc(t)+'</b></div>';
  const verifyText='Document reference: '+report.report_card_no;
@@ -74,7 +76,7 @@ function documentHtml(report:Report,options:Options){
  <div class="doc-title">${docTitle}</div><div class="refline"><span>Document No: ${esc(report.report_card_no)}${transcript?' (Transcript)':''}</span><span>Generated: ${esc(issueDate)}</span></div>
  <div class="student-block">${studentInfo}${photo?'<img class="photo" src="'+esc(photo)+'" alt="Student photograph"/>':'<div class="photo"></div>'}</div>
  <div class="section-title">${tableTitle}</div><table class="marks"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="6" style="text-align:right">TOTAL MARKS:</td><td class="center">${totalMarks.toFixed(1)}</td><td class="center">${mean===null?'—':mean.toFixed(1)}</td><td class="center">${completed} of ${total} Modules</td></tr></tfoot></table>
- <div class="meanbar">MEAN SCORE: ${mean===null?'—':mean.toFixed(1)+'%'} &nbsp; • &nbsp; MEAN GRADE: ${esc(grade)} — ${esc(classification||'Pending')}</div>
+ <div class="meanbar">MEAN SCORE: ${mean===null?'—':mean.toFixed(1)+'%'} &nbsp; • &nbsp; MEAN GRADE: ${esc(meanGrade)} — ${esc(meanClassification||'Pending')}</div>
  ${summaryBlock}${commentsBlock}${footer}</section>
  <section class="page"><div class="brand"><img class="logo" src="${logo}" alt="Navstar official logo"/><div><h1>NAVSTAR DIGITAL HUB</h1><p>${transcript?'ACADEMIC TRANSCRIPT — CONTINUED':'INCOMPLETE / MISSING MARKS'}</p><p>${esc(student.name||report.student_name||'Student')} | ${esc(course.title||report.course_title||'Course')} | Ref: ${esc(report.report_card_no)}</p></div><div class="qr">ACADEMIC<br/>RECORD</div></div>
  <div class="doc-title">${transcript?'ACADEMIC RECORD DETAILS':'INCOMPLETE / MISSING MARKS — PENDING COMPONENTS'}</div>
