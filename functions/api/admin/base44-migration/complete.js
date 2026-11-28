@@ -616,6 +616,8 @@ async function importReportCardSettings(DB,rows) {
     reportCardWatermarkUrl:watermark||prior.reportCardWatermarkUrl||'',
     reportCardStampEnabled:Boolean(stamp)||prior.reportCardStampEnabled===true,
     reportCardStampUrl:stamp||prior.reportCardStampUrl||'',
+    reportCardStampPosition:sourceConfig.stamp_position||prior.reportCardStampPosition||'bottom-right',
+    reportCardStampOpacity:Number.isFinite(Number(sourceConfig.stamp_opacity))?Math.max(0.1,Math.min(1,Number(sourceConfig.stamp_opacity))):Number(prior.reportCardStampOpacity)||1,
     trainerSignatureUrl:sourceConfig.signature_trainer_url||prior.trainerSignatureUrl||'',
     headTrainingSignatureUrl:sourceConfig.signature_hod_url||prior.headTrainingSignatureUrl||'',
     directorSignatureUrl:sourceConfig.signature_director_url||prior.directorSignatureUrl||'',
