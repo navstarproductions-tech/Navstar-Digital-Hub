@@ -974,6 +974,8 @@ export async function onRequestPost({request,env}) {
   const archiveReplay=body.archiveReplay===true||body.academicOnly===true||body.questionsOnly===true;
   const academicOnly=body.academicOnly===true&&body.archiveReplay!==true;
   const questionsOnly=body.questionsOnly===true;
+  const batchEntity=clean(body.batchEntity,80);
+  const batchMode=archiveReplay&&!!batchEntity;
   const deferTokenUse=body.deferTokenUse===true;
   const sourceBatch=archiveReplay?clean(body.batchId,80):tokenHash;
   if(archiveReplay&&!sourceBatch)return new Response(JSON.stringify({error:'Select a saved migration package first.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
@@ -981,17 +983,45 @@ export async function onRequestPost({request,env}) {
   const stagedRows=[];
   const newArchiveCount=await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_archive_records WHERE migration_batch=?').bind(sourceBatch).first();
   const archiveTable=Number(newArchiveCount?.count||0)>0?'base44_legacy_archive_records':'base44_legacy_records';
-  // The question bank is deliberately replayed in small independently resumable slices.
-  if(questionsOnly){
+  const batchAllowed=['AcademicIntake','FeeStructure','Enrollment','CourseUnit','SystemUser','ModuleAssignment','Exam','ExamAttempt','ExamQuestion','Assignment','AssignmentSubmission','StudentResult','MarksConflict','StaffApplication','ExamSettings','SystemSettings','GradingSystem'];
+  if(body.finalizeOnly===true){
+    await env.DB.prepare('UPDATE base44_migration_tokens SET used_at=CURRENT_TIMESTAMP WHERE token_hash=? AND used_at IS NULL').bind(tokenHash).run();
+    try{await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),tokenRow.created_by,'base44_student_and_fee_migration_completed','migration',sourceBatch.slice(0,24)).run();}catch{}
+    return new Response(JSON.stringify({completed:true,tokenFinalized:true,sourceBatch}),{status:200,headers:{...headers,'Content-Type':'application/json'}});
+  }
+  if(batchMode){
+    if(!batchAllowed.includes(batchEntity))return new Response(JSON.stringify({error:'Unsupported migration batch entity: '+batchEntity}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
     const offset=Math.max(0,Math.floor(Number(body.offset)||0));
-    const limit=Math.min(30,Math.max(1,Math.floor(Number(body.limit)||25)));
+    const limit=Math.min(20,Math.max(1,Math.floor(Number(body.limit)||15)));
+    const page=await env.DB.prepare('SELECT entity_name,source_id,record_json FROM '+archiveTable+' WHERE migration_batch=? AND entity_name=? ORDER BY source_id LIMIT ? OFFSET ?').bind(sourceBatch,batchEntity,limit,offset).all();
+    stagedRows.push(...(page.results||[]));
+    const support=async name=>{const q=await env.DB.prepare('SELECT entity_name,source_id,record_json FROM '+archiveTable+' WHERE migration_batch=? AND entity_name=? ORDER BY source_id').bind(sourceBatch,name).all();stagedRows.push(...(q.results||[]));};
+    if(batchEntity==='Enrollment'&&page.results?.length){
+      const ids=page.results.map(x=>x.source_id).filter(Boolean);
+      if(ids.length){
+        const marks=ids.map(()=>'?').join(',');
+        for(const name of ['FeePayment','AdditionalFee']){
+          const q=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM "+archiveTable+" WHERE migration_batch=? AND entity_name=? AND json_extract(record_json,'$.enrollment_id') IN ("+marks+")").bind(sourceBatch,name,...ids).all();
+          stagedRows.push(...(q.results||[]));
+        }
+      }
+    }
+    if(['CourseUnit','ModuleAssignment','Exam','ExamAttempt','Assignment','StudentResult','MarksConflict'].includes(batchEntity))await support('Course');
+    if(['Exam','ExamAttempt','Assignment','StudentResult','MarksConflict','ModuleAssignment'].includes(batchEntity))await support('CourseUnit');
+    if(batchEntity==='ModuleAssignment')await support('SystemUser');
+    if(batchEntity==='ExamAttempt')await support('Exam');
+    const totalRow=await env.DB.prepare('SELECT COUNT(*) AS count FROM '+archiveTable+' WHERE migration_batch=? AND entity_name=?').bind(sourceBatch,batchEntity).first();
+    const total=Number(totalRow?.count||0);
+    body._batchMeta={entity:batchEntity,offset,limit,total,processed:(page.results||[]).length,nextOffset:offset+(page.results||[]).length,done:offset+(page.results||[]).length>=total};
+  } else if(questionsOnly){
+    const offset=Math.max(0,Math.floor(Number(body.offset)||0));
+    const limit=Math.min(20,Math.max(1,Math.floor(Number(body.limit)||15)));
     const page=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM "+archiveTable+" WHERE migration_batch=? AND entity_name='ExamQuestion' ORDER BY source_id LIMIT ? OFFSET ?").bind(sourceBatch,limit,offset).all();
     stagedRows.push(...(page.results||[]));
   } else {
-    // Keep the main operational pass bounded by excluding the large question bank.
-    for(let offset=0;;offset+=500){
-      const page=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM "+archiveTable+" WHERE migration_batch=? AND entity_name IN ("+entityFilter+") ORDER BY entity_name,source_id LIMIT 500 OFFSET ?").bind(sourceBatch,offset).all();
-      const rows=page.results||[];stagedRows.push(...rows);if(rows.length<500)break;
+    for(let offset=0;;offset+=100){
+      const page=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM "+archiveTable+" WHERE migration_batch=? AND entity_name IN ("+entityFilter+") ORDER BY entity_name,source_id LIMIT 100 OFFSET ?").bind(sourceBatch,offset).all();
+      const rows=page.results||[];stagedRows.push(...rows);if(rows.length<100)break;
       if(offset>=50000)throw new Error('The saved migration package exceeds the safe 50,000-record processing limit. Split the export into smaller packages.');
     }
   }
