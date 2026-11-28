@@ -174,6 +174,8 @@ export async function onRequestPost({ request, env }) {
   await ensureModuleTutorAssignments(env.DB);
   let body;
   try { body = await readJson(request, 262144); } catch { return error('Invalid request body.'); }
+  const requestReference=uuid();
+  try {
   const action = safeString(body.action, 40);
 
   if (['create_module','bulk_create_modules','bulk_create_modules_multi'].includes(action)) {
@@ -614,4 +616,5 @@ if (action === 'delete_module') {
   }
 
   return error('Unknown learning action.');
+  } catch(cause) { console.error('Navstar learning API failed',JSON.stringify({reference:requestReference,message:String(cause?.message||cause),stack:String(cause?.stack||'').slice(0,1800)})); return json({error:'The service could not save this change. Existing records have not been deleted.',reference:requestReference,detail:String(cause?.message||'Database operation failed.').slice(0,300)},500); }
 }
