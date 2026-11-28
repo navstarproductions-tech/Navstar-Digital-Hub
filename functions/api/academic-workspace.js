@@ -113,7 +113,6 @@ export async function onRequestGet({request,env}){
 export async function onRequestPost({request,env}){
  if(!isSameOrigin(request))return error('Cross-origin request rejected.',403);
  if(!env.DB)return error('Academic workspace database unavailable.',503);
- await ensureModuleTutors(env.DB);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  let b;try{b=await readJson(request,20000)}catch{return error('Invalid request body.')}
  const action=clean(b.action,50);
@@ -150,6 +149,7 @@ export async function onRequestPost({request,env}){
   return json({success:true,scanned:rows.length,repaired,unresolved:rows.length-repaired,message:'Missing intakes assigned by original enrolment date. Existing intake values and admission numbers were preserved.'});
  }
  if(action==='issue-report-card'||action==='generate-student-report-card'){
+  try {
   const selfService=action==='generate-student-report-card';
   if(selfService){if(user.role!=='student')return error('Only a student may generate a personal report card.',403);}
   else {const access=await requireRole(request,env,admins);if(access.response)return access.response;}
@@ -160,8 +160,8 @@ export async function onRequestPost({request,env}){
   const intakeCalendar=(await env.DB.prepare('SELECT intake_name,year,start_date,end_date,enrollment_open_date,enrollment_close_date FROM academic_intakes ORDER BY start_date').all()).results||[];
   const derivedIntake=resolveIntakeForDate(student.source_enrollment_date||student.created_at,intakeCalendar,student.admission_number)||'Unassigned Intake';
   const period=clean(student.preferred_intake,60)&&student.preferred_intake!=='Unassigned Intake'?clean(student.preferred_intake,60):derivedIntake;
-  if(period!=='Unassigned Intake')await env.DB.prepare("UPDATE enrollments SET preferred_intake=? WHERE id=? AND (preferred_intake IS NULL OR trim(preferred_intake)='' OR preferred_intake='Unassigned Intake')").bind(period,student.enrollment_id).run();
-  await syncStudentModuleResults(env.DB,studentId,courseId,user.id);
+  if(period!=='Unassigned Intake')await env.DB.prepare("UPDATE enrollments SET preferred_intake=? WHERE id=? AND (preferred_intake IS NULL OR trim(preferred_intake)='' OR preferred_intake='Unassigned Intake')").bind(period,student.enrollment_id).run().catch(e=>console.error('Optional intake repair during report-card generation failed',e));
+  try{await syncStudentModuleResults(env.DB,studentId,courseId,user.id);}catch(e){console.error('Optional module-result synchronization during report-card generation failed',e);}
   const course=await env.DB.prepare('SELECT id,title,course_code FROM courses WHERE id=?').bind(courseId).first();
   const sortRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();let sortConfig={};try{sortConfig=JSON.parse(sortRow?.value||'{}')}catch{}
   const moduleOrderSql=sortConfig['report-card-layout']?.moduleSort==='code'?'m.code,m.title':'m.sort_order,m.title';
@@ -171,13 +171,13 @@ export async function onRequestPost({request,env}){
   let moduleSequence=1;
   for(const module of modules){if(module.code&&String(module.code).trim())continue;let candidate='';do{candidate=modulePrefix+String(moduleSequence++).padStart(3,'0')}while(usedCodes.has(candidate));usedCodes.add(candidate);await env.DB.prepare('UPDATE course_modules SET code=? WHERE id=? AND (code IS NULL OR trim(code)=\'\')').bind(candidate,module.id).run();module.code=candidate;}
   modules=modules.map(({id,code,title})=>({id,code,title}));
-  const results=(await env.DB.prepare(`SELECT m.id,m.code,m.title,r.cat_score,r.practical_score,r.exam_score,r.assignment_score,
+  let results=[];try{results=(await env.DB.prepare(`SELECT m.id,m.code,m.title,r.cat_score,r.practical_score,r.exam_score,r.assignment_score,
     r.score AS total_points,r.max_score AS max_points,
     CASE WHEN r.max_score>0 AND r.status='published' THEN r.score*100.0/r.max_score ELSE NULL END AS percentage,
     COALESCE(r.grade,'MM') AS grade,COALESCE(r.remarks,'Missing Marks') AS remarks,
     COALESCE(r.status,'incomplete') AS result_status
     FROM course_modules m LEFT JOIN student_module_results r ON r.module_id=m.id AND r.user_id=?
-    WHERE m.course_id=? ORDER BY ${moduleOrderSql}`).bind(studentId,courseId).all()).results||[];
+    WHERE m.course_id=? ORDER BY ${moduleOrderSql}`).bind(studentId,courseId).all()).results||[];}catch(e){console.error('Report-card module results query failed; using MM placeholders',e);results=modules.map(m=>({...m,cat_score:null,practical_score:null,exam_score:null,assignment_score:null,total_points:null,max_points:null,percentage:null,grade:'MM',remarks:'Marks unavailable',result_status:'incomplete'}));}
   const cfgRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
   let allConfig={};try{allConfig=JSON.parse(cfgRow?.value||'{}')}catch{}
   const gradingText=String(allConfig.grading?.gradeScale||'');
@@ -194,11 +194,10 @@ export async function onRequestPost({request,env}){
    return {...x,percentage:pct,grade:x.grade||g?.grade||(hasResult?'—':'MM'),remarks:x.remarks||(hasResult?(g?.remarks||g?.remark||'Recorded result'):'Awaiting Final Exam')};
   });
   const validPercentages=gradedResults.filter(x=>x.percentage!==null).map(x=>Number(x.percentage));
-  const attendance=await env.DB.prepare("SELECT COUNT(ca.id) AS sessions,SUM(CASE WHEN ca.status='present' THEN 1 ELSE 0 END) AS present,SUM(CASE WHEN ca.status='late' THEN 1 ELSE 0 END) AS late,SUM(CASE WHEN ca.status='absent' THEN 1 ELSE 0 END) AS absent,SUM(CASE WHEN ca.status='excused' THEN 1 ELSE 0 END) AS excused FROM course_timetable t LEFT JOIN course_attendance ca ON ca.timetable_id=t.id AND ca.student_user_id=? WHERE t.course_id=? AND t.status='completed'").bind(studentId,courseId).first();
+  let attendance={sessions:0,present:0,late:0,absent:0,excused:0};try{attendance=await env.DB.prepare("SELECT COUNT(ca.id) AS sessions,SUM(CASE WHEN ca.status='present' THEN 1 ELSE 0 END) AS present,SUM(CASE WHEN ca.status='late' THEN 1 ELSE 0 END) AS late,SUM(CASE WHEN ca.status='absent' THEN 1 ELSE 0 END) AS absent,SUM(CASE WHEN ca.status='excused' THEN 1 ELSE 0 END) AS excused FROM course_timetable t LEFT JOIN course_attendance ca ON ca.timetable_id=t.id AND ca.student_user_id=? WHERE t.course_id=? AND t.status='completed'").bind(studentId,courseId).first()||attendance;}catch(e){console.error('Optional report-card attendance query failed',e);}
   const attendanceSessions=Number(attendance?.sessions||0),attendancePresent=Number(attendance?.present||0),attendanceLate=Number(attendance?.late||0);
   const attendanceSummary={sessions:attendanceSessions,present:attendancePresent,late:attendanceLate,absent:Number(attendance?.absent||0),excused:Number(attendance?.excused||0),percentage:attendanceSessions?((attendancePresent+attendanceLate)/attendanceSessions)*100:null};
-  const examFlags=await env.DB.prepare("SELECT COUNT(*) AS flagged_attempts,COALESCE(SUM(flagged_count),0) AS security_flags FROM exam_runtime_attempts t JOIN course_assessments a ON a.id=t.assessment_id WHERE t.user_id=? AND a.course_id=? AND t.flagged_count>0").bind(studentId,courseId).first();
-  const pendingConflicts=await env.DB.prepare("SELECT COUNT(*) AS count FROM base44_marks_conflicts WHERE user_id=? AND course_id=? AND status='pending'").bind(studentId,courseId).first();
+  let examFlags={flagged_attempts:0,security_flags:0},pendingConflicts={count:0};try{examFlags=await env.DB.prepare("SELECT COUNT(*) AS flagged_attempts,COALESCE(SUM(flagged_count),0) AS security_flags FROM exam_runtime_attempts t JOIN course_assessments a ON a.id=t.assessment_id WHERE t.user_id=? AND a.course_id=? AND t.flagged_count>0").bind(studentId,courseId).first()||examFlags;}catch(e){console.error('Optional report-card exam flags query failed',e);}try{pendingConflicts=await env.DB.prepare("SELECT COUNT(*) AS count FROM base44_marks_conflicts WHERE user_id=? AND course_id=? AND status='pending'").bind(studentId,courseId).first()||pendingConflicts;}catch(e){console.error('Optional report-card marks-conflict query failed',e);}
   const adminFlags={flaggedExamAttempts:Number(examFlags?.flagged_attempts||0),examSecurityFlags:Number(examFlags?.security_flags||0),pendingMarksConflicts:Number(pendingConflicts?.count||0)};
   const safeAssetUrl=(value)=>{const raw=clean(value,1000);if(!raw)return '';try{const parsed=new URL(raw,request.url);return ['http:','https:'].includes(parsed.protocol)?parsed.toString():''}catch{return ''}};
   const reportCardConfig=allConfig['report-card-layout']||{};
@@ -212,6 +211,7 @@ export async function onRequestPost({request,env}){
   if(!inserted.meta?.changes)return error('A report card was created for this student and period by another request. Refresh the report-card list.',409);
   if(selfService){await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'student_report_card_generated','academic_report_card',id).run().catch(()=>undefined);return json({created:true,id,reportCardNo:number,status:'draft',message:'Your report card has been generated as an unpublished draft.'},201);}
   return json({created:true,id,reportCardNo:number,status:'draft',message:'Unpublished academic record generated for the student intake.'},201);
+  } catch(reportError) { const detail=String(reportError?.message||reportError||'Unknown database error').slice(0,280); console.error('Report-card generation failed',{action,userId:user.id,courseId:clean(b.courseId,80),detail}); return error('Report-card generation failed: '+detail,500); }
  }
  if(action==='approve-report-card'){
   const access=await requireRole(request,env,admins);if(access.response)return access.response;
