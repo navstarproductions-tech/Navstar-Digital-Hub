@@ -111,11 +111,28 @@ async function activeCourseFor(DB,title) {
   }
   return DB.prepare("SELECT id,title,status FROM courses WHERE lower(trim(title))=lower(trim(?)) AND status='active' LIMIT 1").bind(t).first();
 }
+async function resolveCourse(DB,title,sourceCourseId='') {
+  const active=await activeCourseFor(DB,title);
+  if(active)return active;
+  const source=clean(sourceCourseId,120);
+  if(source) {
+    const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Course' AND source_id=?").bind(source).first();
+    if(mapped?.destination_id) {
+      const course=await DB.prepare("SELECT id,title,status FROM courses WHERE id=?").bind(mapped.destination_id).first();
+      if(course)return course;
+    }
+  }
+  if(title) {
+    const exact=await DB.prepare("SELECT id,title,status FROM courses WHERE lower(trim(title))=lower(trim(?)) LIMIT 1").bind(clean(title,160)).first();
+    if(exact)return exact;
+  }
+  return null;
+}
 async function importCourseModule(DB,r,adminId,c,sourceCourses) {
   const sourceId=sourceRecordId(r);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='CourseUnit' AND source_id=?").bind(sourceId).first();
   if(mapped?.destination_id){c.modulesAlreadyPresent++;return;}
-  const courseTitle=sourceCourseTitle(r.course_id,sourceCourses),course=await activeCourseFor(DB,courseTitle);
+  const courseTitle=sourceCourseTitle(r.course_id,sourceCourses)||clean(r.course_title||r.course_name,160),course=await resolveCourse(DB,courseTitle,r.course_id);
   if(!course){c.modulesSkipped++;return;}
   const code=clean(r.module_code||r.code,30).toUpperCase(),title=clean(r.title||r.name,160);
   if(!title){c.modulesSkipped++;return;}
@@ -173,7 +190,7 @@ async function importExam(DB,r,adminId,c,sourceCourses,sourceModules) {
   const existingMap=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Exam' AND source_id=?").bind(sourceId).first();
   if(existingMap?.destination_id){c.examsAlreadyPresent++;return;}
   const courseTitle=clean(r.course_title,160)||sourceCourseTitle(r.course_id,sourceCourses);
-  const course=await activeCourseFor(DB,courseTitle);
+  const course=await resolveCourse(DB,courseTitle,r.course_id);
   if(!course){c.examsSkipped++;c.warnings.push("Exam '"+clean(r.title,120)+"' was archived but not activated because no matching active official course was found: "+(courseTitle||"missing course title")+".");return;}
   const module=await mappedModule(DB,course.id,r.module_id,r.module_code,r.module_title,sourceModules);
   if(!module.row)c.warnings.push("Exam '"+clean(r.title,120)+"' was linked to course '"+course.title+"' but its module could not be matched; it remains course-wide.");
@@ -280,7 +297,7 @@ async function importAssignment(DB,r,adminId,c,sourceCourses,sourceModules) {
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Assignment' AND source_id=?").bind(sourceId).first();
   if(mapped?.destination_id){c.assignmentsAlreadyPresent++;return;}
   const courseTitle=clean(r.course_title||r.course_name||r.programme,160)||sourceCourseTitle(r.course_id,sourceCourses);
-  const course=await activeCourseFor(DB,courseTitle);
+  const course=await resolveCourse(DB,courseTitle,r.course_id);
   if(!course){c.assignmentsSkipped++;c.warnings.push("Assignment '"+clean(r.title,120)+"' was archived because its official course could not be matched.");return;}
   let module=await mappedModule(DB,course.id,r.module_id,'',r.module_title,sourceModules);
   if(!module.row&&clean(r.module_title,160))module=await ensureHistoricalModule(DB,course,r.module_id,'',r.module_title,sourceModules,adminId,c);
@@ -357,7 +374,7 @@ async function ensureExamForAttempt(DB,r,adminId,c,sourceCourses,sourceModules,s
   if(prior?.destination_id)return prior.destination_id;
   const title=clean(r.exam_title,160)||'Historical Base44 examination';
   const courseTitle=clean(r.course_title,160)||sourceCourseTitle(r.course_id,sourceCourses);
-  const course=await activeCourseFor(DB,courseTitle);
+  const course=await resolveCourse(DB,courseTitle,r.course_id);
   if(!course){
     c.warnings.push("Historical exam '"+title+"' was not reconstructed because its course could not be matched to an active official course.");
     return null;
@@ -489,7 +506,7 @@ async function importMarksConflict(DB,r,adminId,c,sourceCourses,sourceModules) {
   const sourceId=sourceRecordId(r);if(!sourceId)return;
   const prior=await DB.prepare("SELECT id FROM base44_marks_conflicts WHERE source_id=?").bind(sourceId).first();
   if(prior){c.marksConflictsAlreadyPresent++;return;}
-  const course=await activeCourseFor(DB,sourceCourseTitle(r.course_id,sourceCourses));
+  const course=await resolveCourse(DB,sourceCourseTitle(r.course_id,sourceCourses)||clean(r.course_title,160),r.course_id);
   if(!course){c.marksConflictsSkipped++;return;}
   const module=await mappedModule(DB,course.id,r.unit_id,'',r.unit_title,sourceModules);
   const student=await findDestinationStudent(DB,r.student_email,course.id,r.enrollment_id);
@@ -566,6 +583,7 @@ async function importAttendanceRecord(DB,r,entity,adminId,c,sourceCourses,source
   const status=rawStatus==='present'?'present':rawStatus==='late'?'late':rawStatus==='absent'?'absent':rawStatus==='excused'||rawStatus==='leave'?'excused':null;
   if(!sourceId||!email||!name||!courseTitle||!date||!status){c.attendanceSkipped++;return;}
   const course=await courseFor(DB,courseTitle,0);
+  if(clean(r.course_id,120))await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Course',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,imported_at=CURRENT_TIMESTAMP").bind(clean(r.course_id,120),course.id,adminId).run();
   await importDerivedStudent(DB,r,entity,adminId,c);
   const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(email,course.id).first();
   if(!student){c.attendanceSkipped++;return;}
@@ -592,6 +610,7 @@ async function importModuleCompletion(DB,r,adminId,c,sourceCourses,sourceModules
   if(!sourceId||!email||!courseTitle||!moduleTitle){c.moduleCompletionsSkipped++;return;}
   await importDerivedStudent(DB,r,'ModuleCompletion',adminId,c);
   const course=await courseFor(DB,courseTitle,0);
+  if(clean(r.course_id,120))await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Course',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,imported_at=CURRENT_TIMESTAMP").bind(clean(r.course_id,120),course.id,adminId).run();
   const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(email,course.id).first();
   if(!student){c.moduleCompletionsSkipped++;return;}
   const module=await ensureHistoricalModule(DB,course,r.module_id||r.unit_id,r.module_code||r.module_code,moduleTitle,sourceModules,adminId,c);
@@ -616,6 +635,7 @@ async function importGraduate(DB,r,adminId,c) {
   if(!sourceId||!email||!courseTitle){c.graduatesSkipped++;return;}
   await importDerivedStudent(DB,r,'Graduate',adminId,c);
   const course=await courseFor(DB,courseTitle,0);
+  if(clean(r.course_id,120))await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Course',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,imported_at=CURRENT_TIMESTAMP").bind(clean(r.course_id,120),course.id,adminId).run();
   const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(email,course.id).first();
   if(!student){c.graduatesSkipped++;return;}
   const raw=clean(r.status||r.graduation_status,30).toLowerCase();
@@ -641,6 +661,7 @@ async function importCertificate(DB,r,adminId,c) {
   if(!sourceId||!email||!name||!courseTitle||!certificateNo){c.certificatesSkipped++;return;}
   await importDerivedStudent(DB,r,'Certificate',adminId,c);
   const course=await courseFor(DB,courseTitle,0);
+  if(clean(r.course_id,120))await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Course',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,imported_at=CURRENT_TIMESTAMP").bind(clean(r.course_id,120),course.id,adminId).run();
   const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(email,course.id).first();
   if(!student){c.certificatesSkipped++;return;}
   const id='b44cert-'+sourceId.slice(-24);
@@ -681,7 +702,7 @@ async function importStudentResult(DB,r,adminId,c,sourceCourses,sourceModules) {
   const mapped=await DB.prepare("SELECT destination_id,is_overridden FROM base44_student_import_map WHERE entity_name='StudentResult' AND source_id=?").bind(sourceId).first();
   if(Number(mapped?.is_overridden||0)===1){c.studentResultsAlreadyPresent++;return;}
   const courseTitle=clean(r.course_title||r.course_name||r.programme,160)||sourceCourseTitle(r.course_id,sourceCourses);
-  const course=await activeCourseFor(DB,courseTitle);
+  const course=await resolveCourse(DB,courseTitle,r.course_id);
   if(!course){c.studentResultsSkipped++;c.warnings.push('Student result '+sourceId+' could not be linked because its course '+(courseTitle||'(not supplied)')+' is not an active official course.');return;}
   let module=await mappedModule(DB,course.id,r.unit_id||r.module_id,r.module_code||r.unit_code,r.unit_title||r.module_title||r.module_name,sourceModules);
   if(!module.row)module=await ensureHistoricalModule(DB,course,r.unit_id||r.module_id,r.module_code||r.unit_code,r.unit_title||r.module_title||r.module_name,sourceModules,adminId,c);
@@ -956,6 +977,7 @@ async function importStudent(DB,r,adminId,c) {
   const phone=clean(r.student_phone||r.phone,40);
   if(!sourceId||!email||!name){c.skippedStudents++;return null;}
   const course=await courseFor(DB,r.course_title||r.course_name||r.programme||r.program,r.total_fee);
+  if(clean(r.course_id,120))await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Course',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,imported_at=CURRENT_TIMESTAMP").bind(clean(r.course_id,120),course.id,adminId).run();
   if(course.created)c.archivedCoursesCreated++;
   const mapping=await DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceId).first();
   const requestedAdmission=clean(r.admission_number,80);
