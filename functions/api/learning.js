@@ -6,6 +6,14 @@ const learnerRoles = ['student'];
 const staffRoles = ['admin', 'tutor', 'principal'];
 const fullCourseRoles = ['admin', 'principal'];
 
+async function generateModuleCode(db,courseId,courseTitle){
+  const rows=(await db.prepare('SELECT module_code,sort_order FROM course_modules WHERE course_id=?').bind(courseId).all()).results||[];
+  const prefix=String(courseTitle||'NAV').trim().split(/\s+/).filter(Boolean).map(word=>word[0]).join('').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5)||'MOD';
+  let max=rows.reduce((n,row)=>Math.max(n,Number(String(row.module_code||'').replace(/\D/g,''))||0,Number(row.sort_order)||0),0);
+  let candidate='';
+  do{max++;candidate=prefix+String(max).padStart(3,'0');}while(rows.some(row=>String(row.module_code||'').toUpperCase()===candidate));
+  return candidate;
+}
 async function ensureModuleTutorAssignments(db){
   await db.prepare(`CREATE TABLE IF NOT EXISTS module_tutor_assignments (id TEXT PRIMARY KEY,module_id TEXT NOT NULL REFERENCES course_modules(id) ON DELETE CASCADE,tutor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,assigned_by TEXT REFERENCES users(id) ON DELETE SET NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(module_id,tutor_user_id))`).run();
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_module_tutor_assignments_tutor ON module_tutor_assignments(tutor_user_id,module_id)').run();
@@ -177,6 +185,179 @@ export async function onRequestPost({ request, env }) {
     if (access.response) return access.response;
   }
   if (action === 'approve_assignment_mark') { const access=await requireRole(request,env,['admin','principal']); if(access.response)return access.response; }
+  if (action === 'update_assignment') { const access=await requireRole(request,env,['admin','principal','tutor']); if(access.response)return access.response; }
+  if (action === 'delete_module') { const access=await requireRole(request,env,['admin','principal']); if(access.response)return access.response; }
+  if (['assign_tutor','remove_tutor','assign_module_tutor','remove_module_tutor'].includes(action)) {
+    const access = await requireRole(request, env, ['admin','principal']);
+    if (access.response) return access.response;
+  }
+
+  if (action === 'assign_module_tutor' || action === 'remove_module_tutor') {
+    const moduleId=safeString(body.moduleId,80), tutorUserId=safeString(body.tutorUserId,80);
+    const module=await env.DB.prepare("SELECT id FROM course_modules WHERE id=? AND status!='archived'").bind(moduleId).first();
+    const tutor=await env.DB.prepare("SELECT u.id FROM users u LEFT JOIN user_profiles p ON p.user_id=u.id WHERE u.id=? AND u.status='active' AND COALESCE(p.portal_role,u.role)='tutor'").bind(tutorUserId).first();
+    if(!module||!tutor)return error('Choose a valid module and active tutor account.');
+    if(action==='assign_module_tutor'){
+      await env.DB.prepare('INSERT OR IGNORE INTO module_tutor_assignments(id,module_id,tutor_user_id,assigned_by) VALUES(?,?,?,?)').bind(uuid(),moduleId,tutorUserId,user.id).run();
+      await writeAudit(env.DB,user.id,'lms_module_tutor_assigned','course_module',moduleId);
+      return json({moduleId,tutorUserId,assigned:true},201);
+    }
+    await env.DB.prepare('DELETE FROM module_tutor_assignments WHERE module_id=? AND tutor_user_id=?').bind(moduleId,tutorUserId).run();
+    await writeAudit(env.DB,user.id,'lms_module_tutor_unassigned','course_module',moduleId);
+    return json({moduleId,tutorUserId,assigned:false});
+  }
+
+  if (action === 'assign_tutor' || action === 'remove_tutor') {
+    const courseId = safeString(body.courseId, 80);
+    const tutorUserId = safeString(body.tutorUserId, 80);
+    const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
+    const tutor = await env.DB.prepare("SELECT u.id FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id WHERE u.id = ? AND u.status = 'active' AND COALESCE(p.portal_role, u.role) = 'tutor'").bind(tutorUserId).first();
+    if (!course || !tutor) return error('Choose an active course and a valid tutor account.');
+    if (action === 'assign_tutor') {
+      await env.DB.prepare('INSERT OR IGNORE INTO course_tutor_assignments (id, course_id, tutor_user_id, assigned_by) VALUES (?, ?, ?, ?)').bind(uuid(), courseId, tutorUserId, user.id).run();
+      await writeAudit(env.DB, user.id, 'lms_tutor_assigned', 'course', courseId);
+      return json({ courseId, tutorUserId, assigned: true }, 201);
+    }
+    await env.DB.prepare('DELETE FROM course_tutor_assignments WHERE course_id = ? AND tutor_user_id = ?').bind(courseId, tutorUserId).run();
+    await writeAudit(env.DB, user.id, 'lms_tutor_unassigned', 'course', courseId);
+    return json({ courseId, tutorUserId, assigned: false });
+  }
+
+  if (action === 'bulk_create_modules_multi') {
+    const rows=Array.isArray(body.rows)?body.rows:[];
+    if(rows.length<1||rows.length>100)return error('Upload between 1 and 100 module rows.');
+    const normalized=[];
+    const courseCache=new Map();
+    for(let index=0;index<rows.length;index++){
+      const row=rows[index]||{},courseId=safeString(row.courseId,80),title=safeString(row.title,160);
+      if(!courseId||title.length<2)return error(`Module row ${index+1} needs a valid course and module title. Nothing was imported.`);
+      if(!courseCache.has(courseId)){
+        const course=await env.DB.prepare('SELECT id,status FROM courses WHERE id=?').bind(courseId).first();
+        courseCache.set(courseId,Boolean(course&&(course.status==='active'||fullCourseRoles.includes(user.role))&&await hasCourseAccess(env.DB,user,courseId)));
+      }
+      if(!courseCache.get(courseId))return error(`Module row ${index+1} is assigned to a course that is inactive or not assigned to your account. Nothing was imported.`,403);
+      normalized.push({courseId,title,description:safeString(row.description,4000),status:row.status==='published'?'published':'draft',sortOrder:Number.isSafeInteger(Number(row.sortOrder))?Math.max(0,Math.min(10000,Number(row.sortOrder))):index+1});
+    }
+    const statements=normalized.flatMap(row=>{
+      const id=uuid();
+      return [
+        env.DB.prepare('INSERT INTO course_modules(id,course_id,title,description,sort_order,status,created_by) VALUES(?,?,?,?,?,?,?)').bind(id,row.courseId,row.title,row.description,row.sortOrder,row.status,user.id),
+        env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'lms_module_created','course_module',id)
+      ];
+    });
+    try{await env.DB.batch(statements);}catch(cause){console.error('Navstar multi-course module import failed:',String(cause?.stack||cause));return error('The CSV could not be imported. No modules were changed. Check course mappings and duplicate rows, then try again.',500);}
+    return json({imported:normalized.length,message:`${normalized.length} modules imported into their selected courses.`},201);
+  }
+
+  if (action === 'bulk_create_modules') {
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    if (rows.length < 1 || rows.length > 100) return error('Upload between 1 and 100 module rows.');
+    const normalized = rows.map((row, index) => ({
+      courseId: safeString(row?.courseId || body.courseId, 80),
+      title: safeString(row?.title, 160),
+      description: safeString(row?.description, 4000),
+      status: row?.status === 'published' ? 'published' : 'draft',
+      sortOrder: Number.isSafeInteger(Number(row?.sortOrder)) ? Math.max(0, Math.min(10000, Number(row.sortOrder))) : index + 1,
+    }));
+    const invalid = normalized.findIndex(row => !row.courseId || row.title.length < 2);
+    if (invalid >= 0) return error(`Module row ${invalid + 1} needs a valid active course association and a title of at least 2 characters. Nothing was imported.`);
+    const courseIds = [...new Set(normalized.map(row => row.courseId))];
+    const activeCourses = await env.DB.prepare(`SELECT id FROM courses WHERE (? IN ('admin','principal') OR status='active') AND id IN (${courseIds.map(() => '?').join(',')})`).bind(user.role,...courseIds).all();
+    const activeIds = new Set((activeCourses.results || []).map(course => course.id));
+    for (const courseId of courseIds) {
+      if (!activeIds.has(courseId) || !(await hasCourseAccess(env.DB, user, courseId))) {
+        return error('One or more CSV rows refer to a course that is inactive or not assigned to your tutor account. Nothing was imported.', 403);
+      }
+    }
+    const ids = normalized.map(() => uuid());
+    const statements = normalized.flatMap((row, index) => [
+      env.DB.prepare('INSERT INTO course_modules (id, course_id, title, description, sort_order, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(ids[index], row.courseId, row.title, row.description, row.sortOrder, row.status, user.id),
+      env.DB.prepare('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?, ?)')
+        .bind(uuid(), user.id, 'lms_module_created', 'course_module', ids[index]),
+    ]);
+    try {
+      await env.DB.batch(statements);
+    } catch (cause) {
+      console.error('Navstar bulk module import failed:', String(cause?.stack || cause));
+      return error('The module import could not be saved. Existing modules were not changed. Check the CSV and try again.', 500);
+    }
+    return json({ imported: ids.length, ids, courses: courseIds.length, message: `${ids.length} modules saved across ${courseIds.length} course(s).` }, 201);
+  }
+
+  if (action === 'update_module') {
+    const moduleId=safeString(body.moduleId,80), title=safeString(body.title,160), description=safeString(body.description,4000), status=['draft','published','archived'].includes(body.status)?body.status:'draft';
+    const module=await env.DB.prepare('SELECT id,course_id FROM course_modules WHERE id=?').bind(moduleId).first();
+    if(!module||!(await hasModuleAccess(env.DB,user,moduleId,module.course_id))||title.length<2)return error('Choose a module assigned to your account and enter a valid title.');
+    if(user.role==='tutor'&&!(await hasModuleAccess(env.DB,user,moduleId,module.course_id)))return error('You can edit only modules assigned to your tutor account.',403);
+    await env.DB.prepare('UPDATE course_modules SET title=?,description=?,status=? WHERE id=?').bind(title,description,status,moduleId).run();
+    await writeAudit(env.DB,user.id,'lms_module_updated','course_module',moduleId);
+    return json({moduleId,saved:true});
+  }
+
+  if (action === 'create_module') {
+    const courseId = safeString(body.courseId, 80);
+    const title = safeString(body.title, 160);
+    const description = safeString(body.description, 4000);
+    const course = await env.DB.prepare('SELECT id,title,status FROM courses WHERE id = ?').bind(courseId).first();
+    if (!course || (course.status !== 'active' && !fullCourseRoles.includes(user.role)) || !(await hasCourseAccess(env.DB,user,courseId)) || title.length < 2) return error('Choose a course available to your account and enter a module title. Administrators may prepare modules before publishing a course.');
+    const status = body.status === 'published' ? 'published' : 'draft';
+    const id = uuid();
+    const order = Number.isSafeInteger(Number(body.sortOrder)) ? Math.max(1, Math.min(10000, Number(body.sortOrder))) : 1;
+    const requestedCode=safeString(body.moduleCode,24).toUpperCase();
+    const moduleCode=requestedCode||await generateModuleCode(env.DB,courseId,course.title);
+    if(await env.DB.prepare('SELECT id FROM course_modules WHERE module_code=?').bind(moduleCode).first())return error('That module code is already in use. Refresh the module list to get the next available code.',409);
+    if(await env.DB.prepare('SELECT id FROM course_modules WHERE course_id=? AND lower(title)=lower(?)').bind(courseId,title).first())return error('A module with this title already exists in the selected course.',409);
+    await env.DB.prepare('INSERT INTO course_modules (id, course_id, title, module_code, description, sort_order, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, courseId, title, moduleCode, description, order, status, user.id).run();
+    await writeAudit(env.DB, user.id, 'lms_module_created', 'course_module', id);
+    return json({ id, moduleCode, status }, 201);
+  }
+
+  if (action === 'create_lesson') {
+    const moduleId = safeString(body.moduleId, 80);
+    const title = safeString(body.title, 160);
+    const content = safeString(body.content, 12000);
+    const videoUrl = safeString(body.videoUrl, 500);
+    const resourceUrl = safeString(body.resourceUrl, 500);
+    const module = await env.DB.prepare("SELECT id,course_id FROM course_modules WHERE id = ? AND status != 'archived'").bind(moduleId).first();
+    if (!module || !(await hasModuleAccess(env.DB,user,moduleId,module.course_id)) || title.length < 2) return error('Choose a module assigned to your account and enter a lesson title.');
+    for (const value of [videoUrl, resourceUrl]) if (value && !/^https:\/\//i.test(value) && !/^\/api\/(?:download|media)\/[a-zA-Z0-9-]+$/.test(value)) return error('Lesson resources must use HTTPS or a saved Navstar document link.');
+    const status = body.status === 'published' ? 'published' : 'draft';
+    const minutes = Number.isSafeInteger(Number(body.estimatedMinutes)) ? Math.max(1, Math.min(1440, Number(body.estimatedMinutes))) : 15;
+    const id = uuid();
+    await env.DB.prepare('INSERT INTO course_lessons (id, module_id, title, content, video_url, resource_url, sort_order, estimated_minutes, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, moduleId, title, content, videoUrl || null, resourceUrl || null, Math.max(0, Number(body.sortOrder) || 0), minutes, status, user.id).run();
+    await writeAudit(env.DB, user.id, 'lms_lesson_created', 'course_lesson', id);
+    return json({ id, status }, 201);
+  }
+
+  if (action === 'create_assignment') {
+    const courseId = safeString(body.courseId, 80);
+    const moduleId = safeString(body.moduleId, 80) || null;
+    const title = safeString(body.title, 160);
+    const instructions = safeString(body.instructions, 6000);
+    const dueAt = safeString(body.dueAt, 40) || null;
+    const maxPoints = Number(body.maxPoints);
+    const course = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND status = 'active'").bind(courseId).first();
+    if (!course || !(await hasCourseAccess(env.DB,user,courseId)) || title.length < 2 || !Number.isSafeInteger(maxPoints) || maxPoints < 1 || maxPoints > 10000) return error('Enter a valid course, assignment title and maximum score.');
+    if(user.role==='tutor'&&(!moduleId||!(await hasModuleAccess(env.DB,user,moduleId,courseId))))return error('Tutors must attach assignments to a module allocated to them.',403);
+    if (moduleId) {
+      const module = await env.DB.prepare('SELECT id FROM course_modules WHERE id = ? AND course_id = ?').bind(moduleId, courseId).first();
+      if (!module || !(await hasModuleAccess(env.DB,user,moduleId,courseId))) return error('The selected module does not belong to this course or is not allocated to your account.');
+    }
+    if (dueAt && Number.isNaN(Date.parse(dueAt))) return error('Enter a valid assignment deadline.');
+    const status = body.status === 'published' ? 'published' : 'draft';
+    const assignmentType = body.assignmentType === 'project' ? 'project' : 'assignment';
+    const marksCategory = ['CAT','Practical','Final'].includes(String(body.marksCategory)) ? String(body.marksCategory) : 'CAT';
+    const categoryOutOf=Number(body.categoryOutOf??20);if(!Number.isFinite(categoryOutOf)||categoryOutOf<=0||categoryOutOf>10000)return error('Enter a valid category maximum greater than zero.');
+    const id = uuid();
+    await env.DB.prepare('INSERT INTO course_assignments (id, course_id, module_id, assignment_type, marks_category, title, instructions, due_at, max_points, category_out_of, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, courseId, moduleId, assignmentType, marksCategory, title, instructions, dueAt, maxPoints, categoryOutOf, status, user.id).run();
+    await writeAudit(env.DB, user.id, assignmentType === 'project' ? 'lms_project_created' : 'lms_assignment_created', 'course_assignment', id);
+    return json({ id, status }, 201);
+  }
+
   if (action === 'update_assignment') {
     const assignmentId=safeString(body.assignmentId,80);
     const title=safeString(body.title,160);
@@ -193,9 +374,7 @@ export async function onRequestPost({ request, env }) {
     if(!course||!moduleId)return error('Choose a valid course and module for this assignment.');
     const module=await env.DB.prepare('SELECT id FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first();
     if(!module)return error('The selected module does not belong to the selected course.');
-    if(user.role==='tutor'){
-      if(!existing.module_id||!(await hasModuleAccess(env.DB,user,existing.module_id,existing.course_id))||!(await hasModuleAccess(env.DB,user,moduleId,courseId)))return error('Tutors can edit assignments only within modules allocated to them.',403);
-    }
+    if(user.role==='tutor'&&(!existing.module_id||!(await hasModuleAccess(env.DB,user,existing.module_id,existing.course_id))||!(await hasModuleAccess(env.DB,user,moduleId,courseId)))return error('Tutors can edit assignments only within modules allocated to them.',403);
     if(dueAt&&Number.isNaN(Date.parse(dueAt)))return error('Enter a valid assignment deadline.');
     await env.DB.prepare(`UPDATE course_assignments SET course_id=?,module_id=?,title=?,instructions=?,due_at=?,max_points=?,category_out_of=?,marks_category=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
       .bind(courseId,moduleId,title,instructions,dueAt,maxPoints,categoryOutOf,marksCategory,status,assignmentId).run();
@@ -312,4 +491,31 @@ export async function onRequestPost({ request, env }) {
   }
 
   return error('Unknown learning action.');
-}
+}  if (action === 'delete_module') {
+    const moduleId=safeString(body.moduleId,80);
+    const module=await env.DB.prepare('SELECT id,course_id,title FROM course_modules WHERE id=?').bind(moduleId).first();
+    if(!module)return error('The selected module was not found.',404);
+    const checks=[
+      ['lessons','SELECT COUNT(*) AS n FROM course_lessons WHERE module_id=?'],
+      ['assignments','SELECT COUNT(*) AS n FROM course_assignments WHERE module_id=?'],
+      ['exams','SELECT COUNT(*) AS n FROM course_assessments WHERE module_id=?'],
+      ['results','SELECT COUNT(*) AS n FROM student_module_results WHERE module_id=?'],
+      ['registrations','SELECT COUNT(*) AS n FROM student_module_registrations WHERE module_id=?'],
+      ['timetables','SELECT COUNT(*) AS n FROM course_timetable WHERE module_id=?'],
+      ['liveClasses','SELECT COUNT(*) AS n FROM course_live_classes WHERE module_id=?'],
+      ['tutorAllocations','SELECT COUNT(*) AS n FROM module_tutor_assignments WHERE module_id=?'],
+      ['marksConflicts','SELECT COUNT(*) AS n FROM base44_marks_conflicts WHERE module_id=?']
+    ];
+    const dependencies:Record<string,number>={};
+    for(const [key,sql] of checks){const row=await env.DB.prepare(sql).bind(moduleId).first();dependencies[key]=Number(row?.n||0);}
+    if(Object.values(dependencies).some(n=>n>0)){
+      await env.DB.prepare("UPDATE course_modules SET status='archived' WHERE id=?").bind(moduleId).run();
+      await writeAudit(env.DB,user.id,'lms_module_archived_with_records','course_module',moduleId);
+      return json({moduleId,title:module.title,deleted:false,archived:true,dependencies,message:'This module contains linked academic records, so it was archived instead of permanently deleted. Existing student work and marks were preserved.'});
+    }
+    await env.DB.prepare('DELETE FROM course_modules WHERE id=?').bind(moduleId).run();
+    await writeAudit(env.DB,user.id,'lms_module_deleted','course_module',moduleId);
+    return json({moduleId,title:module.title,deleted:true,archived:false,dependencies});
+  }
+
+
