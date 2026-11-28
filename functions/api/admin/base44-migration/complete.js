@@ -565,9 +565,9 @@ async function importAttendanceRecord(DB,r,entity,adminId,c,sourceCourses,source
   const rawStatus=clean(r.status||r.attendance_status,30).toLowerCase();
   const status=rawStatus==='present'?'present':rawStatus==='late'?'late':rawStatus==='absent'?'absent':rawStatus==='excused'||rawStatus==='leave'?'excused':null;
   if(!sourceId||!email||!name||!courseTitle||!date||!status){c.attendanceSkipped++;return;}
-  await importDerivedStudent(DB,r,entity,adminId,c);
-  const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=(SELECT id FROM courses WHERE lower(trim(title))=lower(trim(?)) OR id=? LIMIT 1) AND e.status='accepted' LIMIT 1").bind(email,courseTitle,clean(r.course_id,120)).first();
   const course=await courseFor(DB,courseTitle,0);
+  await importDerivedStudent(DB,r,entity,adminId,c);
+  const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(email,course.id).first();
   if(!student){c.attendanceSkipped++;return;}
   const module=await ensureHistoricalModule(DB,course,r.module_id||r.unit_id,r.module_code||r.unit_code,r.module_title||r.unit_title,sourceModules,adminId,c);
   const timetableId='b44attday-'+(await sha256(course.id+'|'+(module.row?.id||'')+'|'+date)).slice(0,20);
