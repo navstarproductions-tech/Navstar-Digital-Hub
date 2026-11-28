@@ -67,7 +67,7 @@ export function LearningAdminSubtab({subtab,courses:catalogue}:Props){
  const removeModule=async(m:Module)=>{
   if(!window.confirm('Remove module "'+m.title+'"? If it contains assignments, exams, lessons, registrations or marks, Navstar will archive it and preserve those records. Only an empty module can be permanently deleted.'))return;
   setBusy(true);setFailure('');setMessage('');
-  try{const r=await fetch('/api/learning',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete_module',moduleId:m.id})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Module could not be removed.');await load();setMessage(j.archived?'Module archived to preserve its linked academic records.':'Empty module permanently deleted.');}
+  try{const r=await fetch('/api/learning',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete_module',moduleId:m.id})});const j=await r.json();if(!r.ok)throw new Error((j.error||'Module could not be removed.')+(j.reference?' Support reference: '+j.reference:'')+(j.detail?' ('+j.detail+')':''));await load();setMessage(j.archived?'Module archived to preserve its linked academic records.':'Empty module permanently deleted.');}
   catch(e){setFailure(e instanceof Error?e.message:'Module could not be removed.');}
   finally{setBusy(false);}
  };
