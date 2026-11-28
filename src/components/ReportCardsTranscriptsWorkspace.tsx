@@ -4,9 +4,7 @@ import { FileDown, FileText, Search, RefreshCw, Wrench } from 'lucide-react';
 type Course={id:string;title:string};
 type Student={id:string;name:string;email:string;admission_number?:string;preferred_intake?:string};
 type Report={id:string;report_card_no:string;period_label:string;public_token:string;status:string;course_id:string;snapshot_json:string;issued_at?:string;student_name?:string;course_title?:string};
-type DocumentType='student-report'|'admin-report'|'student-transcript'|'admin-transcript';
 type Scope='individual'|'intake'|'all';
-const types:{id:DocumentType;title:string;description:string}[]=[{id:'admin-transcript',title:'Admin Transcript',description:'Grades-only administrative transcript. Unpublished internal record.'}];
 const panel='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 const button='inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-900 to-cyan-700 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50';
 const esc=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
@@ -15,7 +13,6 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
  const [students,setStudents]=useState<Student[]>([]);
  const [studentId,setStudentId]=useState('');
  const [search,setSearch]=useState('');
- const [documentType,setDocumentType]=useState<DocumentType>('admin-transcript');
  const [scope,setScope]=useState<Scope>('individual');
  const [intake,setIntake]=useState('');
  const [repairing,setRepairing]=useState(false);
@@ -68,7 +65,6 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
   }catch(e){if(scope==='individual'&&typeof printWindow!=='undefined'&&printWindow&&!printWindow.closed)printWindow.close();setNotice(e instanceof Error?e.message:'Documents could not be generated.');}
   finally{setBusy(false);}
  }
- const activeType=types[0];
  return <div className="space-y-5">
   <section className={panel}>
    <div className="flex items-center gap-3"><FileText className="h-7 w-7 text-blue-800"/><div><p className="text-xs font-bold uppercase tracking-widest text-cyan-800">NAVSTAR DIGITAL HUB</p><h2 className="text-xl font-black">Admin Transcripts</h2></div></div>
