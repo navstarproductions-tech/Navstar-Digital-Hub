@@ -567,7 +567,7 @@ if (action === 'delete_module') {
       ['tutorAllocations','SELECT COUNT(*) AS n FROM module_tutor_assignments WHERE module_id=?'],
       ['marksConflicts','SELECT COUNT(*) AS n FROM base44_marks_conflicts WHERE module_id=?']
     ];
-    const dependencies:Record<string,number>={};
+    const dependencies={};
     for(const [key,sql] of checks){const row=await env.DB.prepare(sql).bind(moduleId).first();dependencies[key]=Number(row?.n||0);}
     if(Object.values(dependencies).some(n=>n>0)){
       await env.DB.prepare("UPDATE course_modules SET status='archived' WHERE id=?").bind(moduleId).run();
