@@ -185,12 +185,14 @@ async function importCourseModule(DB,r,adminId,c,sourceCourses) {
 async function mappedModule(DB,courseId,sourceModuleId,moduleCode,moduleTitle,sourceModules) {
   const source=sourceModules.get(clean(sourceModuleId,120));
   const savedMap=sourceModuleId?await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='CourseUnit' AND source_id=?").bind(clean(sourceModuleId,120)).first():null;
+  // A known CourseUnit ID or saved source mapping is more reliable than a stale unit_title on a marks row.
   let row=savedMap?.destination_id?await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE id=? AND course_id=?").bind(savedMap.destination_id,courseId).first():null;
   const code=clean(moduleCode||source?.module_code,30).toUpperCase();
-  const title=clean(moduleTitle||source?.title,160);
-  if(code)row=await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE course_id=? AND upper(COALESCE(module_code,''))=? LIMIT 1").bind(courseId,code).first();
-  if(!row&&title)row=await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE course_id=? AND lower(trim(title))=lower(trim(?)) LIMIT 1").bind(courseId,title).first();
-  return {row,code,title};
+  const title=clean(source?.title||moduleTitle,160);
+  if(!row&&source?.title)row=await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE course_id=? AND lower(trim(title))=lower(trim(?)) LIMIT 1").bind(courseId,source.title).first();
+  if(!row&&code)row=await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE course_id=? AND upper(COALESCE(module_code,''))=? LIMIT 1").bind(courseId,code).first();
+  if(!row&&!sourceModuleId&&title)row=await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE course_id=? AND lower(trim(title))=lower(trim(?)) LIMIT 1").bind(courseId,title).first();
+  return {row,code,title:row?.title||title};
 }
 async function importModuleAssignment(DB,r,adminId,c,sourceUsers) {
   const sourceId=sourceRecordId(r);if(!sourceId)return;
