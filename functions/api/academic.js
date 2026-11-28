@@ -76,6 +76,8 @@ async function requireCourse(db,user,courseId){
 async function hasModuleTeachingAccess(db,user,moduleId,courseId){
   if(adminRoles.includes(user.role))return true;
   if(user.role!=='tutor'||!moduleId||!courseId)return false;
+  const courseAssignment=await db.prepare('SELECT id FROM course_tutor_assignments WHERE course_id=? AND tutor_user_id=?').bind(courseId,user.id).first();
+  if(courseAssignment)return true;
   const row=await db.prepare('SELECT id FROM module_tutor_assignments WHERE module_id=? AND tutor_user_id=?').bind(moduleId,user.id).first();
   if(!row)return false;
   const module=await db.prepare('SELECT id FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first();
