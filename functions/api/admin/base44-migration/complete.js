@@ -1079,6 +1079,7 @@ export async function onRequestPost({request,env}) {
     if(!batchMode||batchEntity==='StudentResult')for(const result of groups.StudentResult)await migrationGuard('StudentResult '+sourceRecordId(result),()=>importStudentResult(env.DB,result,tokenRow.created_by,c,sourceCourses,sourceModules),c);
     if(!batchMode||batchEntity==='StaffApplication')for(const application of groups.StaffApplication)await migrationGuard('StaffApplication '+sourceRecordId(application),()=>importStaffApplication(env.DB,application,tokenRow.created_by,c),c);
     if(!batchMode||batchEntity==='Enrollment')for(const fee of groups.AdditionalFee) {
+      try {
       const sourceId=sourceRecordId(fee);
       const sourceEnrollmentId=clean(fee.enrollment_id,120);
       const mapping=await env.DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceEnrollmentId).first();
@@ -1090,6 +1091,8 @@ export async function onRequestPost({request,env}) {
       await env.DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('AdditionalFee',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
         .bind(sourceId,'b44addfee-'+sourceId.slice(-24),mapping.user_id).run();
       c.additionalFeesImported++;
+
+      } catch(cause) { c.warnings.push('AdditionalFee '+sourceRecordId(fee)+' was retained in the archive after an import error: '+String(cause?.message||cause)); }
     }
     // A learner may have several course enrolments. Keep one account and derive its overall status from all of them.
     if(!batchMode||batchEntity==='Enrollment') { const lifecycleByEmail=new Map();
@@ -1115,6 +1118,7 @@ export async function onRequestPost({request,env}) {
     }
     const paidByEnrollment=new Map();
     for(const payment of groups.FeePayment) {
+      try {
       const sourcePaymentId=sourceRecordId(payment);
       const sourceEnrollmentId=clean(payment.enrollment_id,120);
       if(!sourcePaymentId||!sourceEnrollmentId)continue;
@@ -1153,6 +1157,8 @@ export async function onRequestPost({request,env}) {
       await env.DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('FeePayment',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
         .bind(sourcePaymentId,paymentId,mapping.user_id).run();
       c.feePaymentsImported++;
+
+      } catch(cause) { c.warnings.push('FeePayment '+sourceRecordId(payment)+' was retained in the archive after an import error: '+String(cause?.message||cause)); }
     }
     for(const item of imported) {
       const targetPaid=Math.max(0,Math.round(item.amountPaid));
