@@ -17,6 +17,7 @@ import { AdminDashboard } from '@/components/AdminDashboard';
 import { StudentSubtabWorkspace } from '@/components/StudentSubtabWorkspace';
 import { AdminWorkspaceHub } from '@/components/AdminWorkspaceHub';
 import { LearningAdminSubtab } from '@/components/LearningAdminSubtab';
+import { StaffAssignmentsWorkspace } from '@/components/StaffAssignmentsWorkspace';
 import { MarksHubWorkspace } from '@/components/MarksHubWorkspace';
 import { AcademicCompletionWorkspace } from '@/components/AcademicCompletionWorkspace';
 import { StudentStatusWorkspace } from '@/components/StudentStatusWorkspace';
@@ -83,6 +84,7 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   {id:'courses',label:'Courses',icon:BookOpen},
   {id:'learning',label:'Modules',icon:BookOpen},
   {id:'assignments',label:'Assignments',icon:FileText},
+  {id:'staff-assignments',label:'Staff Tasks',icon:FileText},
   {id:'school',label:'Students',icon:Users},
   {id:'employees',label:'Employees',icon:Users},
   {id:'ai-intake-advisor',label:'AI Intake Advisor',icon:LayoutDashboard},
@@ -1392,6 +1394,7 @@ export function AdminPage() {
           {active === 'timetable' && <AcademicCompletionWorkspace mode="admin" courses={courses} selectedTab="Timetable"/>}
           {active === 'marks-tests' && <MarksHubWorkspace subtab={selectedSubtab || 'Marks Hub'} courses={courses}/ >}
           {active === 'assignments' && <LearningAdminSubtab subtab="Assignments" courses={courses}/>}
+          {active === 'staff-assignments' && <StaffAssignmentsWorkspace/>}
           {active === 'learning' && selectedSubtab === 'Tests & Exams' && <MarksHubWorkspace subtab="Exam Management (AI)" courses={courses}/ >}
           {active === 'learning' && selectedSubtab !== 'Tests & Exams' && (selectedSubtab === 'Teaching Staff' ? <TutorSpecialisationWorkspace courses={courses} mode="profiles"/> : selectedSubtab === 'Auto-Assign Modules' ? <TutorSpecialisationWorkspace courses={courses} mode="autoassign"/> : ['Module Codes','Auto-Generate Module Codes'].includes(selectedSubtab) ? <CourseCodeManagementWorkspace mode="modules"/> : <LearningAdminSubtab subtab={selectedSubtab || 'View Modules'} courses={courses}/>)}
 
