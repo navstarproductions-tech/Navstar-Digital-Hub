@@ -53,7 +53,7 @@ export function richTextHtml(value:string){
  return out.join('');
 }
 export function RichTextDisplay({value,className=''}:{value:string;className?:string}){
- return <div className={'rich-content max-w-none [&_h1]:mb-2 [&_h1]:text-xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-extrabold [&_h3]:mb-1 [&_h3]:font-bold [&_p]:mb-3 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1 [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:bg-slate-950 [&_pre]:p-4 [&_pre]:text-slate-100 '+className} dangerouslySetInnerHTML={{__html:richTextHtml(value)}}/>;
+ return <div className={'rich-content max-w-none [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-100 [&_th]:p-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_a]:font-semibold [&_a]:text-blue-700 [&_a]:underline [&_h1]:mb-2 [&_h1]:text-xl [&_h1]:font-black [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-extrabold [&_h3]:mb-1 [&_h3]:font-bold [&_p]:mb-3 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1 [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:bg-slate-950 [&_pre]:p-4 [&_pre]:text-slate-100 '+className} dangerouslySetInnerHTML={{__html:richTextHtml(value)}}/>;
 }
 export function RichTextEditor({value,onChange,rows=8,placeholder='Write clear instructions. Use the toolbar to format headings, lists and key information.'}:EditorProps){
  const ref=useRef<HTMLTextAreaElement>(null);
