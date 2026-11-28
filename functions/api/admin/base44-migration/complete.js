@@ -620,7 +620,7 @@ async function importModuleCompletion(DB,r,adminId,c,sourceCourses,sourceModules
   if(clean(r.course_id,120))await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Course',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,imported_at=CURRENT_TIMESTAMP").bind(clean(r.course_id,120),course.id,adminId).run();
   const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(email,course.id).first();
   if(!student){c.moduleCompletionsSkipped++;return;}
-  const module=await ensureHistoricalModule(DB,course,r.module_id||r.unit_id,r.module_code||r.module_code,moduleTitle,sourceModules,adminId,c);
+  const module=await ensureHistoricalModule(DB,course,r.module_id||r.unit_id,r.module_code||r.unit_code,moduleTitle,sourceModules,adminId,c);
   if(!module.row){c.moduleCompletionsSkipped++;return;}
   const raw=clean(r.status||r.completion_status,30).toLowerCase();
   const status=r.is_completed===false||['pending','in_progress','not_started'].includes(raw)?'registered':'completed';
