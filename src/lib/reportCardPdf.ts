@@ -43,11 +43,11 @@ function documentHtml(report:Report,options:Options){
   const incomplete=r.result_status!=='published'||missing(r.percentage);
   return '<tr><td class="center">'+(i+1)+'</td><td class="code">'+esc(r.code||r.module_code||'—')+'</td><td class="module">'+esc(r.title||r.module_name||'—')+'</td><td class="center">'+mark(r.cat_score)+'</td><td class="center">'+mark(r.practical_score)+'</td><td class="center">'+mark(r.exam_score)+'</td><td class="center">'+(missing(r.total_points)?'MM':n(r.total_points).toFixed(1))+'</td><td class="center grade '+(incomplete?'incomplete':'')+'">'+(incomplete?'I':esc(r.grade||'—'))+'</td><td>'+esc(r.remarks|| (incomplete?'Outstanding assessment marks':'—'))+'</td></tr>';
  }).join('');
- const missingRows=results.map((r:any,i:number)=>({r,i,missing:['CAT','Practical','Final Exam'].filter((label,j)=>{const key=['cat_score','practical_score','exam_score'][j];return r[key]===null||r[key]===undefined||r[key]==='';})})).filter(x=>x.missing.length);
+ const missingRows=results.map((r:any,i:number)=>{const missing=['CAT','Practical','Final Exam'].filter((label,j)=>{const key=['cat_score','practical_score','exam_score'][j];return r[key]===null||r[key]===undefined||r[key]==='';});if(!missing.length&&r.result_status!=='published')missing.push('Final result / grade verification');return {r,i,missing};}).filter(x=>x.missing.length||x.r.result_status!=='published');
  const pending=missingRows.map(x=>'<tr><td class="center">'+(x.i+1)+'</td><td class="code">'+esc(x.r.code||'—')+'</td><td>'+esc(x.r.title||'—')+'</td><td>'+esc(x.missing.join(', '))+'</td><td class="center incomplete">I</td></tr>').join('');
  const gradeRows=grading.map((g:any)=>'<tr><td class="center"><b>'+esc(g.grade)+'</b></td><td>'+esc(g.classification||g.remarks||gradeName(g.grade,grading)||'')+'</td><td class="center">'+esc(g.min)+'–'+esc(g.max)+'%</td></tr>').join('');
- const grade=mean===null?'—':(grading.find((g:any)=>mean>=Number(g.min??g.from??0)&&mean<=Number(g.max??g.to??100))?.grade||'—');
- const classification=gradeName(grade,grading)||'';
+ const grade=missingRows.length?'I':mean===null?'—':(grading.find((g:any)=>mean>=Number(g.min??g.from??0)&&mean<=Number(g.max??g.to??100))?.grade||'—');
+ const classification=grade==='I'?'Incomplete':gradeName(grade,grading)||'';
  const totalMarks=results.reduce((sum:any,r:any)=>sum+(r.total_points===null||r.total_points===undefined?0:n(r.total_points)),0);
  const system=t=>'<div class="comment"><b>'+esc(t)+'</b></div>';
  const verifyText='Document reference: '+report.report_card_no;
