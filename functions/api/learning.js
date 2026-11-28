@@ -495,6 +495,68 @@ export async function onRequestPost({ request, env }) {
     const moduleId=safeString(body.moduleId,80);
     const module=await env.DB.prepare('SELECT id,course_id,title FROM course_modules WHERE id=?').bind(moduleId).first();
     if(!module)return error('The selected module was not found.',404);
+
+    // Repair legacy Base44 result labels that pointed at a real CourseUnit ID but carried a stale unit_title.
+    // The CourseUnit source mapping is authoritative; do not create or retain a fake module named after an exam.
+    let repairedResultLinks=0,repairedAssignmentLinks=0,repairedExamLinks=0;
+    const legacyResults=(await env.DB.prepare(`
+      SELECT DISTINCT sm.id AS result_id,sm.user_id,sm.course_id,sm.cat_score,sm.practical_score,sm.exam_score,sm.assignment_score,
+        sm.score,sm.max_score,sm.grade,sm.remarks,sm.status,sm.published_at,sm.updated_by,sm.updated_at,
+        cm.id AS correct_module_id
+      FROM student_module_results sm
+      JOIN base44_student_import_map rm ON rm.entity_name='StudentResult' AND rm.destination_id=sm.id
+      JOIN base44_legacy_archive_records ar ON ar.entity_name='StudentResult' AND ar.source_id=rm.source_id
+      JOIN base44_student_import_map um ON um.entity_name='CourseUnit' AND um.source_id=COALESCE(json_extract(ar.record_json,'$.unit_id'),json_extract(ar.record_json,'$.module_id'))
+      JOIN course_modules cm ON cm.id=um.destination_id AND cm.course_id=sm.course_id
+      WHERE sm.module_id=? AND cm.id<>?
+    `).bind(moduleId,moduleId).all()).results||[];
+    for(const row of legacyResults){
+      const target=await env.DB.prepare('SELECT id,updated_at FROM student_module_results WHERE user_id=? AND module_id=?').bind(row.user_id,row.correct_module_id).first();
+      if(!target){
+        await env.DB.prepare('UPDATE student_module_results SET module_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(row.correct_module_id,row.result_id).run();
+      }else{
+        if(String(row.updated_at||'')>=String(target.updated_at||'')){
+          await env.DB.prepare(`UPDATE student_module_results SET course_id=?,cat_score=?,practical_score=?,exam_score=?,assignment_score=?,score=?,max_score=?,grade=?,remarks=?,status=?,published_at=?,updated_by=?,updated_at=? WHERE id=?`)
+            .bind(row.course_id,row.cat_score,row.practical_score,row.exam_score,row.assignment_score,row.score,row.max_score,row.grade,row.remarks,row.status,row.published_at,row.updated_by,row.updated_at,target.id).run();
+        }
+        await env.DB.prepare('DELETE FROM student_module_results WHERE id=?').bind(row.result_id).run();
+        await env.DB.prepare("UPDATE base44_student_import_map SET destination_id=? WHERE entity_name='StudentResult' AND destination_id=?").bind(target.id,row.result_id).run();
+      }
+      repairedResultLinks++;
+    }
+    const legacyAssignments=(await env.DB.prepare(`
+      SELECT DISTINCT a.id,cm.id AS correct_module_id FROM course_assignments a
+      JOIN base44_student_import_map am ON am.entity_name='Assignment' AND am.destination_id=a.id
+      JOIN base44_legacy_archive_records ar ON ar.entity_name='Assignment' AND ar.source_id=am.source_id
+      JOIN base44_student_import_map um ON um.entity_name='CourseUnit' AND um.source_id=COALESCE(json_extract(ar.record_json,'$.module_id'),json_extract(ar.record_json,'$.unit_id'))
+      JOIN course_modules cm ON cm.id=um.destination_id AND cm.course_id=a.course_id
+      WHERE a.module_id=? AND cm.id<>?
+    `).bind(moduleId,moduleId).all()).results||[];
+    for(const row of legacyAssignments){await env.DB.prepare('UPDATE course_assignments SET module_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(row.correct_module_id,row.id).run();repairedAssignmentLinks++;}
+    const legacyExams=(await env.DB.prepare(`
+      SELECT DISTINCT a.id,cm.id AS correct_module_id FROM course_assessments a
+      JOIN base44_student_import_map am ON am.entity_name='Exam' AND am.destination_id=a.id
+      JOIN base44_legacy_archive_records ar ON ar.entity_name='Exam' AND ar.source_id=am.source_id
+      JOIN base44_student_import_map um ON um.entity_name='CourseUnit' AND um.source_id=COALESCE(json_extract(ar.record_json,'$.module_id'),json_extract(ar.record_json,'$.unit_id'))
+      JOIN course_modules cm ON cm.id=um.destination_id AND cm.course_id=a.course_id
+      WHERE a.module_id=? AND cm.id<>?
+    `).bind(moduleId,moduleId).all()).results||[];
+    for(const row of legacyExams){await env.DB.prepare('UPDATE course_assessments SET module_id=? WHERE id=?').bind(row.correct_module_id,row.id).run();repairedExamLinks++;}
+    await env.DB.prepare(`
+      UPDATE base44_marks_conflicts SET module_id=(
+        SELECT cm.id FROM base44_student_import_map mm
+        JOIN base44_legacy_archive_records ar ON ar.entity_name='MarksConflict' AND ar.source_id=mm.source_id
+        JOIN base44_student_import_map um ON um.entity_name='CourseUnit' AND um.source_id=COALESCE(json_extract(ar.record_json,'$.unit_id'),json_extract(ar.record_json,'$.module_id'))
+        JOIN course_modules cm ON cm.id=um.destination_id AND cm.course_id=base44_marks_conflicts.course_id
+        WHERE mm.entity_name='MarksConflict' AND mm.destination_id=base44_marks_conflicts.id LIMIT 1
+      ) WHERE module_id=? AND EXISTS(
+        SELECT 1 FROM base44_student_import_map mm
+        JOIN base44_legacy_archive_records ar ON ar.entity_name='MarksConflict' AND ar.source_id=mm.source_id
+        JOIN base44_student_import_map um ON um.entity_name='CourseUnit' AND um.source_id=COALESCE(json_extract(ar.record_json,'$.unit_id'),json_extract(ar.record_json,'$.module_id'))
+        WHERE mm.entity_name='MarksConflict' AND mm.destination_id=base44_marks_conflicts.id AND um.destination_id<>?
+      )
+    `).bind(moduleId,moduleId).run();
+
     const checks=[
       ['lessons','SELECT COUNT(*) AS n FROM course_lessons WHERE module_id=?'],
       ['assignments','SELECT COUNT(*) AS n FROM course_assignments WHERE module_id=?'],
@@ -511,11 +573,11 @@ export async function onRequestPost({ request, env }) {
     if(Object.values(dependencies).some(n=>n>0)){
       await env.DB.prepare("UPDATE course_modules SET status='archived' WHERE id=?").bind(moduleId).run();
       await writeAudit(env.DB,user.id,'lms_module_archived_with_records','course_module',moduleId);
-      return json({moduleId,title:module.title,deleted:false,archived:true,dependencies,message:'This module contains linked academic records, so it was archived instead of permanently deleted. Existing student work and marks were preserved.'});
+      return json({moduleId,title:module.title,deleted:false,archived:true,dependencies,repairedResultLinks,repairedAssignmentLinks,repairedExamLinks,message:'This module contains linked academic records, so it was archived instead of permanently deleted. Historical results, assignments and exams linked to an authoritative Base44 module ID were reassigned first; remaining student work was preserved.'});
     }
     await env.DB.prepare('DELETE FROM course_modules WHERE id=?').bind(moduleId).run();
     await writeAudit(env.DB,user.id,'lms_module_deleted','course_module',moduleId);
-    return json({moduleId,title:module.title,deleted:true,archived:false,dependencies});
+    return json({moduleId,title:module.title,deleted:true,archived:false,dependencies,repairedResultLinks,repairedAssignmentLinks,repairedExamLinks});
   }
 
 
