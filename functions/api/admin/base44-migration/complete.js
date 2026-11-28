@@ -97,6 +97,26 @@ async function importFeeStructure(DB,r,c) {
   c.feeStructuresImported++;
 }
 
+function embeddedFeePayments(r) {
+  const keys=['fee_payments','feePayments','payments','payment_history','paymentHistory','fee_receipts','feeReceipts','receipts','transaction_history','transactionHistory','payment_records','paymentRecords'];
+  const rows=[];
+  for(const key of keys) if(Array.isArray(r?.[key])) for(const item of r[key]) if(item&&typeof item==='object') rows.push(item);
+  if(rows.length) return rows;
+  const receipt=clean(r?.mpesa_code||r?.mpesa_receipt_number||r?.receipt_number||r?.receipt_no||r?.transaction_code||r?.payment_reference||r?.payment_ref,100);
+  const amount=Math.max(0,num(r?.amount_paid??r?.paid_amount??r?.amount_received));
+  // A cumulative amount_paid without a transaction reference remains an opening balance,
+  // not a fabricated individual receipt.
+  if(amount>0&&receipt) return [{
+    amount,mpesa_code:receipt,receipt_number:receipt,
+    payment_method:r.payment_method||r.payment_mode||'',
+    payment_phone:r.payment_phone||r.student_phone||r.phone||'',
+    payment_date:r.payment_date||r.paid_on||r.transaction_date||r.created_date||'',
+    status:r.payment_status||r.payment_state||'paid',
+    amount_confirmed:true
+  }];
+  return [];
+}
+
 function sourceCourseTitle(sourceId, sourceCourses) {
   const row=sourceCourses.get(clean(sourceId,120));
   return clean(row?.title||row?.course_title||row?.name,160);
@@ -193,9 +213,19 @@ async function importExam(DB,r,adminId,c,sourceCourses,sourceModules) {
   const course=await resolveCourse(DB,courseTitle,r.course_id);
   if(!course){c.examsSkipped++;c.warnings.push("Exam '"+clean(r.title,120)+"' was archived but not activated because no matching active official course was found: "+(courseTitle||"missing course title")+".");return;}
   const module=await mappedModule(DB,course.id,r.module_id,r.module_code,r.module_title,sourceModules);
-  if(!module.row)c.warnings.push("Exam '"+clean(r.title,120)+"' was linked to course '"+course.title+"' but its module could not be matched; it remains course-wide.");
   const sourceType=clean(r.exam_type,30).toLowerCase();
   const type=sourceType==='practical'?'practical':(['cat','midterm','quiz'].includes(sourceType)?'cat':'exam');
+  const examTitle=clean(r.title,160)||'Imported Base44 examination';
+  const matchingExam=module.row
+    ? await DB.prepare("SELECT id FROM course_assessments WHERE course_id=? AND module_id=? AND lower(trim(title))=lower(trim(?)) AND assessment_type=? ORDER BY created_at LIMIT 1").bind(course.id,module.row.id,examTitle,type).first()
+    : await DB.prepare("SELECT id FROM course_assessments WHERE course_id=? AND module_id IS NULL AND lower(trim(title))=lower(trim(?)) AND assessment_type=? ORDER BY created_at LIMIT 1").bind(course.id,examTitle,type).first();
+  if(matchingExam?.id) {
+    await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Exam',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+      .bind(sourceId,matchingExam.id,adminId).run();
+    c.examsAlreadyPresent++;
+    return;
+  }
+  if(!module.row)c.warnings.push("Exam '"+clean(r.title,120)+"' was linked to course '"+course.title+"' but its module could not be matched; it remains course-wide.");
   const category=['CAT','Practical','Final'].includes(clean(r.score_category,20))?clean(r.score_category,20):(type==='cat'?'CAT':type==='practical'?'Practical':'Final');
   const rawStatus=clean(r.status,40).toLowerCase();
   const status=rawStatus==='active'?'published':rawStatus==='closed'?'closed':'draft';
@@ -241,7 +271,7 @@ async function importExam(DB,r,adminId,c,sourceCourses,sourceModules) {
      allow_result_review,shuffle_questions,disable_copy_paste,strict_time_limit,require_admin_approval,
      marks_category,category_out_of,question_selection_mode,question_count,shuffle_options,security_settings_json)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .bind(id,course.id,module.row?.id||null,clean(r.title,160)||'Imported Base44 examination',type,
+    .bind(id,course.id,module.row?.id||null,examTitle,type,
       clean(r.instructions,12000)||clean(r.description,4000),start||null,end||null,maximum,status,createdBy,
       clean(r.created_date,40)||new Date().toISOString(),clean(r.description,4000),
       duration,Math.max(0,Math.min(maximum,Math.round(num(r.pass_mark)||0))),Math.max(1,Math.min(10,Math.round(num(r.max_attempts)||1))),
@@ -1532,14 +1562,24 @@ export async function onRequestPost({request,env}) {
       }
     }
     const paidByEnrollment=new Map();
-    for(const payment of groups.FeePayment) {
+    const embeddedPayments=[];
+    for(const item of imported) {
+      const entries=embeddedFeePayments(item.source);
+      entries.forEach((entry,index)=>embeddedPayments.push({
+        ...entry,
+        _migration_source_id:sourceRecordId(entry)||('embedded-'+item.sourceId+'-'+(index+1)),
+        _migration_enrollment_id:item.sourceId
+      }));
+    }
+    const allFeePayments=[...groups.FeePayment,...embeddedPayments];
+    for(const payment of allFeePayments) {
       try {
       const sourcePaymentId=sourceRecordId(payment);
-      const sourceEnrollmentId=clean(payment.enrollment_id,120);
+      const sourceEnrollmentId=clean(payment.enrollment_id||payment._migration_enrollment_id,120);
       if(!sourcePaymentId||!sourceEnrollmentId)continue;
       const mapping=await env.DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceEnrollmentId).first();
       if(!mapping){c.warnings.push('A fee payment was skipped because its student enrollment was not imported.');continue;}
-      const amount=Math.round(num(payment.amount));
+      const amount=Math.round(num(payment.amount??payment.amount_paid??payment.paid_amount??payment.amount_received));
       if(amount<=0)continue;
       const st=clean(payment.status,40).toLowerCase();
       const status=st==='verified'||st==='paid'||payment.amount_confirmed===true?'paid':st==='rejected'||st==='failed'?'failed':'pending';
@@ -1550,7 +1590,7 @@ export async function onRequestPost({request,env}) {
           .bind(sourcePaymentId,paymentId,mapping.user_id).run();
         continue;
       }
-      const mpesaCode=clean(payment.mpesa_code,80);
+      const mpesaCode=clean(payment.mpesa_code||payment.mpesa_receipt_number||payment.receipt_number||payment.receipt_no||payment.transaction_code||payment.payment_reference||payment.payment_ref,80);
       if(mpesaCode) {
         const receiptDuplicate=await env.DB.prepare('SELECT id FROM payments WHERE receipt_number=? AND amount=? AND reference_id=? LIMIT 1').bind(mpesaCode,amount,mapping.destination_id).first();
         if(receiptDuplicate) {
@@ -1565,7 +1605,7 @@ export async function onRequestPost({request,env}) {
           clean(payment.mpesa_code,80)||null,'B44-PAY-'+sourcePaymentId.replace(/[^a-z0-9]/gi,'').slice(-16).toUpperCase(),
           'BASE44-FEE-'+sourcePaymentId.slice(-10).toUpperCase(),
           'Imported student fee payment from Base44 ('+clean(payment.payment_method,40)+').',
-          clean(payment.payment_date||payment.created_date,40)||null,
+          clean(payment.payment_date||payment.paid_on||payment.transaction_date||payment.created_date,40)||null,
           clean(payment.created_date,40)||new Date().toISOString(),
           clean(payment.updated_date||payment.created_date,40)||new Date().toISOString()).run();
       if(status==='paid')paidByEnrollment.set(sourceEnrollmentId,(paidByEnrollment.get(sourceEnrollmentId)||0)+amount);
