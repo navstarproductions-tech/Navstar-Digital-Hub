@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { RichTextEditor, RichTextDisplay } from '@/components/RichText';
 
 type Staff={id:string;name:string;email:string;role:string;staffId?:string;department?:string;jobTitle?:string};
-type Task={id:string;title:string;instructions:string;due_at?:string|null;status:string;created_by_name?:string;recipient_count?:number;submitted_count?:number;completed_count?:number;recipient_id?:string;status?:string;response_text?:string;attachment_url?:string|null;submitted_at?:string|null;feedback?:string|null;reviewed_at?:string|null};
+type Task={id:string;title:string;instructions:string;due_at?:string|null;status:string;created_by_name?:string;recipient_count?:number;submitted_count?:number;completed_count?:number;recipient_id?:string;response_text?:string;attachment_url?:string|null;submitted_at?:string|null;feedback?:string|null;reviewed_at?:string|null};
 type Recipient={id:string;assignment_id:string;user_id:string;status:string;response_text:string;attachment_url?:string|null;submitted_at?:string|null;feedback?:string|null;staff_name:string;staff_email:string;staff_role:string;staff_id?:string};
 const field='w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100';
 const primary='rounded-xl bg-blue-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50';
@@ -18,7 +19,7 @@ export function StaffAssignmentsWorkspace(){
  const run=async(payload:Record<string,unknown>,success:string)=>{setBusy(true);setFailure('');setNotice('');try{const r=await fetch('/api/staff-assignments',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok)throw new Error(j.error||'The staff assignment action failed.');await load();setNotice(success);return true;}catch(e){setFailure(e instanceof Error?e.message:'The staff assignment action failed.');return false;}finally{setBusy(false);}};
  const clear=()=>{setEditing('');setTitle('');setInstructions('');setDueAt('');setAssignToAll(true);setRecipientIds([]);};
  const edit=(task:Task)=>{setEditing(task.id);setTitle(task.title);setInstructions(task.instructions);setDueAt(task.due_at?new Date(task.due_at).toISOString().slice(0,16):'');setAssignToAll(false);setRecipientIds(recipients.filter(r=>r.assignment_id===task.id).map(r=>r.user_id));window.scrollTo({top:0,behavior:'smooth'});};
- const save=async(e:React.FormEvent)=>{e.preventDefault();const payload={action:editing?'update':'create',assignmentId:editing||undefined,title,instructions,dueAt:dueAt?new Date(dueAt).toISOString():null,assignToAll,recipientIds,status:'draft'};const ok=await run(payload,editing?'Staff task updated.':'Staff task created.');if(ok)clear();};
+ const save=async(e:FormEvent)=>{e.preventDefault();const payload={action:editing?'update':'create',assignmentId:editing||undefined,title,instructions,dueAt:dueAt?new Date(dueAt).toISOString():null,assignToAll,recipientIds,status:'draft'};const ok=await run(payload,editing?'Staff task updated.':'Staff task created.');if(ok)clear();};
  const due=(value?:string|null)=>value?new Date(value).toLocaleString('en-KE',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Nairobi'}):'No deadline';
  const byTask=(id:string)=>recipients.filter(r=>r.assignment_id===id);
  if(!['admin','principal'].includes(role))return <div className="space-y-4">
