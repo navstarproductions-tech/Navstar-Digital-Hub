@@ -1006,10 +1006,27 @@ export async function onRequestPost({request,env}) {
         }
       }
     }
-    if(['CourseUnit','ModuleAssignment','Exam','ExamAttempt','Assignment','StudentResult','MarksConflict'].includes(batchEntity))await support('Course');
-    if(['Exam','ExamAttempt','Assignment','StudentResult','MarksConflict','ModuleAssignment'].includes(batchEntity))await support('CourseUnit');
+    if(['CourseUnit','ModuleAssignment','Exam','Assignment','StudentResult','MarksConflict'].includes(batchEntity))await support('Course');
+    if(['Exam','Assignment','StudentResult','MarksConflict','ModuleAssignment'].includes(batchEntity))await support('CourseUnit');
     if(batchEntity==='ModuleAssignment')await support('SystemUser');
-    if(batchEntity==='ExamAttempt')await support('Exam');
+    // ExamAttempt processing uses the already-created Exam import map and live
+    // student lookup. Do not reload every Exam/CourseUnit row for each 15-row
+    // attempt page: that repeated full-table scan caused Cloudflare 524s.
+    // Only fetch Course rows referenced by attempts that lack course_title,
+    // because historical parent-exam recovery may need the course name.
+    if(batchEntity==='ExamAttempt'&&page.results?.length){
+      const courseIds=[...new Set(page.results.flatMap(row=>{
+        try{
+          const attempt=JSON.parse(row.record_json);
+          return !clean(attempt.course_title,160)&&clean(attempt.course_id,120)?[clean(attempt.course_id,120)]:[];
+        }catch{return [];}
+      }))];
+      if(courseIds.length){
+        const marks=courseIds.map(()=>'?').join(',');
+        const q=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM "+archiveTable+" WHERE migration_batch=? AND entity_name='Course' AND source_id IN ("+marks+")").bind(sourceBatch,...courseIds).all();
+        stagedRows.push(...(q.results||[]));
+      }
+    }
     const totalRow=await env.DB.prepare('SELECT COUNT(*) AS count FROM '+archiveTable+' WHERE migration_batch=? AND entity_name=?').bind(sourceBatch,batchEntity).first();
     const total=Number(totalRow?.count||0);
     body._batchMeta={entity:batchEntity,offset,limit,total,processed:(page.results||[]).length,nextOffset:offset+(page.results||[]).length,done:offset+(page.results||[]).length>=total};
