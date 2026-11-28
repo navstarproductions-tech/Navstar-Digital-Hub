@@ -71,6 +71,10 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
   useEffect(() => {
     if (!balanceRequestedAt) return;
     const started = Date.parse(balanceRequestedAt);
+    if (balance?.received_at && Date.parse(balance.received_at) >= started) {
+      setBalanceRequestedAt('');
+      return;
+    }
     const poll = window.setInterval(() => {
       void refresh(true);
       if (Date.now() - started >= 120000) {
@@ -79,7 +83,7 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
       }
     }, 3000);
     return () => window.clearInterval(poll);
-  }, [balanceRequestedAt, refresh]);
+  }, [balanceRequestedAt, balance?.received_at, refresh]);
 
   const review = async (paymentId: string, decision: 'confirmed' | 'flagged') => {
     try {
