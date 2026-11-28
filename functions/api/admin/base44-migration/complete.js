@@ -1436,6 +1436,9 @@ export async function onRequestPost({request,env}) {
     }
     if(['CourseUnit','ModuleAssignment','Exam','Assignment','StudentResult','MarksConflict'].includes(batchEntity))await support('Course');
     if(['Exam','Assignment','StudentResult','MarksConflict','ModuleAssignment'].includes(batchEntity))await support('CourseUnit');
+    // StudentResult rows can reference older enrolment IDs and omit student_name.
+    // Load identity-bearing records so the learner can be resolved by exact email + course.
+    if(batchEntity==='StudentResult'){await support('AttendanceRecord');await support('ExamAttempt');}
     if(batchEntity==='ModuleAssignment')await support('SystemUser');
     if(batchEntity==='CertDeliveryConfirmation')await support('Certificate');
     // ExamAttempt processing uses the already-created Exam import map and live
@@ -1536,7 +1539,22 @@ export async function onRequestPost({request,env}) {
     // Recover legacy exam shells from attempt metadata when Base44 no longer has the parent Exam row.
     // This preserves historical attempts and their questions without publishing a new live paper.
     if(!batchMode||batchEntity==='ExamAttempt')for(const attempt of groups.ExamAttempt)await migrationGuard('ExamAttempt student identity '+sourceRecordId(attempt),()=>importDerivedStudent(env.DB,attempt,'ExamAttempt',tokenRow.created_by,c),c);
-    if(!batchMode||batchEntity==='StudentResult')for(const result of groups.StudentResult)await migrationGuard('StudentResult student identity '+sourceRecordId(result),()=>importDerivedStudent(env.DB,result,'StudentResult',tokenRow.created_by,c),c);
+    if(!batchMode||batchEntity==='StudentResult')for(const result of groups.StudentResult) {
+      const email=clean(result.student_email||result.email,254).toLowerCase();
+      const courseId=clean(result.course_id,120);
+      const identityRows=[...(groups.ExamAttempt||[]),...(groups.AttendanceRecord||[])];
+      const identity=identityRows.find(row=>
+        clean(row.student_email||row.email,254).toLowerCase()===email &&
+        courseId && clean(row.course_id,120)===courseId &&
+        clean(row.student_name||row.full_name||row.name,120)
+      );
+      const enriched={
+        ...result,
+        student_name:clean(result.student_name,120)||clean(identity?.student_name||identity?.full_name||identity?.name,120),
+        admission_number:clean(result.admission_number,80)||clean(identity?.admission_number||identity?.student_admission_number,80)
+      };
+      await migrationGuard('StudentResult student identity '+sourceRecordId(result),()=>importDerivedStudent(env.DB,enriched,'StudentResult',tokenRow.created_by,c),c);
+    }
     if(!batchMode||batchEntity==='ExamAttempt')for(const attempt of groups.ExamAttempt)await migrationGuard('ExamAttempt parent '+sourceRecordId(attempt),()=>ensureExamForAttempt(env.DB,attempt,tokenRow.created_by,c,sourceCourses,sourceModules,groups.ExamQuestion),c);
     for(const question of groups.ExamQuestion)await importExamQuestion(env.DB,question,tokenRow.created_by,c);
     if(!batchMode||batchEntity==='Assignment')for(const assignment of groups.Assignment)await migrationGuard('Assignment '+sourceRecordId(assignment),()=>importAssignment(env.DB,assignment,tokenRow.created_by,c,sourceCourses,sourceModules),c);
