@@ -9,7 +9,7 @@ export async function onRequestGet({ request, env }) {
   const ledger=new URL(request.url).searchParams.get('ledger')==='fees'?'fees':'business';
   const where=ledger==='fees'?"WHERE p.purpose='enrollment'":"WHERE p.purpose IN ('service','donation')";
   try {
-    const [rows, totals, balance] = await Promise.all([
+    const [rows, totals, balance, c2bRows, c2bTotals] = await Promise.all([
       env.DB.prepare(`
         SELECT p.id, p.purpose, p.display_reference, p.internal_receipt_number AS receipt_number,
           p.receipt_number AS mpesa_receipt, p.amount, p.phone, p.status, p.admin_status,
@@ -46,7 +46,7 @@ export async function onRequestGet({ request, env }) {
       WHERE result_code = 0 AND received_at IS NOT NULL
       ORDER BY received_at DESC LIMIT 1`).first()
     ]);
-    return json({ ledger, payments: rows.results || [], totals: totals || {}, mpesaBalance: ledger==='business'?(balance || null):null });
+    const directPaybill = ledger === 'business' ? (c2bRows.results || []).map(row => ({ ...row, id: 'c2b:' + row.id, purpose: 'paybill', phone: row.msisdn, receipt_number: row.transaction_id, created_at: row.received_at, updated_at: row.received_at })) : [];\n    const combined = [...(rows.results || []), ...directPaybill].sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0, 500);\n    const mergedTotals = { ...(totals || {}), transaction_count: Number(totals?.transaction_count || 0) + (ledger === 'business' ? Number(c2bTotals?.transaction_count || 0) : 0), mpesa_received: Number(totals?.mpesa_received || 0) + (ledger === 'business' ? Number(c2bTotals?.mpesa_received || 0) : 0) };\n    return json({ ledger, payments: combined, totals: mergedTotals, directPaybillCount: ledger === 'business' ? Number(c2bTotals?.transaction_count || 0) : 0, mpesaBalance: ledger==='business'?(balance || null):null });
   } catch (cause) {
     console.error('Admin payment register failed:', String(cause?.message || cause));
     return error('The payment register is not ready. Confirm that the latest database migrations have been applied.', 503);
