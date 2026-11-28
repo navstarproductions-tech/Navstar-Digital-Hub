@@ -1,17 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileDown, FileText, Search, Users, RefreshCw } from 'lucide-react';
+import { FileDown, FileText, Search, RefreshCw, Wrench } from 'lucide-react';
 
 type Course={id:string;title:string};
 type Student={id:string;name:string;email:string;admission_number?:string;preferred_intake?:string};
 type Report={id:string;report_card_no:string;period_label:string;public_token:string;status:string;course_id:string;snapshot_json:string;issued_at?:string;student_name?:string;course_title?:string};
 type DocumentType='student-report'|'admin-report'|'student-transcript'|'admin-transcript';
 type Scope='individual'|'intake'|'all';
-const types:{id:DocumentType;title:string;description:string}[]=[
- {id:'student-report',title:'Student Report Card',description:'Clean official document — the copy issued to the student.'},
- {id:'admin-report',title:'Admin Report Card',description:'Adds a red internal ADMIN COPY page — fees, attendance, flags & comments.'},
- {id:'student-transcript',title:'Student Transcript',description:'Grades-only official transcript — the copy issued to the student.'},
- {id:'admin-transcript',title:'Admin Transcript',description:'Grades-only transcript plus the red internal ADMIN COPY page.'}
-];
+const types:{id:DocumentType;title:string;description:string}[]=[{id:'admin-transcript',title:'Admin Transcript',description:'Grades-only administrative transcript. Unpublished internal record.'}];
 const panel='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 const button='inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-900 to-cyan-700 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50';
 const esc=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
@@ -20,10 +15,10 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
  const [students,setStudents]=useState<Student[]>([]);
  const [studentId,setStudentId]=useState('');
  const [search,setSearch]=useState('');
- const [documentType,setDocumentType]=useState<DocumentType>('student-report');
+ const [documentType,setDocumentType]=useState<DocumentType>('admin-transcript');
  const [scope,setScope]=useState<Scope>('individual');
  const [intake,setIntake]=useState('');
- const [period,setPeriod]=useState('Semester 1');
+ const [repairing,setRepairing]=useState(false);
  const [busy,setBusy]=useState(false);
  const [notice,setNotice]=useState('');
  const [generated,setGenerated]=useState<Report[]>([]);
@@ -39,8 +34,8 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
  useEffect(()=>{void refreshReports().catch(()=>undefined)},[]);
  function printDocument(report:Report,targetWindow?:Window|null){
   let snap:any={};try{snap=typeof report.snapshot_json==='string'?JSON.parse(report.snapshot_json):report.snapshot_json||{}}catch{}
-  const transcript=documentType.endsWith('transcript');
-  const admin=documentType.startsWith('admin');
+  const transcript=true;
+  const admin=false;
   const no=transcript?String(report.report_card_no||'').replace(/^RC-/,'TR-'):report.report_card_no;
   const rows=(snap.results||[]).map((r:any,i:number)=>'<tr><td>'+ (i+1)+'</td><td>'+esc(r.code||'—')+'</td><td>'+esc(r.title||'—')+'</td>'+(transcript?'':'<td>'+Number(r.cat_score||0).toFixed(2)+'</td><td>'+Number(r.practical_score||0).toFixed(2)+'</td><td>'+Number(r.exam_score||0).toFixed(2)+'</td><td>'+Number(r.total_points||0).toFixed(2)+' / '+Number(r.max_points||0).toFixed(2)+'</td><td>'+(r.percentage==null?'—':Number(r.percentage).toFixed(1)+'%')+'</td>')+'<td>'+esc(r.grade||'—')+'</td><td>'+esc(r.remarks||'—')+'</td></tr>').join('');
   const headings='<th>#</th><th>Module code</th><th>Module / Unit</th>'+(transcript?'':'<th>CAT</th><th>Practical</th><th>Final</th><th>Total / Max</th><th>Percentage</th>')+'<th>Grade</th><th>Remarks</th>';
@@ -53,7 +48,7 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
   w.document.close();
  }
  async function generate(){
-  if(!courseId||!period.trim()){setNotice('Choose a course and reporting period.');return;}
+  if(!courseId){setNotice('Choose a course.');return;}
   let targets=scope==='individual'?students.filter(s=>s.id===studentId):scope==='intake'?students.filter(s=>s.preferred_intake===intake):students;
   if(scope==='individual'&&!studentId){setNotice('Select a student first.');return;}
   if(scope==='intake'&&!intake){setNotice('Select an intake first.');return;}
@@ -63,29 +58,25 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
   let skipCount=0,failCount=0;const ids:string[]=[];
   try{
    for(const student of targets){
-    try{const r=await fetch('/api/academic-workspace',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'issue-report-card',studentId:student.id,courseId,periodLabel:period})});const j=await r.json();if(r.ok&&j.id)ids.push(j.id);else if(r.status===409)skipCount++;else failCount++;}
+    try{const r=await fetch('/api/academic-workspace',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'issue-report-card',studentId:student.id,courseId,periodLabel:student.preferred_intake||''})});const j=await r.json();if(r.ok&&j.id)ids.push(j.id);else if(r.status===409)skipCount++;else failCount++;}
     catch{failCount++;}
    }
    const list=await fetch('/api/academic-workspace?action=report-cards',{credentials:'same-origin'});const data=await list.json();const rows:Report[]=(data.reportCards||[]).filter((r:Report)=>ids.includes(r.id));
    setGenerated(rows);setSkipped(skipCount);setFailed(failCount);setReports(data.reportCards||[]);
-   setNotice('Generation finished. '+rows.length+' document record(s) created; '+skipCount+' existing record(s) skipped; '+failCount+' failed. Admin-generated records remain drafts until approved and published.');
+   setNotice('Generation finished. '+rows.length+' document record(s) created; '+skipCount+' existing record(s) skipped; '+failCount+' failed. All generated records remain unpublished.');
    if(scope==='individual'&&rows[0])printDocument(rows[0],printWindow);else if(printWindow&&!printWindow.closed)printWindow.close();
   }catch(e){if(scope==='individual'&&typeof printWindow!=='undefined'&&printWindow&&!printWindow.closed)printWindow.close();setNotice(e instanceof Error?e.message:'Documents could not be generated.');}
   finally{setBusy(false);}
  }
- const activeType=types.find(t=>t.id===documentType)!;
+ const activeType=types[0];
  return <div className="space-y-5">
   <section className={panel}>
-   <div className="flex items-center gap-3"><FileText className="h-7 w-7 text-blue-800"/><div><p className="text-xs font-bold uppercase tracking-widest text-cyan-800">NAVSTAR DIGITAL HUB</p><h2 className="text-xl font-black">Report Cards &amp; Transcripts</h2></div></div>
-   <p className="mt-2 text-sm text-slate-600">Select a student and generate directly — the student and admin versions look different. Transcripts carry grades only; report cards carry the full marks.</p>
+   <div className="flex items-center gap-3"><FileText className="h-7 w-7 text-blue-800"/><div><p className="text-xs font-bold uppercase tracking-widest text-cyan-800">NAVSTAR DIGITAL HUB</p><h2 className="text-xl font-black">Admin Transcripts</h2></div></div>
+   <p className="mt-2 text-sm text-slate-600">Generate grades-only administrative transcripts for active, accepted enrolments. The system uses each student's intake, not a manually entered reporting month. All generated records remain unpublished.</p>
    <div className="mt-5 grid gap-4 md:grid-cols-2">
     <label className="text-xs font-bold text-slate-700">Select Student
      <select value={studentId} onChange={e=>setStudentId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"><option value="">Search and select a student</option>{filtered.map(s=><option key={s.id} value={s.id}>{s.name} · {s.admission_number||s.email}</option>)}</select>
      <div className="relative mt-2"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, admission number or email" className="w-full rounded-xl border p-2.5 pl-9 text-sm"/></div>
-    </label>
-    <label className="text-xs font-bold text-slate-700">Document to Generate
-     <select value={documentType} onChange={e=>setDocumentType(e.target.value as DocumentType)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">{types.map(t=><option key={t.id} value={t.id}>{t.title}</option>)}</select>
-     <span className="mt-2 block text-xs font-normal text-slate-500">{activeType.description}</span>
     </label>
     <label className="text-xs font-bold text-slate-700">Generate For
      <select value={scope} onChange={e=>setScope(e.target.value as Scope)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"><option value="individual">Individual — the selected student</option><option value="intake">Selected intake — active students</option><option value="all">All active students in this course</option></select>
@@ -94,16 +85,11 @@ export function ReportCardsTranscriptsWorkspace({courses=[]}:{courses:Course[]})
     <label className="text-xs font-bold text-slate-700">Course
      <select value={courseId} onChange={e=>setCourseId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"><option value="">Select course</option>{courses.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select>
     </label>
-    <label className="text-xs font-bold text-slate-700">Reporting Period
-     <input value={period} onChange={e=>setPeriod(e.target.value)} placeholder="e.g. Semester 1, 2026" className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"/>
-    </label>
    </div>
    <button onClick={()=>void generate()} disabled={busy||!courseId||(scope==='individual'&&!studentId)||(scope==='intake'&&!intake)} className={button+' mt-5'}><FileDown className="h-4 w-4"/>{busy?'Generating…':'Generate & Download PDF'}</button>
+   <button onClick={()=>void (async()=>{setRepairing(true);try{const r=await fetch('/api/academic-workspace',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'repair-missing-intakes'})});const j=await r.json();setNotice(r.ok?(j.message+' Scanned: '+j.scanned+'; repaired: '+j.repaired+'; unresolved: '+j.unresolved+'.'):(j.error||'Intake repair failed.'));const s=await fetch('/api/academic-workspace?action=students&courseId='+encodeURIComponent(courseId),{credentials:'same-origin'});const d=await s.json();if(s.ok)setStudents(d.students||[]);}catch{setNotice('Intake repair failed.');}finally{setRepairing(false);}})()} disabled={repairing} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900"><Wrench className="h-4 w-4"/>{repairing?'Repairing intakes…':'Repair Missing Intakes'}</button>
    {notice&&<p role="status" className="mt-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-950">{notice}</p>}
-   <p className="mt-3 text-xs text-slate-500">Only active students with accepted enrolments are listed. Admin documents include a separate red internal page. Existing records for the same student, course and period are never overwritten.</p>
-  </section>
-  <section className={panel}>
-   <h3 className="font-black text-slate-900">Document types</h3><div className="mt-3 grid gap-3 sm:grid-cols-2">{types.map(t=><button type="button" key={t.id} onClick={()=>setDocumentType(t.id)} className={'rounded-xl border p-4 text-left '+(documentType===t.id?'border-blue-500 bg-blue-50':'border-slate-200 bg-slate-50')}><b className="block text-sm">{t.title}</b><span className="mt-1 block text-xs text-slate-600">{t.description}</span></button>)}</div>
+   <p className="mt-3 text-xs text-slate-500">Only active students with accepted enrolments are eligible. Existing records for the same student, course and intake are never overwritten.</p>
   </section>
   {(generated.length>0||reports.length>0)&&<section className={panel}>
    <div className="flex items-center justify-between gap-3"><h3 className="font-black">Generated documents</h3><button onClick={()=>void refreshReports()} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold"><RefreshCw className="h-3.5 w-3.5"/>Refresh</button></div>
