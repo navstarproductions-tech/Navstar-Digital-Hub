@@ -531,8 +531,10 @@ async function ensureHistoricalModule(DB,course,sourceModuleId,moduleCode,module
   if(matched.row)return matched;
   const title=clean(moduleTitle||sourceModules.get(clean(sourceModuleId,120))?.title,160);
   if(!title)return matched;
-  const code=clean(moduleCode,30).toUpperCase();
+  const requestedCode=clean(moduleCode,30).toUpperCase();
   const existing=await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE course_id=? AND lower(trim(title))=lower(trim(?)) LIMIT 1").bind(course.id,title).first();
+  const codeTaken=requestedCode?await DB.prepare("SELECT id FROM course_modules WHERE module_code=? LIMIT 1").bind(requestedCode).first():null;
+  const code=codeTaken?'':requestedCode;
   const id=existing?.id||'b44histmod-'+(await sha256(course.id+'|'+norm(title))).slice(0,20);
   if(!existing) {
     await DB.prepare("INSERT OR IGNORE INTO course_modules(id,course_id,title,description,sort_order,status,created_by,module_code) VALUES(?,?,?,?,?,'published',?,?)")
