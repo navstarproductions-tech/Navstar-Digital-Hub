@@ -490,8 +490,7 @@ export async function onRequestPost({ request, env }) {
     return json({id:submissionId,status:approvalStatus==='approved'?'graded':'pending_approval',approvalStatus,pointsAwarded:points});
   }
 
-  return error('Unknown learning action.');
-}  if (action === 'delete_module') {
+if (action === 'delete_module') {
     const moduleId=safeString(body.moduleId,80);
     const module=await env.DB.prepare('SELECT id,course_id,title FROM course_modules WHERE id=?').bind(moduleId).first();
     if(!module)return error('The selected module was not found.',404);
@@ -580,4 +579,5 @@ export async function onRequestPost({ request, env }) {
     return json({moduleId,title:module.title,deleted:true,archived:false,dependencies,repairedResultLinks,repairedAssignmentLinks,repairedExamLinks});
   }
 
-
+  return error('Unknown learning action.');
+}
