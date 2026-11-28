@@ -229,7 +229,7 @@ export function Base44MigrationPage() {
       if (!finalizeResponse.ok || finalizeData.tokenFinalized !== true) throw new Error(finalizeData.error || 'The records were processed but the migration session could not be finalized.');
       const studentCount = counts.get('Enrollment') || 0;
       if (!studentCount) warnings.unshift('This saved package contains no Enrollment records. Student accounts and enrolments were not imported; check whether the original export uses a different student entity name.');
-      setResult({ ...totals, completed: true, tokenFinalized: true, sourceStudents: studentCount, studentEnrollmentsImported: (totals.enrollmentsCreated || 0) + (totals.enrollmentsAlreadyPresent || 0), questionBankImported: qImported, questionBankAlreadyPresent: qExisting, questionBankSkipped: qSkipped, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: entities.length, stagedRecordsProcessed: processed, warnings });
+      setResult({ ...totals, completed: true, tokenFinalized: true, sourceStudents: studentCount, studentEnrollmentsImported: (totals.enrollmentsCreated || 0) + (totals.enrollmentsAlreadyPresent || 0), questionBankImported: totals.questionsImported || 0, questionBankAlreadyPresent: totals.questionsAlreadyPresent || 0, questionBankSkipped: totals.questionsSkipped || 0, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: entities.length, stagedRecordsProcessed: processed, warnings });
       await loadArchive(selectedBatch);
       setProgress('All supported reconciliation batches have finished. Review the import totals and warnings before using the live records.');
     } catch (cause) {
