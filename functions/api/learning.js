@@ -191,7 +191,6 @@ export async function onRequestPost({ request, env }) {
   if (['assign_tutor','remove_tutor','assign_module_tutor','remove_module_tutor'].includes(action)) {
     const access = await requireRole(request, env, ['admin','principal']);
     if (access.response) return access.response;
-   } catch(cause) { console.error('Navstar module removal failed',JSON.stringify({reference:failureReference,message:String(cause?.message||cause),stack:String(cause?.stack||'').slice(0,1800)})); return json({error:'Module change could not be saved. Existing records have been preserved.',reference:failureReference,detail:String(cause?.message||'Database operation failed.').slice(0,300)},500); }
   }
 
   if (action === 'assign_module_tutor' || action === 'remove_module_tutor') {
@@ -611,6 +610,7 @@ if (action === 'delete_module') {
     await env.DB.prepare('DELETE FROM course_modules WHERE id=?').bind(moduleId).run();
     await writeAudit(env.DB,user.id,'lms_module_deleted','course_module',moduleId);
     return json({moduleId,title:module.title,deleted:true,archived:false,dependencies,repairedResultLinks,repairedAssignmentLinks,repairedExamLinks});
+   } catch(cause) { console.error('Navstar module removal failed',JSON.stringify({reference:failureReference,message:String(cause?.message||cause),stack:String(cause?.stack||'').slice(0,1800)})); return json({error:'Module change could not be saved. Existing records have been preserved.',reference:failureReference,detail:String(cause?.message||'Database operation failed.').slice(0,300)},500); }
   }
 
   return error('Unknown learning action.');
