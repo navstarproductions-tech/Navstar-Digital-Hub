@@ -910,6 +910,7 @@ async function importStudent(DB,r,adminId,c) {
       }
     }
   }
+  if(requestedIntake)await DB.prepare("UPDATE enrollments SET preferred_intake=? WHERE id=? AND (preferred_intake IS NULL OR trim(preferred_intake)='' OR preferred_intake='Unassigned Intake')").bind(requestedIntake,enrollmentId).run();
   const sourceEnrollmentDate=clean(r.enrollment_date,40)||clean(r.created_date,40)||'';
   if(sourceEnrollmentDate)await DB.prepare("UPDATE enrollments SET source_enrollment_date=COALESCE(NULLIF(source_enrollment_date,''),?) WHERE id=?").bind(sourceEnrollmentDate,enrollmentId).run();
   await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Enrollment',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
