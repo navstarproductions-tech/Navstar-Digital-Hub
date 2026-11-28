@@ -45,12 +45,17 @@ async function canAccess(db,user,courseId){
  if(user.role==='student')return Boolean(await db.prepare("SELECT id FROM enrollments WHERE course_id=? AND lower(email)=lower(?) AND status='accepted'").bind(courseId,user.email).first());
  return false;
 }
+async function canManageModuleAssessment(db,user,assessment){
+ if(admin.includes(user.role))return true;
+ if(user.role!=='tutor'||!assessment?.module_id)return false;
+ return Boolean(await db.prepare('SELECT id FROM module_tutor_assignments WHERE module_id=? AND tutor_user_id=?').bind(assessment.module_id,user.id).first());
+}
 export async function onRequestGet({request,env}){
  if(!env.DB)return error('Exam question database is not configured.',503);
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  const requestUrl=new URL(request.url),assessmentId=safeString(requestUrl.searchParams.get('assessmentId'),80),attemptId=safeString(requestUrl.searchParams.get('attemptId'),80);
  const assessment=await env.DB.prepare('SELECT a.id,a.course_id,a.module_id,a.title,CASE WHEN a.max_points>0 THEN a.max_points ELSE 100 END AS max_points,a.status,a.starts_at,a.due_at,a.duration_minutes,a.max_attempts,a.require_admin_approval,a.allow_result_review,a.shuffle_questions,a.shuffle_options,a.question_selection_mode,a.question_count,c.title AS course_title,m.title AS module_title,NULL AS module_code FROM course_assessments a JOIN courses c ON c.id=a.course_id LEFT JOIN course_modules m ON m.id=a.module_id WHERE a.id=?').bind(assessmentId).first();
- if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not available.',404);
+ if(!assessment||!(await canAccess(env.DB,user,assessment.course_id))||(user.role==='tutor'&&!(await canManageModuleAssessment(env.DB,user,assessment))))return error('Assessment not available for this module.',404);
  const paperMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100,student=user.role==='student';
  if(student&&(assessment.status!=='published'||(assessment.starts_at&&Date.parse(assessment.starts_at)>Date.now())||(assessment.due_at&&Date.parse(assessment.due_at)<Date.now())))return error('This examination is not currently open.',403);
  const bank=(await env.DB.prepare('SELECT id,question_text AS questionText,question_type AS questionType,options_json AS optionsJson,points,sort_order AS sortOrder,explanation,correct_answer_json AS correctAnswerJson FROM course_exam_questions WHERE assessment_id=? AND status=? ORDER BY sort_order,id').bind(assessmentId,'active').all()).results||[];
@@ -101,7 +106,7 @@ async function handleQuestionPost({request,env}){
  let body;try{body=await readJson(request,500000);}catch{return error('Invalid question request.');}
  const action=safeString(body.action,32),assessmentId=safeString(body.assessmentId,80);
  const assessment=await env.DB.prepare('SELECT id,course_id,module_id,title,assessment_type,max_points,status,starts_at,due_at,duration_minutes,max_attempts,require_admin_approval,require_full_fee_payment,require_assignment_submission,question_selection_mode,question_count,shuffle_questions,shuffle_options FROM course_assessments WHERE id=?').bind(assessmentId).first();
- if(!assessment||!(await canAccess(env.DB,user,assessment.course_id)))return error('Assessment not found or access denied.',404);
+ if(!assessment||!(await canAccess(env.DB,user,assessment.course_id))||(user.role==='tutor'&&!(await canManageModuleAssessment(env.DB,user,assessment))))return error('Assessment not found or access denied for this module.',404);
  const paperMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
  if(action==='delete_question'){
   const access=await requireRole(request,env,staff);if(access.response)return access.response;
