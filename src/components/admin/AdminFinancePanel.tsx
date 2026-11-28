@@ -7,7 +7,7 @@ type FinancePayment = {
   id: string; purpose: string; display_reference?: string; receipt_number?: string; mpesa_receipt?: string;
   amount: number; phone?: string; status: string; admin_status?: string; admin_review_note?: string;
   payer_name?: string; description?: string; contribution_type?: string; debt_reference?: string;
-  debt_description?: string; created_at?: string; updated_at?: string;
+  debt_description?: string; created_at?: string; updated_at?: string; source?: string; bill_reference?: string; transaction_time?: string;
 };
 type FinanceTotals = { transaction_count?: number; mpesa_received?: number; admin_confirmed?: number; awaiting_mpesa?: number; awaiting_admin_review?: number; failed_amount?: number; successful_count?: number; pending_count?: number; failed_count?: number };
 type Balance = { balance_text?: string; balance_amount?: number | null; currency?: string; received_at?: string; created_at?: string; latest_request_at?: string; result_description?: string };
@@ -27,6 +27,7 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
   const [lastRefresh, setLastRefresh] = useState('');
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [balanceRequestedAt, setBalanceRequestedAt] = useState('');
+  const [c2bRegistering, setC2bRegistering] = useState(false);
 
   const refresh = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -114,6 +115,18 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
     finally { setBalanceLoading(false); }
   };
 
+  const registerPaybillCallbacks = async () => {
+    setC2bRegistering(true); setNotice('');
+    try {
+      const response = await fetch('/api/admin/mpesa-c2b-register', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: '{}' });
+      const data = await response.json() as { message?: string; error?: string };
+      if (!response.ok) throw new Error(data.error || 'PayBill callback registration failed.');
+      setNotice(data.message || 'Safaricom accepted the PayBill callback registration.');
+      await refresh(true);
+    } catch (cause) { setNotice(cause instanceof Error ? cause.message : 'PayBill callback registration failed.'); }
+    finally { setC2bRegistering(false); }
+  };
+
   const money = (value: unknown) => Number(value || 0).toLocaleString('en-KE', { maximumFractionDigits: 2 });
   const balanceAgeMs = balance?.received_at ? Math.max(0, clockNow - Date.parse(balance.received_at)) : null;
   const balanceAgeMinutes = balanceAgeMs === null ? null : Math.floor(balanceAgeMs / 60000);
@@ -136,7 +149,7 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
           {balanceRequestedAt && <p className="mt-2 text-xs text-amber-100">New enquiry sent {formatEATDateTime(balanceRequestedAt)} · checking for Safaricom callback…</p>}
           <p className="mt-2 text-[11px] text-cyan-100">Payment register refreshes every 15 seconds. Balance amount changes only after Safaricom confirms a new callback.</p>
         </div>
-        <Button type="button" variant="secondary" onClick={() => void requestBalance()} disabled={balanceLoading || role !== 'admin'}>{balanceLoading ? 'Requesting…' : 'Refresh Safaricom balance'}</Button>
+        <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => void requestBalance()} disabled={balanceLoading || role !== 'admin'}>{balanceLoading ? 'Requesting…' : 'Refresh Safaricom balance'}</Button><Button type="button" variant="secondary" onClick={() => void registerPaybillCallbacks()} disabled={c2bRegistering || role !== 'admin'}>{c2bRegistering ? 'Registering…' : 'Connect PayBill receipts'}</Button></div>
       </div>
     </section>}
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -151,7 +164,7 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
     </section>
     <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4">
       <div><h3 className="font-bold text-slate-950">{ledger === 'fees' ? 'Student fee collection' : 'Business payment activity'}</h3>
-        <p className="mt-1 text-sm text-slate-600">{ledger === 'fees' ? 'Student enrolment transactions and their current payment states.' : 'Service payments, donations and payout requests. Pending and failed payments remain visible for reconciliation.'}</p>
+        <p className="mt-1 text-sm text-slate-600">{ledger === 'fees' ? 'Student enrolment transactions and their current payment states.' : 'Service payments, donations, direct PayBill receipts and payout requests. PayBill confirmations are imported automatically; pending and failed prompt payments remain visible for reconciliation.'}</p>
         {lastRefresh && <p className="mt-1 text-xs text-slate-500">Screen refreshed: {formatEATDateTime(lastRefresh)}</p>}
       </div>
       <Button type="button" variant="outline" onClick={() => void refresh()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh now'}</Button>
@@ -164,12 +177,12 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
       <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-xs">
         <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Payer / purpose</th><th className="p-3">Reference</th><th className="p-3">Amount</th><th className="p-3">Payment status</th><th className="p-3">M-PESA receipt</th><th className="p-3">Admin review</th><th className="p-3">Action</th></tr></thead>
         <tbody>{filteredPayments.map(item => <tr key={item.id} className="border-t">
-          <td className="p-3"><strong>{item.payer_name || 'Payer'}</strong><p className="mt-1 text-slate-500">{item.description || item.purpose}{item.phone ? ' · '+item.phone : ''}{item.debt_reference ? ' · '+item.debt_reference : ''}</p></td>
-          <td className="p-3">{item.display_reference || '—'}<p className="text-slate-500">{item.receipt_number || ''}</p></td>
+          <td className="p-3"><strong>{item.payer_name || 'Payer'}</strong><p className="mt-1 text-slate-500">{item.source === 'paybill' ? 'DIRECT PAYBILL' : (item.description || item.purpose)}{item.phone ? ' · '+item.phone : ''}{item.debt_reference ? ' · '+item.debt_reference : ''}</p></td>
+          <td className="p-3">{item.display_reference || item.bill_reference || '—'}<p className="text-slate-500">{item.receipt_number || ''}</p></td>
           <td className="p-3 font-bold">KSh {money(item.amount)}</td>
           <td className="p-3"><span className={'rounded-full px-2 py-1 font-bold '+(item.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : item.status === 'failed' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800')}>{item.status}</span></td>
           <td className="p-3">{item.mpesa_receipt || '—'}</td><td className="p-3">{item.admin_status || '—'}{item.admin_review_note ? <p className="text-slate-500">{item.admin_review_note}</p> : null}</td>
-          <td className="p-3">{item.status === 'paid' && item.admin_status !== 'confirmed' && role === 'admin' ? <div className="flex gap-2"><Button size="sm" type="button" onClick={() => void review(item.id, 'confirmed')}>Confirm</Button><Button size="sm" type="button" variant="outline" onClick={() => void review(item.id, 'flagged')}>Flag</Button></div> : '—'}</td>
+          <td className="p-3">{item.source !== 'paybill' && item.status === 'paid' && item.admin_status !== 'confirmed' && role === 'admin' ? <div className="flex gap-2"><Button size="sm" type="button" onClick={() => void review(item.id, 'confirmed')}>Confirm</Button><Button size="sm" type="button" variant="outline" onClick={() => void review(item.id, 'flagged')}>Flag</Button></div> : '—'}</td>
         </tr>)}</tbody>
       </table></div>
       {filteredPayments.length === 0 && <p className="p-5 text-sm text-slate-500">No transactions match this filter.</p>}
