@@ -139,9 +139,62 @@ export function Base44MigrationPage() {
       for (const entity of order) {
         const total = counts.get(entity) || 0;
         if (!total) continue;
+
+        // ExamAttempt rows are intentionally isolated to one row per request because
+        // each can restore questions, answers, attempts and published results. Run a
+        // small bounded worker pool so one slow row does not serialize the whole archive.
+        if (entity === 'ExamAttempt') {
+          let nextOffset = 0;
+          let failed = false;
+          const worker = async () => {
+            while (!failed) {
+              const offset = nextOffset++;
+              if (offset >= total) return;
+              let lastError: Error | null = null;
+              for (let attempt = 0; attempt < 4; attempt++) {
+                try {
+                  setProgress('Reconciling ExamAttempt records (' + Math.min(offset + 1, total) + ' of ' + total + ')…');
+                  const response = await fetch('/api/admin/base44-migration/complete', {
+                    method: 'POST', credentials: 'same-origin', headers,
+                    body: JSON.stringify({ batchId: selectedBatch, archiveReplay: true, deferTokenUse: true, batchEntity: entity, offset, limit: 1 })
+                  });
+                  const raw = await response.text();
+                  let data: Record<string, unknown> = {};
+                  try { data = raw ? JSON.parse(raw) as Record<string, unknown> : {}; } catch {}
+                  if (!response.ok) {
+                    const detail = [String(data.error || ''), String(data.detail || ''), data.progress ? JSON.stringify(data.progress) : '', !data.error && !data.detail ? raw.slice(0, 500) : '', 'HTTP ' + response.status].filter(Boolean).join(' · ');
+                    if ([502, 503, 504, 524].includes(response.status) && attempt < 3) {
+                      await new Promise(resolve => setTimeout(resolve, 700 * Math.pow(2, attempt)));
+                      continue;
+                    }
+                    throw new Error('ExamAttempt record ' + offset + ': ' + detail);
+                  }
+                  for (const [key, value] of Object.entries(data)) {
+                    if (typeof value === 'number' && /Imported$|Created$|AlreadyPresent$|Skipped$|Conflicts$|Required$|Entries$|Updated$/.test(key)) totals[key] = (totals[key] || 0) + value;
+                  }
+                  if (Array.isArray(data.warnings)) warnings.push(...data.warnings.map(String));
+                  processed += Number(data.processed || 0);
+                  lastError = null;
+                  break;
+                } catch (cause) {
+                  lastError = cause instanceof Error ? cause : new Error(String(cause));
+                  if (attempt < 3 && !lastError.message.includes('HTTP ')) {
+                    await new Promise(resolve => setTimeout(resolve, 700 * Math.pow(2, attempt)));
+                    continue;
+                  }
+                  break;
+                }
+              }
+              if (lastError) { failed = true; throw lastError; }
+            }
+          };
+          await Promise.all(Array.from({ length: Math.min(4, total) }, () => worker()));
+          continue;
+        }
+
         let offset = 0;
         do {
-          const batchLimit = entity === 'ExamAttempt' ? 1 : 15;
+          const batchLimit = 15;
           setProgress('Reconciling ' + entity + ' records (' + Math.min(offset + batchLimit, total) + ' of ' + total + ')…');
           const response = await fetch('/api/admin/base44-migration/complete', {
             method: 'POST', credentials: 'same-origin', headers,
