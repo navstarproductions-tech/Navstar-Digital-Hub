@@ -649,7 +649,7 @@ async function importCertificateDelivery(DB,r,certificates,c) {
   const sourceId=sourceRecordId(r);
   const certId=clean(r.certificate_id,100),serial=clean(r.serial_number,100);
   if(!sourceId||(!certId&&!serial))return;
-  const sourceCertificate=(certificates||[]).find(x=>clean(x.certificate_id,100)===certId||clean(x.serial_number,100)===serial);
+  const sourceCertificate=(certificates||[]).find(x=>(certId&&clean(x.certificate_id,100)===certId)||(serial&&clean(x.serial_number,100)===serial));
   if(!sourceCertificate)return;
   const mapping=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Certificate' AND source_id=?").bind(sourceRecordId(sourceCertificate)).first();
   if(!mapping?.destination_id)return;
