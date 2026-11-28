@@ -1004,8 +1004,12 @@ export async function onRequestPost({request,env}) {
       const done=nextOffset>=total;
       if(done&&body.finalize===true&&!deferTokenUse){
         await env.DB.prepare('UPDATE base44_migration_tokens SET used_at=CURRENT_TIMESTAMP WHERE token_hash=? AND used_at IS NULL').bind(tokenHash).run();
-        await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
-          .bind(uuid(),tokenRow.created_by,'base44_exam_question_archive_import_completed','migration',sourceBatch.slice(0,24)).run();
+        try {
+          await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
+            .bind(uuid(),tokenRow.created_by,'base44_exam_question_archive_import_completed','migration',sourceBatch.slice(0,24)).run();
+        } catch (auditError) {
+          console.warn('Base44 question archive imported, but its optional audit entry could not be written:', String(auditError?.message || auditError));
+        }
       }
       return new Response(JSON.stringify({completed:done,questionsOnly:true,sourceBatch,processed:stagedRows.length,nextOffset:done?null:nextOffset,total,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,tokenFinalized:done&&body.finalize===true&&!deferTokenUse}),{status:200,headers:{...headers,'Content-Type':'application/json'}});
     }
@@ -1134,8 +1138,14 @@ export async function onRequestPost({request,env}) {
       await env.DB.prepare('UPDATE enrollments SET payment_status=? WHERE id=?').bind(paymentStatus,item.enrollmentId).run();
     }
     if(!deferTokenUse)await env.DB.prepare('UPDATE base44_migration_tokens SET used_at=CURRENT_TIMESTAMP WHERE token_hash=? AND used_at IS NULL').bind(tokenHash).run();
-    await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
-      .bind(uuid(),tokenRow.created_by,academicOnly?'base44_academic_archive_import_completed':'base44_student_and_fee_migration_completed','migration',sourceBatch.slice(0,24)).run();
+    // Audit history is supplementary: a legacy actor reference must never roll back
+    // or falsely fail otherwise successful, idempotent archive reconciliation.
+    try {
+      await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
+        .bind(uuid(),tokenRow.created_by,academicOnly?'base44_academic_archive_import_completed':'base44_student_and_fee_migration_completed','migration',sourceBatch.slice(0,24)).run();
+    } catch (auditError) {
+      c.warnings.push('The records were processed, but the optional audit-history entry could not be written: ' + String(auditError?.message || auditError));
+    }
     return new Response(JSON.stringify({
       completed:true,scope:academicOnly?['Enrollment','AcademicIntake','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'] :['Enrollment','AcademicIntake','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'],sourceBatch,
       studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,academicIntakesImported:c.academicIntakesImported,academicIntakesAlreadyPresent:c.academicIntakesAlreadyPresent,academicIntakesSkipped:c.academicIntakesSkipped,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
