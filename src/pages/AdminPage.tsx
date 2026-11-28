@@ -82,6 +82,7 @@ const sections: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
   {id:'ai-assistant',label:'Navstar AI',icon:Bot},
   {id:'courses',label:'Courses',icon:BookOpen},
   {id:'learning',label:'Modules',icon:BookOpen},
+  {id:'assignments',label:'Assignments',icon:FileText},
   {id:'school',label:'Students',icon:Users},
   {id:'employees',label:'Employees',icon:Users},
   {id:'ai-intake-advisor',label:'AI Intake Advisor',icon:LayoutDashboard},
@@ -140,6 +141,7 @@ const makeTabs = (labels:string[],target:Section):AdminSubtab[] => labels.map(la
 const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   overview: [],
   courses: [{label:'Course Catalogue',target:'courses',coursesTab:'catalogue'},{label:'Manage Courses',target:'courses',coursesTab:'manage'},{label:'Course Codes & Intakes',target:'courses',coursesTab:'manage'},{label:'Auto-Generate Course Codes',target:'courses',coursesTab:'manage'},{label:'Fee Structures',target:'courses'},{label:'Course Modules',target:'learning',learningTab:'modules'}],
+  assignments: [{label:'Create & Manage Assignments',target:'assignments'}],
   learning: [{label:'View Modules',target:'learning',learningTab:'modules'},{label:'Module Catalogue',target:'learning',learningTab:'modules'},{label:'Lessons & Resources',target:'learning',learningTab:'modules'},{label:'Assignments',target:'learning',learningTab:'modules'},{label:'Tests & Exams',target:'learning',learningTab:'modules'},{label:'Tutor Allocation',target:'learning',learningTab:'modules'},{label:'Bulk Module Import',target:'learning',learningTab:'bulk'},{label:'Assign Modules',target:'learning',learningTab:'modules'},{label:'Auto-Assign Modules',target:'learning',learningTab:'bulk'},{label:'Module Codes',target:'learning',learningTab:'modules'},{label:'Auto-Generate Module Codes',target:'learning',learningTab:'modules'}],
   school: [{label:'Active Students',target:'school'},{label:'All Students & Accounts',target:'school'},{label:'Add New Student',target:'student-directory'},...makeTabs(['Bulk Enrollment','Completed → Graduates','Edit Student Details','Assign Intakes & Years','Detail Edit Requests','Print Basic List','Students List PDF (Filters & Select)','Manage Logins','Deleted Students & Recovery','Enrollment Links','Generate Bulk PDFs','Student Detail PDF'],'school')],
   employees: makeTabs(['Employee Directory','Add Employee','Edit Employee Details','Staff Roles & Departments','Staff Attendance','Employee Documents'],'employees'),
@@ -1389,6 +1391,7 @@ export function AdminPage() {
           {active === 'student-chat' && <PortalMessagesWorkspace userId={user?.id||''} userName={user?.name||'Staff'} mode="staff"/>}
           {active === 'timetable' && <AcademicCompletionWorkspace mode="admin" courses={courses} selectedTab="Timetable"/>}
           {active === 'marks-tests' && <MarksHubWorkspace subtab={selectedSubtab || 'Marks Hub'} courses={courses}/ >}
+          {active === 'assignments' && <LearningAdminSubtab subtab="Assignments" courses={courses}/>}
           {active === 'learning' && selectedSubtab === 'Tests & Exams' && <MarksHubWorkspace subtab="Exam Management (AI)" courses={courses}/ >}
           {active === 'learning' && selectedSubtab !== 'Tests & Exams' && (selectedSubtab === 'Teaching Staff' ? <TutorSpecialisationWorkspace courses={courses} mode="profiles"/> : selectedSubtab === 'Auto-Assign Modules' ? <TutorSpecialisationWorkspace courses={courses} mode="autoassign"/> : ['Module Codes','Auto-Generate Module Codes'].includes(selectedSubtab) ? <CourseCodeManagementWorkspace mode="modules"/> : <LearningAdminSubtab subtab={selectedSubtab || 'View Modules'} courses={courses}/>)}
 
