@@ -780,7 +780,8 @@ async function importOnlineForm(DB,r,adminId,c) {
   if(!sourceId||!title){c.onlineFormsSkipped++;return;}
   const prior=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='OnlineForm' AND source_id=?").bind(sourceId).first();
   if(prior?.destination_id){c.onlineFormsAlreadyPresent++;return;}
-  const rawFields=r.fields||r.form_fields||r.questions||[];
+  let rawFields=r.fields||r.form_fields||r.questions||[];
+  if(typeof rawFields==='string'){try{rawFields=JSON.parse(rawFields)}catch{rawFields=[];}}
   const fields=Array.isArray(rawFields)?rawFields:[];
   const audience=['student','customer','public'].includes(clean(r.audience,20).toLowerCase())?clean(r.audience,20).toLowerCase():'public';
   const rawStatus=clean(r.status,30).toLowerCase();
