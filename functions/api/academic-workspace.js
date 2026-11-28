@@ -6,6 +6,31 @@ const admins=['admin','principal'];
 const staff=['admin','principal','tutor'];
 const clean=(v,n=200)=>safeString(v,n);
 const token=()=>Array.from(crypto.getRandomValues(new Uint8Array(18)),b=>b.toString(16).padStart(2,'0')).join('');
+function resolveIntakeForDate(value,calendar=[],admissionNumber='') {
+ const date=String(value||'').slice(0,10),valid=/^\d{4}-\d{2}-\d{2}$/.test(date);
+ const rows=Array.isArray(calendar)?calendar:[];
+ if(valid){
+  const contains=(row,start,end)=>Boolean(start&&end&&String(date)>=String(start).slice(0,10)&&String(date)<=String(end).slice(0,10));
+  let match=rows.filter(row=>contains(row,row.start_date,row.end_date))
+    .sort((a,b)=>String(b.start_date||'').localeCompare(String(a.start_date||'')))[0];
+  if(!match)match=rows.filter(row=>contains(row,row.enrollment_open_date,row.enrollment_close_date))
+    .sort((a,b)=>String(b.enrollment_open_date||'').localeCompare(String(a.enrollment_open_date||'')))[0];
+  if(!match){
+   const upcoming=rows.filter(row=>row.start_date&&Date.parse(String(row.start_date).slice(0,10))>=Date.parse(date)&&
+     Date.parse(String(row.start_date).slice(0,10))-Date.parse(date)<=30*86400000)
+    .sort((a,b)=>String(a.start_date).localeCompare(String(b.start_date)))[0];
+   if(upcoming)match=upcoming;
+  }
+  if(match)return clean(match.intake_name,40)+' '+clean(match.year,8);
+  const d=new Date(date+'T12:00:00Z');
+  if(Number.isFinite(d.getTime()))return d.toLocaleString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'});
+ }
+ const admission=String(admissionNumber||'').toUpperCase();
+ const year=(admission.match(/20\d{2}/)||[])[0];
+ const monthTokens=[['JANUARY',/JAN(?:UARY)?/],['FEBRUARY',/FEB(?:RUARY)?/],['MARCH',/MAR(?:CH)?/],['APRIL',/APR(?:IL)?/],['MAY',/MAY/],['JUNE',/JUN(?:E)?/],['JULY',/JUL(?:Y)?/],['AUGUST',/AUG(?:UST)?/],['SEPTEMBER',/SEP(?:T|TEMBER)?/],['OCTOBER',/OCT(?:OBER)?/],['NOVEMBER',/NOV(?:EMBER)?/],['DECEMBER',/DEC(?:EMBER)?/]];
+ const month=monthTokens.find(([,pattern])=>pattern.test(admission));
+ return year&&month?month[0]+' '+year:null;
+}
 function categoryMaximum(type,settings={}){
  const grading=settings.grading||settings||{},kind=String(type||'').toLowerCase();
  const key=({cat:'catOutOf',test:'catOutOf',practical:'practicalOutOf',exam:'finalOutOf'}[kind]||'finalOutOf');
@@ -109,10 +134,10 @@ export async function onRequestPost({request,env}){
  }
  if(action==='repair-missing-intakes'){
   const access=await requireRole(request,env,admins);if(access.response)return access.response;
-  const missing=await env.DB.prepare("SELECT e.id,e.admission_number,e.created_at FROM enrollments e JOIN users u ON lower(u.email)=lower(e.email) WHERE e.status='accepted' AND u.role='student' AND u.status='active' AND (e.preferred_intake IS NULL OR trim(e.preferred_intake)='') ORDER BY e.created_at,e.admission_number").all();
-  const rows=missing.results||[];let repaired=0;
+  const missing=await env.DB.prepare("SELECT e.id,e.admission_number,COALESCE(NULLIF(e.source_enrollment_date,''),e.created_at) AS enrolled_on FROM enrollments e JOIN users u ON lower(u.email)=lower(e.email) WHERE e.status='accepted' AND u.role='student' AND u.status='active' AND (e.preferred_intake IS NULL OR trim(e.preferred_intake)='' OR e.preferred_intake='Unassigned Intake') ORDER BY enrolled_on,e.admission_number").all();
+  const rows=missing.results||[],calendar=(await env.DB.prepare('SELECT intake_name,year,start_date,end_date,enrollment_open_date,enrollment_close_date FROM academic_intakes ORDER BY start_date').all()).results||[];let repaired=0;
   for(let i=0;i<rows.length;i+=100){
-   const batch=rows.slice(i,i+100).map(row=>{const d=new Date(row.created_at||'');if(Number.isNaN(d.getTime()))return null;const intake=d.toLocaleString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})+' Intake';return env.DB.prepare("UPDATE enrollments SET preferred_intake=? WHERE id=? AND (preferred_intake IS NULL OR trim(preferred_intake)='')").bind(intake,row.id);}).filter(Boolean);
+   const batch=rows.slice(i,i+100).map(row=>{const intake=resolveIntakeForDate(row.enrolled_on,calendar,row.admission_number);if(!intake)return null;return env.DB.prepare("UPDATE enrollments SET preferred_intake=? WHERE id=? AND (preferred_intake IS NULL OR trim(preferred_intake)='' OR preferred_intake='Unassigned Intake')").bind(intake,row.id);}).filter(Boolean);
    if(batch.length){const results=await env.DB.batch(batch);repaired+=results.reduce((n,x)=>n+(x.meta?.changes||0),0);}
   }
   await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),user.id,'missing_student_intakes_repaired','enrollments',String(repaired)).run();
@@ -124,12 +149,12 @@ export async function onRequestPost({request,env}){
   else {const access=await requireRole(request,env,admins);if(access.response)return access.response;}
   const studentId=selfService?user.id:clean(b.studentId,80),courseId=clean(b.courseId,80);
   if(!studentId||!await canCourse(env.DB,user,courseId))return error('Select a valid course and student.');
-  const student=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake,e.created_at,e.course_fee,e.amount_paid,e.id AS enrollment_id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' AND u.role='student' AND u.status='active'").bind(studentId,courseId).first();
+  const student=await env.DB.prepare("SELECT u.id,u.name,u.email,e.admission_number,e.preferred_intake,e.created_at,e.source_enrollment_date,e.course_fee,e.amount_paid,e.id AS enrollment_id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' AND u.role='student' AND u.status='active'").bind(studentId,courseId).first();
   if(!student)return error('A report card is available only to an Active student with an accepted enrolment in the selected course.',404);
-  const enrolledAt=new Date(student.created_at||Date.now());
-  const derivedIntake=Number.isNaN(enrolledAt.getTime())?'Unassigned Intake':enrolledAt.toLocaleString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})+' Intake';
-  const period=clean(student.preferred_intake,60)||derivedIntake;
-  if(!student.preferred_intake&&period===derivedIntake)await env.DB.prepare("UPDATE enrollments SET preferred_intake=? WHERE id=? AND (preferred_intake IS NULL OR trim(preferred_intake)='')").bind(derivedIntake,student.enrollment_id).run();
+  const intakeCalendar=(await env.DB.prepare('SELECT intake_name,year,start_date,end_date,enrollment_open_date,enrollment_close_date FROM academic_intakes ORDER BY start_date').all()).results||[];
+  const derivedIntake=resolveIntakeForDate(student.source_enrollment_date||student.created_at,intakeCalendar,student.admission_number)||'Unassigned Intake';
+  const period=clean(student.preferred_intake,60)&&student.preferred_intake!=='Unassigned Intake'?clean(student.preferred_intake,60):derivedIntake;
+  if(period!=='Unassigned Intake')await env.DB.prepare("UPDATE enrollments SET preferred_intake=? WHERE id=? AND (preferred_intake IS NULL OR trim(preferred_intake)='' OR preferred_intake='Unassigned Intake')").bind(period,student.enrollment_id).run();
   await syncStudentModuleResults(env.DB,studentId,courseId,user.id);
   const course=await env.DB.prepare('SELECT id,title,course_code FROM courses WHERE id=?').bind(courseId).first();
   const sortRow=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();let sortConfig={};try{sortConfig=JSON.parse(sortRow?.value||'{}')}catch{}
