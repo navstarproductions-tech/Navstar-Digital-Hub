@@ -132,7 +132,7 @@ export function Base44MigrationPage() {
       const headers = { 'Authorization': 'Bearer ' + tokenData.token, 'Content-Type': 'application/json' };
       const entities = archive?.entities || [];
       const counts = new Map(entities.map(item => [item.entityName, Number(item.count || 0)]));
-      const order = ['AcademicIntake','FeeStructure','Enrollment','CourseUnit','SystemUser','ModuleAssignment','Exam','ExamAttempt','Assignment','AssignmentSubmission','StudentResult','MarksConflict','StaffApplication','ExamSettings','SystemSettings','GradingSystem'];
+      const order = ['AcademicIntake','FeeStructure','Enrollment','CourseUnit','SystemUser','ModuleAssignment','Exam','ExamQuestion','ExamAttempt','Assignment','AssignmentSubmission','StudentResult','MarksConflict','StaffApplication','ExamSettings','SystemSettings','GradingSystem'];
       const totals: Record<string, number> = {};
       const warnings: string[] = [];
       let processed = 0;
@@ -141,10 +141,11 @@ export function Base44MigrationPage() {
         if (!total) continue;
         let offset = 0;
         do {
-          setProgress('Reconciling ' + entity + ' records (' + Math.min(offset + 15, total) + ' of ' + total + ')…');
+          const batchLimit = entity === 'ExamAttempt' ? 1 : 15;
+          setProgress('Reconciling ' + entity + ' records (' + Math.min(offset + batchLimit, total) + ' of ' + total + ')…');
           const response = await fetch('/api/admin/base44-migration/complete', {
             method: 'POST', credentials: 'same-origin', headers,
-            body: JSON.stringify({ batchId: selectedBatch, archiveReplay: true, deferTokenUse: true, batchEntity: entity, offset, limit: 15 })
+            body: JSON.stringify({ batchId: selectedBatch, archiveReplay: true, deferTokenUse: true, batchEntity: entity, offset, limit: batchLimit })
           });
           const raw = await response.text();
           let data: Record<string, unknown> = {};
@@ -167,26 +168,6 @@ export function Base44MigrationPage() {
         } while (offset < total);
       }
 
-      const questionCount = counts.get('ExamQuestion') || 0;
-      let qOffset = 0;
-      let qImported = 0, qExisting = 0, qSkipped = 0;
-      while (qOffset < questionCount) {
-        setProgress('Connecting exam question bank (' + Math.min(qOffset + 15, questionCount) + ' of ' + questionCount + ')…');
-        const response = await fetch('/api/admin/base44-migration/complete', {
-          method: 'POST', credentials: 'same-origin', headers,
-          body: JSON.stringify({ batchId: selectedBatch, questionsOnly: true, deferTokenUse: true, offset: qOffset, limit: 15 })
-        });
-        const raw = await response.text();
-        let data: Record<string, unknown> = {};
-        try { data = raw ? JSON.parse(raw) as Record<string, unknown> : {}; } catch {}
-        if (!response.ok) throw new Error('ExamQuestion batch failed at record ' + qOffset + ': ' + String(data.detail || data.error || raw.slice(0, 800)) + ' · HTTP ' + response.status);
-        qImported += Number(data.questionsImported || 0);
-        qExisting += Number(data.questionsAlreadyPresent || 0);
-        qSkipped += Number(data.questionsSkipped || 0);
-        const next = Number(data.nextOffset ?? questionCount);
-        if (data.completed !== true && (Number(data.processed || 0) <= 0 || next <= qOffset)) throw new Error('Exam question import made no progress at record ' + qOffset + '.');
-        qOffset = next;
-      }
       const finalizeResponse = await fetch('/api/admin/base44-migration/complete', {
         method: 'POST', credentials: 'same-origin', headers,
         body: JSON.stringify({ batchId: selectedBatch, archiveReplay: true, deferTokenUse: true, finalizeOnly: true })
