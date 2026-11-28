@@ -47,7 +47,7 @@ export function LearningAdminSubtab({subtab,courses:catalogue}:Props){
  const load=async()=>{const r=await fetch('/api/learning',{cache:'no-store',credentials:'same-origin'});const j=await r.json();if(!r.ok)throw new Error(j.error||'Learning records could not be loaded.');setData({courses:j.courses||[],tutors:j.tutors||[],moduleTutorAssignments:j.moduleTutorAssignments||[],role:j.role||''});};
  useEffect(()=>{void load().catch(e=>setFailure(e.message||'Unable to load learning records.'));},[]);
  useEffect(()=>{
-  if(data.role!=='admin'||legacyModuleCleanupStarted.current)return;
+  if(subtab!=='Module Catalogue'||data.role!=='admin'||legacyModuleCleanupStarted.current)return;
   const unwanted=data.courses.flatMap(course=>course.modules.filter(module=>module.title.trim().toLowerCase()==='practical 001'&&module.status!=='archived'));
   legacyModuleCleanupStarted.current=true;
   if(!unwanted.length)return;
