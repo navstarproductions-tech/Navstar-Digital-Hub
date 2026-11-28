@@ -28,13 +28,15 @@ export async function syncModuleResult(db, userId, moduleId, actorId = null) {
     db.prepare(`SELECT a.marks_category,
       COALESCE(SUM(CASE WHEN s.status='graded' AND s.approval_status='approved' AND s.points_awarded IS NOT NULL THEN s.points_awarded*a.category_out_of/a.max_points ELSE 0 END),0) AS points,
       COALESCE(SUM(a.category_out_of),0) AS maximum,
-      COUNT(CASE WHEN s.status='graded' AND s.approval_status='approved' AND s.points_awarded IS NOT NULL THEN s.id END) AS marked_count
+      COUNT(CASE WHEN s.status='graded' AND s.approval_status='approved' AND s.points_awarded IS NOT NULL THEN s.id END) AS marked_count,
+      COUNT(CASE WHEN s.status='graded' AND s.approval_status='approved' AND s.points_awarded IS NOT NULL AND NOT EXISTS(SELECT 1 FROM base44_student_import_map im WHERE im.entity_name='AssignmentSubmission' AND im.destination_id=s.id AND COALESCE(s.graded_at,'')<=COALESCE(im.imported_at,'')) THEN s.id END) AS native_marked_count
       FROM course_assignments a LEFT JOIN course_assignment_submissions s ON s.assignment_id=a.id AND s.user_id=?
       WHERE a.module_id=? GROUP BY a.marks_category`).bind(userId,moduleId).all(),
     db.prepare(`SELECT a.marks_category,
       COALESCE(SUM(CASE WHEN r.published_at IS NOT NULL THEN COALESCE(r.raw_points_awarded,r.points_awarded)*COALESCE(NULLIF(a.category_out_of,0),a.max_points)/a.max_points ELSE 0 END),0) AS points,
       COALESCE(SUM(COALESCE(NULLIF(a.category_out_of,0),a.max_points)),0) AS maximum,
-      COUNT(CASE WHEN r.published_at IS NOT NULL THEN r.id END) AS papers
+      COUNT(CASE WHEN r.published_at IS NOT NULL THEN r.id END) AS papers,
+      COUNT(CASE WHEN r.published_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM exam_runtime_attempts t JOIN base44_student_import_map im ON im.entity_name='ExamAttempt' AND im.destination_id=t.id WHERE t.assessment_id=r.assessment_id AND t.user_id=r.user_id AND COALESCE(r.marked_at,'')<=COALESCE(im.imported_at,'')) THEN r.id END) AS native_papers
       FROM course_assessments a LEFT JOIN course_assessment_results r ON r.assessment_id=a.id AND r.user_id=?
       WHERE a.module_id=? GROUP BY a.marks_category`).bind(userId,moduleId).all(),
     configuration(db),
@@ -61,15 +63,17 @@ export async function syncModuleResult(db, userId, moduleId, actorId = null) {
   const maxScore = outs.CAT + outs.Practical + outs.Final;
   const score = categoryScore.CAT + categoryScore.Practical + categoryScore.Final;
   const hasAnyMarks = (assignmentRows.results||[]).some(row=>Number(row.marked_count||0)>0) || (examRow.results||[]).some(row=>Number(row.papers||0)>0);
+  const hasNewMarks = (assignmentRows.results||[]).some(row=>Number(row.native_marked_count||0)>0) || (examRow.results||[]).some(row=>Number(row.native_papers||0)>0);
   const hasFinal = maxima.Final > 0 && finalExamPapers > 0;
-  // Preserve a historical Base44 StudentResult until this module has new marks in the
-  // official assessment/assignment engine. Report-card generation calls this synchronizer;
-  // without this guard it would replace imported marks with zeroes before students can see them.
+  // Keep the original Base44 StudentResult authoritative while all attached assessment
+  // marks are still imported history. Recompute only after a genuinely new mark is entered
+  // in the official site; this prevents report-card generation from replacing historic
+  // module grades with a partial reconstruction of imported exam/assignment records.
   const existing = await db.prepare(`SELECT r.*,
     EXISTS(SELECT 1 FROM base44_student_import_map x
       WHERE x.entity_name='StudentResult' AND x.destination_id=r.id AND x.user_id=r.user_id) AS imported_legacy
     FROM student_module_results r WHERE r.user_id=? AND r.module_id=?`).bind(userId,moduleId).first();
-  if (!hasAnyMarks && existing?.imported_legacy) return existing;
+  if (existing?.imported_legacy && !hasNewMarks) return existing;
   const bands = parseBands(config.grading?.gradeScale);
   const defaults = [
     { grade: 'A', min: 80, max: 100, remarks: 'Excellent performance' },
