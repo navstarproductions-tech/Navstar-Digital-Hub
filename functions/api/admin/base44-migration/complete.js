@@ -535,10 +535,22 @@ async function importDerivedStudent(DB,r,entity,adminId,c) {
   if(!email||!name||!courseTitle)return null;
   const sourceId=sourceRecordId(r);
   if(!sourceId)return null;
-  const status=entity==='Graduate'?'graduated':clean(r.student_status||r.status,40)||'active';
+  const course=await courseFor(DB,courseTitle,0);
+  const existing=await DB.prepare("SELECT u.id AS user_id,e.id AS enrollment_id,e.admission_number FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' ORDER BY e.created_at LIMIT 1").bind(email,course.id).first();
+  const requestedAdmission=clean(r.admission_number||r.student_admission_number,80);
+  if(existing) {
+    if(requestedAdmission&&!existing.admission_number) {
+      const collision=await DB.prepare("SELECT id FROM enrollments WHERE admission_number=? AND id<>? LIMIT 1").bind(requestedAdmission,existing.enrollment_id).first();
+      if(!collision)await DB.prepare("UPDATE enrollments SET admission_number=? WHERE id=? AND (admission_number IS NULL OR trim(admission_number)='')").bind(requestedAdmission,existing.enrollment_id).run();
+    }
+    await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES(?,?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+      .bind('Derived'+entity,sourceId,existing.enrollment_id,existing.user_id).run();
+    return {userId:existing.user_id,enrollmentId:existing.enrollment_id,sourceId};
+  }
+  const status=entity==='Graduate'?'graduated':'active';
   const synthetic={...r,id:'derived-'+entity+'-'+sourceId,student_email:email,student_name:name,
     student_phone:clean(r.student_phone||r.phone,40),course_title:courseTitle,
-    admission_number:clean(r.admission_number||r.student_admission_number,80),status,
+    admission_number:requestedAdmission,status,
     total_fee:num(r.total_fee)||0,amount_paid:num(r.amount_paid)||0,
     _migration_source_id:'derived-'+entity+'-'+sourceId,derived_from_entity:entity,derived_from_source_id:sourceId};
   return importStudent(DB,synthetic,adminId,c);
@@ -608,6 +620,7 @@ async function importGraduate(DB,r,adminId,c) {
   if(!student){c.graduatesSkipped++;return;}
   const raw=clean(r.status||r.graduation_status,30).toLowerCase();
   const status=raw.includes('defer')?'deferred':raw.includes('eligible')?'eligible':'graduated';
+  await DB.prepare("UPDATE user_profiles SET student_status='archived',updated_at=CURRENT_TIMESTAMP WHERE user_id=?").bind(student.id).run();
   const id='b44grad-'+sourceId.slice(-24);
   const inserted=await DB.prepare("INSERT INTO student_graduation_records(id,user_id,course_id,status,completed_at,updated_by) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,course_id) DO UPDATE SET status=CASE WHEN excluded.status='graduated' THEN 'graduated' ELSE student_graduation_records.status END,completed_at=COALESCE(excluded.completed_at,student_graduation_records.completed_at),updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
     .bind(id,student.id,course.id,status,dateOnly(r.graduation_date||r.completion_date||r.updated_date)||null,adminId).run();
