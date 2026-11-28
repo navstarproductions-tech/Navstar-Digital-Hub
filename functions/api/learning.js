@@ -501,18 +501,22 @@ if (action === 'delete_module') {
     const legacyResults=(await env.DB.prepare(`
       SELECT DISTINCT sm.id AS result_id,sm.user_id,sm.course_id,sm.cat_score,sm.practical_score,sm.exam_score,sm.assignment_score,
         sm.score,sm.max_score,sm.grade,sm.remarks,sm.status,sm.published_at,sm.updated_by,sm.updated_at,
-        cm.id AS correct_module_id
+        cm.id AS correct_module_id,unit_ar.source_id AS correct_unit_source_id
       FROM student_module_results sm
       JOIN base44_student_import_map rm ON rm.entity_name='StudentResult' AND rm.destination_id=sm.id
       JOIN base44_legacy_archive_records ar ON ar.entity_name='StudentResult' AND ar.source_id=rm.source_id
-      JOIN base44_student_import_map um ON um.entity_name='CourseUnit' AND um.source_id=COALESCE(json_extract(ar.record_json,'$.unit_id'),json_extract(ar.record_json,'$.module_id'))
-      JOIN course_modules cm ON cm.id=um.destination_id AND cm.course_id=sm.course_id
+      JOIN base44_legacy_archive_records unit_ar ON unit_ar.entity_name='CourseUnit' AND unit_ar.source_id=COALESCE(json_extract(ar.record_json,'$.unit_id'),json_extract(ar.record_json,'$.module_id'))
+      JOIN course_modules cm ON cm.course_id=sm.course_id AND (
+        (COALESCE(json_extract(unit_ar.record_json,'$.module_code'),json_extract(unit_ar.record_json,'$.code')) IS NOT NULL AND upper(cm.module_code)=upper(COALESCE(json_extract(unit_ar.record_json,'$.module_code'),json_extract(unit_ar.record_json,'$.code'))))
+        OR lower(trim(cm.title))=lower(trim(json_extract(unit_ar.record_json,'$.title')))
+      )
       WHERE sm.module_id=? AND cm.id<>?
     `).bind(moduleId,moduleId).all()).results||[];
     for(const row of legacyResults){
       const target=await env.DB.prepare('SELECT id,updated_at FROM student_module_results WHERE user_id=? AND module_id=?').bind(row.user_id,row.correct_module_id).first();
       if(!target){
         await env.DB.prepare('UPDATE student_module_results SET module_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(row.correct_module_id,row.result_id).run();
+        await env.DB.prepare("UPDATE base44_student_import_map SET destination_id=? WHERE entity_name='CourseUnit' AND source_id=?").bind(row.correct_module_id,row.correct_unit_source_id).run();
       }else{
         if(String(row.updated_at||'')>=String(target.updated_at||'')){
           await env.DB.prepare(`UPDATE student_module_results SET course_id=?,cat_score=?,practical_score=?,exam_score=?,assignment_score=?,score=?,max_score=?,grade=?,remarks=?,status=?,published_at=?,updated_by=?,updated_at=? WHERE id=?`)
@@ -520,39 +524,53 @@ if (action === 'delete_module') {
         }
         await env.DB.prepare('DELETE FROM student_module_results WHERE id=?').bind(row.result_id).run();
         await env.DB.prepare("UPDATE base44_student_import_map SET destination_id=? WHERE entity_name='StudentResult' AND destination_id=?").bind(target.id,row.result_id).run();
+        await env.DB.prepare("UPDATE base44_student_import_map SET destination_id=? WHERE entity_name='CourseUnit' AND source_id=?").bind(row.correct_module_id,row.correct_unit_source_id).run();
       }
       repairedResultLinks++;
     }
     const legacyAssignments=(await env.DB.prepare(`
-      SELECT DISTINCT a.id,cm.id AS correct_module_id FROM course_assignments a
+      SELECT DISTINCT a.id,cm.id AS correct_module_id,unit_ar.source_id AS correct_unit_source_id FROM course_assignments a
       JOIN base44_student_import_map am ON am.entity_name='Assignment' AND am.destination_id=a.id
       JOIN base44_legacy_archive_records ar ON ar.entity_name='Assignment' AND ar.source_id=am.source_id
-      JOIN base44_student_import_map um ON um.entity_name='CourseUnit' AND um.source_id=COALESCE(json_extract(ar.record_json,'$.module_id'),json_extract(ar.record_json,'$.unit_id'))
-      JOIN course_modules cm ON cm.id=um.destination_id AND cm.course_id=a.course_id
+      JOIN base44_legacy_archive_records unit_ar ON unit_ar.entity_name='CourseUnit' AND unit_ar.source_id=COALESCE(json_extract(ar.record_json,'$.module_id'),json_extract(ar.record_json,'$.unit_id'))
+      JOIN course_modules cm ON cm.course_id=a.course_id AND (
+        (COALESCE(json_extract(unit_ar.record_json,'$.module_code'),json_extract(unit_ar.record_json,'$.code')) IS NOT NULL AND upper(cm.module_code)=upper(COALESCE(json_extract(unit_ar.record_json,'$.module_code'),json_extract(unit_ar.record_json,'$.code'))))
+        OR lower(trim(cm.title))=lower(trim(json_extract(unit_ar.record_json,'$.title')))
+      )
       WHERE a.module_id=? AND cm.id<>?
     `).bind(moduleId,moduleId).all()).results||[];
-    for(const row of legacyAssignments){await env.DB.prepare('UPDATE course_assignments SET module_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(row.correct_module_id,row.id).run();repairedAssignmentLinks++;}
+    for(const row of legacyAssignments){await env.DB.prepare('UPDATE course_assignments SET module_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(row.correct_module_id,row.id).run();await env.DB.prepare("UPDATE base44_student_import_map SET destination_id=? WHERE entity_name='CourseUnit' AND source_id=?").bind(row.correct_module_id,row.correct_unit_source_id).run();repairedAssignmentLinks++;}
     const legacyExams=(await env.DB.prepare(`
-      SELECT DISTINCT a.id,cm.id AS correct_module_id FROM course_assessments a
+      SELECT DISTINCT a.id,cm.id AS correct_module_id,unit_ar.source_id AS correct_unit_source_id FROM course_assessments a
       JOIN base44_student_import_map am ON am.entity_name='Exam' AND am.destination_id=a.id
       JOIN base44_legacy_archive_records ar ON ar.entity_name='Exam' AND ar.source_id=am.source_id
-      JOIN base44_student_import_map um ON um.entity_name='CourseUnit' AND um.source_id=COALESCE(json_extract(ar.record_json,'$.module_id'),json_extract(ar.record_json,'$.unit_id'))
-      JOIN course_modules cm ON cm.id=um.destination_id AND cm.course_id=a.course_id
+      JOIN base44_legacy_archive_records unit_ar ON unit_ar.entity_name='CourseUnit' AND unit_ar.source_id=COALESCE(json_extract(ar.record_json,'$.module_id'),json_extract(ar.record_json,'$.unit_id'))
+      JOIN course_modules cm ON cm.course_id=a.course_id AND (
+        (COALESCE(json_extract(unit_ar.record_json,'$.module_code'),json_extract(unit_ar.record_json,'$.code')) IS NOT NULL AND upper(cm.module_code)=upper(COALESCE(json_extract(unit_ar.record_json,'$.module_code'),json_extract(unit_ar.record_json,'$.code'))))
+        OR lower(trim(cm.title))=lower(trim(json_extract(unit_ar.record_json,'$.title')))
+      )
       WHERE a.module_id=? AND cm.id<>?
     `).bind(moduleId,moduleId).all()).results||[];
-    for(const row of legacyExams){await env.DB.prepare('UPDATE course_assessments SET module_id=? WHERE id=?').bind(row.correct_module_id,row.id).run();repairedExamLinks++;}
+    for(const row of legacyExams){await env.DB.prepare('UPDATE course_assessments SET module_id=? WHERE id=?').bind(row.correct_module_id,row.id).run();await env.DB.prepare("UPDATE base44_student_import_map SET destination_id=? WHERE entity_name='CourseUnit' AND source_id=?").bind(row.correct_module_id,row.correct_unit_source_id).run();repairedExamLinks++;}
     await env.DB.prepare(`
       UPDATE base44_marks_conflicts SET module_id=(
         SELECT cm.id FROM base44_student_import_map mm
         JOIN base44_legacy_archive_records ar ON ar.entity_name='MarksConflict' AND ar.source_id=mm.source_id
-        JOIN base44_student_import_map um ON um.entity_name='CourseUnit' AND um.source_id=COALESCE(json_extract(ar.record_json,'$.unit_id'),json_extract(ar.record_json,'$.module_id'))
-        JOIN course_modules cm ON cm.id=um.destination_id AND cm.course_id=base44_marks_conflicts.course_id
+        JOIN base44_legacy_archive_records unit_ar ON unit_ar.entity_name='CourseUnit' AND unit_ar.source_id=COALESCE(json_extract(ar.record_json,'$.unit_id'),json_extract(ar.record_json,'$.module_id'))
+        JOIN course_modules cm ON cm.course_id=base44_marks_conflicts.course_id AND (
+          (COALESCE(json_extract(unit_ar.record_json,'$.module_code'),json_extract(unit_ar.record_json,'$.code')) IS NOT NULL AND upper(cm.module_code)=upper(COALESCE(json_extract(unit_ar.record_json,'$.module_code'),json_extract(unit_ar.record_json,'$.code'))))
+          OR lower(trim(cm.title))=lower(trim(json_extract(unit_ar.record_json,'$.title')))
+        )
         WHERE mm.entity_name='MarksConflict' AND mm.destination_id=base44_marks_conflicts.id LIMIT 1
       ) WHERE module_id=? AND EXISTS(
         SELECT 1 FROM base44_student_import_map mm
         JOIN base44_legacy_archive_records ar ON ar.entity_name='MarksConflict' AND ar.source_id=mm.source_id
-        JOIN base44_student_import_map um ON um.entity_name='CourseUnit' AND um.source_id=COALESCE(json_extract(ar.record_json,'$.unit_id'),json_extract(ar.record_json,'$.module_id'))
-        WHERE mm.entity_name='MarksConflict' AND mm.destination_id=base44_marks_conflicts.id AND um.destination_id<>?
+        JOIN base44_legacy_archive_records unit_ar ON unit_ar.entity_name='CourseUnit' AND unit_ar.source_id=COALESCE(json_extract(ar.record_json,'$.unit_id'),json_extract(ar.record_json,'$.module_id'))
+        JOIN course_modules cm ON cm.course_id=base44_marks_conflicts.course_id AND (
+          (COALESCE(json_extract(unit_ar.record_json,'$.module_code'),json_extract(unit_ar.record_json,'$.code')) IS NOT NULL AND upper(cm.module_code)=upper(COALESCE(json_extract(unit_ar.record_json,'$.module_code'),json_extract(unit_ar.record_json,'$.code'))))
+          OR lower(trim(cm.title))=lower(trim(json_extract(unit_ar.record_json,'$.title')))
+        )
+        WHERE mm.entity_name='MarksConflict' AND mm.destination_id=base44_marks_conflicts.id AND cm.id<>?
       )
     `).bind(moduleId,moduleId).run();
 
