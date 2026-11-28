@@ -125,28 +125,58 @@ export function Base44MigrationPage() {
     if (!selectedBatch || !hasAcademicArchive) return;
     setBusy(true); setArchiveError(''); setError(''); setResult(null);
     try {
-      setProgress('Opening a secure session to connect the saved academic records…');
+      setProgress('Opening a secure session to connect the saved Base44 records…');
       const tokenResponse = await fetch('/api/admin/base44-migration/token', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const tokenData = await tokenResponse.json().catch(() => ({}));
-      if (!tokenResponse.ok || !tokenData.token) throw new Error(tokenData.error || 'Could not start the secure academic import.');
-      setProgress('Replaying the complete archive into the official student, finance, staff, recruitment and academic modules…');
+      if (!tokenResponse.ok || !tokenData.token) throw new Error(tokenData.error || 'Could not start the secure archive import.');
+      const headers = { 'Authorization': 'Bearer ' + tokenData.token, 'Content-Type': 'application/json' };
+      setProgress('Connecting student, finance, course, staff and assessment records…');
       const response = await fetch('/api/admin/base44-migration/complete', {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Authorization': 'Bearer ' + tokenData.token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batchId: selectedBatch, archiveReplay: true })
+        method: 'POST', credentials: 'same-origin', headers,
+        body: JSON.stringify({ batchId: selectedBatch, archiveReplay: true, deferTokenUse: true })
       });
       const responseText = await response.text();
       let completion: Record<string, unknown> = {};
       try { completion = responseText ? JSON.parse(responseText) as Record<string, unknown> : {}; } catch { completion = {}; }
       if (!response.ok) {
         const detail = [String(completion.error || ''), String(completion.detail || ''), completion.progress ? JSON.stringify(completion.progress) : '', !completion.error && !completion.detail ? responseText.slice(0, 1200) : '', 'HTTP ' + response.status].filter(Boolean).join(' · ');
-        throw new Error(detail || 'The saved package could not be connected. HTTP ' + response.status + '.');
+        throw new Error(detail || 'The saved package could not be connected.');
       }
-      setResult({ ...completion, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: (archive?.entities || []).filter(x => ['Enrollment','AcademicIntake','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','ModuleAssignment','SystemUser','StaffApplication','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksApproval','MarksConflict'].includes(x.entityName)).length });
+
+      const questionCount = Number(archive?.entities?.find(x => x.entityName === 'ExamQuestion')?.count || 0);
+      let offset = 0;
+      let questionImported = 0;
+      let questionExisting = 0;
+      let questionSkipped = 0;
+      do {
+        const limit = 25;
+        const finalBatch = offset + limit >= questionCount;
+        setProgress('Connecting exam question bank (' + Math.min(offset + limit, questionCount) + ' of ' + questionCount + ')…');
+        const questionResponse = await fetch('/api/admin/base44-migration/complete', {
+          method: 'POST', credentials: 'same-origin', headers,
+          body: JSON.stringify({ batchId: selectedBatch, questionsOnly: true, offset, limit, finalize: finalBatch })
+        });
+        const questionText = await questionResponse.text();
+        let questionData: Record<string, unknown> = {};
+        try { questionData = questionText ? JSON.parse(questionText) as Record<string, unknown> : {}; } catch { questionData = {}; }
+        if (!questionResponse.ok) {
+          const detail = [String(questionData.error || ''), String(questionData.detail || ''), !questionData.error && !questionData.detail ? questionText.slice(0, 1000) : '', 'HTTP ' + questionResponse.status].filter(Boolean).join(' · ');
+          throw new Error('Exam question batch failed at record ' + offset + ': ' + detail);
+        }
+        questionImported += Number(questionData.questionsImported || 0);
+        questionExisting += Number(questionData.questionsAlreadyPresent || 0);
+        questionSkipped += Number(questionData.questionsSkipped || 0);
+        offset = Number(questionData.nextOffset ?? questionCount);
+        if (questionData.completed === true) break;
+        if (Number(questionData.processed || 0) === 0) throw new Error('The exam question import made no progress at record ' + offset + '.');
+      } while (offset < questionCount);
+
+      completion = { ...completion, questionBankImported: questionImported, questionBankAlreadyPresent: questionExisting, questionBankSkipped: questionSkipped, completed: true };
+      setResult({ ...completion, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: (archive?.entities || []).length });
       await loadArchive(selectedBatch);
-      setProgress('Saved system records have been processed. Refresh the relevant portals to view the connected records.');
+      setProgress('The saved archive has been connected. Check the student, finance and academic portals for the imported records.');
     } catch (cause) {
-      setArchiveError(cause instanceof Error ? cause.message : 'Could not import the saved academic records.');
+      setArchiveError(cause instanceof Error ? cause.message : 'Could not import the saved Base44 records.');
       setProgress('');
     } finally { setBusy(false); }
   }
