@@ -173,8 +173,8 @@ export async function onRequestPost({request,env}){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),status=safeString(body.status,20);
     if(!['approved','rejected','pending'].includes(status))return error('Choose approved, rejected or pending.');
-    const assessment=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
-    if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id)))return error('Assessment access denied.',403);
+    const assessment=await env.DB.prepare('SELECT id,course_id,module_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id))||!(await hasModuleTeachingAccess(env.DB,user,assessment.module_id,assessment.course_id)))return error('Assessment access denied for this module.',403);
     const enrolled=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted'").bind(studentId,assessment.course_id).first();
     if(!enrolled)return error('Student is not enrolled in this course.',404);
     await env.DB.prepare('INSERT INTO exam_attempt_approvals(id,assessment_id,user_id,status,reviewed_by,reviewed_at,note) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP,?) ON CONFLICT(assessment_id,user_id) DO UPDATE SET status=excluded.status,reviewed_by=excluded.reviewed_by,reviewed_at=CURRENT_TIMESTAMP,note=excluded.note').bind(uuid(),assessmentId,studentId,status,user.id,safeString(body.note,500)).run();
@@ -228,7 +228,7 @@ export async function onRequestPost({request,env}){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),feedbackText=safeString(body.feedback,3000);
     const assessment=await env.DB.prepare('SELECT id,course_id,module_id,assessment_type,max_points FROM course_assessments WHERE id=?').bind(assessmentId).first();
-    if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id)))return error('Assessment access denied.',403);
+    if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id))||!(await hasModuleTeachingAccess(env.DB,user,assessment.module_id,assessment.course_id)))return error('Assessment access denied for this module.',403);
     const enrolled=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted'").bind(studentId,assessment.course_id).first();
     let raw=Number(body.rawPoints);
     let rawMaximum=Number(assessment.max_points)>0?Number(assessment.max_points):100;
@@ -270,8 +270,8 @@ export async function onRequestPost({request,env}){
   if(action==='grade_assessment_attempt'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const attemptId=safeString(body.attemptId,80),points=Number(body.pointsAwarded),feedback=safeString(body.feedback,3000);
-    const attempt=await env.DB.prepare('SELECT t.id,t.assessment_id,t.user_id,a.course_id,a.max_points FROM course_assessment_attempts t JOIN course_assessments a ON a.id=t.assessment_id WHERE t.id=?').bind(attemptId).first();
-    if(!attempt||!(await courseAccess(env.DB,user,attempt.course_id))||!Number.isSafeInteger(points)||points<0||points>Number(attempt.max_points))return error('Choose a valid attempt and a score within the assessment maximum.',409);
+    const attempt=await env.DB.prepare('SELECT t.id,t.assessment_id,t.user_id,a.course_id,a.module_id,a.max_points FROM course_assessment_attempts t JOIN course_assessments a ON a.id=t.assessment_id WHERE t.id=?').bind(attemptId).first();
+    if(!attempt||!(await courseAccess(env.DB,user,attempt.course_id))||!(await hasModuleTeachingAccess(env.DB,user,attempt.module_id,attempt.course_id))||!Number.isSafeInteger(points)||points<0||points>Number(attempt.max_points))return error('Choose a valid attempt and a score within the assessment maximum.',409);
     const paper=await env.DB.prepare('SELECT assessment_type,max_points,module_id FROM course_assessments WHERE id=?').bind(attempt.assessment_id).first();
     const cfg=await env.DB.prepare("SELECT value FROM system_state WHERE key='admin-configuration'").first();
     let examConfig={};try{examConfig=JSON.parse(cfg?.value||'{}')}catch{}
@@ -313,12 +313,13 @@ export async function onRequestPost({request,env}){
   if(action==='update_assessment'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80);
-    const existing=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
-    if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
+    const existing=await env.DB.prepare('SELECT id,course_id,module_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    if(!existing||!(await requireCourse(env.DB,user,existing.course_id))||!(await hasModuleTeachingAccess(env.DB,user,existing.module_id,existing.course_id)))return error('Assessment access denied for this module.',403);
     if(!(await requireCourse(env.DB,user,courseId)))return error('You are not assigned to the selected course.',403);
     if(title.length<2)return error('Select a course, module and exam type to generate the title.');
     const selectedModule=moduleId?await env.DB.prepare('SELECT id,title FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
     if(!selectedModule)return error('Select a valid module belonging to the selected course.');
+    if(!(await hasModuleTeachingAccess(env.DB,user,moduleId,courseId)))return error('You can manage exams only for modules allocated to your tutor account.',403);
     const maxPoints=Number(body.maxPoints),duration=Number(body.durationMinutes),passMark=Number(body.passMark),attempts=Number(body.maxAttempts),selectionMode=safeString(body.questionSelectionMode,12)||'marks',questionCount=Number(body.questionCount??10);
     const existingQuestions=await env.DB.prepare("SELECT COUNT(*) AS count,COALESCE(SUM(points),0) AS total FROM course_exam_questions WHERE assessment_id=? AND status='active'").bind(assessmentId).first();
     if(existingQuestions?.count&&Number(existingQuestions.count)>0&&Number(existingQuestions.total)>maxPoints)return error('The new paper total is below the marks already allocated to its questions.');
@@ -336,7 +337,7 @@ export async function onRequestPost({request,env}){
     return json({id:assessmentId,updated:true});
   }
   if(action==='delete_assessment'){
-    const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
+    const access=await requireRole(request,env,adminRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80);
     const existing=await env.DB.prepare('SELECT id,course_id,module_id,title FROM course_assessments WHERE id=?').bind(assessmentId).first();
     if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
@@ -362,8 +363,8 @@ export async function onRequestPost({request,env}){
   if(action==='archive_assessment'){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80);
-    const existing=await env.DB.prepare('SELECT id,course_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
-    if(!existing||!(await requireCourse(env.DB,user,existing.course_id)))return error('Assessment access denied.',403);
+    const existing=await env.DB.prepare('SELECT id,course_id,module_id FROM course_assessments WHERE id=?').bind(assessmentId).first();
+    if(!existing||!(await requireCourse(env.DB,user,existing.course_id))||!(await hasModuleTeachingAccess(env.DB,user,existing.module_id,existing.course_id)))return error('Assessment access denied for this module.',403);
     await env.DB.prepare("UPDATE course_assessments SET archived_at=CURRENT_TIMESTAMP WHERE id=?").bind(assessmentId).run();
     await audit('assessment_archived','assessment',assessmentId);
     return json({archived:true});
@@ -426,6 +427,7 @@ export async function onRequestPost({request,env}){
     if(!validDate(startsAt)||(endRequired&&!validDate(endsAt))||(endsAt&&!validDate(endsAt))||(endsAt&&(action==='create_assessment'?Date.parse(endsAt)<Date.parse(startsAt):Date.parse(endsAt)<=Date.parse(startsAt))))return error(action==='create_assessment'?'Enter a valid assessment start and deadline; the deadline may be on the same date/time but not earlier.':'Enter valid start and end dates and times.');
     const module=moduleId?await env.DB.prepare('SELECT id,title FROM course_modules WHERE id=? AND course_id=?').bind(moduleId,courseId).first():null;
     if(!module)return error('Select a valid module belonging to this course.',409);
+    if(!(await hasModuleTeachingAccess(env.DB,user,moduleId,courseId)))return error('You can create exams only for modules allocated to your tutor account.',403);
     const id=uuid();
     if(action==='create_timetable'){
       await env.DB.prepare('INSERT INTO course_timetable(id,course_id,module_id,title,starts_at,ends_at,venue,meeting_url,created_by) VALUES(?,?,?,?,?,?,?,?,?)').bind(id,courseId,moduleId||null,title,startsAt,endsAt,safeString(body.venue,160),safeString(body.meetingUrl,500)||null,user.id).run();
@@ -473,7 +475,7 @@ export async function onRequestPost({request,env}){
     const access=await requireRole(request,env,staffRoles);if(access.response)return access.response;
     const assessmentId=safeString(body.assessmentId,80),studentId=safeString(body.studentId,80),points=Number(body.pointsAwarded);
     const assessment=await env.DB.prepare('SELECT id,course_id,module_id,max_points FROM course_assessments WHERE id=?').bind(assessmentId).first();
-    if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id)))return error('Assessment is not available to your account.',403);
+    if(!assessment||!(await requireCourse(env.DB,user,assessment.course_id))||!(await hasModuleTeachingAccess(env.DB,user,assessment.module_id,assessment.course_id)))return error('Assessment is not available to your account for this module.',403);
     if(!Number.isSafeInteger(points)||points<0||points>Number(assessment.max_points))return error('Score must be between zero and the maximum score.');
     const student=await env.DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON lower(e.email)=lower(u.email) WHERE u.id=? AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(studentId,assessment.course_id).first();
     if(!student)return error('Student is not enrolled in this course.',409);
