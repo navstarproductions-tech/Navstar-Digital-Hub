@@ -154,7 +154,7 @@ const sectionSubtabs: Record<Section, AdminSubtab[]> = {
   scholarships: makeTabs(['Scholarship Register','Discount Applications','Approve Discounts','Award History'],'scholarships'),
   certificates: makeTabs(['Dashboard','Merit List — Promote to Complete','Graduation List — Complete → Graduate','Graduate Serial Processing','Certificate Management','Document Access Control','Certificate Templates','Academic Documents','Student Records','Examination Records','QR Auth Center','Digital Signatures','Reports & Analytics','Audit Logs','Certificate Settings'],'certificates'),
   alumni: makeTabs(['Alumni Directory','Graduate Records','Alumni Updates','Alumni Events'],'alumni'),
-  'report-cards': makeTabs(['Report Card Dashboard','Create Report Cards','Preview & Approve','Transcripts','Print & Export'],'report-cards'),
+  'report-cards': makeTabs(['Report Card Dashboard','Create Report Cards','Preview & Print','Transcripts','Print & Export'],'report-cards'),
   'auto-reports': makeTabs(['Document Generator','Report Templates','Bulk Generate','Generated Documents'],'auto-reports'),
   'student-status': [],
   attendance: makeTabs(['Attendance Register','Record Attendance','Attendance Summary','Attendance Reports'],'attendance'),
