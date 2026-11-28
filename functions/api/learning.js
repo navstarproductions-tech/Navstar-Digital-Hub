@@ -101,8 +101,8 @@ export async function onRequestGet({ request, env }) {
     lessons = result.results ?? [];
   }
   const assignmentsResult = await env.DB.prepare(`
-    SELECT a.id, a.course_id, a.module_id, a.assignment_type, a.marks_category, a.title, a.instructions, a.due_at, a.max_points, a.category_out_of, a.status
-    FROM course_assignments a
+    SELECT a.id, a.course_id, a.module_id, m.title AS module_title, m.module_code AS module_code, a.assignment_type, a.marks_category, a.title, a.instructions, a.due_at, a.max_points, a.category_out_of, a.status
+    FROM course_assignments a LEFT JOIN course_modules m ON m.id=a.module_id
     WHERE a.course_id IN (${courseIds.map(() => '?').join(',')}) ${user.role === 'student' ? "AND (a.status = 'published' OR EXISTS (SELECT 1 FROM course_assignment_submissions old_s WHERE old_s.assignment_id=a.id AND old_s.user_id=?))" : user.role === 'tutor' ? "AND a.status = 'published' AND a.module_id IS NOT NULL AND EXISTS (SELECT 1 FROM module_tutor_assignments mt WHERE mt.module_id=a.module_id AND mt.tutor_user_id=?)" : "AND a.status != 'archived'"}
     ORDER BY a.due_at IS NULL, a.due_at, a.created_at DESC
   `).bind(...(['tutor','student'].includes(user.role)?[...courseIds,user.id]:courseIds)).all();
