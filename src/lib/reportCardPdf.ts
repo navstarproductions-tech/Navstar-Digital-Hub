@@ -88,7 +88,7 @@ function documentHtml(report:Report,options:Options){
 }
 export function downloadReportCardPdf(report:Report,options:Options={}){
  const html=documentHtml(report,options);
- const win=window.open('','_blank','noopener,noreferrer');
+ const win=window.open('','_blank');
  if(!win){alert('Allow pop-ups for this site to print or save the academic document as a PDF.');return;}
  win.document.open();win.document.write(html);win.document.close();
 }
