@@ -723,7 +723,7 @@ async function importStudentEditRequest(DB,r,adminId,c) {
   let changes=r.changes||r.requested_changes||r.changes_json||r.requested_changes_json||r.request_data||{};
   if(typeof changes==='string'){try{changes=JSON.parse(changes)}catch{changes={};}}
   if(!changes||typeof changes!=='object'||Array.isArray(changes))changes={};
-  const allowed=new Set(['name','national_id','phone','date_of_birth','gender','citizenship','country','province','county','sub_county','constituency','ward','location','sub_location','department','job_title','employment_type','joined_on','address']);
+  const allowed=new Set(['name','national_id','phone','date_of_birth','gender','citizenship','country','province','county','sub_county','constituency','ward','location','sub_location','department','job_title','employment_type','joined_on']);
   const safeChanges={};
   for(const [key,value] of Object.entries(changes))if(allowed.has(key))safeChanges[key]=value;
   if(!Object.keys(safeChanges).length){
@@ -738,8 +738,8 @@ async function importStudentEditRequest(DB,r,adminId,c) {
       clean(r.created_date||r.created_at,40)||new Date().toISOString(),status==='pending'?null:clean(r.reviewed_at||r.updated_date,40)||new Date().toISOString()).run();
   if(status==='approved') {
     const statements=[];
-    if(Object.prototype.hasOwnProperty.call(safeChanges,'name'))statements.push(DB.prepare("UPDATE users SET name=? WHERE id=?").bind(clean(safeChanges.name,120),user.id));
-    for(const [column,value] of Object.entries(safeChanges))if(allowed.has(column)&&column!=='name')statements.push(DB.prepare("UPDATE user_profiles SET "+column+"=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?").bind(value===''?null:value,user.id));
+    if(Object.prototype.hasOwnProperty.call(safeChanges,'name')){const changedName=clean(safeChanges.name,120);if(changedName)statements.push(DB.prepare("UPDATE users SET name=? WHERE id=?").bind(changedName,user.id));}
+    for(const [column,value] of Object.entries(safeChanges))if(allowed.has(column)&&column!=='name')statements.push(DB.prepare("UPDATE user_profiles SET "+column+"=?,updated_at=CURRENT_TIMESTAMP WHERE user_id=?").bind(value===''?null:typeof value==='object'?JSON.stringify(value):String(value),user.id));
     if(statements.length)await DB.batch(statements);
   }
   const saved=await DB.prepare("SELECT id FROM student_profile_change_requests WHERE id=?").bind(id).first();
