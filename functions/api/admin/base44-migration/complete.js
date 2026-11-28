@@ -1438,7 +1438,7 @@ export async function onRequestPost({request,env}) {
     if(['Exam','Assignment','StudentResult','MarksConflict','ModuleAssignment'].includes(batchEntity))await support('CourseUnit');
     // StudentResult rows can reference older enrolment IDs and omit student_name.
     // Load identity-bearing records so the learner can be resolved by exact email + course.
-    if(batchEntity==='StudentResult'){await support('AttendanceRecord');await support('ExamAttempt');}
+    if(batchEntity==='StudentResult'){await support('AttendanceRecord');await support('ExamAttempt');await support('Graduate');await support('Certificate');}
     if(batchEntity==='ModuleAssignment')await support('SystemUser');
     if(batchEntity==='CertDeliveryConfirmation')await support('Certificate');
     // ExamAttempt processing uses the already-created Exam import map and live
@@ -1542,7 +1542,7 @@ export async function onRequestPost({request,env}) {
     if(!batchMode||batchEntity==='StudentResult')for(const result of groups.StudentResult) {
       const email=clean(result.student_email||result.email,254).toLowerCase();
       const courseId=clean(result.course_id,120);
-      const identityRows=[...(groups.ExamAttempt||[]),...(groups.AttendanceRecord||[])];
+      const identityRows=[...(groups.ExamAttempt||[]),...(groups.AttendanceRecord||[]),...(groups.Graduate||[]),...(groups.Certificate||[])];
       const identity=identityRows.find(row=>
         clean(row.student_email||row.email,254).toLowerCase()===email &&
         courseId && clean(row.course_id,120)===courseId &&
