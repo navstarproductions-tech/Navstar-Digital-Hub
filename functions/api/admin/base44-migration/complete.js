@@ -279,10 +279,11 @@ async function importAssignment(DB,r,adminId,c,sourceCourses,sourceModules) {
   const sourceId=sourceRecordId(r);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Assignment' AND source_id=?").bind(sourceId).first();
   if(mapped?.destination_id){c.assignmentsAlreadyPresent++;return;}
-  const courseTitle=clean(r.course_title,160)||sourceCourseTitle(r.course_id,sourceCourses);
+  const courseTitle=clean(r.course_title||r.course_name||r.programme,160)||sourceCourseTitle(r.course_id,sourceCourses);
   const course=await activeCourseFor(DB,courseTitle);
   if(!course){c.assignmentsSkipped++;c.warnings.push("Assignment '"+clean(r.title,120)+"' was archived because its official course could not be matched.");return;}
-  const module=await mappedModule(DB,course.id,r.module_id,'',r.module_title,sourceModules);
+  let module=await mappedModule(DB,course.id,r.module_id,'',r.module_title,sourceModules);
+  if(!module.row&&clean(r.module_title,160))module=await ensureHistoricalModule(DB,course,r.module_id,'',r.module_title,sourceModules,adminId,c);
   const questionItems=Array.isArray(r.question_items)?r.question_items:[];
   const questionText=questionItems.map((q,i)=>[
     "Question "+(i+1)+(q.marks?" ("+num(q.marks)+" marks)":""),
@@ -508,14 +509,169 @@ async function importMarksConflict(DB,r,adminId,c,sourceCourses,sourceModules) {
     .bind(sourceId,id,student?.id||adminId).run();
   c.marksConflictsImported++;
 }
+async function ensureHistoricalModule(DB,course,sourceModuleId,moduleCode,moduleTitle,sourceModules,adminId,c) {
+  const matched=await mappedModule(DB,course.id,sourceModuleId,moduleCode,moduleTitle,sourceModules);
+  if(matched.row)return matched;
+  const title=clean(moduleTitle||sourceModules.get(clean(sourceModuleId,120))?.title,160);
+  if(!title)return matched;
+  const code=clean(moduleCode,30).toUpperCase();
+  const existing=await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE course_id=? AND lower(trim(title))=lower(trim(?)) LIMIT 1").bind(course.id,title).first();
+  const id=existing?.id||'b44histmod-'+(await sha256(course.id+'|'+norm(title))).slice(0,20);
+  if(!existing) {
+    await DB.prepare("INSERT OR IGNORE INTO course_modules(id,course_id,title,description,sort_order,status,created_by,module_code) VALUES(?,?,?,?,?,'published',?,?)")
+      .bind(id,course.id,title,'Historical module reconstructed from Base44 attendance, completion or result records.',Math.max(0,Math.round(num(sourceModules.get(clean(sourceModuleId,120))?.order)||0)),adminId,code||null).run();
+  }
+  const row=await DB.prepare("SELECT id,title,module_code FROM course_modules WHERE course_id=? AND lower(trim(title))=lower(trim(?)) LIMIT 1").bind(course.id,title).first();
+  if(row&&sourceModuleId)await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('CourseUnit',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+    .bind(clean(sourceModuleId,120),row.id,adminId).run();
+  if(row&&!existing)c.modulesImported++;
+  return {row,code,title};
+}
+
+async function importDerivedStudent(DB,r,entity,adminId,c) {
+  const email=clean(r.student_email||r.email||r.learner_email||r.email_address,254).toLowerCase();
+  const name=clean(r.student_name||r.full_name||r.name||r.learner_name,120);
+  const courseTitle=clean(r.course_title||r.course_name||r.programme||r.program||r.course,160);
+  if(!email||!name||!courseTitle)return null;
+  const sourceId=sourceRecordId(r);
+  if(!sourceId)return null;
+  const status=entity==='Graduate'?'graduated':clean(r.student_status||r.status,40)||'active';
+  const synthetic={...r,id:'derived-'+entity+'-'+sourceId,student_email:email,student_name:name,
+    student_phone:clean(r.student_phone||r.phone,40),course_title:courseTitle,
+    admission_number:clean(r.admission_number||r.student_admission_number,80),status,
+    total_fee:num(r.total_fee)||0,amount_paid:num(r.amount_paid)||0,
+    _migration_source_id:'derived-'+entity+'-'+sourceId,derived_from_entity:entity,derived_from_source_id:sourceId};
+  return importStudent(DB,synthetic,adminId,c);
+}
+
+async function importAttendanceRecord(DB,r,entity,adminId,c,sourceCourses,sourceModules) {
+  const sourceId=sourceRecordId(r);
+  const email=clean(r.student_email||r.email,254).toLowerCase();
+  const name=clean(r.student_name||r.full_name||r.name,120);
+  const courseTitle=clean(r.course_title||r.course_name,160)||sourceCourseTitle(r.course_id,sourceCourses);
+  const date=dateOnly(r.date||r.attendance_date||r.created_date);
+  const rawStatus=clean(r.status||r.attendance_status,30).toLowerCase();
+  const status=rawStatus==='present'?'present':rawStatus==='late'?'late':rawStatus==='absent'?'absent':rawStatus==='excused'||rawStatus==='leave'?'excused':null;
+  if(!sourceId||!email||!name||!courseTitle||!date||!status){c.attendanceSkipped++;return;}
+  await importDerivedStudent(DB,r,entity,adminId,c);
+  const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=(SELECT id FROM courses WHERE lower(trim(title))=lower(trim(?)) OR id=? LIMIT 1) AND e.status='accepted' LIMIT 1").bind(email,courseTitle,clean(r.course_id,120)).first();
+  const course=await courseFor(DB,courseTitle,0);
+  if(!student){c.attendanceSkipped++;return;}
+  const module=await ensureHistoricalModule(DB,course,r.module_id||r.unit_id,r.module_code||r.unit_code,r.module_title||r.unit_title,sourceModules,adminId,c);
+  const timetableId='b44attday-'+(await sha256(course.id+'|'+(module.row?.id||'')+'|'+date)).slice(0,20);
+  await DB.prepare("INSERT OR IGNORE INTO course_timetable(id,course_id,module_id,title,starts_at,ends_at,venue,status,created_by,created_at) VALUES(?,?,?,?,?,?,?,'completed',?,?)")
+    .bind(timetableId,course.id,module.row?.id||null,'Imported historical attendance — '+(module.title||course.title),date+'T00:00:00+03:00',date+'T23:59:59+03:00','Historical Base44 attendance record',adminId,clean(r.created_date,40)||new Date().toISOString()).run();
+  const attendanceId='b44att-'+sourceId.slice(-24);
+  const inserted=await DB.prepare("INSERT OR IGNORE INTO course_attendance(id,timetable_id,student_user_id,status,marked_by,marked_at) VALUES(?,?,?,?,?,?)")
+    .bind(attendanceId,timetableId,student.id,status,adminId,clean(r.updated_date||r.created_date,40)||new Date().toISOString()).run();
+  const saved=await DB.prepare("SELECT id FROM course_attendance WHERE timetable_id=? AND student_user_id=?").bind(timetableId,student.id).first();
+  if(saved?.id) {
+    await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES(?,?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+      .bind(entity,saved.id,student.id).run();
+    if(Number(inserted.meta?.changes||0)>0)c.attendanceImported++;else c.attendanceAlreadyPresent++;
+  } else c.attendanceSkipped++;
+}
+
+async function importModuleCompletion(DB,r,adminId,c,sourceCourses,sourceModules) {
+  const sourceId=sourceRecordId(r);
+  const email=clean(r.student_email||r.email,254).toLowerCase();
+  const courseTitle=clean(r.course_title||r.course_name,160)||sourceCourseTitle(r.course_id,sourceCourses);
+  const moduleTitle=clean(r.module_title||r.module_name||r.unit_title,160);
+  if(!sourceId||!email||!courseTitle||!moduleTitle){c.moduleCompletionsSkipped++;return;}
+  await importDerivedStudent(DB,r,'ModuleCompletion',adminId,c);
+  const course=await courseFor(DB,courseTitle,0);
+  const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(email,course.id).first();
+  if(!student){c.moduleCompletionsSkipped++;return;}
+  const module=await ensureHistoricalModule(DB,course,r.module_id||r.unit_id,r.module_code||r.module_code,moduleTitle,sourceModules,adminId,c);
+  if(!module.row){c.moduleCompletionsSkipped++;return;}
+  const raw=clean(r.status||r.completion_status,30).toLowerCase();
+  const status=r.is_completed===false||['pending','in_progress','not_started'].includes(raw)?'registered':'completed';
+  const id='b44modcomp-'+sourceId.slice(-24);
+  const inserted=await DB.prepare("INSERT INTO student_module_registrations(id,user_id,course_id,module_id,status,registered_at) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,module_id) DO UPDATE SET status=CASE WHEN excluded.status='completed' THEN 'completed' ELSE student_module_registrations.status END")
+    .bind(id,student.id,course.id,module.row.id,status,clean(r.completed_at||r.completion_date||r.created_date,40)||new Date().toISOString()).run();
+  const saved=await DB.prepare("SELECT id FROM student_module_registrations WHERE user_id=? AND module_id=?").bind(student.id,module.row.id).first();
+  if(saved?.id) {
+    await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('ModuleCompletion',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+      .bind(sourceId,saved.id,student.id).run();
+    if(Number(inserted.meta?.changes||0)>0)c.moduleCompletionsImported++;else c.moduleCompletionsAlreadyPresent++;
+  } else c.moduleCompletionsSkipped++;
+}
+
+async function importGraduate(DB,r,adminId,c) {
+  const sourceId=sourceRecordId(r);
+  const email=clean(r.student_email||r.email,254).toLowerCase();
+  const courseTitle=clean(r.course_title||r.course_name||r.programme,160);
+  if(!sourceId||!email||!courseTitle){c.graduatesSkipped++;return;}
+  await importDerivedStudent(DB,r,'Graduate',adminId,c);
+  const course=await courseFor(DB,courseTitle,0);
+  const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(email,course.id).first();
+  if(!student){c.graduatesSkipped++;return;}
+  const raw=clean(r.status||r.graduation_status,30).toLowerCase();
+  const status=raw.includes('defer')?'deferred':raw.includes('eligible')?'eligible':'graduated';
+  const id='b44grad-'+sourceId.slice(-24);
+  const inserted=await DB.prepare("INSERT INTO student_graduation_records(id,user_id,course_id,status,completed_at,updated_by) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,course_id) DO UPDATE SET status=CASE WHEN excluded.status='graduated' THEN 'graduated' ELSE student_graduation_records.status END,completed_at=COALESCE(excluded.completed_at,student_graduation_records.completed_at),updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+    .bind(id,student.id,course.id,status,dateOnly(r.graduation_date||r.completion_date||r.updated_date)||null,adminId).run();
+  const saved=await DB.prepare("SELECT id FROM student_graduation_records WHERE user_id=? AND course_id=?").bind(student.id,course.id).first();
+  if(saved?.id) {
+    await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Graduate',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+      .bind(sourceId,saved.id,student.id).run();
+    if(Number(inserted.meta?.changes||0)>0)c.graduatesImported++;else c.graduatesAlreadyPresent++;
+  } else c.graduatesSkipped++;
+}
+
+async function importCertificate(DB,r,adminId,c) {
+  const sourceId=sourceRecordId(r);
+  const email=clean(r.student_email||r.email,254).toLowerCase();
+  const name=clean(r.student_name||r.full_name||r.name,120);
+  const courseTitle=clean(r.course_title||r.course_name,160);
+  const certificateNo=clean(r.serial_number||r.certificate_id||r.certificate_no,100);
+  if(!sourceId||!email||!name||!courseTitle||!certificateNo){c.certificatesSkipped++;return;}
+  await importDerivedStudent(DB,r,'Certificate',adminId,c);
+  const course=await courseFor(DB,courseTitle,0);
+  const student=await DB.prepare("SELECT u.id FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' LIMIT 1").bind(email,course.id).first();
+  if(!student){c.certificatesSkipped++;return;}
+  const id='b44cert-'+sourceId.slice(-24);
+  const publicToken=await sha256('navstar-base44-certificate:'+sourceId);
+  const issuedByEmail=clean(r.approved_by||r.created_by,254).toLowerCase();
+  const issuer=issuedByEmail?await DB.prepare("SELECT id FROM users WHERE lower(email)=lower(?)").bind(issuedByEmail).first():null;
+  const status=clean(r.status,30).toLowerCase()==='revoked'?'revoked':'issued';
+  const inserted=await DB.prepare("INSERT OR IGNORE INTO student_certificates(id,user_id,course_id,certificate_no,public_token,snapshot_json,status,issued_by,issued_at) VALUES(?,?,?,?,?,?,?,?,?)")
+    .bind(id,student.id,course.id,certificateNo,publicToken,safeDetails(r),status,issuer?.id||adminId,clean(r.issue_date||r.created_date,40)||new Date().toISOString()).run();
+  const saved=await DB.prepare("SELECT id FROM student_certificates WHERE user_id=? AND course_id=?").bind(student.id,course.id).first();
+  if(saved?.id) {
+    await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Certificate',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+      .bind(sourceId,saved.id,student.id).run();
+    if(Number(inserted.meta?.changes||0)>0)c.certificatesImported++;else c.certificatesAlreadyPresent++;
+  } else c.certificatesSkipped++;
+}
+
+async function importCertificateDelivery(DB,r,certificates,c) {
+  const sourceId=sourceRecordId(r);
+  const certId=clean(r.certificate_id,100),serial=clean(r.serial_number,100);
+  if(!sourceId||(!certId&&!serial))return;
+  const sourceCertificate=(certificates||[]).find(x=>clean(x.certificate_id,100)===certId||clean(x.serial_number,100)===serial);
+  if(!sourceCertificate)return;
+  const mapping=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='Certificate' AND source_id=?").bind(sourceRecordId(sourceCertificate)).first();
+  if(!mapping?.destination_id)return;
+  const existing=await DB.prepare("SELECT snapshot_json FROM student_certificates WHERE id=?").bind(mapping.destination_id).first();
+  if(!existing)return;
+  let snapshot={};try{snapshot=JSON.parse(existing.snapshot_json||'{}')}catch{}
+  snapshot.delivery_confirmation={serial_number:serial,certificate_id:certId,student_name:clean(r.student_name,140),identity_type:clean(r.identity_type,80),identity_value:clean(r.identity_value,120),confirmed_at:clean(r.confirmed_at,60)};
+  await DB.prepare("UPDATE student_certificates SET snapshot_json=? WHERE id=?").bind(JSON.stringify(snapshot),mapping.destination_id).run();
+  await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id) VALUES('CertDeliveryConfirmation',?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,imported_at=CURRENT_TIMESTAMP")
+    .bind(sourceId,mapping.destination_id).run();
+  c.certificateDeliveriesLinked++;
+}
+
 async function importStudentResult(DB,r,adminId,c,sourceCourses,sourceModules) {
   const sourceId=sourceRecordId(r);if(!sourceId)return;
   const mapped=await DB.prepare("SELECT destination_id,is_overridden FROM base44_student_import_map WHERE entity_name='StudentResult' AND source_id=?").bind(sourceId).first();
   if(Number(mapped?.is_overridden||0)===1){c.studentResultsAlreadyPresent++;return;}
-  const courseTitle=sourceCourseTitle(r.course_id,sourceCourses);
+  const courseTitle=clean(r.course_title||r.course_name||r.programme,160)||sourceCourseTitle(r.course_id,sourceCourses);
   const course=await activeCourseFor(DB,courseTitle);
-  if(!course){c.studentResultsSkipped++;return;}
-  const module=await mappedModule(DB,course.id,r.unit_id,r.module_code,r.unit_title,sourceModules);
+  if(!course){c.studentResultsSkipped++;c.warnings.push('Student result '+sourceId+' could not be linked because its course '+(courseTitle||'(not supplied)')+' is not an active official course.');return;}
+  let module=await mappedModule(DB,course.id,r.unit_id||r.module_id,r.module_code||r.unit_code,r.unit_title||r.module_title||r.module_name,sourceModules);
+  if(!module.row)module=await ensureHistoricalModule(DB,course,r.unit_id||r.module_id,r.module_code||r.unit_code,r.unit_title||r.module_title||r.module_name,sourceModules,adminId,c);
   if(!module.row){c.studentResultsSkipped++;c.warnings.push("Module result for "+clean(r.student_email,120)+" could not be linked to an official module.");return;}
   const student=await findDestinationStudent(DB,r.student_email,course.id,r.enrollment_id);
   if(!student){c.studentResultsSkipped++;return;}
@@ -785,8 +941,8 @@ async function importStudent(DB,r,adminId,c) {
   const email=clean(r.student_email||r.email,254).toLowerCase();
   const name=clean(r.student_name||r.full_name||r.name,120);
   const phone=clean(r.student_phone||r.phone,40);
-  if(!sourceId||!email||!name||!phone){c.skippedStudents++;return null;}
-  const course=await courseFor(DB,r.course_title,r.total_fee);
+  if(!sourceId||!email||!name){c.skippedStudents++;return null;}
+  const course=await courseFor(DB,r.course_title||r.course_name||r.programme||r.program,r.total_fee);
   if(course.created)c.archivedCoursesCreated++;
   const mapping=await DB.prepare("SELECT destination_id,user_id FROM base44_student_import_map WHERE entity_name='Enrollment' AND source_id=?").bind(sourceId).first();
   const requestedAdmission=clean(r.admission_number,80);
@@ -879,7 +1035,7 @@ async function importStudent(DB,r,adminId,c) {
       address=COALESCE(NULLIF(excluded.address,''),user_profiles.address),
       student_status=excluded.student_status,updated_at=CURRENT_TIMESTAMP
   `).bind(
-    user.id,staffId,phone,dateOnly(r.date_of_birth)||null,clean(r.gender,40)||null,clean(r.nationality,80)||null,
+    user.id,staffId,phone||'',dateOnly(r.date_of_birth)||null,clean(r.gender,40)||null,clean(r.nationality,80)||null,
     clean(r.country,80)||'Kenya',clean(r.province,80)||null,clean(r.county,80)||null,clean(r.subcounty||r.sub_county,80)||null,
     clean(r.ward,80)||null,clean(r.location,100)||null,clean(r.sublocation||r.sub_location,100)||null,
     clean(r.student_photo_url,1000)||null,clean(r.national_id,80)||null,address||null,state.profile
@@ -898,7 +1054,7 @@ async function importStudent(DB,r,adminId,c) {
         application_details_json,admitted_user_id,created_at
       ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,'accepted','unpaid',?,?,?)
     `).bind(
-      enrollmentId,ref,admission,course.id,name,email,phone,dateOnly(r.date_of_birth)||'',clean(r.id_type,40)||null,
+      enrollmentId,ref,admission,course.id,name,email,phone||'Not recorded',dateOnly(r.date_of_birth)||'',clean(r.id_type,40)||null,
       clean(r.national_id,80)||null,clean(r.gender,40)||null,clean(r.nationality,80)||null,
       clean(r.study_mode,40)||'Not recorded',clean(r.education_level,80)||'Not recorded',
       clean(r.intake_label||r.intake_id,80)||null,clean(r.previous_school||r.education_year_completed,160)||null,
@@ -983,7 +1139,7 @@ export async function onRequestPost({request,env}) {
   const stagedRows=[];
   const newArchiveCount=await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_archive_records WHERE migration_batch=?').bind(sourceBatch).first();
   const archiveTable=Number(newArchiveCount?.count||0)>0?'base44_legacy_archive_records':'base44_legacy_records';
-  const batchAllowed=['AcademicIntake','FeeStructure','Enrollment','CourseUnit','SystemUser','ModuleAssignment','Exam','ExamAttempt','ExamQuestion','Assignment','AssignmentSubmission','StudentResult','MarksConflict','StaffApplication','ExamSettings','SystemSettings','GradingSystem'];
+  const batchAllowed=['AcademicIntake','FeeStructure','Enrollment','CourseUnit','SystemUser','ModuleAssignment','Exam','ExamAttempt','ExamQuestion','Assignment','AssignmentSubmission','StudentResult','MarksConflict','StaffApplication','ExamSettings','SystemSettings','GradingSystem','AttendanceRecord','EClassAttendance','ModuleCompletion','Graduate','Certificate','CertDeliveryConfirmation','StudentStatusHistory'];
   if(body.finalizeOnly===true){
     await env.DB.prepare('UPDATE base44_migration_tokens SET used_at=CURRENT_TIMESTAMP WHERE token_hash=? AND used_at IS NULL').bind(tokenHash).run();
     try{await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)').bind(uuid(),tokenRow.created_by,'base44_student_and_fee_migration_completed','migration',sourceBatch.slice(0,24)).run();}catch{}
@@ -1009,6 +1165,7 @@ export async function onRequestPost({request,env}) {
     if(['CourseUnit','ModuleAssignment','Exam','Assignment','StudentResult','MarksConflict'].includes(batchEntity))await support('Course');
     if(['Exam','Assignment','StudentResult','MarksConflict','ModuleAssignment'].includes(batchEntity))await support('CourseUnit');
     if(batchEntity==='ModuleAssignment')await support('SystemUser');
+    if(batchEntity==='CertDeliveryConfirmation')await support('Certificate');
     // ExamAttempt processing uses the already-created Exam import map and live
     // student lookup. Do not reload every Exam/CourseUnit row for each 15-row
     // attempt page: that repeated full-table scan caused Cloudflare 524s.
@@ -1043,13 +1200,13 @@ export async function onRequestPost({request,env}) {
     }
   }
   if(archiveReplay&&!stagedRows.length)return new Response(JSON.stringify({error:'This saved package contains no supported records to import.'}),{status:404,headers:{...headers,'Content-Type':'application/json'}});
-  const groups={Enrollment:[],AcademicIntake:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],GradingSystem:[],SystemUser:[],ModuleAssignment:[],MarksApproval:[],MarksConflict:[],StaffApplication:[]};
+  const groups={Enrollment:[],AcademicIntake:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],GradingSystem:[],SystemUser:[],ModuleAssignment:[],MarksApproval:[],MarksConflict:[],StaffApplication:[],AttendanceRecord:[],EClassAttendance:[],ModuleCompletion:[],Graduate:[],Certificate:[],CertDeliveryConfirmation:[],StudentStatusHistory:[]};
   for(const row of stagedRows) {
     try{const parsed=JSON.parse(row.record_json);if(!parsed.id&&!parsed._id&&!parsed.uuid&&!parsed.ID&&!parsed.Id)parsed._migration_source_id=row.source_id;groups[row.entity_name].push(parsed);}
     catch{return new Response(JSON.stringify({error:'A staged student or fee record could not be read. The transfer was not completed.'}),{status:500,headers:{...headers,'Content-Type':'application/json'}});}
   }
   // A complete export may contain entities beyond student enrolments. Archive-only packages are valid; the operational student/fee importer simply has nothing to process.
-  const c={sourceBatch,sourceStudents:groups.Enrollment.length,academicIntakesImported:0,academicIntakesAlreadyPresent:0,academicIntakesSkipped:0,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,legacyQuestionsRecovered:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsRestored:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,staffApplicationsImported:0,staffApplicationsAlreadyPresent:0,staffApplicationsSkipped:0,systemUsersImported:0,systemUsersAlreadyPresent:0,systemUsersSkipped:0,staffPasswordSetupRequired:0,warnings:[]};
+  const c={sourceBatch,sourceStudents:groups.Enrollment.length,attendanceImported:0,attendanceAlreadyPresent:0,attendanceSkipped:0,moduleCompletionsImported:0,moduleCompletionsAlreadyPresent:0,moduleCompletionsSkipped:0,graduatesImported:0,graduatesAlreadyPresent:0,graduatesSkipped:0,certificatesImported:0,certificatesAlreadyPresent:0,certificatesSkipped:0,certificateDeliveriesLinked:0,academicIntakesImported:0,academicIntakesAlreadyPresent:0,academicIntakesSkipped:0,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,legacyQuestionsRecovered:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsRestored:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,staffApplicationsImported:0,staffApplicationsAlreadyPresent:0,staffApplicationsSkipped:0,systemUsersImported:0,systemUsersAlreadyPresent:0,systemUsersSkipped:0,staffPasswordSetupRequired:0,warnings:[]};
   try {
     if(questionsOnly){
       if(!batchMode)for(const question of groups.ExamQuestion)await migrationGuard('ExamQuestion '+sourceRecordId(question),()=>importExamQuestion(env.DB,question,tokenRow.created_by,c),c);
@@ -1075,6 +1232,12 @@ export async function onRequestPost({request,env}) {
     const sourceModules=new Map(groups.CourseUnit.map(x=>[sourceRecordId(x),x]));
     const imported=[];
     if(!batchMode||batchEntity==='AcademicIntake')await migrationGuard('AcademicIntake batch',()=>importAcademicIntakes(env.DB,groups.AcademicIntake,c),c);
+    if(!batchMode||batchEntity==='AttendanceRecord')for(const record of groups.AttendanceRecord)await migrationGuard('AttendanceRecord '+sourceRecordId(record),()=>importAttendanceRecord(env.DB,record,'AttendanceRecord',tokenRow.created_by,c,sourceCourses,sourceModules),c);
+    if(!batchMode||batchEntity==='EClassAttendance')for(const record of groups.EClassAttendance)await migrationGuard('EClassAttendance '+sourceRecordId(record),()=>importAttendanceRecord(env.DB,record,'EClassAttendance',tokenRow.created_by,c,sourceCourses,sourceModules),c);
+    if(!batchMode||batchEntity==='ModuleCompletion')for(const record of groups.ModuleCompletion)await migrationGuard('ModuleCompletion '+sourceRecordId(record),()=>importModuleCompletion(env.DB,record,tokenRow.created_by,c,sourceCourses,sourceModules),c);
+    if(!batchMode||batchEntity==='Graduate')for(const record of groups.Graduate)await migrationGuard('Graduate '+sourceRecordId(record),()=>importGraduate(env.DB,record,tokenRow.created_by,c),c);
+    if(!batchMode||batchEntity==='Certificate')for(const record of groups.Certificate)await migrationGuard('Certificate '+sourceRecordId(record),()=>importCertificate(env.DB,record,tokenRow.created_by,c),c);
+    if(!batchMode||batchEntity==='CertDeliveryConfirmation')for(const record of groups.CertDeliveryConfirmation)await migrationGuard('CertDeliveryConfirmation '+sourceRecordId(record),()=>importCertificateDelivery(env.DB,record,groups.Certificate,c),c);
     if(!batchMode||batchEntity==='Enrollment')for(const student of groups.Enrollment){const item=await migrationGuard('Enrollment '+sourceRecordId(student),()=>importStudent(env.DB,student,tokenRow.created_by,c),c);if(item&&!academicOnly)imported.push(item);}
     if(!batchMode||batchEntity==='ExamSettings')await migrationGuard('ExamSettings',()=>importExamSettings(env.DB,groups.ExamSettings),c);
     if(!batchMode||batchEntity==='SystemSettings')await migrationGuard('marks category weights',()=>importMarksWeights(env.DB,groups.SystemSettings),c);
@@ -1086,6 +1249,8 @@ export async function onRequestPost({request,env}) {
     if(!batchMode||batchEntity==='Exam')for(const exam of groups.Exam)await migrationGuard('Exam '+sourceRecordId(exam),()=>importExam(env.DB,exam,tokenRow.created_by,c,sourceCourses,sourceModules),c);
     // Recover legacy exam shells from attempt metadata when Base44 no longer has the parent Exam row.
     // This preserves historical attempts and their questions without publishing a new live paper.
+    if(!batchMode||batchEntity==='ExamAttempt')for(const attempt of groups.ExamAttempt)await migrationGuard('ExamAttempt student identity '+sourceRecordId(attempt),()=>importDerivedStudent(env.DB,attempt,'ExamAttempt',tokenRow.created_by,c),c);
+    if(!batchMode||batchEntity==='StudentResult')for(const result of groups.StudentResult)await migrationGuard('StudentResult student identity '+sourceRecordId(result),()=>importDerivedStudent(env.DB,result,'StudentResult',tokenRow.created_by,c),c);
     if(!batchMode||batchEntity==='ExamAttempt')for(const attempt of groups.ExamAttempt)await migrationGuard('ExamAttempt parent '+sourceRecordId(attempt),()=>ensureExamForAttempt(env.DB,attempt,tokenRow.created_by,c,sourceCourses,sourceModules,groups.ExamQuestion),c);
     for(const question of groups.ExamQuestion)await importExamQuestion(env.DB,question,tokenRow.created_by,c);
     if(!batchMode||batchEntity==='Assignment')for(const assignment of groups.Assignment)await migrationGuard('Assignment '+sourceRecordId(assignment),()=>importAssignment(env.DB,assignment,tokenRow.created_by,c,sourceCourses,sourceModules),c);
@@ -1215,7 +1380,7 @@ export async function onRequestPost({request,env}) {
       studentEnrollmentsImported:c.sourceStudents-c.skippedStudents,academicIntakesImported:c.academicIntakesImported,academicIntakesAlreadyPresent:c.academicIntakesAlreadyPresent,academicIntakesSkipped:c.academicIntakesSkipped,studentAccountsCreated:c.accountsCreated,existingAccountsLinked:c.existingAccountsLinked,
       enrollmentsCreated:c.enrollmentsCreated,enrollmentsAlreadyPresent:c.enrollmentsAlreadyPresent,admissionNumbersUpdated:c.admissionNumbersUpdated,admissionNumberConflicts:c.admissionNumberConflicts,skippedStudents:c.skippedStudents,
       passwordSetupRequired:c.passwordSetupRequired,feeStructuresImported:c.feeStructuresImported,feeStructuresSkipped:c.feeStructuresSkipped,
-      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,examsRecoveredFromAttempts:c.examsRecoveredFromAttempts,legacyQuestionsRecovered:c.legacyQuestionsRecovered,modulesImported:c.modulesImported,modulesAlreadyPresent:c.modulesAlreadyPresent,modulesSkipped:c.modulesSkipped,moduleAssignmentsImported:c.moduleAssignmentsImported,moduleAssignmentsAlreadyPresent:c.moduleAssignmentsAlreadyPresent,moduleAssignmentsSkipped:c.moduleAssignmentsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,assignmentsImported:c.assignmentsImported,assignmentsAlreadyPresent:c.assignmentsAlreadyPresent,assignmentsSkipped:c.assignmentsSkipped,assignmentSubmissionsImported:c.assignmentSubmissionsImported,assignmentSubmissionsAlreadyPresent:c.assignmentSubmissionsAlreadyPresent,assignmentSubmissionsSkipped:c.assignmentSubmissionsSkipped,examAttemptsImported:c.examAttemptsImported,examAttemptsAlreadyPresent:c.examAttemptsAlreadyPresent,examAttemptsSkipped:c.examAttemptsSkipped,examApprovalsImported:c.examApprovalsImported,studentResultsImported:c.studentResultsImported,studentResultsAlreadyPresent:c.studentResultsAlreadyPresent,studentResultsRestored:c.studentResultsRestored,studentResultsSkipped:c.studentResultsSkipped,marksConflictsImported:c.marksConflictsImported,marksConflictsAlreadyPresent:c.marksConflictsAlreadyPresent,marksConflictsSkipped:c.marksConflictsSkipped,staffApplicationsImported:c.staffApplicationsImported,staffApplicationsAlreadyPresent:c.staffApplicationsAlreadyPresent,staffApplicationsSkipped:c.staffApplicationsSkipped,systemUsersImported:c.systemUsersImported,systemUsersAlreadyPresent:c.systemUsersAlreadyPresent,systemUsersSkipped:c.systemUsersSkipped,staffPasswordSetupRequired:c.staffPasswordSetupRequired,stagedRecordsProcessed:stagedRows.length,warnings:c.warnings
+      feePaymentsImported:c.feePaymentsImported,additionalFeesImported:c.additionalFeesImported,additionalFeesSkipped:c.additionalFeesSkipped,openingBalanceEntries:c.openingBalanceEntries,archivedCoursesCreated:c.archivedCoursesCreated,examsImported:c.examsImported,examsAlreadyPresent:c.examsAlreadyPresent,examsSkipped:c.examsSkipped,examsRecoveredFromAttempts:c.examsRecoveredFromAttempts,legacyQuestionsRecovered:c.legacyQuestionsRecovered,modulesImported:c.modulesImported,modulesAlreadyPresent:c.modulesAlreadyPresent,modulesSkipped:c.modulesSkipped,moduleAssignmentsImported:c.moduleAssignmentsImported,moduleAssignmentsAlreadyPresent:c.moduleAssignmentsAlreadyPresent,moduleAssignmentsSkipped:c.moduleAssignmentsSkipped,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,attendanceImported:c.attendanceImported,attendanceAlreadyPresent:c.attendanceAlreadyPresent,attendanceSkipped:c.attendanceSkipped,moduleCompletionsImported:c.moduleCompletionsImported,moduleCompletionsAlreadyPresent:c.moduleCompletionsAlreadyPresent,moduleCompletionsSkipped:c.moduleCompletionsSkipped,graduatesImported:c.graduatesImported,graduatesAlreadyPresent:c.graduatesAlreadyPresent,graduatesSkipped:c.graduatesSkipped,certificatesImported:c.certificatesImported,certificatesAlreadyPresent:c.certificatesAlreadyPresent,certificatesSkipped:c.certificatesSkipped,certificateDeliveriesLinked:c.certificateDeliveriesLinked,assignmentsImported:c.assignmentsImported,assignmentsAlreadyPresent:c.assignmentsAlreadyPresent,assignmentsSkipped:c.assignmentsSkipped,assignmentSubmissionsImported:c.assignmentSubmissionsImported,assignmentSubmissionsAlreadyPresent:c.assignmentSubmissionsAlreadyPresent,assignmentSubmissionsSkipped:c.assignmentSubmissionsSkipped,examAttemptsImported:c.examAttemptsImported,examAttemptsAlreadyPresent:c.examAttemptsAlreadyPresent,examAttemptsSkipped:c.examAttemptsSkipped,examApprovalsImported:c.examApprovalsImported,studentResultsImported:c.studentResultsImported,studentResultsAlreadyPresent:c.studentResultsAlreadyPresent,studentResultsRestored:c.studentResultsRestored,studentResultsSkipped:c.studentResultsSkipped,marksConflictsImported:c.marksConflictsImported,marksConflictsAlreadyPresent:c.marksConflictsAlreadyPresent,marksConflictsSkipped:c.marksConflictsSkipped,staffApplicationsImported:c.staffApplicationsImported,staffApplicationsAlreadyPresent:c.staffApplicationsAlreadyPresent,staffApplicationsSkipped:c.staffApplicationsSkipped,systemUsersImported:c.systemUsersImported,systemUsersAlreadyPresent:c.systemUsersAlreadyPresent,systemUsersSkipped:c.systemUsersSkipped,staffPasswordSetupRequired:c.staffPasswordSetupRequired,stagedRecordsProcessed:stagedRows.length,warnings:c.warnings
     }),{status:200,headers:{...headers,'Content-Type':'application/json'}});
   } catch(cause) {
     console.error('Focused Base44 student/fee migration failed:',String(cause?.message||cause));
