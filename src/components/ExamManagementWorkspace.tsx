@@ -35,7 +35,7 @@ export function ExamManagementWorkspace({courses,exams,onRefresh}:Props){
  const formModule=modules.find(m=>m.id===form.moduleId);
  const title=autoTitle(formModule,form.type,formCourse);
  
- const loadModules=async(courseId:string)=>{if(!courseId){setModules([]);return;}try{const r=await fetch('/api/learning',{credentials:'same-origin',cache:'no-store'});const j=await r.json();const c=(j.courses||[]).find((x:any)=>x.id===courseId);setModules((c?.modules||[]).map((m:any)=>({id:m.id,title:m.title,code:m.code,course_id:courseId})));}catch{setModules([]);}};
+ const loadModules=async(courseId:string)=>{if(!courseId){setModules([]);return;}try{const r=await fetch('/api/learning',{credentials:'same-origin',cache:'no-store'});const j=await r.json();const c=(j.courses||[]).find((x:any)=>x.id===courseId);setModules((c?.modules||[]).map((m:any)=>({id:m.id,title:m.title,code:m.module_code,course_id:courseId})));}catch{setModules([]);}};
  const loadMonitor=async()=>{try{const r=await fetch('/api/academic',{credentials:'same-origin',cache:'no-store'});const j=await r.json();setCandidates(j.examCandidates||[]);setRuntime(j.examRuntimeAttempts||[]);}catch{}};
  useEffect(()=>{if(!selectedId&&visibleExams.length)setSelectedId(visibleExams[0].id);if(selectedId&&!visibleExams.some(e=>e.id===selectedId))setSelectedId(visibleExams[0]?.id||'');},[visibleExams,selectedId]);
  useEffect(()=>{void loadMonitor();const t=window.setInterval(loadMonitor,15000);return()=>window.clearInterval(t);},[]);
