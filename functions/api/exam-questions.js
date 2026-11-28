@@ -48,6 +48,8 @@ async function canAccess(db,user,courseId){
 async function canManageModuleAssessment(db,user,assessment){
  if(admin.includes(user.role))return true;
  if(user.role!=='tutor'||!assessment?.module_id)return false;
+ const course=await db.prepare('SELECT id FROM course_tutor_assignments WHERE course_id=? AND tutor_user_id=?').bind(assessment.course_id,user.id).first();
+ if(course)return true;
  return Boolean(await db.prepare('SELECT id FROM module_tutor_assignments WHERE module_id=? AND tutor_user_id=?').bind(assessment.module_id,user.id).first());
 }
 export async function onRequestGet({request,env}){
