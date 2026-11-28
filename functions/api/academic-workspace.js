@@ -40,7 +40,7 @@ export async function onRequestGet({request,env}){
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  if(action==='report-cards'){
   if(user.role==='student'){
-   const rows=await env.DB.prepare("SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.course_id,r.snapshot_json,c.title AS course_title FROM academic_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? AND r.status='published' ORDER BY r.published_at DESC,r.issued_at DESC").bind(user.id).all();
+   const rows=await env.DB.prepare("SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.course_id,r.snapshot_json,c.title AS course_title FROM academic_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY r.issued_at DESC").bind(user.id).all();
    return json({reportCards:rows.results||[]});
   }
   if(!staff.includes(user.role))return error('Not authorised.',403);
