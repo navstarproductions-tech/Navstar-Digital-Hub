@@ -274,6 +274,7 @@ export function AdminPage() {
   const [feeStudentsWithoutAdmissionFee, setFeeStudentsWithoutAdmissionFee] = useState(0);
   const [editingCourseId, setEditingCourseId] = useState('');
   const [cashoutAmount, setCashoutAmount] = useState('');
+  const [cashoutPhone, setCashoutPhone] = useState('');
   const [notice, setNotice] = useState('');
   const [logoPreview, setLogoPreview] = useState('');
   const [logoAssetId, setLogoAssetId] = useState('');
@@ -980,13 +981,14 @@ export function AdminPage() {
       const response = await fetch('/api/admin/cashouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: Number(cashoutAmount) }),
+        body: JSON.stringify({ amount: Number(cashoutAmount), phone: cashoutPhone, purpose: 'Navstar business payout' }),
       });
-      const result = await response.json() as { id?: string; amount?: number; status?: string; error?: string };
+      const result = await response.json() as { id?: string; amount?: number; status?: string; recipient_phone?: string; error?: string };
       if (!response.ok || !result.id) throw new Error(result.error ?? 'Cashout request was not accepted.');
-      setCashoutRequests((current) => [{ id: result.id, amount: result.amount, status: result.status, created_at: new Date().toISOString() }, ...current]);
-      setNotice('Cashout request submitted for approval. No money was transferred.');
+      setCashoutRequests((current) => [{ id: result.id, amount: result.amount, status: result.status, recipient_phone: result.recipient_phone, created_at: new Date().toISOString() }, ...current]);
+      setNotice('Payout request submitted for approval. No money has been sent yet.');
       setCashoutAmount('');
+      setCashoutPhone('');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Cashout request failed.');
     }
@@ -1053,15 +1055,16 @@ export function AdminPage() {
   };
 
   const reviewCashout = async (requestId: string, status: 'approved' | 'rejected') => {
+    if (status === 'approved' && !window.confirm('Approve this request and send the money from Navstar PayBill to the recipient phone number now? This is a REAL M-PESA transfer.')) return;
     const response = await fetch(`/api/admin/cashouts/${encodeURIComponent(requestId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
-    const result = await response.json() as { error?: string };
+    const result = await response.json() as { error?: string; payout_status?: string; message?: string };
     if (!response.ok) { setNotice(result.error ?? 'Cashout review failed.'); return; }
-    setCashoutRequests((current) => current.map((item) => item.id === requestId ? { ...item, status } : item));
-    setNotice(`Cashout request ${status}. This records approval only; it does not transfer money.`);
+    setCashoutRequests((current) => current.map((item) => item.id === requestId ? { ...item, status, payout_status: result.payout_status || item.payout_status } : item));
+    setNotice(status === 'approved' ? (result.message || 'Safaricom payout submission completed. Check the callback status before treating it as paid.') : 'Payout request rejected. No money was sent.');
   };
 
   const setImage = async (event: ChangeEvent<HTMLInputElement>, target: 'logo' | 'gallery') => {
@@ -1508,7 +1511,7 @@ export function AdminPage() {
           {active === 'receipts' && (!selectedSubtab || selectedSubtab === 'Payment Receipts') && <section className="rounded-2xl border bg-white p-6"><div className="flex items-center gap-3"><ReceiptText className="h-6 w-6 text-blue-800"/><div><h3 className="font-bold text-slate-950">Confirmed payment receipts</h3><p className="mt-1 text-sm text-slate-600">View confirmed payments and print or save official Navstar receipts as PDF.</p></div></div><Link to="/admin/receipts" className="mt-5 inline-flex items-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900">Open payment receipt register</Link></section>}
 
           {(['finance','fees'].includes(active) && selectedSubtab && !['Accounts Overview','Collect Fees'].includes(selectedSubtab)) && <AdminWorkspaceHub section={active} subtab={selectedSubtab} courses={courses} users={portalUsers} applications={applications} services={services}/>}
-          {((active === 'finance' && (!selectedSubtab || selectedSubtab === 'Accounts Overview')) || (active === 'fees' && (!selectedSubtab || selectedSubtab === 'Collect Fees'))) && <div className="space-y-6"><AdminFinancePanel role={user?.role || ''} ledger={active === 'fees' ? 'fees' : 'business'} /><form onSubmit={startCashout} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Request cashout</h3><p className="mt-2 text-sm leading-6 text-slate-600">This creates an approval request only; it does not transfer funds. Never withdraw from the browser.</p></div><div className="space-y-2"><Label htmlFor="cashout-amount">Amount (KSh)</Label><Input id="cashout-amount" type="number" min="1" value={cashoutAmount} onChange={(event) => setCashoutAmount(event.target.value)} required /></div><Button className="bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={!backendReady || !user}><CircleDollarSign className="mr-2 h-4 w-4" />{backendReady ? 'Submit for approval' : 'Backend required'}</Button><div className="divide-y border">{cashoutRequests.map((item) => <div key={String(item.id)} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><span>KSh {Number(item.amount).toLocaleString()} · {String(item.status)}</span>{item.status === 'pending_approval' && user?.role === 'admin' && <span className="flex gap-2"><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'approved')}>Approve</Button><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'rejected')}>Reject</Button></span>}</div>)}{cashoutRequests.length === 0 && <p className="p-3 text-xs text-slate-500">No cashout requests.</p>}</div></form></div>}
+          {((active === 'finance' && (!selectedSubtab || selectedSubtab === 'Accounts Overview')) || (active === 'fees' && (!selectedSubtab || selectedSubtab === 'Collect Fees'))) && <div className="space-y-6"><AdminFinancePanel role={user?.role || ''} ledger={active === 'fees' ? 'fees' : 'business'} /><form onSubmit={startCashout} className="space-y-4 border bg-white p-5"><div><h3 className="font-bold text-slate-950">Request M-Pesa payout</h3><p className="mt-2 text-sm leading-6 text-slate-600">Create a phone payout request. Approval sends a real B2C transfer from the configured Navstar shortcode; Safaricom's callback confirms the final result.</p></div><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="cashout-phone">Recipient M-Pesa phone number</Label><Input id="cashout-phone" type="tel" inputMode="tel" placeholder="07XXXXXXXX" value={cashoutPhone} onChange={(event) => setCashoutPhone(event.target.value)} required /></div><div className="space-y-2"><Label htmlFor="cashout-amount">Amount (KSh)</Label><Input id="cashout-amount" type="number" min="1" max="150000" value={cashoutAmount} onChange={(event) => setCashoutAmount(event.target.value)} required /></div></div><p className="text-xs text-amber-700">Verify the phone number and amount carefully. Only an administrator can create and approve a payout.</p><Button className="bg-emerald-800 hover:bg-emerald-900" type="submit" disabled={!backendReady || user?.role !== 'admin'}><CircleDollarSign className="mr-2 h-4 w-4" />{backendReady ? 'Create payout request' : 'Backend required'}</Button><div className="divide-y border">{cashoutRequests.map((item) => <div key={String(item.id)} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"><span><strong>{String(item.reference || 'COT')}</strong> · KSh {Number(item.amount).toLocaleString()} · {String(item.recipient_phone || 'Phone not recorded')}<span className="ml-2 rounded bg-slate-100 px-2 py-1 text-xs">{String(item.status)}</span>{item.payout_status && <span className="ml-2 text-xs font-semibold text-blue-800">M-Pesa: {String(item.payout_status)}</span>}{item.transaction_id && <span className="ml-2 text-xs text-slate-500">Receipt: {String(item.transaction_id)}</span>}</span>{item.status === 'pending_approval' && user?.role === 'admin' && <span className="flex gap-2"><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'approved')}>Approve &amp; send</Button><Button size="sm" type="button" variant="outline" onClick={() => reviewCashout(String(item.id), 'rejected')}>Reject</Button></span>}</div>)}{cashoutRequests.length === 0 && <p className="p-3 text-xs text-slate-500">No payout requests.</p>}</div></form></div>}
 
           {active === 'pos' && selectedSubtab === 'Packing & Delivery' && <ParcelDeliveryWorkspace services={services}/>}
           {active === 'pos' && selectedSubtab === 'Payment Approvals' && <div className="space-y-4"><header className="rounded-2xl bg-gradient-to-r from-[#071a35] via-blue-950 to-[#075b68] p-5 text-white"><p className="text-xs font-black uppercase tracking-[.2em] text-cyan-200">NAVSTAR · PAYMENT CONTROL</p><h2 className="mt-1 text-2xl font-black">Payment Approvals</h2><p className="mt-1 text-sm text-blue-100">Review Safaricom-confirmed business payments. This administrative review does not replace the payment callback or alter student fee records.</p></header><POSPaymentApprovals/></div>}
