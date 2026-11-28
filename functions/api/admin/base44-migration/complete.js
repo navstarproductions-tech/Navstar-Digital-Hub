@@ -961,19 +961,29 @@ export async function onRequestPost({request,env}) {
   const tokenRow=await env.DB.prepare('SELECT token_hash,expires_at,used_at,records_received,created_by FROM base44_migration_tokens WHERE token_hash=?').bind(tokenHash).first();
   if(!tokenRow||tokenRow.used_at||new Date(tokenRow.expires_at).getTime()<Date.now())return new Response(JSON.stringify({error:'Migration token is invalid, expired, or already completed.'}),{status:401,headers:{...headers,'Content-Type':'application/json'}});
   let body={};try{body=await request.json();}catch{}
-  const archiveReplay=body.archiveReplay===true||body.academicOnly===true;
+  const archiveReplay=body.archiveReplay===true||body.academicOnly===true||body.questionsOnly===true;
   const academicOnly=body.academicOnly===true&&body.archiveReplay!==true;
+  const questionsOnly=body.questionsOnly===true;
+  const deferTokenUse=body.deferTokenUse===true;
   const sourceBatch=archiveReplay?clean(body.batchId,80):tokenHash;
   if(archiveReplay&&!sourceBatch)return new Response(JSON.stringify({error:'Select a saved migration package first.'}),{status:400,headers:{...headers,'Content-Type':'application/json'}});
-  const entityFilter=academicOnly?"'Enrollment','AcademicIntake','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'" :"'Enrollment','AcademicIntake','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'";
+  const entityFilter=questionsOnly?"'ExamQuestion'":academicOnly?"'Enrollment','AcademicIntake','Course','CourseUnit','Exam','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'" :"'Enrollment','AcademicIntake','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','Exam','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','SystemUser','ModuleAssignment','MarksApproval','MarksConflict','StaffApplication'";
   const stagedRows=[];
   const newArchiveCount=await env.DB.prepare('SELECT COUNT(*) AS count FROM base44_legacy_archive_records WHERE migration_batch=?').bind(sourceBatch).first();
   const archiveTable=Number(newArchiveCount?.count||0)>0?'base44_legacy_archive_records':'base44_legacy_records';
-  // Read the entire saved package in bounded pages. A single D1 .all() response can be truncated for large exports.
-  for(let offset=0;;offset+=500){
-    const page=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM "+archiveTable+" WHERE migration_batch=? AND entity_name IN ("+entityFilter+") ORDER BY entity_name,source_id LIMIT 500 OFFSET ?").bind(sourceBatch,offset).all();
-    const rows=page.results||[];stagedRows.push(...rows);if(rows.length<500)break;
-    if(offset>=50000)throw new Error('The saved migration package exceeds the safe 50,000-record processing limit. Split the export into smaller packages.');
+  // The question bank is deliberately replayed in small independently resumable slices.
+  if(questionsOnly){
+    const offset=Math.max(0,Math.floor(Number(body.offset)||0));
+    const limit=Math.min(30,Math.max(1,Math.floor(Number(body.limit)||25)));
+    const page=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM "+archiveTable+" WHERE migration_batch=? AND entity_name='ExamQuestion' ORDER BY source_id LIMIT ? OFFSET ?").bind(sourceBatch,limit,offset).all();
+    stagedRows.push(...(page.results||[]));
+  } else {
+    // Keep the main operational pass bounded by excluding the large question bank.
+    for(let offset=0;;offset+=500){
+      const page=await env.DB.prepare("SELECT entity_name,source_id,record_json FROM "+archiveTable+" WHERE migration_batch=? AND entity_name IN ("+entityFilter+") ORDER BY entity_name,source_id LIMIT 500 OFFSET ?").bind(sourceBatch,offset).all();
+      const rows=page.results||[];stagedRows.push(...rows);if(rows.length<500)break;
+      if(offset>=50000)throw new Error('The saved migration package exceeds the safe 50,000-record processing limit. Split the export into smaller packages.');
+    }
   }
   if(archiveReplay&&!stagedRows.length)return new Response(JSON.stringify({error:'This saved package contains no supported records to import.'}),{status:404,headers:{...headers,'Content-Type':'application/json'}});
   const groups={Enrollment:[],AcademicIntake:[],FeeStructure:[],FeePayment:[],AdditionalFee:[],Course:[],CourseUnit:[],Exam:[],ExamQuestion:[],ExamAttempt:[],StudentResult:[],Assignment:[],AssignmentSubmission:[],ExamSettings:[],SystemSettings:[],GradingSystem:[],SystemUser:[],ModuleAssignment:[],MarksApproval:[],MarksConflict:[],StaffApplication:[]};
@@ -984,6 +994,21 @@ export async function onRequestPost({request,env}) {
   // A complete export may contain entities beyond student enrolments. Archive-only packages are valid; the operational student/fee importer simply has nothing to process.
   const c={sourceBatch,sourceStudents:groups.Enrollment.length,academicIntakesImported:0,academicIntakesAlreadyPresent:0,academicIntakesSkipped:0,accountsCreated:0,existingAccountsLinked:0,enrollmentsCreated:0,enrollmentsAlreadyPresent:0,admissionNumbersUpdated:0,admissionNumberConflicts:0,skippedStudents:0,passwordSetupRequired:0,feeStructuresImported:0,feeStructuresSkipped:0,feePaymentsImported:0,additionalFeesImported:0,additionalFeesSkipped:0,openingBalanceEntries:0,archivedCoursesCreated:0,modulesImported:0,modulesAlreadyPresent:0,modulesSkipped:0,moduleAssignmentsImported:0,moduleAssignmentsAlreadyPresent:0,moduleAssignmentsSkipped:0,examsImported:0,examsAlreadyPresent:0,examsSkipped:0,examsRecoveredFromAttempts:0,legacyQuestionsRecovered:0,questionsImported:0,questionsAlreadyPresent:0,questionsSkipped:0,assignmentsImported:0,assignmentsAlreadyPresent:0,assignmentsSkipped:0,assignmentSubmissionsImported:0,assignmentSubmissionsAlreadyPresent:0,assignmentSubmissionsSkipped:0,examAttemptsImported:0,examAttemptsAlreadyPresent:0,examAttemptsSkipped:0,examApprovalsImported:0,studentResultsImported:0,studentResultsAlreadyPresent:0,studentResultsRestored:0,studentResultsSkipped:0,marksConflictsImported:0,marksConflictsAlreadyPresent:0,marksConflictsSkipped:0,staffApplicationsImported:0,staffApplicationsAlreadyPresent:0,staffApplicationsSkipped:0,systemUsersImported:0,systemUsersAlreadyPresent:0,systemUsersSkipped:0,staffPasswordSetupRequired:0,warnings:[]};
   try {
+    if(questionsOnly){
+      for(const question of groups.ExamQuestion)await importExamQuestion(env.DB,question,tokenRow.created_by,c);
+      const offset=Math.max(0,Math.floor(Number(body.offset)||0));
+      const limit=Math.min(30,Math.max(1,Math.floor(Number(body.limit)||25)));
+      const nextOffset=offset+stagedRows.length;
+      const totalRow=await env.DB.prepare("SELECT COUNT(*) AS count FROM "+archiveTable+" WHERE migration_batch=? AND entity_name='ExamQuestion'").bind(sourceBatch).first();
+      const total=Number(totalRow?.count||0);
+      const done=nextOffset>=total;
+      if(done&&body.finalize===true&&!deferTokenUse){
+        await env.DB.prepare('UPDATE base44_migration_tokens SET used_at=CURRENT_TIMESTAMP WHERE token_hash=? AND used_at IS NULL').bind(tokenHash).run();
+        await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
+          .bind(uuid(),tokenRow.created_by,'base44_exam_question_archive_import_completed','migration',sourceBatch.slice(0,24)).run();
+      }
+      return new Response(JSON.stringify({completed:done,questionsOnly:true,sourceBatch,processed:stagedRows.length,nextOffset:done?null:nextOffset,total,questionsImported:c.questionsImported,questionsAlreadyPresent:c.questionsAlreadyPresent,questionsSkipped:c.questionsSkipped,tokenFinalized:done&&body.finalize===true&&!deferTokenUse}),{status:200,headers:{...headers,'Content-Type':'application/json'}});
+    }
     for(const fee of groups.FeeStructure)await importFeeStructure(env.DB,fee,c);
     const sourceCourses=new Map(groups.Course.map(x=>[sourceRecordId(x),x]));
     const sourceModules=new Map(groups.CourseUnit.map(x=>[sourceRecordId(x),x]));
@@ -1108,7 +1133,7 @@ export async function onRequestPost({request,env}) {
       const paymentStatus=due>0&&paid>=due?'paid':paid>0?'pending':'unpaid';
       await env.DB.prepare('UPDATE enrollments SET payment_status=? WHERE id=?').bind(paymentStatus,item.enrollmentId).run();
     }
-    await env.DB.prepare('UPDATE base44_migration_tokens SET used_at=CURRENT_TIMESTAMP WHERE token_hash=? AND used_at IS NULL').bind(tokenHash).run();
+    if(!deferTokenUse)await env.DB.prepare('UPDATE base44_migration_tokens SET used_at=CURRENT_TIMESTAMP WHERE token_hash=? AND used_at IS NULL').bind(tokenHash).run();
     await env.DB.prepare('INSERT INTO audit_logs(id,actor_id,action,entity_type,entity_id) VALUES(?,?,?,?,?)')
       .bind(uuid(),tokenRow.created_by,academicOnly?'base44_academic_archive_import_completed':'base44_student_and_fee_migration_completed','migration',sourceBatch.slice(0,24)).run();
     return new Response(JSON.stringify({
