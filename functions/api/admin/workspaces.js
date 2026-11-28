@@ -2,7 +2,7 @@ import { requireRole } from '../../_shared/auth.js';
 import { error, isSameOrigin, json, readJson, safeString } from '../../_shared/http.js';
 
 const allowed = new Set([
-  'student-projects','scholarships','certificates','alumni','report-cards','auto-reports','attendance','class-rating','fingerprint','navstar-analytics',
+  'base44-imports','student-projects','scholarships','certificates','alumni','report-cards','auto-reports','attendance','class-rating','fingerprint','navstar-analytics',
   'online-forms','reports','songs-music','news-updates','events','demo-previews','cv-builder','timetable',
   'online-classes','eclass-meetings','student-chat','support-tickets','broadcast-social','sms-alerts','birthday-center',
   'about-us','campus-history','device-management','ict-portal','customer-carts','maintenance'
