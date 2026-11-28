@@ -62,6 +62,14 @@ export async function syncModuleResult(db, userId, moduleId, actorId = null) {
   const score = categoryScore.CAT + categoryScore.Practical + categoryScore.Final;
   const hasAnyMarks = (assignmentRows.results||[]).some(row=>Number(row.marked_count||0)>0) || (examRow.results||[]).some(row=>Number(row.papers||0)>0);
   const hasFinal = maxima.Final > 0 && finalExamPapers > 0;
+  // Preserve a historical Base44 StudentResult until this module has new marks in the
+  // official assessment/assignment engine. Report-card generation calls this synchronizer;
+  // without this guard it would replace imported marks with zeroes before students can see them.
+  const existing = await db.prepare(`SELECT r.*,
+    EXISTS(SELECT 1 FROM base44_student_import_map x
+      WHERE x.entity_name='StudentResult' AND x.destination_id=r.id AND x.user_id=r.user_id) AS imported_legacy
+    FROM student_module_results r WHERE r.user_id=? AND r.module_id=?`).bind(userId,moduleId).first();
+  if (!hasAnyMarks && existing?.imported_legacy) return existing;
   const bands = parseBands(config.grading?.gradeScale);
   const defaults = [
     { grade: 'A', min: 80, max: 100, remarks: 'Excellent performance' },
