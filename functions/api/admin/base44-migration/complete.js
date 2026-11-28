@@ -164,7 +164,7 @@ async function importModuleAssignment(DB,r,adminId,c,sourceUsers) {
     .bind(id,module.destination_id,tutor.id,adminId,clean(r.created_date,40)||new Date().toISOString()).run();
   const saved=await DB.prepare("SELECT id FROM module_tutor_assignments WHERE module_id=? AND tutor_user_id=?").bind(module.destination_id,tutor.id).first();
   if(Number(result.meta?.changes||0)>0)c.moduleAssignmentsImported++;else c.moduleAssignmentsAlreadyPresent++;
-  if(saved?.id)await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('ModuleAssignment',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP")
+  if(saved?.id)await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('ModuleAssignment',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,user_id=excluded.user_id,imported_at=CURRENT_TIMESTAMP,is_overridden=0")
     .bind(sourceId,saved.id,tutor.id).run();
 }
 async function importExam(DB,r,adminId,c,sourceCourses,sourceModules) {
@@ -510,7 +510,8 @@ async function importMarksConflict(DB,r,adminId,c,sourceCourses,sourceModules) {
 }
 async function importStudentResult(DB,r,adminId,c,sourceCourses,sourceModules) {
   const sourceId=sourceRecordId(r);if(!sourceId)return;
-  const mapped=await DB.prepare("SELECT destination_id FROM base44_student_import_map WHERE entity_name='StudentResult' AND source_id=?").bind(sourceId).first();
+  const mapped=await DB.prepare("SELECT destination_id,is_overridden FROM base44_student_import_map WHERE entity_name='StudentResult' AND source_id=?").bind(sourceId).first();
+  if(Number(mapped?.is_overridden||0)===1){c.studentResultsAlreadyPresent++;return;}
   const courseTitle=sourceCourseTitle(r.course_id,sourceCourses);
   const course=await activeCourseFor(DB,courseTitle);
   if(!course){c.studentResultsSkipped++;return;}
