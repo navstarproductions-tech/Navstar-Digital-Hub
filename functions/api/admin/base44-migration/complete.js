@@ -548,11 +548,17 @@ async function ensureHistoricalModule(DB,course,sourceModuleId,moduleCode,module
 async function importDerivedStudent(DB,r,entity,adminId,c) {
   const email=clean(r.student_email||r.email||r.learner_email||r.email_address,254).toLowerCase();
   const name=clean(r.student_name||r.full_name||r.name||r.learner_name,120);
-  const courseTitle=clean(r.course_title||r.course_name||r.programme||r.program||r.course,160);
+  let courseTitle=clean(r.course_title||r.course_name||r.programme||r.program||r.course,160);
+  const sourceCourseId=clean(r.course_id,120);
+  if(!courseTitle&&sourceCourseId) {
+    const mappedCourse=await DB.prepare("SELECT c.title FROM base44_student_import_map m JOIN courses c ON c.id=m.destination_id WHERE m.entity_name='Course' AND m.source_id=? LIMIT 1").bind(sourceCourseId).first();
+    courseTitle=clean(mappedCourse?.title,160);
+  }
   if(!email||!name||!courseTitle)return null;
   const sourceId=sourceRecordId(r);
   if(!sourceId)return null;
   const course=await courseFor(DB,courseTitle,0);
+  if(sourceCourseId)await DB.prepare("INSERT INTO base44_student_import_map(entity_name,source_id,destination_id,user_id) VALUES('Course',?,?,?) ON CONFLICT(entity_name,source_id) DO UPDATE SET destination_id=excluded.destination_id,imported_at=CURRENT_TIMESTAMP").bind(sourceCourseId,course.id,adminId).run();
   const existing=await DB.prepare("SELECT u.id AS user_id,e.id AS enrollment_id,e.admission_number FROM users u JOIN enrollments e ON e.admitted_user_id=u.id WHERE lower(u.email)=lower(?) AND e.course_id=? AND e.status='accepted' ORDER BY e.created_at LIMIT 1").bind(email,course.id).first();
   const requestedAdmission=clean(r.admission_number||r.student_admission_number,80);
   if(existing) {
