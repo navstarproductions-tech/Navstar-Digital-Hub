@@ -315,7 +315,6 @@ async function importExamQuestion(DB,r,adminId,c) {
   const type=typeName.includes('true')?'true_false':typeName.includes('short')?'short_answer':typeName.includes('essay')?'essay':typeName.includes('multiple')?'multiple_choice':'single_choice';
   const options=Array.isArray(r.options)?r.options.map(x=>clean(x,500)).filter(Boolean):[];
   const answer=r.correct_answer===null||r.correct_answer===undefined||r.correct_answer===''?null:r.correct_answer;
-  const points=Math.max(1,Math.min(1000,Math.round(num(r.marks)||1)));
   const id='b44q-'+sourceId.slice(-24);
   const createdBy=examMap.user_id||adminId;
   const result=await DB.prepare("INSERT OR IGNORE INTO course_exam_questions(id,assessment_id,question_text,question_type,options_json,correct_answer_json,explanation,points,sort_order,status,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,'active',?,?)")
