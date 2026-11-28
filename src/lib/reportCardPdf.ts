@@ -1,4 +1,4 @@
-type Report = {report_card_no:string;period_label:string;status:string;snapshot_json?:string|object;snapshot?:any;issued_at?:string;student_name?:string;course_title?:string};
+type Report = {report_card_no:string;period_label:string;status:string;public_token?:string|null;snapshot_json?:string|object;snapshot?:any;issued_at?:string;student_name?:string;course_title?:string};
 type Options={adminCopy?:boolean;documentType?:'report-card'|'transcript'};
 
 const esc=(v:any)=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]||ch));
