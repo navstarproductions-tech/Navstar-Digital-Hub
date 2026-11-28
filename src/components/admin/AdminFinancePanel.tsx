@@ -53,7 +53,7 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
   }, [ledger]);
 
   useEffect(() => {
-    const clock = window.setInterval(() => setClockNow(Date.now()), 30000);
+    const clock = window.setInterval(() => setClockNow(Date.now()), 1000);
     return () => window.clearInterval(clock);
   }, []);
 
@@ -130,8 +130,9 @@ export function AdminFinancePanel({ role, ledger = 'business' }: { role: string;
         <div><p className="text-xs font-black uppercase tracking-[.22em] text-cyan-200">NAVSTAR · LIVE SAFARICOM ACCOUNT</p>
           <h2 className="mt-2 text-sm font-semibold text-blue-100">Available M-PESA balance</h2>
           <p className="mt-1 text-4xl font-black tracking-tight sm:text-5xl">{balance?.balance_amount !== null && balance?.balance_amount !== undefined ? 'KSh ' + money(balance.balance_amount) : (balance?.balance_text || 'Awaiting live balance')}</p>
-          <p className="mt-3 text-xs text-blue-100">{balance?.received_at ? 'Safaricom confirmed: ' + formatEATDateTime(balance.received_at) : 'No successful Safaricom balance callback has been received yet.'}</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs"><span className="rounded-full bg-white/15 px-2.5 py-1 font-bold">{balanceFreshness}</span><span className="text-cyan-100">{balanceAgeLabel}</span></div>
+          <p className="mt-3 text-xs text-blue-100">{balance?.received_at ? 'Last confirmed by Safaricom: ' + formatEATDateTime(balance.received_at) : 'No successful Safaricom balance callback has been received yet.'}</p>
+          <p className="mt-1 text-xs font-semibold text-cyan-100">Current EAT time: {formatEATDateTime(new Date(clockNow).toISOString())}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs"><span className="rounded-full bg-white/15 px-2.5 py-1 font-bold">{balanceFreshness}</span><span className="text-cyan-100">Balance last received {balanceAgeLabel}</span></div>
           {balanceRequestedAt && <p className="mt-2 text-xs text-amber-100">New enquiry sent {formatEATDateTime(balanceRequestedAt)} · checking for Safaricom callback…</p>}
           <p className="mt-2 text-[11px] text-cyan-100">Payment register refreshes every 15 seconds. Balance amount changes only after Safaricom confirms a new callback.</p>
         </div>
