@@ -6,15 +6,20 @@ export async function onRequestGet({ request, env }) {
   const access = await requireRole(request, env, ['admin', 'principal', 'admissions', 'finance']);
   if (access.response) return access.response;
 
-  const ledger=new URL(request.url).searchParams.get('ledger')==='fees'?'fees':'business';
-  const where=ledger==='fees'?"WHERE p.purpose='enrollment' AND p.status='paid'":"WHERE p.purpose IN ('service','donation') AND p.status='paid'";
+  const requested = new URL(request.url).searchParams.get('ledger');
+  const ledger = ['fees', 'business', 'all'].includes(requested) ? requested : 'business';
+  const where = ledger === 'fees'
+    ? "WHERE p.purpose='enrollment' AND p.status='paid'"
+    : ledger === 'business'
+      ? "WHERE p.purpose IN ('service','donation') AND p.status='paid'"
+      : "WHERE p.status='paid'";
   try {
     const [rows, totals, balance] = await Promise.all([
       env.DB.prepare(`
         SELECT p.id, p.purpose, p.display_reference, p.internal_receipt_number AS receipt_number,
           p.receipt_number AS mpesa_receipt, p.amount, p.phone, p.status, p.admin_status,
           p.admin_review_note, p.admin_reviewed_at, p.updated_at, p.created_at,
-          COALESCE(e.full_name, s.customer_name, d.payer_name, 'Supporter') AS payer_name,
+          COALESCE(e.full_name, s.customer_name, d.payer_name, 'Customer') AS payer_name,
           COALESCE(c.title,
             CASE WHEN p.purpose = 'donation' THEN
               CASE d.contribution_type WHEN 'debt_payment' THEN 'Debt / deficit repayment'
@@ -33,12 +38,12 @@ export async function onRequestGet({ request, env }) {
           COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) AS mpesa_received,
           COALESCE(SUM(CASE WHEN status = 'paid' AND admin_status = 'confirmed' THEN amount ELSE 0 END), 0) AS admin_confirmed,
           COALESCE(SUM(CASE WHEN status IN ('pending','initiating') THEN amount ELSE 0 END), 0) AS awaiting_mpesa,
-          COALESCE(SUM(CASE WHEN status = 'paid' AND admin_status IN ('pending_review','flagged') THEN amount ELSE 0 END), 0) AS awaiting_admin_review
+          COALESCE(SUM(CASE WHEN status = 'paid' AND admin_status IN ('pending_review','flagged') THEN 1 ELSE 0 END), 0) AS awaiting_admin_review
         FROM payments p ${where}
       `).first(),
       env.DB.prepare('SELECT balance_text, balance_amount, currency, received_at, result_description FROM mpesa_balance_snapshots ORDER BY created_at DESC LIMIT 1').first()
     ]);
-    return json({ ledger, payments: rows.results || [], totals: totals || {}, mpesaBalance: ledger==='business'?(balance || null):null });
+    return json({ ledger, payments: rows.results || [], totals: totals || {}, mpesaBalance: ledger !== 'fees' ? (balance || null) : null });
   } catch (cause) {
     console.error('Admin payment register failed:', String(cause?.message || cause));
     return error('The payment register is not ready. Confirm that the latest database migrations have been applied.', 503);
