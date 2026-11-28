@@ -8,18 +8,18 @@ const inline=(source:string)=>source
  .replace(/\*(.+?)\*/g,'<em>$1</em>')
  .replace(/~~(.+?)~~/g,'<del>$1</del>')
  .replace(/\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noreferrer" class="font-semibold text-blue-700 underline">$1</a>');
-const allowedHtmlTags = new Set(['div','p','br','hr','h1','h2','h3','h4','h5','h6','strong','b','em','i','u','s','del','ul','ol','li','blockquote','pre','code','table','thead','tbody','tr','th','td','span','sub','sup']);
+const allowedHtmlTags = new Set(['div','p','br','hr','h1','h2','h3','h4','h5','h6','strong','b','em','i','u','s','del','ul','ol','li','blockquote','pre','code','table','thead','tbody','tr','th','td','span','a','sub','sup']);
 function sanitizeRichHtml(source:string){
- const withoutDangerous=source.replace(/<!--[\\s\\S]*?-->/g,'').replace(/<(script|style|iframe|object|embed|form|input|button|textarea|select|svg|math)\\b[^>]*>[\\s\\S]*?<\\/\\1\\s*>/gi,'').replace(/<(script|style|iframe|object|embed|form|input|button|textarea|select|svg|math)\\b[^>]*\\/?\\s*>/gi,'');
- return withoutDangerous.replace(/<\\/?([a-z][a-z0-9-]*)\\b([^>]*)>/gi,(whole,rawTag:string,rawAttrs:string)=>{
+ const withoutDangerous=source.replace(/<!--[\s\S]*?-->/g,'').replace(/<(script|style|iframe|object|embed|form|input|button|textarea|select|svg|math)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,'').replace(/<(script|style|iframe|object|embed|form|input|button|textarea|select|svg|math)\b[^>]*\/?\s*>/gi,'');
+ return withoutDangerous.replace(/<\/?([a-z][a-z0-9-]*)\b([^>]*)>/gi,(whole,rawTag:string,rawAttrs:string)=>{
   const tag=rawTag.toLowerCase();if(!allowedHtmlTags.has(tag))return '';
-  const closing=/^<\\//.test(whole);if(closing)return `</${tag}>`;
+  const closing=/^<\//.test(whole);if(closing)return `</${tag}>`;
   let attrs='';
-  const href=rawAttrs.match(/\\bhref\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))/i);
-  if(href&&['a'].includes(tag)){const url=href[1]||href[2]||href[3]||'';if(/^(https:\\/\\/|mailto:|\\/)/i.test(url)&&!/^\\s*javascript:/i.test(url))attrs+=` href="${url.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"`;}
-  const title=rawAttrs.match(/\\btitle\\s*=\\s*(?:"([^"]*)"|'([^']*)')/i);if(title)attrs+=` title="${(title[1]||title[2]||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"`;
-  const style=rawAttrs.match(/\\bstyle\\s*=\\s*(?:"([^"]*)"|'([^']*)')/i);
-  if(style){const safe=(style[1]||style[2]||'').split(';').map(rule=>rule.trim()).filter(rule=>/^(text-align|font-weight|font-style|text-decoration|color|background-color)\\s*:\\s*[#(),.% a-zA-Z0-9-]+$/i.test(rule)&&!/url|expression|var\\(/i.test(rule)).join(';');if(safe)attrs+=` style="${safe.replace(/"/g,'')}"`;}
+  const href=rawAttrs.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+  if(href&&['a'].includes(tag)){const url=href[1]||href[2]||href[3]||'';if(/^(https:\/\/|mailto:|\/)/i.test(url)&&!/^\s*javascript:/i.test(url))attrs+=` href="${url.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"`;}
+  const title=rawAttrs.match(/\btitle\s*=\s*(?:"([^"]*)"|'([^']*)')/i);if(title)attrs+=` title="${(title[1]||title[2]||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"`;
+  const style=rawAttrs.match(/\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+  if(style){const safe=(style[1]||style[2]||'').split(';').map(rule=>rule.trim()).filter(rule=>/^(text-align|font-weight|font-style|text-decoration|color|background-color)\s*:\s*[#(),.% a-zA-Z0-9-]+$/i.test(rule)&&!/url|expression|var\(/i.test(rule)).join(';');if(safe)attrs+=` style="${safe.replace(/"/g,'')}"`;}
   return `<${tag}${attrs}>`;
  });
 }
