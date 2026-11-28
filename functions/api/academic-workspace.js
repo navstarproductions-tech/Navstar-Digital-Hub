@@ -70,11 +70,11 @@ export async function onRequestGet({request,env}){
  const user=await getSession(request,env);if(!user)return error('Sign in required.',401);
  if(action==='report-cards'){
   if(user.role==='student'){
-   const rows=await env.DB.prepare("SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.course_id,r.snapshot_json,c.title AS course_title FROM academic_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY r.issued_at DESC").bind(user.id).all();
+   const rows=await env.DB.prepare("SELECT r.id,r.user_id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.course_id,r.snapshot_json,c.title AS course_title FROM academic_report_cards r JOIN courses c ON c.id=r.course_id WHERE r.user_id=? ORDER BY r.issued_at DESC").bind(user.id).all();
    return json({reportCards:rows.results||[]});
   }
   if(!staff.includes(user.role))return error('Not authorised.',403);
-  const rows=await env.DB.prepare("SELECT r.id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.approved_at,r.published_at,r.course_id,r.snapshot_json,u.name AS student_name,c.title AS course_title FROM academic_report_cards r JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=r.course_id ORDER BY CASE r.status WHEN 'draft' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,r.issued_at DESC LIMIT 500").all();
+  const rows=await env.DB.prepare("SELECT r.id,r.user_id,r.report_card_no,r.period_label,r.public_token,r.issued_at,r.status,r.approved_at,r.published_at,r.course_id,r.snapshot_json,u.name AS student_name,c.title AS course_title FROM academic_report_cards r JOIN users u ON u.id=r.user_id JOIN courses c ON c.id=r.course_id ORDER BY CASE r.status WHEN 'draft' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,r.issued_at DESC LIMIT 500").all();
   return json({reportCards:rows.results||[]});
  }
  if(action==='messages'){
