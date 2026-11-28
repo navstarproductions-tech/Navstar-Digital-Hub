@@ -135,8 +135,13 @@ export function Base44MigrationPage() {
         headers: { 'Authorization': 'Bearer ' + tokenData.token, 'Content-Type': 'application/json' },
         body: JSON.stringify({ batchId: selectedBatch, archiveReplay: true })
       });
-      const completion = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error([completion.error || 'Saved academic records could not be connected.', completion.detail || '', completion.progress ? JSON.stringify(completion.progress) : ''].filter(Boolean).join(' · '));
+      const responseText = await response.text();
+      let completion: Record<string, unknown> = {};
+      try { completion = responseText ? JSON.parse(responseText) as Record<string, unknown> : {}; } catch { completion = {}; }
+      if (!response.ok) {
+        const detail = [String(completion.error || ''), String(completion.detail || ''), completion.progress ? JSON.stringify(completion.progress) : '', !completion.error && !completion.detail ? responseText.slice(0, 1200) : '', 'HTTP ' + response.status].filter(Boolean).join(' · ');
+        throw new Error(detail || 'The saved package could not be connected. HTTP ' + response.status + '.');
+      }
       setResult({ ...completion, recordsReceived: archive?.batch?.savedRecords || 0, detectedEntities: (archive?.entities || []).filter(x => ['Enrollment','AcademicIntake','FeeStructure','FeePayment','AdditionalFee','Course','CourseUnit','ModuleAssignment','SystemUser','StaffApplication','Exam','ExamQuestion','ExamAttempt','StudentResult','Assignment','AssignmentSubmission','ExamSettings','SystemSettings','GradingSystem','MarksApproval','MarksConflict'].includes(x.entityName)).length });
       await loadArchive(selectedBatch);
       setProgress('Saved system records have been processed. Refresh the relevant portals to view the connected records.');
