@@ -186,6 +186,7 @@ export async function onRequestPost({ request, env }) {
   }
   if (action === 'approve_assignment_mark') { const access=await requireRole(request,env,['admin','principal']); if(access.response)return access.response; }
   if (action === 'update_assignment') { const access=await requireRole(request,env,['admin','principal','tutor']); if(access.response)return access.response; }
+  if (action === 'archive_assignment') { const access=await requireRole(request,env,['admin','principal','tutor']); if(access.response)return access.response; }
   if (action === 'delete_module') { const access=await requireRole(request,env,['admin','principal']); if(access.response)return access.response; }
   if (['assign_tutor','remove_tutor','assign_module_tutor','remove_module_tutor'].includes(action)) {
     const access = await requireRole(request, env, ['admin','principal']);
@@ -380,6 +381,16 @@ export async function onRequestPost({ request, env }) {
       .bind(courseId,moduleId,title,instructions,dueAt,maxPoints,categoryOutOf,marksCategory,status,assignmentId).run();
     await writeAudit(env.DB,user.id,'lms_assignment_updated','course_assignment',assignmentId);
     return json({id:assignmentId,status,saved:true});
+  }
+
+  if (action === 'archive_assignment') {
+    const assignmentId=safeString(body.assignmentId,80);
+    const assignment=await env.DB.prepare('SELECT id,course_id,module_id FROM course_assignments WHERE id=?').bind(assignmentId).first();
+    if(!assignment||!(await hasCourseAccess(env.DB,user,assignment.course_id)))return error('Assignment not found or course access denied.',404);
+    if(user.role==='tutor'&&(!assignment.module_id||!(await hasModuleAccess(env.DB,user,assignment.module_id,assignment.course_id))))return error('Tutors can archive assignments only in modules allocated to them.',403);
+    await env.DB.prepare("UPDATE course_assignments SET status='archived',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(assignmentId).run();
+    await writeAudit(env.DB,user.id,'lms_assignment_archived','course_assignment',assignmentId);
+    return json({id:assignmentId,status:'archived',archived:true,message:'Assignment archived. Existing learner submissions and marks have been preserved.'});
   }
 
   if (action === 'mark_lesson') {
